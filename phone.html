@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1117">
+<title>SIM Phone</title>
+<link rel="icon" type="image/png" href="phone-icon-192.png">
+<style>
+:root{--bg:#0f1117;--panel:#171a23;--panel2:#1f2330;--line:#2a2f3f;--text:#e8eaf0;--sub:#8b92a8;--accent:#f59f3a;--accent2:#e8821a;--ok:#34c38f;--danger:#ff5d5d}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer;white-space:nowrap}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent2);border-color:var(--accent2);color:#fff}
+button.danger{color:var(--danger)}
+input,textarea,select{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;outline:none;width:100%}
+input:focus,textarea:focus{border-color:var(--accent)}
+svg{display:block}
+.ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.view{display:none;flex:1;min-height:0;flex-direction:column}
+.view.on{display:flex}
+.bar{display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top));background:var(--panel);border-bottom:1px solid var(--line)}
+.bar h1{font-size:18px;font-weight:700}.bar h1 span{color:var(--accent)}
+.bar .t{font-size:16px;font-weight:700;flex:1;text-align:center}
+.spacer{flex:1}
+.ibtn{width:38px;height:38px;padding:0;display:flex;align-items:center;justify-content:center;flex:none}
+a.back{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:20px;flex:none}
+/* 목록 */
+.tools{padding:10px 14px 6px;background:var(--bg)}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px;margin-top:8px}
+.seg button{flex:1;border:none;background:none;padding:7px 0;font-weight:700;color:var(--sub);border-radius:9px}
+.seg button.on{background:var(--panel2);color:var(--accent)}
+.cnt{font-size:12px;color:var(--sub);padding:6px 16px 0}
+.lwrap{position:relative;flex:1;min-height:0}
+#list{position:absolute;inset:0;overflow-y:auto;padding:4px 30px 90px 14px;-webkit-overflow-scrolling:touch}
+.sec{position:sticky;top:0;z-index:2;background:var(--bg);padding:8px 4px 5px;font-size:13px;font-weight:800;color:var(--accent);display:flex;gap:6px;align-items:center}
+.sec small{color:var(--sub);font-weight:600}
+.row{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.row:active{background:var(--panel2)}
+.row .tx{flex:1;min-width:0}
+.row .tx b{display:block;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .tx small{display:block;font-size:12.5px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.row .call{flex:none;width:40px;height:40px;border-radius:50%;background:#14342a;color:#4ade80;display:flex;align-items:center;justify-content:center;text-decoration:none}
+.row .cdi{color:var(--sub);flex:none}
+.av{flex:none;width:44px;height:44px;border-radius:50%;color:#fff;font-size:18px;font-weight:800;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.av img{width:100%;height:100%;object-fit:cover;display:block}
+.av.big{width:92px;height:92px;font-size:38px;margin:0 auto}
+#idx{position:absolute;right:2px;top:50%;transform:translateY(-50%);z-index:5;display:flex;flex-direction:column;align-items:center;background:rgba(31,35,48,.85);border-radius:10px;padding:3px 0;max-height:70%;overflow:hidden}
+#idx button{border:none;background:none;font-size:10.5px;font-weight:800;color:var(--accent);padding:1.5px 6px;line-height:1.15;border-radius:0}
+.empty{padding:60px 14px;text-align:center;color:var(--sub);line-height:1.7}
+.fab{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;background:var(--accent2);border-color:var(--accent2);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px #0008;z-index:10;padding:0}
+.fab .ic{width:26px;height:26px;stroke-width:2.2}
+/* 상세 */
+.body{flex:1;overflow-y:auto;padding:14px 14px 60px;-webkit-overflow-scrolling:touch}
+.hero{text-align:center;padding:6px 0 14px}
+.hero h2{margin:12px 0 2px;font-size:22px}
+.hero p{color:var(--sub);font-size:14px}
+.chip{display:inline-block;margin-top:8px;padding:3px 11px;border-radius:99px;background:#3a2a14;color:var(--accent);font-size:12px;font-weight:700}
+.acts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.acts .ac{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 2px 10px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--text);text-decoration:none;font:inherit}
+.acts .ac small{font-size:11.5px;font-weight:700}
+.acts .ac.off{opacity:.35;pointer-events:none}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin-bottom:12px}
+.box .r{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);font-size:15px}
+.box .r:last-child{border-bottom:none}
+.box .r span{flex:none;width:64px;color:var(--sub);font-weight:600}
+.box .r b{font-weight:600;word-break:break-all;min-width:0}
+.box .r a{color:var(--text);text-decoration:none}
+.cardimg{width:100%;border-radius:10px;border:1px solid var(--line);display:block;margin:10px 0}
+.hd{font-size:12.5px;font-weight:700;color:var(--sub);padding-top:10px}
+/* 편집 */
+.ph{text-align:center}
+.photo{width:104px;height:104px;border-radius:50%;background:#3a4156;margin:2px auto 12px;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:40px;font-weight:800;color:#fff}
+.photo img{width:100%;height:100%;object-fit:cover}
+.pbtn{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.f{margin-top:12px}
+.f label{display:block;font-size:12px;color:var(--sub);margin-bottom:5px}
+.gc{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.gc button{border-radius:99px;padding:4px 12px;font-size:12.5px;color:var(--accent);background:#3a2a14;border-color:#3a2a14}
+.cardpv img{width:100%;border-radius:10px;border:1px solid var(--line);display:block;margin-top:10px}
+.cardpv .x{margin-top:8px;background:#3a1717;border-color:#3a1717;color:var(--danger)}
+/* 메뉴/모달 */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;padding:16px;z-index:60}
+.modal.show{display:flex}
+.mbox{width:100%;max-width:440px;max-height:90vh;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.mbox h2{font-size:16px;margin-bottom:8px}
+.mbox .sub{font-size:12px;color:var(--sub);margin-bottom:10px;line-height:1.5}
+.menu button{display:block;width:100%;text-align:left;margin-top:8px;padding:13px 14px}
+.menu small{display:block;color:var(--sub);font-size:12px;margin-top:2px}
+.row2{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+#scWrap{position:relative;margin:0 auto;touch-action:none;user-select:none;-webkit-user-select:none;background:#000}
+#scCv{display:block;width:100%;height:100%}
+#scSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#scPoly{fill:rgba(245,159,58,.15);stroke:var(--accent);stroke-width:2}
+.scH{position:absolute;width:32px;height:32px;margin:-16px 0 0 -16px;border-radius:50%;background:var(--accent);border:3px solid #fff;box-shadow:0 1px 4px #0008;touch-action:none;box-sizing:border-box}
+.fl{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.fl button.on{background:#3a2a14;border-color:var(--accent);color:#fff}
+#busy{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:90;color:#fff;font-size:15px;text-align:center;padding:20px}
+#busy.show{display:flex}
+#busy div{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 26px;max-width:320px;line-height:1.6}
+#imgov{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;padding:12px}
+#imgov.on{display:flex}#imgov img{max-width:100%;max-height:100%;border-radius:8px}
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222a3d;border:1px solid var(--line);padding:9px 16px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:90vw;text-align:center}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- 목록 -->
+<section class="view on" id="vList">
+  <div class="bar">
+    <a class="back" href="index.html" aria-label="SIM Tools 런처로">‹</a>
+    <h1>SIM <span>Phone</span></h1>
+    <div class="spacer"></div>
+    <button class="ibtn" id="btnCard" title="명함 스캔" aria-label="명함 스캔"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h3l1.5-2h7L17 7h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V8a1 1 0 011-1z"/><circle cx="12" cy="13" r="3.6"/></svg></button>
+    <button class="ibtn" id="btnMenu" title="더보기" aria-label="더보기"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></button>
+  </div>
+  <div class="tools">
+    <input id="q" type="search" placeholder="이름 · 회사 · 전화번호 · 메모 검색" autocomplete="off">
+    <div class="seg" id="seg"><button data-by="name" class="on">이름</button><button data-by="group">그룹</button><button data-by="company">회사</button></div>
+  </div>
+  <div class="cnt" id="cnt"></div>
+  <div class="lwrap"><div id="list"></div><div id="idx"></div></div>
+  <button class="fab" id="btnAdd" title="연락처 추가" aria-label="연락처 추가"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+</section>
+
+<!-- 상세 -->
+<section class="view" id="vDet">
+  <div class="bar">
+    <button class="ibtn" id="detBack" aria-label="뒤로">‹</button>
+    <div class="t">연락처</div>
+    <button id="detEdit">수정</button>
+    <button class="danger" id="detDel">삭제</button>
+  </div>
+  <div class="body" id="detBody"></div>
+</section>
+
+<!-- 편집 -->
+<section class="view" id="vEd">
+  <div class="bar">
+    <button id="edCancel">취소</button>
+    <div class="t" id="edTtl">연락처 추가</div>
+    <button class="primary" id="edSave">저장</button>
+  </div>
+  <div class="body">
+    <div class="ph">
+      <div class="photo" id="edPhoto"></div>
+      <div class="pbtn">
+        <button id="edPhotoPick">사진 선택</button>
+        <button id="edPhotoDel" class="danger">사진 삭제</button>
+        <button id="edCardScan">명함 스캔</button>
+      </div>
+      <input type="file" id="photoFile" accept="image/*" hidden>
+    </div>
+    <div class="cardpv" id="edCardPv"></div>
+    <div class="f"><label>이름</label><input id="fName" autocomplete="off"></div>
+    <div class="f"><label>회사</label><input id="fCompany" autocomplete="off"></div>
+    <div class="f"><label>직책</label><input id="fTitle" autocomplete="off"></div>
+    <div class="f"><label>그룹</label><input id="fGroup" list="groupList" autocomplete="off" placeholder="예: 거래처, 가족"><datalist id="groupList"></datalist><div class="gc" id="edGc"></div></div>
+    <div class="f"><label>휴대폰</label><input id="fMobile" type="tel" inputmode="tel" autocomplete="off"></div>
+    <div class="f"><label>회사 전화</label><input id="fTel" type="tel" inputmode="tel" autocomplete="off"></div>
+    <div class="f"><label>팩스</label><input id="fFax" type="tel" inputmode="tel" autocomplete="off"></div>
+    <div class="f"><label>이메일</label><input id="fEmail" type="email" inputmode="email" autocomplete="off"></div>
+    <div class="f"><label>주소</label><input id="fAddr" autocomplete="off"></div>
+    <div class="f"><label>메모</label><textarea id="fMemo" rows="4"></textarea></div>
+  </div>
+</section>
+
+<!-- 더보기 -->
+<div class="modal" id="mMenu"><div class="mbox menu">
+  <h2>더보기</h2>
+  <button id="mnExport">📤 전체 연락처 내보내기 (.vcf)<small>폰 연락처 앱이나 다른 기기로 옮길 수 있는 표준 파일</small></button>
+  <button id="mnImport">📥 연락처 가져오기 (.vcf)<small>폰에서 내보낸 vCard 파일을 읽어 옵니다 (같은 번호·이메일은 건너뜀)</small></button>
+  <button id="mnBackup">💾 백업 파일 저장 (.json)<small>사진·명함 이미지까지 모두 포함한 이 앱 전용 백업</small></button>
+  <button id="mnRestore">♻️ 백업에서 복원 (.json)<small>백업 파일의 연락처를 합쳐 넣습니다</small></button>
+  <div class="row2"><button id="mnClose">닫기</button></div>
+  <input type="file" id="vcfFile" accept=".vcf,text/vcard,text/x-vcard" hidden>
+  <input type="file" id="jsonFile" accept=".json,application/json" hidden>
+</div></div>
+
+<!-- 명함/문서 스캔 -->
+<div class="modal" id="mScan"><div class="mbox" style="max-width:540px">
+  <h2>명함 스캔</h2>
+  <div class="sub">네 개의 ● 를 명함 모서리에 맞춘 뒤 <b>적용</b>하면 반듯하게 펴서 글자를 읽습니다.</div>
+  <div id="scWrap"><canvas id="scCv"></canvas><svg id="scSvg"><polygon id="scPoly"/></svg></div>
+  <div class="fl" id="scFilters"><button data-sf="orig">원본</button><button data-sf="doc" class="on">선명</button><button data-sf="bw">흑백</button></div>
+  <div class="row2" style="justify-content:space-between">
+    <span style="display:flex;gap:8px"><button id="scRot">⟳ 회전</button><button id="scAuto">✨ 자동 감지</button></span>
+    <span style="display:flex;gap:8px"><button id="scCancel">취소</button><button class="primary" id="scOk">적용</button></span>
+  </div>
+</div></div>
+<input type="file" id="scanFile" accept="image/*" capture="environment" hidden>
+<input type="file" id="scanPick" accept="image/*" hidden>
+
+<div id="imgov"><img alt=""></div>
+<div id="busy"><div id="busyMsg">처리 중…</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let toastT; function toast(m, ms) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms || 2400); }
+const busy = m => { $('busyMsg').textContent = m; $('busy').classList.add('show'); }, unbusy = () => $('busy').classList.remove('show');
+const nextFrame = () => new Promise(r => setTimeout(r, 30));
+const rid = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const ICON = {
+  phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z"/>',
+  sms: '<path d="M4 5h16a1 1 0 011 1v10a1 1 0 01-1 1H9l-5 4v-4a1 1 0 01-1-1V6a1 1 0 011-1z"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+  dl: '<path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>',
+  card: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.5-2 5.5-2 6 0M14 10h4M14 14h3"/>'
+};
+const ic = k => '<svg class="ic" viewBox="0 0 24 24">' + ICON[k] + '</svg>';
+
+/* ───────── 저장소 ───────── */
+let db = null, contacts = [], mem = false;
+function openDB() { return new Promise((res, rej) => { if (!window.indexedDB) return rej(new Error('no idb')); const r = indexedDB.open('simphone', 1); r.onupgradeneeded = () => r.result.createObjectStore('contacts', { keyPath: 'id' }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+const st = m => db.transaction('contacts', m).objectStore('contacts');
+const dbAll = () => new Promise((res, rej) => { const q = st('readonly').getAll(); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+const dbPut = c => new Promise((res, rej) => { const q = st('readwrite').put(c); q.onsuccess = () => res(); q.onerror = () => rej(q.error); });
+const dbDel = id => new Promise((res, rej) => { const q = st('readwrite').delete(id); q.onsuccess = () => res(); q.onerror = () => rej(q.error); });
+async function saveContact(c) {
+  const now = new Date().toISOString();
+  const row = { id: c.id || rid(), name: c.name || '', title: c.title || '', company: c.company || '', group_name: c.group_name || '', mobile: c.mobile || '', tel: c.tel || '', fax: c.fax || '', email: c.email || '', address: c.address || '', memo: c.memo || '', photo: c.photo || '', card_img: c.card_img || '', created_at: c.created_at || now, updated_at: now };
+  if (db) await dbPut(row);
+  const i = contacts.findIndex(o => o.id === row.id); if (i >= 0) contacts[i] = row; else contacts.push(row);
+  return row;
+}
+async function deleteContact(id) { if (db) await dbDel(id); contacts = contacts.filter(c => c.id !== id); }
+const digits = s => String(s || '').replace(/\D/g, '');
+function findDup(c, selfId) {
+  const ph = [c.mobile, c.tel].map(digits).filter(d => d.length >= 8), em = String(c.email || '').trim().toLowerCase();
+  return contacts.find(o => o.id !== selfId && ((ph.length && [o.mobile, o.tel].map(digits).some(d => d && ph.includes(d))) || (em && String(o.email || '').trim().toLowerCase() === em)));
+}
+
+/* ───────── 명함 글자 해석·정렬 (TA 관리 앱의 연락처 코드에서 가져옴) ───────── */
+const TA4_CHO = 'ㄱㄱㄴㄷㄷㄹㅁㅂㅂㅅㅅㅇㅈㅈㅊㅋㅌㅍㅎ';
+function ta4Initial(name) {
+  const ch = String(name || '').trim().charAt(0); if (!ch) return '#';
+  const c = ch.charCodeAt(0);
+  if (c >= 0xAC00 && c <= 0xD7A3) return TA4_CHO[Math.floor((c - 0xAC00) / 588)];
+  if (c >= 0x3131 && c <= 0x314E) return ({ 'ㄲ': 'ㄱ', 'ㄸ': 'ㄷ', 'ㅃ': 'ㅂ', 'ㅆ': 'ㅅ', 'ㅉ': 'ㅈ' })[ch] || ch;
+  if (/[a-z]/i.test(ch)) return ch.toUpperCase();
+  return '#';
+}
+function ta4InitialRank(k) { return /[ㄱ-ㅎ]/.test(k) ? 0 : /[A-Z]/.test(k) ? 1 : 2; }
+const TA4_TITLE_RE = /(대표이사|대표|이사|부장|차장|과장|대리|사원|팀장|실장|본부장|지점장|지사장|소장|사장|상무|전무|부사장|회장|매니저|주임|계장|원장|관장|센터장|책임|선임|수석|국장|팀원|점장|총무|Manager|Director|President|CEO|Engineer|Executive|Leader|Specialist|Representative)/i;
+const TA4_COMP_RE = /(주식회사|\(주\)|㈜|\(유\)|유한회사|Co\.?,?\s*Ltd|Inc\.?|Corp|Ltd|회사|병원|학교|센터|은행|건설|전자|그룹|협회|공단|조합|상사|산업|시스템|기업|재단|법인|사무소|호텔|마트|약국|의원|학원|교회|농협|보험|증권|캐피탈|아파트|빌딩)/i;
+function ta4FmtPhone(raw) {
+  let d = String(raw || '').replace(/[^0-9]/g, ''); if (d.startsWith('82') && d.length >= 11) d = '0' + d.slice(2);
+  if (/^1[568]\d{6}$/.test(d)) return d.slice(0, 4) + '-' + d.slice(4);
+  if (d.startsWith('02')) return d.length === 9 ? `02-${d.slice(2, 5)}-${d.slice(5)}` : `02-${d.slice(2, 6)}-${d.slice(6)}`;
+  if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  return d;
+}
+function ta4CardParseBase(raw) {
+  const out = { name: '', title: '', company: '', mobile: '', tel: '', fax: '', email: '', address: '' };
+  const lines = String(raw || '').split(/\r?\n/).map(s => s.replace(/[|｜¦]/g, ' ').replace(/\s+/g, ' ').trim()).filter(s => s.length > 1);
+  const used = new Set();
+  lines.forEach((ln, i) => {
+    if (out.email) return;
+    const t = ln.replace(/^\s*(e-?mail|email|e|이메일|메일)\s*[.:]\s*/i, '').replace(/\s*@\s*/g, '@').replace(/\s*\.\s*(?=[A-Za-z])/g, '.');
+    const m = t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/);
+    if (m) { out.email = m[0].toLowerCase(); used.add(i); }
+  });
+  const NUM = /(?:\+?82[-\s.)]*\(?0?|\(?0)\d{1,2}\)?[-\s.)]*\d{3,4}[-\s.]*\d{4}|\b1[568]\d{2}[-\s.]\d{4}\b/g;
+  lines.forEach((ln, i) => {
+    let m, any = false; NUM.lastIndex = 0;
+    while ((m = NUM.exec(ln))) {
+      any = true;
+      const pre = ln.slice(Math.max(0, m.index - 10), m.index), num = ta4FmtPhone(m[0]), d = num.replace(/\D/g, '');
+      if (/(fax|팩스|f)\s*[.:\-]?\s*\)?\s*$/i.test(pre)) { if (!out.fax) out.fax = num; }
+      else if (/^01[016-9]/.test(d)) { if (!out.mobile) out.mobile = num; }
+      else if (!out.tel) out.tel = num;
+    }
+    if (any) used.add(i);
+  });
+  const ADDR = /(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)/;
+  lines.forEach((ln, i) => { if (!out.address && !used.has(i) && (ADDR.test(ln) && /[0-9]/.test(ln) || /[가-힣]+(시|군|구)\s.*(로|길|동)\s?\d/.test(ln))) { out.address = ln.replace(/^(주소|Address|Add)\s*[.:]?\s*/i, ''); used.add(i); } });
+  // 직책 (같은 줄에 이름이 있으면 분리)
+  lines.forEach((ln, i) => {
+    if (out.title || used.has(i) || ln.length > 24 || !TA4_TITLE_RE.test(ln) || TA4_COMP_RE.test(ln)) return;
+    const toks = ln.split(' ');
+    if (toks.length > 1) {
+      const nameTok = toks.find(t => /^[가-힣]{2,4}$/.test(t) && !TA4_TITLE_RE.test(t));
+      if (nameTok) { out.name = nameTok; out.title = toks.filter(t => t !== nameTok).join(' '); used.add(i); return; }
+    }
+    out.title = ln; used.add(i);
+  });
+  lines.forEach((ln, i) => { if (!out.company && !used.has(i) && TA4_COMP_RE.test(ln)) { out.company = ln; used.add(i); } });
+  if (!out.name) lines.forEach((ln, i) => {
+    if (out.name || used.has(i)) return;
+    const c = /^[가-힣](\s[가-힣]){1,3}$/.test(ln) ? ln.replace(/\s/g, '') : ln;
+    if (/^[가-힣]{2,4}$/.test(c)) { out.name = c; used.add(i); }
+  });
+  if (!out.name) lines.forEach((ln, i) => { if (!out.name && !used.has(i) && /^[A-Z][a-z]+(\s[A-Z][a-z]+){1,2}$/.test(ln)) { out.name = ln; used.add(i); } });
+  return out;
+}
+
+// SIM Phone 보강: 이름 줄 끝에 잡음 글자가 붙어 이름을 못 찾은 경우(예: "김민수 sem") 줄 맨 앞 한글 2~4자를 이름으로 본다
+function ta4CardParse(raw) {
+  const o = ta4CardParseBase(raw);
+  if (!o.name) {
+    const lines = String(raw || '').split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    for (const ln of lines) {
+      if (ln.length > 16 || TA4_COMP_RE.test(ln) || /[0-9@]/.test(ln)) continue;
+      const m = /^([가-힣]{2,4})(?:\s|$)/.exec(ln);
+      if (m && !TA4_TITLE_RE.test(m[1])) { o.name = m[1]; break; }
+    }
+  }
+  return o;
+}
+
+
+/* ───────── 목록 ───────── */
+const AV = ['#2f6bff', '#0ea5a4', '#d9488a', '#f08c1f', '#7c5cff', '#16a34a', '#e5484d', '#0b7285'];
+const S = { q: '', by: 'name', cur: '', ed: null };
+function avatar(c, big) {
+  const nm = String(c.name || c.company || '?').trim(), col = AV[(nm.charCodeAt(0) || 0) % AV.length];
+  return c.photo ? '<div class="av' + (big ? ' big' : '') + '"><img src="' + c.photo + '" alt=""></div>' : '<div class="av' + (big ? ' big' : '') + '" style="background:' + col + '">' + esc(nm.charAt(0).toUpperCase()) + '</div>';
+}
+const callNo = c => String(c.mobile || c.tel || '').replace(/[^0-9+]/g, '');
+const cmp = (a, b) => String(a.name || a.company || '').localeCompare(String(b.name || b.company || ''), 'ko');
+function renderList() {
+  const q = S.q.trim().toLowerCase(), qd = digits(q), by = S.by;
+  document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('on', b.dataset.by === by));
+  const arr = contacts.filter(c => !q || [c.name, c.company, c.title, c.group_name, c.email, c.memo, c.address].join(' ').toLowerCase().includes(q) || (qd.length >= 2 && [c.mobile, c.tel].map(digits).join(' ').includes(qd))).sort(cmp);
+  $('cnt').textContent = contacts.length + '명' + (q ? ' · 검색 ' + arr.length + '명' : '');
+  const box = $('list');
+  if (!arr.length) { box.innerHTML = '<div class="empty">' + (contacts.length ? '검색 결과가 없습니다' : '등록된 연락처가 없습니다<br><small>오른쪽 아래 ＋로 추가하거나, 위쪽 카메라 버튼으로 명함을 스캔하세요</small>') + '</div>'; $('idx').innerHTML = ''; return; }
+  const keyOf = c => by === 'group' ? (c.group_name || '미분류') : by === 'company' ? (c.company || '회사 미지정') : ta4Initial(c.name || c.company);
+  const map = new Map(); arr.forEach(c => { const k = keyOf(c); if (!map.has(k)) map.set(k, []); map.get(k).push(c); });
+  const keys = [...map.keys()];
+  if (by === 'name') keys.sort((a, b) => ta4InitialRank(a) - ta4InitialRank(b) || (a < b ? -1 : a > b ? 1 : 0));
+  else keys.sort((a, b) => (a === '미분류' || a === '회사 미지정') - (b === '미분류' || b === '회사 미지정') || a.localeCompare(b, 'ko'));
+  box.innerHTML = keys.map((k, i) => '<div class="sec" id="s' + i + '">' + esc(k) + '<small>' + map.get(k).length + '</small></div>' + map.get(k).map(c => {
+    const no = callNo(c), sub = [c.company, c.title].filter(Boolean).join(' · ') || (c.mobile || c.tel || '');
+    return '<div class="row" data-id="' + esc(c.id) + '">' + avatar(c) + '<div class="tx"><b>' + esc(c.name || c.company || '(이름 없음)') + '</b><small>' + esc(sub) + '</small></div>' +
+      (c.card_img ? '<span class="cdi" title="명함 있음">' + ic('card') + '</span>' : '') +
+      (no ? '<a class="call" href="tel:' + esc(no) + '" aria-label="전화">' + ic('phone') + '</a>' : '') + '</div>';
+  }).join('')).join('');
+  $('idx').innerHTML = by === 'name' && keys.length > 2 ? keys.map((k, i) => '<button type="button" data-j="' + i + '">' + esc(k) + '</button>').join('') : '';
+}
+$('q').addEventListener('input', e => { S.q = e.target.value; renderList(); });
+$('seg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { S.by = b.dataset.by; renderList(); } });
+$('idx').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { const s = $('s' + b.dataset.j); if (s) s.scrollIntoView({ block: 'start' }); } });
+$('list').addEventListener('click', e => { if (e.target.closest('.call')) return; const r = e.target.closest('.row'); if (r) openDetail(r.dataset.id); });
+
+/* ───────── 화면 전환 (안드로이드 뒤로가기 지원) ───────── */
+const stack = ['vList'];
+function show(id, push) {
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === id));
+  if (push) { stack.push(id); try { history.pushState({ v: id }, ''); } catch (_) {} }
+}
+let skipPop = 0;
+function showTop() { const v = stack[stack.length - 1]; show(v); if (v === 'vList') renderList(); else if (v === 'vDet') renderDetail(); }
+function back() { if (stack.length > 1) { stack.pop(); showTop(); skipPop++; try { history.back(); } catch (_) { skipPop--; } } }
+window.addEventListener('popstate', () => { if (skipPop) { skipPop--; return; } if (stack.length > 1) { stack.pop(); showTop(); } });
+try { history.replaceState({ v: 'vList' }, ''); } catch (_) {}
+
+/* ───────── 상세 ───────── */
+function openDetail(id) { if (!contacts.find(c => c.id === id)) return; S.cur = id; renderDetail(); show('vDet', true); }
+function renderDetail() {
+  const c = contacts.find(x => x.id === S.cur); if (!c) return;
+  const lnk = (t, v) => v ? '<a href="' + t + ':' + esc(String(v).replace(t === 'tel' ? /[^0-9+]/g : /\s/g, '')) + '">' + esc(v) + '</a>' : '';
+  const row = (k, v) => v ? '<div class="r"><span>' + k + '</span><b>' + v + '</b></div>' : '';
+  const act = (k, lb, h, on) => (h ? '<a href="' + h + '"' : '<button type="button" data-act="' + on + '"') + ' class="ac' + (h || on ? '' : ' off') + '">' + ic(k) + '<small>' + lb + '</small></' + (h ? 'a' : 'button') + '>';
+  const no = callNo(c), sm = String(c.mobile || '').replace(/[^0-9+]/g, '');
+  $('detBody').innerHTML =
+    '<div class="hero">' + avatar(c, true) + '<h2>' + esc(c.name || c.company || '(이름 없음)') + '</h2><p>' + esc([c.company, c.title].filter(Boolean).join(' · ')) + '</p>' + (c.group_name ? '<span class="chip">' + esc(c.group_name) + '</span>' : '') + '</div>' +
+    '<div class="acts">' + act('phone', '전화', no ? 'tel:' + esc(no) : '', '') + act('sms', '문자', sm ? 'sms:' + esc(sm) : '', '') + act('mail', '메일', c.email ? 'mailto:' + esc(c.email) : '', '') + act('dl', '내 폰에 저장', '', 'save') + '</div>' +
+    '<div class="box">' + row('휴대폰', lnk('tel', c.mobile)) + row('회사전화', lnk('tel', c.tel)) + row('팩스', esc(c.fax)) + row('이메일', lnk('mailto', c.email)) + row('주소', esc(c.address)) + row('회사', esc(c.company)) + row('메모', esc(c.memo).replace(/\n/g, '<br>')) + row('등록일', esc(String(c.created_at || '').slice(0, 10))) + '</div>' +
+    (c.card_img ? '<div class="box"><div class="hd">명함</div><img class="cardimg" src="' + c.card_img + '" alt="명함" data-big="1"></div>' : '');
+}
+$('detBody').addEventListener('click', e => {
+  if (e.target.dataset.big) { const o = $('imgov'); o.querySelector('img').src = e.target.src; o.classList.add('on'); return; }
+  const b = e.target.closest('[data-act="save"]'); if (b) saveToPhone(contacts.find(x => x.id === S.cur));
+});
+$('imgov').onclick = () => $('imgov').classList.remove('on');
+$('detBack').onclick = back;
+$('detEdit').onclick = () => openEdit(S.cur);
+$('detDel').onclick = async () => {
+  const c = contacts.find(x => x.id === S.cur); if (!c) return;
+  if (!confirm((c.name || c.company || '이 연락처') + ' 연락처를 삭제할까요? 되돌릴 수 없습니다.')) return;
+  try { await deleteContact(c.id); back(); renderList(); toast('삭제됨'); } catch (_) { toast('삭제하지 못했습니다'); }
+};
+
+/* ───────── vCard ───────── */
+function vcard(c) {
+  const e = s => String(s || '').replace(/[\;,]/g, m => '\\' + m).replace(/\r?\n/g, '\\n');
+  const nm = c.name || c.company || '연락처', L = ['BEGIN:VCARD', 'VERSION:3.0', 'FN:' + e(nm), 'N:;' + e(nm) + ';;;'];
+  if (c.company) L.push('ORG:' + e(c.company)); if (c.title) L.push('TITLE:' + e(c.title));
+  const d = s => String(s || '').replace(/[^0-9+]/g, '');
+  if (c.mobile) L.push('TEL;TYPE=CELL,VOICE:' + d(c.mobile)); if (c.tel) L.push('TEL;TYPE=WORK,VOICE:' + d(c.tel)); if (c.fax) L.push('TEL;TYPE=WORK,FAX:' + d(c.fax));
+  if (c.email) L.push('EMAIL;TYPE=INTERNET:' + e(c.email)); if (c.address) L.push('ADR;TYPE=WORK:;;' + e(c.address) + ';;;;');
+  if (c.group_name) L.push('CATEGORIES:' + e(c.group_name));
+  if (c.photo && /^data:image\/jpeg;base64,/.test(c.photo)) L.push(('PHOTO;ENCODING=b;TYPE=JPEG:' + c.photo.split(',')[1]).replace(/(.{74})/g, '$1\r\n '));
+  if (c.memo) L.push('NOTE:' + e(c.memo));
+  L.push('END:VCARD'); return L.join('\r\n');
+}
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 8000);
+}
+async function saveToPhone(c) {
+  if (!c) return; const text = vcard(c), fname = ((c.name || 'contact').replace(/[^\w가-힣]/g, '_')) + '.vcf';
+  try {
+    const file = new File([text], fname, { type: 'text/vcard' });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: c.name || '연락처' }); toast('공유 창에서 "연락처"를 선택해 저장하세요', 4000); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+  } catch (_) {}
+  download(fname, text, 'text/x-vcard;charset=utf-8'); toast(fname + ' 파일을 열어 연락처 앱에 저장하세요', 4500);
+}
+function parseVcf(text) {
+  const out = [], un = s => String(s || '').replace(/\\n/gi, '\n').replace(/\\([,;\\])/g, '$1');
+  String(text).replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '').split(/BEGIN:VCARD/i).slice(1).forEach(block => {
+    const c = { name: '', title: '', company: '', mobile: '', tel: '', fax: '', email: '', address: '', memo: '', group_name: '', photo: '' };
+    block.split('\n').forEach(line => {
+      const m = /^([A-Za-z0-9.\-]+)((?:;[^:]*)*):(.*)$/.exec(line); if (!m) return;
+      const key = m[1].replace(/^.*\./, '').toUpperCase(), par = m[2].toUpperCase(), val = m[3];
+      if (key === 'FN') { if (!c.name) c.name = un(val).trim(); }
+      else if (key === 'N') { if (!c.name) { const p = val.split(';'); c.name = (un(p[0]) + un(p[1] || '')).trim(); } }
+      else if (key === 'ORG') c.company = un(val.split(';')[0]).trim();
+      else if (key === 'TITLE') c.title = un(val).trim();
+      else if (key === 'TEL') { const n = val.trim(); if (/FAX/.test(par)) { if (!c.fax) c.fax = n; } else if (/CELL|MOBILE/.test(par) || /^\+?8?2?-?0?1[016-9]/.test(n.replace(/\s/g, ''))) { if (!c.mobile) c.mobile = n; else if (!c.tel) c.tel = n; } else if (!c.tel) c.tel = n; }
+      else if (key === 'EMAIL') { if (!c.email) c.email = val.trim(); }
+      else if (key === 'ADR') c.address = val.split(';').map(un).filter(Boolean).join(' ').trim();
+      else if (key === 'NOTE') c.memo = un(val).trim();
+      else if (key === 'CATEGORIES') c.group_name = un(val.split(',')[0]).trim();
+      else if (key === 'PHOTO' && /ENCODING=B|BASE64/.test(par) && val.length < 400000) c.photo = 'data:image/' + (/PNG/.test(par) ? 'png' : 'jpeg') + ';base64,' + val.trim();
+    });
+    ['mobile', 'tel', 'fax'].forEach(k => { if (c[k]) c[k] = ta4FmtPhone(c[k]) || c[k]; });
+    if (c.name || c.mobile || c.tel || c.email) out.push(c);
+  });
+  return out;
+}
+
+/* ───────── 편집 ───────── */
+const FIELD = { name: 'fName', company: 'fCompany', title: 'fTitle', group_name: 'fGroup', mobile: 'fMobile', tel: 'fTel', fax: 'fFax', email: 'fEmail', address: 'fAddr', memo: 'fMemo' };
+function openEdit(id, prefill) {
+  const c = id ? contacts.find(x => x.id === id) : null; if (id && !c) return;
+  const base = c || prefill || {};
+  S.ed = { id: c ? c.id : '', photo: base.photo || '', card_img: base.card_img || '', created_at: c ? c.created_at : '' };
+  Object.keys(FIELD).forEach(k => { $(FIELD[k]).value = base[k] || ''; });
+  $('edTtl').textContent = c ? '연락처 수정' : '연락처 추가';
+  const gs = [...new Set(contacts.map(x => x.group_name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+  $('groupList').innerHTML = gs.map(g => '<option value="' + esc(g) + '">').join('');
+  $('edGc').innerHTML = gs.map(g => '<button type="button">' + esc(g) + '</button>').join('');
+  edMedia(); show('vEd', true); if (!c && !prefill) setTimeout(() => $('fName').focus(), 80);
+}
+$('edGc').addEventListener('click', e => { const b = e.target.closest('button'); if (b) $('fGroup').value = b.textContent; });
+function edMedia() {
+  const e = S.ed; if (!e) return; const nm = $('fName').value.trim() || $('fCompany').value.trim() || '?';
+  $('edPhoto').innerHTML = e.photo ? '<img src="' + e.photo + '" alt="">' : '<span>' + esc(nm.charAt(0).toUpperCase()) + '</span>';
+  $('edPhotoDel').style.display = e.photo ? '' : 'none';
+  $('edCardPv').innerHTML = e.card_img ? '<img src="' + e.card_img + '" alt="명함"><button type="button" class="x" id="cardDel">명함 이미지 삭제</button>' : '';
+  $('edCardScan').textContent = e.card_img ? '명함 다시 스캔' : '명함 스캔';
+}
+$('edCardPv').addEventListener('click', e => { if (e.target.id === 'cardDel') { S.ed.card_img = ''; edMedia(); } });
+$('fName').addEventListener('input', edMedia);
+$('edPhotoDel').onclick = () => { S.ed.photo = ''; edMedia(); };
+$('edPhotoPick').onclick = () => $('photoFile').click();
+function thumb(file, size) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const s = Math.min(im.naturalWidth, im.naturalHeight), sx = (im.naturalWidth - s) / 2, sy = (im.naturalHeight - s) / 2;
+      const c = document.createElement('canvas'); c.width = c.height = size; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, size, size);
+      x.drawImage(im, sx, sy, s, s, 0, 0, size, size); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.82));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('이미지를 읽을 수 없습니다')); }; im.src = url;
+  });
+}
+$('photoFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { S.ed.photo = await thumb(f, 256); edMedia(); } catch (er) { toast(er.message); } });
+function readForm() { const c = Object.assign({}, S.ed); Object.keys(FIELD).forEach(k => { c[k] = ($(FIELD[k]).value || '').trim(); }); ['mobile', 'tel', 'fax'].forEach(k => { if (c[k]) c[k] = ta4FmtPhone(c[k]) || c[k]; }); return c; }
+$('edCancel').onclick = back;
+$('edSave').onclick = async () => {
+  const c = readForm();
+  if (!c.name && !c.company && !c.mobile && !c.tel) { toast('이름이나 전화번호를 입력해 주세요'); return; }
+  const dup = findDup(c, c.id);
+  if (dup && !confirm('같은 번호/이메일의 연락처가 이미 있습니다: ' + (dup.name || dup.company || '') + '\n그래도 저장할까요?')) return;
+  try {
+    const row = await saveContact(c); S.cur = row.id;
+    if (stack.includes('vDet')) back();
+    else { stack[stack.length - 1] = 'vDet'; try { history.replaceState({ v: 'vDet' }, ''); } catch (_) {} renderDetail(); show('vDet'); }
+    renderList(); toast('저장됨');
+  }
+  catch (er) { toast('저장하지 못했습니다. 저장 공간을 확인하세요.', 3500); }
+};
+$('btnAdd').onclick = () => openEdit('');
+
+/* ───────── 더보기: 내보내기 · 가져오기 · 백업 ───────── */
+$('btnMenu').onclick = () => $('mMenu').classList.add('show');
+$('mnClose').onclick = () => $('mMenu').classList.remove('show');
+$('mMenu').addEventListener('click', e => { if (e.target === $('mMenu')) $('mMenu').classList.remove('show'); });
+$('mnExport').onclick = () => {
+  $('mMenu').classList.remove('show'); if (!contacts.length) { toast('내보낼 연락처가 없습니다'); return; }
+  download('SIM_Phone_연락처.vcf', contacts.slice().sort(cmp).map(vcard).join('\r\n') + '\r\n', 'text/vcard;charset=utf-8'); toast('연락처 ' + contacts.length + '명을 .vcf 파일로 저장했습니다');
+};
+$('mnImport').onclick = () => $('vcfFile').click();
+$('vcfFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; $('mMenu').classList.remove('show'); if (!f) return;
+  try {
+    busy('연락처를 가져오는 중…'); const list = parseVcf(await f.text()); let add = 0, skip = 0;
+    for (const c of list) { if (findDup(c, '')) { skip++; continue; } await saveContact(c); add++; if (add % 40 === 0) await nextFrame(); }
+    unbusy(); renderList(); toast(add + '명 가져옴' + (skip ? ' · 중복 ' + skip + '명 건너뜀' : '') + (!list.length ? ' (읽을 수 있는 연락처가 없습니다)' : ''), 3500);
+  } catch (er) { unbusy(); toast('파일을 읽지 못했습니다'); }
+});
+$('mnBackup').onclick = () => {
+  $('mMenu').classList.remove('show'); if (!contacts.length) { toast('백업할 연락처가 없습니다'); return; }
+  download('SIM_Phone_백업_' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify({ app: 'simphone', version: 1, exported: new Date().toISOString(), contacts }), 'application/json'); toast('백업 파일을 저장했습니다');
+};
+$('mnRestore').onclick = () => $('jsonFile').click();
+$('jsonFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; $('mMenu').classList.remove('show'); if (!f) return;
+  try {
+    const d = JSON.parse(await f.text()); if (!d || d.app !== 'simphone' || !Array.isArray(d.contacts)) throw new Error('bad');
+    busy('복원 중…'); let n = 0; for (const c of d.contacts) { if (c && c.id) { await saveContact(c); n++; if (n % 40 === 0) await nextFrame(); } }
+    unbusy(); renderList(); toast(n + '명을 복원했습니다');
+  } catch (er) { unbusy(); toast('SIM Phone 백업 파일이 아닙니다'); }
+});
+
+/* ───────── 명함 스캔(모서리 자동 감지 · 원근 보정) ───────── */
+  const sc = { src: null, pts: [], k: 1, f: 'doc', hs: [] };
+  const scWrap = $('scWrap'), scCv = $('scCv');
+  async function scOpen(file) {
+    try {
+      const url = URL.createObjectURL(file), im = new Image();
+      await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('img')); im.src = url; });
+      URL.revokeObjectURL(url);
+      const k = Math.min(1, 2200 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement('canvas');
+      c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      sc.src = c; scReset(); $('mScan').classList.add('show'); scLayout(); scAutoApply();
+    } catch (_) { toast('사진을 읽을 수 없습니다.'); }
+  }
+  /* 문서 모서리 자동 감지: 축소 → 밝기 분리(Otsu) → 가장 큰 덩어리 → 네 극점 */
+  function scDetect() {
+    try {
+      const sw = sc.src.width, sh = sc.src.height, k = Math.min(1, 420 / Math.max(sw, sh)), W = Math.max(8, Math.round(sw * k)), H = Math.max(8, Math.round(sh * k));
+      const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); g.drawImage(sc.src, 0, 0, W, H);
+      const d = g.getImageData(0, 0, W, H).data, N = W * H, gray = new Float32Array(N);
+      for (let i = 0; i < N; i++) gray[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+      let a = gray, b = new Float32Array(N);       // 5×5 상당 박스 블러 (가로·세로 2회)
+      for (let pass = 0; pass < 2; pass++) {
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let sum = 0, n = 0; for (let t = -2; t <= 2; t++) { const xx = x + t; if (xx >= 0 && xx < W) { sum += a[y * W + xx]; n++; } } b[y * W + x] = sum / n; }
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let sum = 0, n = 0; for (let t = -2; t <= 2; t++) { const yy = y + t; if (yy >= 0 && yy < H) { sum += b[yy * W + x]; n++; } } a[y * W + x] = sum / n; }
+      }
+      const hist = new Float64Array(256); for (let i = 0; i < N; i++) hist[Math.min(255, a[i] | 0)]++;
+      let tot = N, sumAll = 0; for (let i = 0; i < 256; i++) sumAll += i * hist[i];
+      let wB = 0, sumB = 0, best = -1, thr = 128;
+      for (let t = 0; t < 256; t++) { wB += hist[t]; if (!wB) continue; const wF = tot - wB; if (!wF) break; sumB += t * hist[t]; const mB = sumB / wB, mF = (sumAll - sumB) / wF, v = wB * wF * (mB - mF) * (mB - mF); if (v > best) { best = v; thr = t; } }
+      const tryPol = bright => {
+        const lab = new Int32Array(N), stack = new Int32Array(N); let bestC = null, id = 0;
+        for (let s0 = 0; s0 < N; s0++) {
+          if (lab[s0]) continue; const on = bright ? a[s0] > thr : a[s0] <= thr; if (!on) continue;
+          id++; let sp = 0; stack[sp++] = s0; lab[s0] = id;
+          let area = 0, minx = W, maxx = 0, miny = H, maxy = 0, tl = null, tr = null, br = null, bl = null, vtl = 1e9, vtr = -1e9, vbr = -1e9, vbl = 1e9;
+          while (sp) {
+            const p = stack[--sp], x = p % W, y = (p / W) | 0; area++;
+            if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+            const sa = x + y, df = x - y;
+            if (sa < vtl) { vtl = sa; tl = [x, y]; } if (sa > vbr) { vbr = sa; br = [x, y]; } if (df > vtr) { vtr = df; tr = [x, y]; } if (df < vbl) { vbl = df; bl = [x, y]; }
+            if (x > 0) { const q = p - 1; if (!lab[q] && (bright ? a[q] > thr : a[q] <= thr)) { lab[q] = id; stack[sp++] = q; } }
+            if (x < W - 1) { const q = p + 1; if (!lab[q] && (bright ? a[q] > thr : a[q] <= thr)) { lab[q] = id; stack[sp++] = q; } }
+            if (y > 0) { const q = p - W; if (!lab[q] && (bright ? a[q] > thr : a[q] <= thr)) { lab[q] = id; stack[sp++] = q; } }
+            if (y < H - 1) { const q = p + W; if (!lab[q] && (bright ? a[q] > thr : a[q] <= thr)) { lab[q] = id; stack[sp++] = q; } }
+          }
+          const full = (maxx - minx) >= W * 0.98 && (maxy - miny) >= H * 0.98;
+          if (!full && area > N * 0.08 && (!bestC || area > bestC.area)) bestC = { area, q: [tl, tr, br, bl] };
+        }
+        if (!bestC) return null;
+        const q = bestC.q, qa = Math.abs(q.reduce((s2, p, i) => { const n2 = q[(i + 1) % 4]; return s2 + (p[0] * n2[1] - n2[0] * p[1]); }, 0)) / 2;
+        if (qa < N * 0.15 || qa > N * 0.97 || bestC.area / qa < 0.55) return null;
+        return q.map(p => [p[0] / k, p[1] / k]);
+      };
+      return tryPol(true) || tryPol(false);
+    } catch (_) { return null; }
+  }
+  function scAutoApply(quiet) {
+    const q = scDetect();
+    if (q) { sc.pts = q.map(p => [clamp(p[0], 0, sc.src.width), clamp(p[1], 0, sc.src.height)]); scDraw(); if (!quiet) toast('모서리를 찾았습니다. 어긋나면 ●를 끌어 맞추세요.'); }
+    else { scReset(); scDraw(); toast('문서 모서리를 자동으로 찾지 못했습니다. ●를 직접 맞춰 주세요.'); }
+  }
+  function scReset() { const w = sc.src.width, h = sc.src.height, m = 0.06; sc.pts = [[w * m, h * m], [w * (1 - m), h * m], [w * (1 - m), h * (1 - m)], [w * m, h * (1 - m)]]; }
+  function scLayout() {
+    const w = sc.src.width, h = sc.src.height, maxW = Math.min(480, window.innerWidth - 80), maxH = window.innerHeight * 0.5;
+    sc.k = Math.min(maxW / w, maxH / h);
+    const dw = Math.round(w * sc.k), dh = Math.round(h * sc.k);
+    scWrap.style.width = dw + 'px'; scWrap.style.height = dh + 'px'; scCv.width = dw; scCv.height = dh;
+    scCv.getContext('2d').drawImage(sc.src, 0, 0, dw, dh);
+    if (!sc.hs.length) for (let i = 0; i < 4; i++) {
+      const h2 = document.createElement('div'); h2.className = 'scH'; scWrap.appendChild(h2); sc.hs.push(h2);
+      h2.addEventListener('pointerdown', ev => { ev.preventDefault(); h2.setPointerCapture(ev.pointerId); h2._d = true; });
+      h2.addEventListener('pointermove', ev => {
+        if (!h2._d) return; const r = scWrap.getBoundingClientRect();
+        sc.pts[i] = [clamp((ev.clientX - r.left) / sc.k, 0, sc.src.width), clamp((ev.clientY - r.top) / sc.k, 0, sc.src.height)]; scDraw();
+      });
+      h2.addEventListener('pointerup', () => { h2._d = false; }); h2.addEventListener('pointercancel', () => { h2._d = false; });
+    }
+    scDraw();
+  }
+  function scDraw() {
+    sc.hs.forEach((h, i) => { h.style.left = sc.pts[i][0] * sc.k + 'px'; h.style.top = sc.pts[i][1] * sc.k + 'px'; });
+    $('scSvg').setAttribute('viewBox', '0 0 ' + scCv.width + ' ' + scCv.height);
+    $('scPoly').setAttribute('points', sc.pts.map(p => (p[0] * sc.k) + ',' + (p[1] * sc.k)).join(' '));
+  }
+  $('scRot').onclick = () => {
+    const s0 = sc.src, c = document.createElement('canvas'); c.width = s0.height; c.height = s0.width;
+    const g = c.getContext('2d'); g.translate(c.width, 0); g.rotate(Math.PI / 2); g.drawImage(s0, 0, 0);
+    sc.src = c; scReset(); scLayout(); scAutoApply(true);
+  };
+  $('scAuto').onclick = () => scAutoApply();
+  $('scFilters').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; sc.f = b.dataset.sf; document.querySelectorAll('#scFilters button').forEach(x => x.classList.toggle('on', x === b)); });
+  $('scCancel').onclick = () => $('mScan').classList.remove('show');
+  function quadMap(P) {      // 단위 정사각형 → 사각형 호모그래피 (Heckbert)
+    const [x0, y0] = P[0], [x1, y1] = P[1], [x2, y2] = P[2], [x3, y3] = P[3];
+    const dx1 = x1 - x2, dx2 = x3 - x2, dx3 = x0 - x1 + x2 - x3, dy1 = y1 - y2, dy2 = y3 - y2, dy3 = y0 - y1 + y2 - y3;
+    const den = dx1 * dy2 - dy1 * dx2; let g = 0, h = 0;
+    if (Math.abs(den) > 1e-9 && (Math.abs(dx3) > 1e-9 || Math.abs(dy3) > 1e-9)) { g = (dx3 * dy2 - dy3 * dx2) / den; h = (dx1 * dy3 - dy1 * dx3) / den; }
+    return [x1 - x0 + g * x1, x3 - x0 + h * x3, x0, y1 - y0 + g * y1, y3 - y0 + h * y3, y0, g, h];
+  }
+  function scWarp() {
+    const P = sc.pts, d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    let W = Math.max(d(P[0], P[1]), d(P[3], P[2])), H = Math.max(d(P[0], P[3]), d(P[1], P[2]));
+    const k = Math.min(1, 1800 / Math.max(W, H)); W = Math.round(W * k); H = Math.round(H * k);
+    if (W < 40 || H < 40) return null;
+    const [a, b, c, dd, e, f, g, h] = quadMap(P), sw = sc.src.width, sh = sc.src.height;
+    const sd = sc.src.getContext('2d').getImageData(0, 0, sw, sh).data, out = document.createElement('canvas'); out.width = W; out.height = H;
+    const og = out.getContext('2d'), id = og.createImageData(W, H), o = id.data;
+    for (let y = 0; y < H; y++) {
+      const v = (y + 0.5) / H;
+      for (let x = 0; x < W; x++) {
+        const u = (x + 0.5) / W, w = g * u + h * v + 1, X = (a * u + b * v + c) / w - 0.5, Y = (dd * u + e * v + f) / w - 0.5;
+        const x0 = Math.floor(X), y0 = Math.floor(Y), fx = X - x0, fy = Y - y0, i = (y * W + x) * 4;
+        const xa = clamp(x0, 0, sw - 1), xb = clamp(x0 + 1, 0, sw - 1), ya = clamp(y0, 0, sh - 1), yb = clamp(y0 + 1, 0, sh - 1);
+        const p00 = (ya * sw + xa) * 4, p10 = (ya * sw + xb) * 4, p01 = (yb * sw + xa) * 4, p11 = (yb * sw + xb) * 4;
+        for (let ch = 0; ch < 3; ch++) o[i + ch] = sd[p00 + ch] * (1 - fx) * (1 - fy) + sd[p10 + ch] * fx * (1 - fy) + sd[p01 + ch] * (1 - fx) * fy + sd[p11 + ch] * fx * fy;
+        o[i + 3] = 255;
+      }
+    }
+    og.putImageData(id, 0, 0);
+    if (sc.f !== 'orig') {     // 조명 얼룩 제거: 흐린 배경으로 나눠 종이를 흰색으로
+      const sm = document.createElement('canvas'); sm.width = Math.max(8, Math.round(W / 14)); sm.height = Math.max(8, Math.round(H / 14));
+      sm.getContext('2d').drawImage(out, 0, 0, sm.width, sm.height);
+      const bg = document.createElement('canvas'); bg.width = W; bg.height = H; const bgc = bg.getContext('2d'); bgc.imageSmoothingEnabled = true; bgc.imageSmoothingQuality = 'high'; bgc.drawImage(sm, 0, 0, W, H);
+      const bd = bgc.getImageData(0, 0, W, H).data, bw = sc.f === 'bw', lo = bw ? 105 : 80, hi = bw ? 215 : 225;
+      for (let i = 0; i < o.length; i += 4) {
+        let r = o[i] / Math.max(bd[i], 40) * 255, gg = o[i + 1] / Math.max(bd[i + 1], 40) * 255, bb = o[i + 2] / Math.max(bd[i + 2], 40) * 255;
+        if (bw) r = gg = bb = 0.299 * r + 0.587 * gg + 0.114 * bb;
+        o[i] = clamp((r - lo) / (hi - lo) * 255, 0, 255); o[i + 1] = clamp((gg - lo) / (hi - lo) * 255, 0, 255); o[i + 2] = clamp((bb - lo) / (hi - lo) * 255, 0, 255);
+      }
+      og.putImageData(id, 0, 0);
+    }
+    return out;
+  }
+  $('scOk').onclick = async () => {
+    busy('스캔 보정 중…'); await nextFrame();
+    try {
+      const cv = scWarp(); if (!cv) { unbusy(); toast('모서리 영역이 너무 작습니다.'); return; }
+      $('mScan').classList.remove('show'); await onCardScanned(cv);
+    } catch (err) { unbusy(); toast('스캔 보정에 실패했습니다. 다시 시도해 주세요.'); }
+  };
+
+
+/* ───────── 명함 스캔 → 글자 인식(OCR) → 편집 화면 ───────── */
+const OCR_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+let ocrW = null, cardMode = 'new';
+function loadScript(src) { return new Promise((res, rej) => { if (window.Tesseract) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('script')); document.head.appendChild(s); }); }
+async function ocrWorker() {
+  if (ocrW) return ocrW; await loadScript(OCR_SRC);
+  ocrW = await Tesseract.createWorker('kor+eng', 1, { logger: m => { if (m && m.status && $('busy').classList.contains('show')) busy((m.status === 'recognizing text' ? '글자 인식 중… ' : '인식 엔진 준비 중(처음 한 번만 오래 걸립니다)… ') + (m.progress != null ? Math.round(m.progress * 100) + '%' : '')); } });
+  return ocrW;
+}
+function prepForOcr(src) {
+  const sc = Math.min(1, 1800 / Math.max(src.width, src.height)), c = document.createElement('canvas'); c.width = Math.round(src.width * sc); c.height = Math.round(src.height * sc);
+  const x = c.getContext('2d'); x.drawImage(src, 0, 0, c.width, c.height);
+  const d = x.getImageData(0, 0, c.width, c.height), a = d.data; let lo = 255, hi = 0;
+  for (let i = 0; i < a.length; i += 4) { const g = (a[i] * 0.299 + a[i + 1] * 0.587 + a[i + 2] * 0.114) | 0; a[i] = a[i + 1] = a[i + 2] = g; if (g < lo) lo = g; if (g > hi) hi = g; }
+  const span = Math.max(40, hi - lo);
+  for (let i = 0; i < a.length; i += 4) { const v = Math.max(0, Math.min(255, ((a[i] - lo) * 255 / span) | 0)); a[i] = a[i + 1] = a[i + 2] = v; }
+  x.putImageData(d, 0, 0); return c;
+}
+function smallJpeg(cv, maxW) { const k = Math.min(1, maxW / cv.width), c = document.createElement('canvas'); c.width = Math.round(cv.width * k); c.height = Math.round(cv.height * k); c.getContext('2d').drawImage(cv, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', 0.78); }
+async function onCardScanned(cv) {
+  const img = smallJpeg(cv, 1200); let parsed = null;
+  try {
+    busy('인식 엔진을 불러오는 중…'); const w = await ocrWorker(); busy('글자 인식 중…');
+    const r = await w.recognize(prepForOcr(cv)); window._lastOcr = r.data.text; parsed = ta4CardParse(r.data.text || '');
+  } catch (er) { parsed = null; }
+  unbusy();
+  const got = parsed ? Object.keys(parsed).filter(k => parsed[k]).length : 0;
+  if (cardMode === 'edit' && S.ed) {
+    S.ed.card_img = img;
+    if (parsed) Object.keys(FIELD).forEach(k => { if (parsed[k] && !$(FIELD[k]).value.trim()) $(FIELD[k]).value = parsed[k]; });
+    edMedia(); toast(parsed ? '명함에서 ' + got + '개 항목을 읽었습니다. 틀린 곳은 고쳐 주세요.' : '글자 인식에 실패했습니다. 명함 이미지는 저장했으니 직접 입력해 주세요.', 4000); return;
+  }
+  openEdit('', Object.assign({}, parsed || {}, { card_img: img }));
+  toast(parsed ? '명함에서 ' + got + '개 항목을 읽었습니다. 틀린 곳은 고친 뒤 저장하세요.' : '글자 인식에 실패했습니다. 명함 이미지는 첨부했으니 직접 입력해 주세요.', 4500);
+}
+$('btnCard').onclick = () => { cardMode = 'new'; $('scanFile').click(); };
+$('edCardScan').onclick = () => { cardMode = 'edit'; $('scanFile').click(); };
+[$('scanFile'), $('scanPick')].forEach(inp => inp.addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) scOpen(f); }));
+
+/* ───────── 시작 ───────── */
+(async () => {
+  try { db = await openDB(); contacts = await dbAll(); } catch (e) { db = null; toast('이 브라우저는 저장소를 쓸 수 없어 임시로만 동작합니다.', 4000); }
+  renderList();
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+})();
+</script>
+</body>
+</html>

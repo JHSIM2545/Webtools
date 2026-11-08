@@ -875,6 +875,38 @@ async function geocode(q) {   // 위치 확인용 주소 검색 (OpenStreetMap N
     return j.map(x => ({ lat: +x.lat, lng: +x.lon, name: (x.name || String(x.display_name).split(',')[0]).trim(), addr: prettyAddr(x.display_name), src: '지도 검색' })).filter(inKorea);
   } finally { clearTimeout(to); }
 }
+/* 카카오 주소·장소 검색: 소개앱·TA 포털과 같은 키 (사이트 주소가 카카오 개발자 설정에 등록되어 있어야 동작, 실패하면 아래 기본 지도 검색으로 자동 전환) */
+const KAKAO_KEY = (() => { try { return (localStorage.getItem('S1_KAKAO_MAP_KEY') || '').trim(); } catch (e) { return ''; } })() || '4ab1f892386fe4e3375fc2823082d2de';
+let kakaoP = null, kakaoBad = false;
+function loadKakao() {
+  if (kakaoP) return kakaoP;
+  kakaoP = new Promise(res => {
+    if (window.kakao && window.kakao.maps && window.kakao.maps.services) return res(true);
+    const sc = document.createElement('script');
+    sc.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' + encodeURIComponent(KAKAO_KEY) + '&libraries=services&autoload=false';
+    sc.onload = () => { try { kakao.maps.load(() => res(!!(kakao.maps && kakao.maps.services))); } catch (e) { res(false); } };
+    sc.onerror = () => res(false); document.head.appendChild(sc);
+    setTimeout(() => res(false), 9000);
+  });
+  return kakaoP;
+}
+async function kakaoSearch(q) {   // 실패하면 null, 정상이면 후보 배열(없으면 [])
+  if (kakaoBad || !(await loadKakao())) { kakaoBad = true; return null; }
+  const S = kakao.maps.services;
+  const call = fn => new Promise(res => { const t = setTimeout(() => res({ st: 'TIMEOUT', r: [] }), 8000); try { fn((r, st) => { clearTimeout(t); res({ st, r: r || [] }); }); } catch (e) { clearTimeout(t); res({ st: 'ERROR', r: [] }); } });
+  const a = await call(cb => new S.Geocoder().addressSearch(q, cb));
+  const k = await call(cb => new S.Places().keywordSearch(q, cb));
+  const bad = x => x.st === S.Status.ERROR || x.st === 'TIMEOUT';
+  if (bad(a) && bad(k)) { kakaoBad = true; return null; }
+  const A = a.st === S.Status.OK ? a.r.slice(0, 3).map(x => { const ra = x.road_address, ad = (ra && ra.address_name) || x.address_name; return { lat: +x.y, lng: +x.x, name: (ra && ra.building_name) || ad, addr: ad, src: '카카오 주소' }; }) : [];
+  const K = k.st === S.Status.OK ? k.r.slice(0, 4).map(x => ({ lat: +x.y, lng: +x.x, name: x.place_name, addr: x.road_address_name || x.address_name || '', src: '카카오 장소' })) : [];
+  return (/\d/.test(q) ? A.concat(K) : K.concat(A)).filter(inKorea);
+}
+async function searchPlaces(q) {   // 카카오 우선 → 결과가 없거나 실패하면 기본 지도 검색
+  const k = await kakaoSearch(q);
+  if (k && k.length) return k;
+  return geocode(q);
+}
 const destNums = t => { const o = []; String(t).replace(/(\d+)(?:-(\d+))?/g, (m, a, b) => { o.push(b ? a + '-' + b : a); return m; }); return o; };
 const hasNum = (c, n) => new RegExp('(^|\\D)' + n.replace('-', '\\s*-\\s*') + '(\\D|$)').test(c.name + ' ' + c.addr);
 const near = (a, b) => { const dl = Math.max(Math.abs(a.lat - b.lat), Math.abs(a.lng - b.lng)); return dl < 0.00015 || (dl < 0.002 && a.name === b.name); };
@@ -906,11 +938,12 @@ async function navFlow(sl) {
     await loadContacts();
     const dn = dest.replace(/\s/g, '');
     const cs = searchContacts({ name: dest }).concat(contacts.filter(c => c.name && dn.includes(c.name.replace(/\s/g, '')))).filter((c, i, a) => c.address && a.indexOf(c) === i).slice(0, 1);
-    for (const c of cs) { const r = await geocode(c.address); if (r[0]) { const ap = !destNums(c.address).every(n => hasNum(r[0], n)); cands.push(Object.assign(r[0], { name: c.name || c.company, addr: c.address, src: '연락처 주소', approx: ap })); } await sleep(1100); }
+    for (const c of cs) { const r = await searchPlaces(c.address); if (r[0]) { const ap = !destNums(c.address).every(n => hasNum(r[0], n)); cands.push(Object.assign(r[0], { name: c.name || c.company, addr: c.address, src: '연락처 주소', approx: ap })); } if (kakaoBad) await sleep(1100); }
     const nums = destNums(dest);
-    (await geocode(dest)).forEach(c => { c.approx = nums.length > 0 && !nums.every(n => hasNum(c, n)); if (!cands.some(o => near(o, c) || (o.name === c.name && o.addr === c.addr))) cands.push(c); });
+    (await searchPlaces(dest)).forEach(c => { c.approx = nums.length > 0 && !nums.every(n => hasNum(c, n)); if (!cands.some(o => near(o, c) || (o.name === c.name && o.addr === c.addr))) cands.push(c); });
     cands.sort((a, b) => (a.approx ? 1 : 0) - (b.approx ? 1 : 0));
   } catch (e) { err = e && e.name === 'AbortError' ? '응답이 늦어요' : (e && e.message) || '연결 실패'; }
+  if (kakaoBad && !cands.some(c => /^카카오/.test(c.src))) sys('카카오 지도에 연결하지 못해 기본 지도로 확인했어요. 번지는 확인이 어려울 수 있어요.');
   if (!cands.length) {
     pending = null;
     return bot('"' + dest + '" 위치를 확인하지 못했어요' + (err ? ' (' + err + ')' : '') + '. 네이버 지도에서 직접 검색해 볼까요?', { html: '<b>위치를 확인하지 못했어요</b><span class="sub">"' + esc(dest) + '"' + (err ? ' — ' + esc(err) : '') + '<br>도로명 주소나 "OO시 OO구 OO건물"처럼 더 자세히 말씀해 보세요.</span>' + noNaverApp(), btns: [{ label: '네이버 지도에서 검색', primary: true, href: launchHref(nmapUrl.search(dest)), fn: iosStoreFallback }] });

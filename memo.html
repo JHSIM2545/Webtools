@@ -59,7 +59,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
 .pg.act{outline:2px solid #34c38f66}
 .pg .bgL{position:absolute;inset:0;pointer-events:none}
 .pg canvas.ink,.pg canvas.live{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.pg .il,.pg .tl{position:absolute;left:0;top:0;transform-origin:0 0;pointer-events:none}
+.pg .il,.pg .tl,.pg .sl{position:absolute;left:0;top:0;transform-origin:0 0;pointer-events:none}
 .plabel{position:absolute;right:8px;bottom:6px;display:flex;align-items:center;gap:6px;font-size:12px;color:#556;background:#fffd;padding:2px 4px 2px 10px;border-radius:99px;z-index:3}
 .plabel button{padding:1px 7px;font-size:12px;background:#eef1f6;color:#556;border-color:#d5dae4}
 .addpg{display:block;margin:6px auto 0;padding:12px 22px;border-style:dashed;background:transparent;color:#cdd3e2}
@@ -72,6 +72,10 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
 .tbh{position:absolute;left:0;bottom:100%;display:none;gap:6px;transform:scale(var(--inv,1));transform-origin:0 100%;margin-bottom:2px}
 .mode-select .tbw:hover .tbh,.mode-text .tbw:hover .tbh,.tbw:focus-within .tbh{display:flex}
 .tbh span{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:#222a3d;color:#fff;border-radius:8px;font-size:15px;cursor:pointer;touch-action:none}
+/* 도형 선택 */
+.shbox{position:absolute;border:2px dashed #34c38f;pointer-events:none;box-sizing:border-box}
+.shh{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:#34c38f;border:3px solid #fff;box-shadow:0 1px 4px #0006;pointer-events:auto;touch-action:none;transform:scale(var(--inv,1));cursor:nwse-resize;box-sizing:border-box}
+.shh.shx{background:#222a3d;color:#fff;border-color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;cursor:pointer}
 /* 삽입한 그림 */
 .iw{position:absolute;pointer-events:none}
 .iw img{width:100%;height:100%;display:block;pointer-events:none;-webkit-user-drag:none}
@@ -464,9 +468,9 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   /* ───────── 페이지 요소 (보이는 페이지만 그림) ───────── */
   function makePageEl(p) {
     const el = document.createElement('div'); el.className = 'pg';
-    el.innerHTML = '<div class="bgL"></div><div class="il"></div><div class="tl"></div>' +
+    el.innerHTML = '<div class="bgL"></div><div class="il"></div><div class="tl"></div><div class="sl"></div>' +
       '<div class="plabel"><span></span><button class="pdel" title="이 페이지 삭제">×</button></div>';
-    const ref = { p, el, ink: null, ctx: null, vis: false, scale: 1, bgL: el.querySelector('.bgL'), il: el.querySelector('.il'), tl: el.querySelector('.tl'), label: el.querySelector('.plabel span') };
+    const ref = { p, el, ink: null, ctx: null, vis: false, scale: 1, bgL: el.querySelector('.bgL'), il: el.querySelector('.il'), tl: el.querySelector('.tl'), sl: el.querySelector('.sl'), label: el.querySelector('.plabel span') };
     el._p = ref;
     rebuildTexts(ref);
     el.addEventListener('pointerdown', onDown);
@@ -492,7 +496,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     ref.ink = null; ref.ctx = null; ref.bgL.innerHTML = ''; ref.il.innerHTML = '';
   }
   function buildEditor() {
-    if (io) io.disconnect();
+    if (io) io.disconnect(); sel = null; sdrag = null;
     $('scroller').innerHTML = ''; pageEls = [];
     note.pages.forEach(p => { const el = makePageEl(p); pageEls.push(el); $('scroller').appendChild(el); });
     const add = document.createElement('button'); add.className = 'addpg'; add.textContent = '＋ 페이지 추가';
@@ -512,7 +516,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     pageEls.forEach(el => {
       const r = el._p, sc = Math.min(avail, 900) / r.p.w * zoom; r.scale = sc;
       el.style.width = (r.p.w * sc) + 'px'; el.style.height = (r.p.h * sc) + 'px';
-      [r.il, r.tl].forEach(l => { l.style.width = r.p.w + 'px'; l.style.height = r.p.h + 'px'; l.style.transform = 'scale(' + sc + ')'; l.style.setProperty('--inv', 1 / sc); });
+      [r.il, r.tl, r.sl].forEach(l => { l.style.width = r.p.w + 'px'; l.style.height = r.p.h + 'px'; l.style.transform = 'scale(' + sc + ')'; l.style.setProperty('--inv', 1 / sc); });
     });
     $('zLbl').textContent = Math.round(zoom * 100) + '%';
   }
@@ -561,7 +565,19 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     suppressClick = false;
     const el = e.currentTarget, ref = el._p;
     activePage = pageEls.indexOf(el); labels();
-    if (e.target.closest('.tbw') || e.target.closest('.plabel') || e.target.closest('.iw')) return;
+    if (e.target.closest('.tbw') || e.target.closest('.plabel') || e.target.closest('.iw') || e.target.closest('.shh')) return;
+    if (tool === 'select') {
+      const q = pt(e, el), rr = 16 / ref.scale; let hit = null;
+      for (let i = ref.p.strokes.length - 1; i >= 0; i--) { const st = ref.p.strokes[i]; if (st.tool === 'shape' && strokeHit(st, q[0], q[1], rr)) { hit = st; break; } }
+      if (hit) {
+        e.preventDefault(); deselectImages();
+        if (!sel || sel.s !== hit) selectShape(ref, hit);
+        sdrag = { id: e.pointerId, ref, s: hit, x: q[0], y: q[1], a: hit.a.slice(), b: hit.b.slice(), changed: false };
+        try { el.setPointerCapture(e.pointerId); } catch (_) {}
+        return;
+      }
+      clearSel();
+    }
     if (e.pointerType === 'touch' && (penOnly || tool === 'select' || tool === 'text')) {
       if (tool === 'select') deselectImages();
       scrollMode = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: 0 };
@@ -590,6 +606,12 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     el.insertBefore(live, ref.tl); drawStroke(liveCtx, cur.s);
   }
   function onMove(e) {
+    if (sdrag && e.pointerId === sdrag.id) {
+      const q = pt(e, sdrag.ref.el), dx = q[0] - sdrag.x, dy = q[1] - sdrag.y;
+      if (Math.abs(dx) + Math.abs(dy) > 1) sdrag.changed = true;
+      sdrag.s.a = [sdrag.a[0] + dx, sdrag.a[1] + dy]; sdrag.s.b = [sdrag.b[0] + dx, sdrag.b[1] + dy];
+      redrawInk(sdrag.ref); updateSel(); return;
+    }
     if (scrollMode && e.pointerId === scrollMode.id) {
       const sc = $('scroller'); sc.scrollTop -= e.clientY - scrollMode.y; sc.scrollLeft -= e.clientX - scrollMode.x;
       scrollMode.moved += Math.abs(e.clientX - scrollMode.x) + Math.abs(e.clientY - scrollMode.y); scrollMode.x = e.clientX; scrollMode.y = e.clientY; return;
@@ -608,6 +630,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     if (!cur.erase) { liveCtx.clearRect(0, 0, cur.ref.p.w, cur.ref.p.h); drawStroke(liveCtx, cur.s); }
   }
   function onUp(e) {
+    if (sdrag && e.pointerId === sdrag.id) { const d = sdrag; sdrag = null; if (d.changed) { pushHistory(); scheduleSave(); } return; }
     if (scrollMode && e.pointerId === scrollMode.id) {
       const moved = scrollMode.moved; scrollMode = null;
       if (moved > 8) suppressClick = true;
@@ -656,6 +679,48 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     if (tool !== 'text' || Date.now() - lastTextAt < 600) return;
     if (e.target.closest('.tbw') || e.target.closest('.plabel')) return;
     createTextAt(e.currentTarget, e);
+  }
+
+  /* ───────── 도형 선택·변형 ───────── */
+  let sel = null, sdrag = null;
+  const isLine = s => s.kind === 'line' || s.kind === 'arrow';
+  function selBox(s) { return { l: Math.min(s.a[0], s.b[0]), r: Math.max(s.a[0], s.b[0]), t: Math.min(s.a[1], s.b[1]), b: Math.max(s.a[1], s.b[1]) }; }
+  function hpos(s, i) { if (isLine(s)) return i ? s.b : s.a; const o = selBox(s); return [[o.l, o.t], [o.r, o.t], [o.r, o.b], [o.l, o.b]][i]; }
+  function clearSel() { if (sel) { sel.ref.sl.innerHTML = ''; sel = null; } }
+  function selectShape(ref, s) { clearSel(); sel = { ref, s, box: null, hs: [], x: null }; buildSel(); }
+  function deleteSel() {
+    if (!sel) return; const { ref, s } = sel, k = ref.p.strokes.indexOf(s);
+    if (k >= 0) ref.p.strokes.splice(k, 1);
+    clearSel(); redrawInk(ref); pushHistory(); scheduleSave();
+  }
+  function buildSel() {
+    const { ref, s } = sel, sl = ref.sl; sl.innerHTML = '';
+    sel.box = document.createElement('div'); sel.box.className = 'shbox'; sl.appendChild(sel.box);
+    const n = isLine(s) ? 2 : 4;
+    for (let i = 0; i < n; i++) {
+      const h = document.createElement('div'); h.className = 'shh'; sl.appendChild(h); sel.hs.push(h);
+      let drag = null;
+      h.addEventListener('pointerdown', ev => { ev.preventDefault(); ev.stopPropagation(); drag = { changed: false }; try { h.setPointerCapture(ev.pointerId); } catch (_) {} });
+      h.addEventListener('pointermove', ev => {
+        if (!drag) return; const q = pt(ev, ref.el); drag.changed = true;
+        const x = clamp(q[0], 0, ref.p.w), y = clamp(q[1], 0, ref.p.h);
+        if (isLine(s)) { if (i) s.b = [x, y]; else s.a = [x, y]; }
+        else { const o = hpos(s, (i + 2) % 4); s.a = [o[0], o[1]]; s.b = [x, y]; }
+        redrawInk(ref); updateSel();
+      });
+      const end = () => { if (!drag) return; const c = drag.changed; drag = null; if (c) { pushHistory(); scheduleSave(); } };
+      h.addEventListener('pointerup', end); h.addEventListener('pointercancel', end);
+    }
+    const x = document.createElement('div'); x.className = 'shh shx'; x.textContent = '×'; x.title = '도형 삭제'; sl.appendChild(x); sel.x = x;
+    x.addEventListener('pointerdown', ev => { ev.preventDefault(); ev.stopPropagation(); });
+    x.addEventListener('click', ev => { ev.stopPropagation(); deleteSel(); });
+    updateSel();
+  }
+  function updateSel() {
+    if (!sel) return; const { ref, s } = sel, o = selBox(s), pad = (s.size || 4) / 2 + 4;
+    Object.assign(sel.box.style, { left: (o.l - pad) + 'px', top: (o.t - pad) + 'px', width: (o.r - o.l + pad * 2) + 'px', height: (o.b - o.t + pad * 2) + 'px' });
+    sel.hs.forEach((h, i) => { const p = hpos(s, i); h.style.left = p[0] + 'px'; h.style.top = p[1] + 'px'; });
+    sel.x.style.left = ((o.l + o.r) / 2) + 'px'; sel.x.style.top = Math.max(16 / ref.scale, o.t - pad - 26 / ref.scale) + 'px';
   }
 
   /* ───────── 텍스트 상자 ───────── */
@@ -805,7 +870,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   function restore(s) {
     const d = JSON.parse(s);
     note.pages.forEach((p, i) => { if (!d[i]) return; p.strokes = d[i].strokes; p.texts = d[i].texts; p.images = d[i].images; });
-    activeTB = null;
+    activeTB = null; clearSel();
     pageEls.forEach(el => { const r = el._p; rebuildTexts(r); if (r.vis) { rebuildImages(r); redrawInk(r); } });
     scheduleSave(); updUndo();
   }
@@ -816,6 +881,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     if (!note || !$('viewEdit').classList.contains('on')) return;
     const a = document.activeElement || {};
     if (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable) return;
+    if (sel && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); deleteSel(); return; }
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
     else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); redo(); }
   });
@@ -889,7 +955,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     $('size').disabled = t === 'select';
     $('penTypes').hidden = t !== 'pen'; $('shapeTypes').hidden = t !== 'shape'; $('textHint').hidden = t !== 'text';
     $('subRow').style.display = (t === 'pen' || t === 'shape' || t === 'text') ? 'flex' : 'none';
-    if (t !== 'select') deselectImages();
+    if (t !== 'select') { deselectImages(); clearSel(); }
     const a = document.activeElement;
     if (a && a.classList && a.classList.contains('tbt') && ['pen', 'hl', 'eraser', 'shape'].includes(t)) a.blur();
   }
@@ -926,6 +992,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
         else { liveCtx.clearRect(0, 0, c.ref.p.w, c.ref.p.h); if (live.parentNode) live.parentNode.removeChild(live); }
       }
       scrollMode = null;
+      if (sdrag) { const d = sdrag; sdrag = null; if (d.changed) { pushHistory(); scheduleSave(); } }
     };
     const info = () => { const a = [...tp.values()]; return { mx: (a[0].x + a[1].x) / 2, my: (a[0].y + a[1].y) / 2, d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1 }; };
     sc.addEventListener('pointerdown', e => {

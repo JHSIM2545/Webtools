@@ -606,13 +606,14 @@ function startListen(barge) {
   try { rec = new SR(); } catch (e) { toast('음성 인식을 시작할 수 없어요'); return; }
   rec.lang = 'ko-KR'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
   rec.onstart = () => { listening = true; $('btnMic').classList.add('on'); $('listen').classList.add('on'); $('interim').textContent = '듣고 있어요…'; };
-  rec.onresult = ev => { let it = ''; for (let i = ev.resultIndex; i < ev.results.length; i++) { const r = ev.results[i]; if (r.isFinal) finalText += r[0].transcript; else it += r[0].transcript; } $('interim').textContent = (finalText + it).trim() || '듣고 있어요…'; };
+  rec.onspeechstart = () => { if (barge === true) stopSpeak(); };   // 마이크에 소리가 들어오면 안내를 즉시 멈춤
+  rec.onresult = ev => { if (barge === true) stopSpeak(); let it = ''; for (let i = ev.resultIndex; i < ev.results.length; i++) { const r = ev.results[i]; if (r.isFinal) finalText += r[0].transcript; else it += r[0].transcript; } $('interim').textContent = (finalText + it).trim() || '듣고 있어요…'; };
   rec.onerror = ev => { err = ev.error || ''; };
   rec.onend = () => {
     listening = false; $('btnMic').classList.remove('on'); $('listen').classList.remove('on');
     const t = finalText.trim();
     if (barge === true) {   // 안내 문장을 읽는 중에도 대답을 듣는다
-      if (t && speaking && t.length > 12) { err = ''; finalText = ''; return setTimeout(() => startListen(true), 150); }   // 내 목소리(스피커)가 다시 들어온 긴 문장은 버림
+      if (t && t.length > 12) { err = ''; finalText = ''; return setTimeout(() => startListen(true), 150); }   // 내 목소리(스피커)가 다시 들어온 긴 문장은 버림
       if (!t && err !== 'not-allowed' && err !== 'service-not-allowed' && err !== 'audio-capture' && pending && (pending.stage === 'dpick' || pending.stage === 'pick') && bargeN-- > 0) return setTimeout(() => startListen(true), 200);
     }
     if (t) { lastVoice = true; stopSpeak(); handleText(t); return; }

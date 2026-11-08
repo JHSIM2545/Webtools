@@ -245,6 +245,7 @@ const NLU = (() => {
       if (/(꺼|삭제|지워|취소|해제)/.test(t)) return 'del_alarm';
       return 'alarm_add';
     }
+    if (/(가자|가줘|가주세요|갈래|가고\s*싶|가볼래|가보자|길\s*안내|길안내|길\s*찾아|길\s*알려|내비게이션|네비게이션|내비|네비|데려다|안내\s*(해|시작)|네이버\s*(지도|맵))/.test(t) && !/(일정|스케줄|약속|캘린더|알람|전화|메모|저장|추가|등록|번호)/.test(t)) return 'navigate';
     const hasMemoWord = /메모|노트에|적어\s*(줘|둬|놔)|기록해/.test(t);
     const evtWord = /일정|스케줄|약속|미팅|회의|캘린더|예약/.test(t);
     if (evtWord && !(hasMemoWord && !/일정.*(추가|등록|잡|넣)/.test(t))) {
@@ -336,6 +337,19 @@ const NLU = (() => {
       let c = w.rest.replace(/알람(을|도)?\s*(맞춰|설정|등록|추가|해|켜|울려|만들어|저장)\s*(줘|주세요|줄래|해줘|좀)?[가-힣]*/g, ' ').replace(/깨워\s*(줘|주세요|줄래|라)?/g, ' ').replace(/알람|모닝콜/g, ' ');
       c = c.replace(/\s*(에|으로|로|까지|부터|때|마다)\s*$/g, ' ').replace(/^(에는|에서|에|으로|로)\s+/, '').replace(/\s+/g, ' ').trim();
       if (c && c.length > 1 && !/^(맞춰|설정|해줘|좀|줘)$/.test(c)) sl.label = c;
+    } else if (intent === 'navigate') {
+      let d = t.replace(/네이버\s*(지도|내비게이션|네비게이션|내비|네비|맵)?\s*(앱)?\s*(으로|로|에서|를|을|켜서|열어서)?/g, ' ')
+        .replace(/(내비게이션|네비게이션|내비|네비)\s*(앱)?\s*(으로|로|를|을|좀)?\s*(켜|실행|시작|열어)?[가-힣]*/g, ' ')
+        .replace(/가는\s*(길)?/g, ' ')
+        .replace(/(알려|보여)\s*(줘|주세요|줄래)[가-힣]*/g, ' ')
+        .replace(/(길\s*안내|길안내|길\s*찾기|길\s*찾아|길\s*알려)\s*(를|좀)?\s*(시작|해|해줘|해주세요|줘|부탁)?[가-힣]*/g, ' ')
+        .replace(/안내\s*(시작)?\s*(해|해줘|해주세요|좀)?[가-힣]*/g, ' ')
+        .replace(/데려다\s*(줘|주세요|줄래)[가-힣]*/g, ' ')
+        .replace(/(으로|로|까지|에|를|을)?\s*(가자|가줘|가주세요|갈래|가고\s*싶어요?|가볼래|가보자)[가-힣]*/g, ' ');
+      d = d.replace(/\s+/g, ' ').trim();
+      for (let i = 0; i < 3; i++) d = d.replace(/^(우리|빨리|얼른|이제|지금|자|그럼|저기|여기서|좀|일단)\s+/, '');
+      d = d.replace(/(으로|까지|에|를|을)$/, '').replace(/([가-힣]{2,})로$/, '$1').trim();
+      if (d && !/^(좀|자|이제|빨리|얼른|지금)$/.test(d)) sl.dest = d;
     } else if (intent === 'list_event') {
       sl.when = parseWhen(t, now);
     } else if (intent === 'list_memo') {
@@ -824,15 +838,79 @@ function pickIndex(t, n) {
   for (let i = 0; i < Math.min(n, 6); i++) if (W[i].test(t)) return i; return -1;
 }
 
+/* ───────── 길안내: 목적지 위치 확인 → 네이버 지도 내비 실행 ───────── */
+const UA = navigator.userAgent, IS_ANDROID = /Android/i.test(UA), IS_IOS = /iPad|iPhone|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const NAVER_APP = encodeURIComponent(location.origin && location.origin !== 'null' ? location.origin + location.pathname : 'simassistant');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const nmapUrl = {
+  nav: c => 'nmap://navigation?dlat=' + c.lat.toFixed(6) + '&dlng=' + c.lng.toFixed(6) + '&dname=' + encodeURIComponent(c.name) + '&appname=' + NAVER_APP,
+  place: c => 'nmap://place?lat=' + c.lat.toFixed(6) + '&lng=' + c.lng.toFixed(6) + '&name=' + encodeURIComponent(c.name) + '&appname=' + NAVER_APP,
+  search: q => 'nmap://search?query=' + encodeURIComponent(q) + '&appname=' + NAVER_APP
+};
+// 안드로이드 웹: intent 주소(앱이 없으면 플레이스토어로 연결), iOS 웹: nmap:// 직접 호출
+const launchHref = u => IS_ANDROID ? 'intent://' + u.slice(7) + '#Intent;scheme=nmap;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end' : u;
+let leftPage = false;
+['pagehide', 'blur'].forEach(ev => window.addEventListener(ev, () => { leftPage = true; }));
+document.addEventListener('visibilitychange', () => { if (document.hidden) leftPage = true; });
+function iosStoreFallback() {   // iOS: 앱이 안 열리고 화면이 그대로면 앱스토어로
+  if (!IS_IOS) return; leftPage = false;
+  setTimeout(() => { if (!leftPage && !document.hidden) location.href = 'https://itunes.apple.com/app/id311867728?mt=8'; }, 1800);
+}
+function openNaver(u) { location.href = launchHref(u); iosStoreFallback(); }
+const inKorea = x => x.lat >= 31.43 && x.lat <= 44.35 && x.lng >= 122.37 && x.lng <= 132;
+const prettyAddr = d => String(d).split(',').map(x => x.trim()).filter(x => x && x !== '대한민국' && !/^\d{5}$/.test(x)).reverse().join(' ');
+async function geocode(q) {   // 위치 확인용 주소 검색 (OpenStreetMap Nominatim, 키 불필요)
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 9000);
+  try {
+    const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=kr&accept-language=ko&q=' + encodeURIComponent(q), { signal: ctl.signal });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    return j.map(x => ({ lat: +x.lat, lng: +x.lon, name: (x.name || String(x.display_name).split(',')[0]).trim(), addr: prettyAddr(x.display_name), src: '지도 검색' })).filter(inKorea);
+  } finally { clearTimeout(to); }
+}
+const near = (a, b) => { const dl = Math.max(Math.abs(a.lat - b.lat), Math.abs(a.lng - b.lng)); return dl < 0.00015 || (dl < 0.002 && a.name === b.name); };
+function noNaverApp() { return !(IS_ANDROID || IS_IOS) ? '<span class="sub">※ PC에서는 네이버 지도 앱이 열리지 않아요. 휴대폰에서 사용해 주세요.</span>' : ''; }
+function confirmNav(p, c) {
+  p.stage = 'dok'; p.pick = c; autoTried = false;
+  bot('"' + c.name + '" 위치는 ' + (c.addr || '주소 정보가 없어요') + '입니다. 여기로 네이버 내비 안내를 시작할까요?', {
+    html: '<b>목적지를 확인해 주세요</b>' + kvRows([['이름', c.name], ['주소', c.addr], ['출처', c.src]]) + '<span class="sub">위치 검색은 지도 데이터 기준이라 상호는 틀릴 수 있어요. <b>🗺 위치 보기</b>로 지도에서 먼저 확인하세요.</span>' + noNaverApp(), tok: p.tok,
+    btns: [{ label: '🧭 네이버 내비 시작', primary: true, href: launchHref(nmapUrl.nav(c)), fn: () => { pending = null; iosStoreFallback(); } }, { label: '🗺 위치 보기', href: launchHref(nmapUrl.place(c)), fn: iosStoreFallback }, { label: '취소', fn: () => cancelP('취소했어요.') }]
+  });
+}
+function pickNav(p, cands) {
+  p.stage = 'dpick'; p.cands = cands; autoTried = false;
+  const html = '<b>' + esc(p.sl.dest) + ' — 후보 ' + cands.length + '곳</b>' + cands.map((c, i) => '<div class="who" style="margin-top:8px"><div class="av" style="background:#f2a900;color:#2b2000">' + (i + 1) + '</div><div><b>' + esc(c.name) + '</b><small>' + esc(c.addr || '') + (c.src === '연락처 주소' ? ' · 연락처 주소' : '') + '</small></div></div>').join('');
+  bot('후보가 ' + cands.length + '곳 있어요. ' + cands.map((c, i) => (i + 1) + '번 ' + c.name + ' ' + (c.addr || '')).join(', ') + '. 몇 번인가요?', { html, tok: p.tok, btns: cands.map((c, i) => ({ label: (i + 1) + '. ' + c.name, fn: () => confirmNav(p, c) })).concat([{ label: '취소', fn: () => cancelP('취소했어요.') }]) });
+}
+async function navFlow(sl) {
+  if (!sl.dest) { pending = newP('navigate', sl); pending.ask = 'navdest'; return bot('어디로 갈까요? 목적지를 말씀해 주세요.', { tok: pending.tok, btns: [{ label: '취소', fn: () => cancelP('취소했어요.') }] }); }
+  const dest = sl.dest; sys('"' + dest + '" 위치를 확인하는 중…');
+  const cands = []; let err = '';
+  try {
+    await loadContacts();
+    const dn = dest.replace(/\s/g, '');
+    const cs = searchContacts({ name: dest }).concat(contacts.filter(c => c.name && dn.includes(c.name.replace(/\s/g, '')))).filter((c, i, a) => c.address && a.indexOf(c) === i).slice(0, 1);
+    for (const c of cs) { const r = await geocode(c.address); if (r[0]) cands.push(Object.assign(r[0], { name: c.name || c.company, addr: c.address, src: '연락처 주소' })); await sleep(1100); }
+    (await geocode(dest)).forEach(c => { if (!cands.some(o => near(o, c))) cands.push(c); });
+  } catch (e) { err = e && e.name === 'AbortError' ? '응답이 늦어요' : (e && e.message) || '연결 실패'; }
+  if (!cands.length) {
+    pending = null;
+    return bot('"' + dest + '" 위치를 확인하지 못했어요' + (err ? ' (' + err + ')' : '') + '. 네이버 지도에서 직접 검색해 볼까요?', { html: '<b>위치를 확인하지 못했어요</b><span class="sub">"' + esc(dest) + '"' + (err ? ' — ' + esc(err) : '') + '<br>도로명 주소나 "OO시 OO구 OO건물"처럼 더 자세히 말씀해 보세요.</span>' + noNaverApp(), btns: [{ label: '네이버 지도에서 검색', primary: true, href: launchHref(nmapUrl.search(dest)), fn: iosStoreFallback }] });
+  }
+  pending = newP('navigate', sl); const p = pending;
+  if (cands.length === 1) return confirmNav(p, cands[0]);
+  pickNav(p, cands.slice(0, 4));
+}
+
 /* ───────── 입력 처리 ───────── */
-const HELP = ['"메모해줘"', '"홍길동 연락처 저장해줘"', '"홍길동 전화번호 찾아줘"', '"홍길동한테 전화해줘"', '"내일 오후 3시 미팅 일정 추가해줘"', '"내일 아침 7시에 알람 맞춰줘"', '"오늘 일정 알려줘"'];
+const HELP = ['"메모해줘"', '"홍길동 연락처 저장해줘"', '"홍길동 전화번호 찾아줘"', '"홍길동한테 전화해줘"', '"내일 오후 3시 미팅 일정 추가해줘"', '"내일 아침 7시에 알람 맞춰줘"', '"오늘 일정 알려줘"', '"강남역으로 가자"'];
 async function handleText(raw) {
   const text = String(raw || '').trim(); if (!text) return;
   addMsg('me', esc(text)); const n = NLU.normalize(text);
   if (pending && /^(취소|그만|중지|됐어|아니야?\s*그만|그만해)/.test(n)) return cancelP('취소했어요.');
   if (pending) {
     const p = pending, di = NLU.detect(text);
-    const strong = di && (p.stage === 'pick' || p.stage === 'callok' || p.ask === 'findname' ? true : (di !== p.intent && !(p.ask === 'content' || p.ask === 'title')));
+    const strong = di && (p.stage === 'pick' || p.stage === 'callok' || p.stage === 'dok' || p.stage === 'dpick' || p.ask === 'findname' || p.ask === 'navdest' ? true : (di !== p.intent && !(p.ask === 'content' || p.ask === 'title')));
     if (!strong) return continueP(p, text, n);
     pending = null;   // 다른 요청이 들어오면 이전 것은 접는다
   }
@@ -842,6 +920,7 @@ async function handleText(raw) {
   switch (intent) {
     case 'memo_add': case 'contact_add': case 'event_add': case 'alarm_add': pending = newP(intent, sl); return step();
     case 'contact_find': case 'call': return findFlow(intent, sl);
+    case 'navigate': return navFlow(sl);
     case 'list_memo': {
       const q = (sl.q || '').toLowerCase(), a = MEM.memos.filter(m => !q || m.content.toLowerCase().includes(q)).sort((x, y) => y.created.localeCompare(x.created)).slice(0, 5);
       if (!a.length) return bot(q ? '"' + sl.q + '" 메모를 찾지 못했어요.' : '저장된 메모가 없어요.');
@@ -887,6 +966,22 @@ async function continueP(p, text, n) {
     if (NLU.isNo(n)) return cancelP('취소했어요.');
     return bot('"네"라고 하시면 전화를 걸어요. 아니면 "취소"라고 해 주세요.', { tok: p.tok });
   }
+  if (p.stage === 'dok') {
+    if (NLU.isYes(n)) { const c = p.pick; pending = null; bot('네이버 내비를 실행해요.', { html: '<b>네이버 내비를 실행해요</b><span class="sub">안 열리면 아래 버튼을 눌러 주세요</span>' + noNaverApp(), btns: [{ label: '🧭 네이버 내비 시작', primary: true, href: launchHref(nmapUrl.nav(c)), fn: iosStoreFallback }] }); setTimeout(() => openNaver(nmapUrl.nav(c)), 600); return; }
+    if (NLU.isNo(n)) return cancelP('취소했어요. 다른 목적지를 말씀해 주세요.');
+    return bot('"네"라고 하시면 안내를 시작해요. 아니면 "취소"라고 해 주세요.', { tok: p.tok });
+  }
+  if (p.stage === 'dpick') {
+    const i = pickIndex(n, p.cands.length);
+    if (i >= 0) return confirmNav(p, p.cands[i]);
+    const f = p.cands.filter(c => [c.name, c.addr].join(' ').replace(/\s/g, '').includes(n.replace(/\s/g, '')));
+    if (f.length === 1) return confirmNav(p, f[0]);
+    return bot('몇 번째인지 번호로 말씀해 주세요. 예: "2번"', { tok: p.tok });
+  }
+  if (p.ask === 'navdest') {
+    const d = NLU.extract('navigate', cleanAns(n) + ' 가자', new Date()).dest || cleanAns(n);
+    pending = null; return navFlow({ dest: d });
+  }
   if (p.ask === 'findname') {
     const c = cleanAns(n), nm = NLU.extractName(c, []) || (c.length <= 12 && !/\d/.test(c) ? c : '');
     if (!nm) return bot('이름을 알아듣지 못했어요. 다시 말씀해 주세요.', { tok: p.tok });
@@ -903,7 +998,7 @@ async function continueP(p, text, n) {
 function sendTyped() { const v = $('txt').value.trim(); if (!v) return; $('txt').value = ''; lastVoice = false; unlockAudio(); handleText(v); }
 $('btnSend').onclick = sendTyped;
 $('txt').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); sendTyped(); } });
-['메모해줘', '연락처 저장해줘', '전화번호 찾아줘', '전화 걸어줘', '일정 추가해줘', '알람 맞춰줘', '오늘 일정 알려줘'].forEach(t => {
+['메모해줘', '연락처 저장해줘', '전화번호 찾아줘', '전화 걸어줘', '길안내 해줘', '일정 추가해줘', '알람 맞춰줘', '오늘 일정 알려줘'].forEach(t => {
   const b = document.createElement('button'); b.textContent = t; b.onclick = () => { lastVoice = false; unlockAudio(); handleText(t); }; $('chips').appendChild(b);
 });
 
@@ -914,7 +1009,7 @@ $('txt').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isCompos
   await loadContacts(); renderAll(); setInterval(tick, 1000); tick(); wakeOn();
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
-  addMsg('bot', '<b>안녕하세요, SIM Assistant예요.</b><span class="sub">마이크 버튼을 누르고 말씀하세요.<br>메모 · 연락처 저장/검색 · 전화 걸기 · 일정 · 알람을 도와드려요.</span>');
+  addMsg('bot', '<b>안녕하세요, SIM Assistant예요.</b><span class="sub">마이크 버튼을 누르고 말씀하세요.<br>메모 · 연락처 저장/검색 · 전화 걸기 · 길안내 · 일정 · 알람을 도와드려요.</span>');
   if (!SR) sys('이 브라우저는 음성 인식을 지원하지 않아요. 키보드의 🎤(받아쓰기)를 쓰거나 Chrome·Safari에서 열어 주세요.');
   else if (ios && standalone) sys('iPhone 홈 화면 앱에서는 음성 인식이 막힐 수 있어요. 안 되면 키보드의 🎤(받아쓰기)를 쓰거나 Safari에서 열어 주세요.');
   if (memOnly) sys('이 브라우저는 저장소를 쓸 수 없어 임시로만 동작해요. 닫으면 사라져요.');

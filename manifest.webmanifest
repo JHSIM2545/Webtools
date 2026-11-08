@@ -1,7 +1,7 @@
 {
-  "name": "SIM TV",
-  "short_name": "SIM TV",
-  "description": "라이브 채널 시청 앱",
+  "name": "SIM Webtools",
+  "short_name": "SIM Tools",
+  "description": "SIM 웹툴 런처 — 여러 툴을 선택해서 실행",
   "lang": "ko",
   "start_url": "./index.html",
   "scope": "./",

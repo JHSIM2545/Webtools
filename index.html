@@ -6,9 +6,9 @@
 <meta name="theme-color" content="#0f1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="SIM Webtools">
+<meta name="apple-mobile-web-app-title" content="SIM Tools">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>SIM Webtools</title>
+<title>SIM Tools</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/svg+xml" href="icon.svg">
@@ -82,7 +82,7 @@ a.card:active{transform:scale(.98)}
 
 <div class="modal" id="mInstall">
   <div class="box">
-    <h2>SIM Webtools 앱으로 설치</h2>
+    <h2>SIM Tools 앱으로 설치</h2>
     <div class="body" id="installBody"></div>
     <div class="warn" id="installWarn"></div>
     <div class="row"><button class="primary" id="installClose">확인</button></div>
@@ -140,13 +140,13 @@ a.card:active{transform:scale(.98)}
   if (standalone()) $('btnInstall').style.display = 'none';
 
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; });
-  window.addEventListener('appinstalled', () => { deferredPrompt = null; $('btnInstall').style.display = 'none'; toast('SIM Webtools가 설치되었습니다.'); });
+  window.addEventListener('appinstalled', () => { deferredPrompt = null; $('btnInstall').style.display = 'none'; toast('SIM Tools가 설치되었습니다.'); });
 
   function showInstallGuide() {
     let body;
     if (isIOS) body = '<b>iPhone / iPad (Safari)</b><br>① 하단의 공유 버튼(□↑)을 누릅니다.<br>② <b>홈 화면에 추가</b>를 선택합니다.<br>③ 이름을 확인하고 <b>추가</b>를 누릅니다.<br><small style="color:var(--sub)">※ 크롬 등 다른 브라우저가 아닌 Safari에서 열어야 합니다.</small>';
     else if (isAndroid) body = '<b>Android (Chrome)</b><br>① 오른쪽 위 메뉴(⋮)를 엽니다.<br>② <b>앱 설치</b> 또는 <b>홈 화면에 추가</b>를 선택합니다.';
-    else body = '<b>PC (Chrome / Edge)</b><br>주소창 오른쪽의 <b>설치 아이콘(⊕)</b>을 누르거나, 메뉴(⋮) → <b>SIM Webtools 설치</b>를 선택합니다.';
+    else body = '<b>PC (Chrome / Edge)</b><br>주소창 오른쪽의 <b>설치 아이콘(⊕)</b>을 누르거나, 메뉴(⋮) → <b>SIM Tools 설치</b>를 선택합니다.';
     $('installBody').innerHTML = body;
     $('installWarn').textContent = secure ? '' : '현재 주소(' + location.protocol + '//)에서는 설치가 지원되지 않습니다. HTTPS 주소(예: GitHub Pages)로 접속해야 설치할 수 있습니다.';
     $('mInstall').classList.add('show');

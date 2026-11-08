@@ -90,13 +90,6 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
 .menu button{display:block;width:100%;text-align:left;margin-top:8px;padding:13px 14px}
 .menu small{display:block;color:var(--sub);font-size:12px;margin-top:2px}
 .row2{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
-#scWrap{position:relative;margin:0 auto;touch-action:none;user-select:none;-webkit-user-select:none;background:#000}
-#scCv{display:block;width:100%;height:100%}
-#scSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
-#scPoly{fill:rgba(245,159,58,.15);stroke:var(--accent);stroke-width:2}
-.scH{position:absolute;width:32px;height:32px;margin:-16px 0 0 -16px;border-radius:50%;background:var(--accent);border:3px solid #fff;box-shadow:0 1px 4px #0008;touch-action:none;box-sizing:border-box}
-.fl{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
-.fl button.on{background:#3a2a14;border-color:var(--accent);color:#fff}
 #busy{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:90;color:#fff;font-size:15px;text-align:center;padding:20px}
 #busy.show{display:flex}
 #busy div{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 26px;max-width:320px;line-height:1.6}
@@ -104,6 +97,62 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
 #imgov.on{display:flex}#imgov img{max-width:100%;max-height:100%;border-radius:8px}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222a3d;border:1px solid var(--line);padding:9px 16px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:90vw;text-align:center}
 .toast.show{opacity:1}
+/* 명함 인식 화면 (TA 관리 앱과 같은 흐름: 촬영 → 크롭 → 인식 → 저장) */
+#vCard .bar{position:relative}
+#vCard .cdh{flex:1;min-width:0}
+#vCard .cdh h3{font-size:17px;font-weight:800;letter-spacing:-.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#vCard .cdh .sb{font-size:12px;font-weight:700;color:var(--sub);margin-top:2px;min-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cd2-eng{position:absolute;right:10px;top:calc(3px + env(safe-area-inset-top));font-size:9.5px;font-weight:600;color:var(--sub);opacity:.6;pointer-events:none;max-width:48%;text-align:right;line-height:1.2}
+.cdbody{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px 24px}
+.cdbody>.in{max-width:760px;margin:0 auto}
+.cdfoot{flex:none;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line)}
+.cdfoot button{border-radius:12px;padding:13px 14px;font-size:15px;font-weight:800;border:none}
+.cdfoot .go{flex:1;background:var(--accent2);color:#fff}
+.cdfoot .tool{flex:1;display:flex;justify-content:center;align-items:center;background:var(--panel2);color:var(--text);border:1px solid var(--line);padding:12px 10px;font-size:14px;font-weight:700}
+.cd-st{margin:10px 0 6px;font-size:13.5px;font-weight:700;color:var(--sub);min-height:18px;white-space:pre-line}
+.cd-st.ok{color:var(--ok)}.cd-st.err{color:var(--danger)}.cd-st.busy{color:var(--accent)}
+.cd-raw{margin:4px 2px 0;font-size:12.5px;color:var(--sub)}
+.cd-raw pre{white-space:pre-wrap;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12px;color:var(--text)}
+#vCard [data-s]{display:none}
+#vCard[data-st="cam"] [data-s~="cam"],#vCard[data-st="crop"] [data-s~="crop"],#vCard[data-st="manual"] [data-s~="manual"],#vCard[data-st="work"] [data-s~="work"],#vCard[data-st="fail"] [data-s~="fail"],#vCard[data-st="ok"] [data-s~="ok"]{display:block}
+#vCard[data-st="cam"] .cd2-ft[data-s~="cam"],#vCard[data-st="crop"] .cd2-ft[data-s~="crop"],#vCard[data-st="manual"] .cd2-ft[data-s~="manual"],#vCard[data-st="work"] .cd2-ft[data-s~="work"],#vCard[data-st="fail"] .cd2-ft[data-s~="fail"],#vCard[data-st="ok"] .cd2-ft[data-s~="ok"]{display:flex}
+.cd2-ft{gap:8px;align-items:center;max-width:760px;margin:0 auto;width:100%}
+.cd2-ft[data-s~="cam"]{justify-content:space-between}
+.cd2-live{position:relative;width:100%;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#000;touch-action:manipulation}
+.cd2-live video{width:100%;height:100%;object-fit:cover;display:block}
+.cd-frame{position:absolute;left:6%;right:6%;top:16.5%;bottom:16.5%;border:2.5px dashed rgba(255,255,255,.9);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.28);pointer-events:none}
+.cd2-cropbox{background:#000;border-radius:14px;padding:10px;display:flex;justify-content:center}
+.cd2-cropbox img{max-width:100%;max-height:52vh;border-radius:6px;background:#fff}
+.cd2-exp{align-items:center;gap:10px;margin:10px 4px 0;font-size:13px;font-weight:800;color:var(--sub)}
+.cd2-exp input{flex:1;height:28px;padding:0;border:none;background:none}
+.cd2-tip{margin:10px 2px 0;font-size:13px;color:var(--sub);line-height:1.5}
+.cd2-note{margin:10px 2px 0;font-size:14px;font-weight:700;color:var(--sub);line-height:1.45}
+.cd2-note.ok{color:var(--ok)}.cd2-note.err{color:var(--danger)}.cd2-note.busy{color:var(--accent)}
+.cd2-man{position:relative;margin-top:10px;touch-action:none;user-select:none;-webkit-user-select:none}
+.cd2-man img{width:100%;display:block;border-radius:8px;pointer-events:none}
+.cd2-box{position:absolute;border:3px solid #22c55e;box-shadow:0 0 0 999px rgba(0,0,0,.55);box-sizing:border-box;cursor:move}
+.cd2-box i{position:absolute;width:30px;height:30px;background:#22c55e;border:3px solid #fff;border-radius:50%;box-sizing:border-box}
+.cd2-box i[data-h=tl]{left:-15px;top:-15px}.cd2-box i[data-h=tr]{right:-15px;top:-15px}.cd2-box i[data-h=bl]{left:-15px;bottom:-15px}.cd2-box i[data-h=br]{right:-15px;bottom:-15px}
+.cd2-res{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px}
+.cd2-res img{width:132px;max-height:100px;object-fit:contain;border-radius:8px;background:#fff;border:1px solid var(--line);flex:none}
+.cd2-resr{flex:1;min-width:0}
+.cd2-resr .cd-st{margin-top:0}
+.cd2-fring{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border:2.5px solid #fde047;border-radius:50%;pointer-events:none;opacity:0;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.cd2-fring.go{animation:cd2f 1.1s ease-out forwards}
+@keyframes cd2f{0%{opacity:1;transform:scale(1.5)}25%{opacity:1;transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(1)}}
+.cd2-lnk{margin:-4px 0 12px}
+.cd2-lnk button{background:none;border:none;color:var(--accent);font-size:14px;font-weight:800;text-decoration:underline;padding:6px 2px}
+.cd-g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cd-g2>div{min-width:0}
+.cd-form .box{padding:2px 14px 14px}
+.cd-form .ck{display:flex;align-items:center;gap:10px;padding:11px 2px;font-size:14.5px;font-weight:700;color:var(--text);margin:0}
+.cd-form .ck input{flex:none;width:22px;height:22px;margin:0;padding:0;border:none;background:none;accent-color:var(--accent2)}
+.cd-form .ck small{color:var(--sub);font-weight:600;margin-left:auto;font-size:12px;text-align:right;max-width:46%}
+.cdfoot .cd2-side{flex:none;width:72px;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;color:var(--text);padding:4px 0;font-size:12px;border:none}
+.cd2-side .ic{width:30px;height:30px}
+.cdfoot .cd2-shutter{flex:none;width:76px;height:76px;border-radius:50%;padding:0;background:#fff;border:4px solid var(--accent2);display:flex;align-items:center;justify-content:center;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,.4)}
+.cd2-shutter i{display:block;flex:none;width:56px;height:56px;border-radius:50%;background:var(--accent2)}
+.cd2-shutter:active i{transform:scale(.9)}
 </style>
 </head>
 <body>
@@ -180,19 +229,55 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
   <input type="file" id="jsonFile" accept=".json,application/json" hidden>
 </div></div>
 
-<!-- 명함/문서 스캔 -->
-<div class="modal" id="mScan"><div class="mbox" style="max-width:540px">
-  <h2>명함 스캔</h2>
-  <div class="sub">네 개의 ● 를 명함 모서리에 맞춘 뒤 <b>적용</b>하면 반듯하게 펴서 글자를 읽습니다.</div>
-  <div id="scWrap"><canvas id="scCv"></canvas><svg id="scSvg"><polygon id="scPoly"/></svg></div>
-  <div class="fl" id="scFilters"><button data-sf="orig">원본</button><button data-sf="doc" class="on">선명</button><button data-sf="bw">흑백</button></div>
-  <div class="row2" style="justify-content:space-between">
-    <span style="display:flex;gap:8px"><button id="scRot">⟳ 회전</button><button id="scAuto">✨ 자동 감지</button></span>
-    <span style="display:flex;gap:8px"><button id="scCancel">취소</button><button class="primary" id="scOk">적용</button></span>
+<!-- 명함 인식 (촬영 → 크롭 → 인식 → 저장) -->
+<section class="view" id="vCard" data-st="cam">
+  <div class="bar">
+    <button class="ibtn" id="cdBack" aria-label="뒤로">‹</button>
+    <div class="cdh"><h3>명함 인식</h3><div class="sb"><span id="cdSub"></span><span id="cdEngine" class="cd2-eng"></span></div></div>
   </div>
-</div></div>
-<input type="file" id="scanFile" accept="image/*" capture="environment" hidden>
-<input type="file" id="scanPick" accept="image/*" hidden>
+  <div class="cdbody"><div class="in cd-form">
+    <div data-s="cam">
+      <div class="cd2-live" id="cdLive"><video id="cdVideo" playsinline autoplay muted></video><div class="cd-frame"></div><div class="cd2-fring" id="cdRing"></div></div>
+      <div id="cdConRow" class="cd2-exp" style="display:flex"><span>대비 낮게</span><input type="range" id="cdCon" min="0.8" max="1.8" step="0.05" value="1.25"><span>높게</span></div>
+      <div id="cdExpRow" class="cd2-exp" style="display:none"><span>어둡게</span><input type="range" id="cdExp" min="-2" max="2" step="0.5" value="-1"><span>밝게</span></div>
+      <div class="cd2-tip">👆 <b>명함 글자를 손가락으로 톡 누르면</b> 그 부분에 초점을 맞춰요. 💡 명함이 번쩍이면 <b>밝기를 낮추거나</b> 명함을 살짝 기울여 조명이 비치지 않게 찍어 보세요. 비스듬히 찍어도 반듯하게 펴 드려요.</div>
+    </div>
+    <div data-s="crop">
+      <div class="cd2-cropbox"><img id="cdCropImg" alt="자른 명함"></div>
+      <div class="cd2-note" id="cdCropNote"></div>
+    </div>
+    <div data-s="manual">
+      <div class="cd2-note ok" style="margin-top:0">모서리나 안쪽을 끌어 명함 부분에 맞추고 [자르기 완료]를 누르세요</div>
+      <div class="cd2-man" id="cdManWrap"><img id="cdManImg" alt=""><div class="cd2-box" id="cdManBox" data-h="mv"><i data-h="tl"></i><i data-h="tr"></i><i data-h="bl"></i><i data-h="br"></i></div></div>
+    </div>
+    <div data-s="work fail ok">
+      <div class="cd2-res"><img id="cdThumb" alt="명함"><div class="cd2-resr"><div class="cd-st" id="cdStatus"></div></div></div>
+      <div data-s="fail" class="cd2-lnk"><button type="button" data-a="minput">직접 입력해서 계속하기</button></div>
+    </div>
+    <div data-s="fail ok">
+      <div class="box">
+        <div class="cd-g2 f"><div><label>이름</label><input type="text" id="cdName" autocomplete="off"></div><div><label>직책</label><input type="text" id="cdTitle" autocomplete="off"></div></div>
+        <div class="f"><label>회사</label><input type="text" id="cdCompany" autocomplete="off"></div>
+        <div class="cd-g2 f"><div><label>휴대폰</label><input type="tel" inputmode="tel" id="cdMobile" autocomplete="off"></div><div><label>회사 전화</label><input type="tel" inputmode="tel" id="cdTel" autocomplete="off"></div></div>
+        <div class="cd-g2 f"><div><label>팩스</label><input type="tel" inputmode="tel" id="cdFax" autocomplete="off"></div><div><label>이메일</label><input type="email" inputmode="email" id="cdEmail" autocomplete="off" autocapitalize="off"></div></div>
+        <div class="f"><label>주소</label><input type="text" id="cdAddr" autocomplete="off"></div>
+      </div>
+      <div class="box" style="padding:6px 14px"><label class="ck" id="cdPhoneRow"><input type="checkbox" id="cdPhoneOpt"> 내 휴대폰 연락처에도 같이 저장<small>저장 후 연락처 앱의 저장 화면이 열려요</small></label></div>
+      <details class="cd-raw"><summary>인식된 원문</summary><pre id="cdRaw"></pre></details>
+    </div>
+    <div class="cd-st" id="cdStatusCam" data-s="cam"></div>
+    <input type="file" id="cdCam" accept="image/*" capture="environment" hidden>
+    <input type="file" id="cdAlb" accept="image/*" hidden>
+  </div></div>
+  <div class="cdfoot">
+    <div class="cd2-ft" data-s="cam"><button type="button" class="cd2-side" data-a="album"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></svg><small>앨범</small></button><button type="button" class="cd2-shutter" data-a="shoot" aria-label="촬영"><i></i></button><span class="cd2-side"></span></div>
+    <div class="cd2-ft" data-s="crop"><button type="button" class="tool" data-a="retake">재촬영</button><button type="button" class="tool" data-a="manual">직접 자르기</button><button type="button" class="go" data-a="recog">인식하기</button></div>
+    <div class="cd2-ft" data-s="manual"><button type="button" class="tool" data-a="mcancel">취소</button><button type="button" class="go" data-a="mdone">자르기 완료</button></div>
+    <div class="cd2-ft" data-s="work"><button type="button" class="tool" data-a="retake">재촬영</button></div>
+    <div class="cd2-ft" data-s="fail"><button type="button" class="tool" data-a="retake">재촬영</button><button type="button" class="go" data-a="recog">재시도</button></div>
+    <div class="cd2-ft" data-s="ok"><button type="button" class="tool" data-a="cancel">취소</button><button type="button" class="tool" data-a="retake">재촬영</button><button type="button" class="tool" data-a="recog">재시도</button><button type="button" class="go" id="cdApply" data-a="apply">저장</button></div>
+  </div>
+</section>
 
 <div id="imgov"><img alt=""></div>
 <div id="busy"><div id="busyMsg">처리 중…</div></div>
@@ -238,7 +323,7 @@ function findDup(c, selfId) {
   return contacts.find(o => o.id !== selfId && ((ph.length && [o.mobile, o.tel].map(digits).some(d => d && ph.includes(d))) || (em && String(o.email || '').trim().toLowerCase() === em)));
 }
 
-/* ───────── 명함 글자 해석·정렬 (TA 관리 앱의 연락처 코드에서 가져옴) ───────── */
+/* ───────── 가나다 정렬·전화번호 서식 (TA 관리 앱의 연락처 코드에서 가져옴) ───────── */
 const TA4_CHO = 'ㄱㄱㄴㄷㄷㄹㅁㅂㅂㅅㅅㅇㅈㅈㅊㅋㅌㅍㅎ';
 function ta4Initial(name) {
   const ch = String(name || '').trim().charAt(0); if (!ch) return '#';
@@ -249,8 +334,6 @@ function ta4Initial(name) {
   return '#';
 }
 function ta4InitialRank(k) { return /[ㄱ-ㅎ]/.test(k) ? 0 : /[A-Z]/.test(k) ? 1 : 2; }
-const TA4_TITLE_RE = /(대표이사|대표|이사|부장|차장|과장|대리|사원|팀장|실장|본부장|지점장|지사장|소장|사장|상무|전무|부사장|회장|매니저|주임|계장|원장|관장|센터장|책임|선임|수석|국장|팀원|점장|총무|Manager|Director|President|CEO|Engineer|Executive|Leader|Specialist|Representative)/i;
-const TA4_COMP_RE = /(주식회사|\(주\)|㈜|\(유\)|유한회사|Co\.?,?\s*Ltd|Inc\.?|Corp|Ltd|회사|병원|학교|센터|은행|건설|전자|그룹|협회|공단|조합|상사|산업|시스템|기업|재단|법인|사무소|호텔|마트|약국|의원|학원|교회|농협|보험|증권|캐피탈|아파트|빌딩)/i;
 function ta4FmtPhone(raw) {
   let d = String(raw || '').replace(/[^0-9]/g, ''); if (d.startsWith('82') && d.length >= 11) d = '0' + d.slice(2);
   if (/^1[568]\d{6}$/.test(d)) return d.slice(0, 4) + '-' + d.slice(4);
@@ -259,64 +342,6 @@ function ta4FmtPhone(raw) {
   if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
   return d;
 }
-function ta4CardParseBase(raw) {
-  const out = { name: '', title: '', company: '', mobile: '', tel: '', fax: '', email: '', address: '' };
-  const lines = String(raw || '').split(/\r?\n/).map(s => s.replace(/[|｜¦]/g, ' ').replace(/\s+/g, ' ').trim()).filter(s => s.length > 1);
-  const used = new Set();
-  lines.forEach((ln, i) => {
-    if (out.email) return;
-    const t = ln.replace(/^\s*(e-?mail|email|e|이메일|메일)\s*[.:]\s*/i, '').replace(/\s*@\s*/g, '@').replace(/\s*\.\s*(?=[A-Za-z])/g, '.');
-    const m = t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/);
-    if (m) { out.email = m[0].toLowerCase(); used.add(i); }
-  });
-  const NUM = /(?:\+?82[-\s.)]*\(?0?|\(?0)\d{1,2}\)?[-\s.)]*\d{3,4}[-\s.]*\d{4}|\b1[568]\d{2}[-\s.]\d{4}\b/g;
-  lines.forEach((ln, i) => {
-    let m, any = false; NUM.lastIndex = 0;
-    while ((m = NUM.exec(ln))) {
-      any = true;
-      const pre = ln.slice(Math.max(0, m.index - 10), m.index), num = ta4FmtPhone(m[0]), d = num.replace(/\D/g, '');
-      if (/(fax|팩스|f)\s*[.:\-]?\s*\)?\s*$/i.test(pre)) { if (!out.fax) out.fax = num; }
-      else if (/^01[016-9]/.test(d)) { if (!out.mobile) out.mobile = num; }
-      else if (!out.tel) out.tel = num;
-    }
-    if (any) used.add(i);
-  });
-  const ADDR = /(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)/;
-  lines.forEach((ln, i) => { if (!out.address && !used.has(i) && (ADDR.test(ln) && /[0-9]/.test(ln) || /[가-힣]+(시|군|구)\s.*(로|길|동)\s?\d/.test(ln))) { out.address = ln.replace(/^(주소|Address|Add)\s*[.:]?\s*/i, ''); used.add(i); } });
-  // 직책 (같은 줄에 이름이 있으면 분리)
-  lines.forEach((ln, i) => {
-    if (out.title || used.has(i) || ln.length > 24 || !TA4_TITLE_RE.test(ln) || TA4_COMP_RE.test(ln)) return;
-    const toks = ln.split(' ');
-    if (toks.length > 1) {
-      const nameTok = toks.find(t => /^[가-힣]{2,4}$/.test(t) && !TA4_TITLE_RE.test(t));
-      if (nameTok) { out.name = nameTok; out.title = toks.filter(t => t !== nameTok).join(' '); used.add(i); return; }
-    }
-    out.title = ln; used.add(i);
-  });
-  lines.forEach((ln, i) => { if (!out.company && !used.has(i) && TA4_COMP_RE.test(ln)) { out.company = ln; used.add(i); } });
-  if (!out.name) lines.forEach((ln, i) => {
-    if (out.name || used.has(i)) return;
-    const c = /^[가-힣](\s[가-힣]){1,3}$/.test(ln) ? ln.replace(/\s/g, '') : ln;
-    if (/^[가-힣]{2,4}$/.test(c)) { out.name = c; used.add(i); }
-  });
-  if (!out.name) lines.forEach((ln, i) => { if (!out.name && !used.has(i) && /^[A-Z][a-z]+(\s[A-Z][a-z]+){1,2}$/.test(ln)) { out.name = ln; used.add(i); } });
-  return out;
-}
-
-// SIM Phone 보강: 이름 줄 끝에 잡음 글자가 붙어 이름을 못 찾은 경우(예: "김민수 sem") 줄 맨 앞 한글 2~4자를 이름으로 본다
-function ta4CardParse(raw) {
-  const o = ta4CardParseBase(raw);
-  if (!o.name) {
-    const lines = String(raw || '').split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
-    for (const ln of lines) {
-      if (ln.length > 16 || TA4_COMP_RE.test(ln) || /[0-9@]/.test(ln)) continue;
-      const m = /^([가-힣]{2,4})(?:\s|$)/.exec(ln);
-      if (m && !TA4_TITLE_RE.test(m[1])) { o.name = m[1]; break; }
-    }
-  }
-  return o;
-}
-
 
 /* ───────── 목록 ───────── */
 const AV = ['#2f6bff', '#0ea5a4', '#d9488a', '#f08c1f', '#7c5cff', '#16a34a', '#e5484d', '#0b7285'];
@@ -356,6 +381,7 @@ $('list').addEventListener('click', e => { if (e.target.closest('.call')) return
 const stack = ['vList'];
 function show(id, push) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === id));
+  if (id !== 'vCard') { try { ta4CardCamStop(); } catch (_) {} }
   if (push) { stack.push(id); try { history.pushState({ v: id }, ''); } catch (_) {} }
 }
 let skipPop = 0;
@@ -527,200 +553,480 @@ $('jsonFile').addEventListener('change', async e => {
   } catch (er) { unbusy(); toast('SIM Phone 백업 파일이 아닙니다'); }
 });
 
-/* ───────── 명함 스캔(모서리 자동 감지 · 원근 보정) ───────── */
-  const sc = { src: null, pts: [], k: 1, f: 'doc', hs: [] };
-  const scWrap = $('scWrap'), scCv = $('scCv');
-  async function scOpen(file) {
-    try {
-      const url = URL.createObjectURL(file), im = new Image();
-      await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('img')); im.src = url; });
-      URL.revokeObjectURL(url);
-      const k = Math.min(1, 2200 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement('canvas');
-      c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-      sc.src = c; scReset(); $('mScan').classList.add('show'); scLayout(); scAutoApply();
-    } catch (_) { toast('사진을 읽을 수 없습니다.'); }
-  }
-  /* 문서 모서리 자동 감지: 축소 → 밝기 분리(Otsu) → 가장 큰 덩어리 → 네 극점 */
-  function scDetect() {
-    try {
-      const sw = sc.src.width, sh = sc.src.height, k = Math.min(1, 420 / Math.max(sw, sh)), W = Math.max(8, Math.round(sw * k)), H = Math.max(8, Math.round(sh * k));
-      const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); g.drawImage(sc.src, 0, 0, W, H);
-      const d = g.getImageData(0, 0, W, H).data, N = W * H, gray = new Float32Array(N);
-      for (let i = 0; i < N; i++) gray[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
-      let a = gray, b = new Float32Array(N);       // 5×5 상당 박스 블러 (가로·세로 2회)
-      for (let pass = 0; pass < 2; pass++) {
-        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let sum = 0, n = 0; for (let t = -2; t <= 2; t++) { const xx = x + t; if (xx >= 0 && xx < W) { sum += a[y * W + xx]; n++; } } b[y * W + x] = sum / n; }
-        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let sum = 0, n = 0; for (let t = -2; t <= 2; t++) { const yy = y + t; if (yy >= 0 && yy < H) { sum += b[yy * W + x]; n++; } } a[y * W + x] = sum / n; }
-      }
-      const hist = new Float64Array(256); for (let i = 0; i < N; i++) hist[Math.min(255, a[i] | 0)]++;
-      let tot = N, sumAll = 0; for (let i = 0; i < 256; i++) sumAll += i * hist[i];
-      let wB = 0, sumB = 0, best = -1, thr = 128;
-      for (let t = 0; t < 256; t++) { wB += hist[t]; if (!wB) continue; const wF = tot - wB; if (!wF) break; sumB += t * hist[t]; const mB = sumB / wB, mF = (sumAll - sumB) / wF, v = wB * wF * (mB - mF) * (mB - mF); if (v > best) { best = v; thr = t; } }
-      const tryPol = bright => {
-        const lab = new Int32Array(N), stack = new Int32Array(N); let bestC = null, id = 0;
-        for (let s0 = 0; s0 < N; s0++) {
-          if (lab[s0]) continue; const on = bright ? a[s0] > thr : a[s0] <= thr; if (!on) continue;
-          id++; let sp = 0; stack[sp++] = s0; lab[s0] = id;
-          let area = 0, minx = W, maxx = 0, miny = H, maxy = 0, tl = null, tr = null, br = null, bl = null, vtl = 1e9, vtr = -1e9, vbr = -1e9, vbl = 1e9;
-          while (sp) {
-            const p = stack[--sp], x = p % W, y = (p / W) | 0; area++;
-            if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
-            const sa = x + y, df = x - y;
-            if (sa < vtl) { vtl = sa; tl = [x, y]; } if (sa > vbr) { vbr = sa; br = [x, y]; } if (df > vtr) { vtr = df; tr = [x, y]; } if (df < vbl) { vbl = df; bl = [x, y]; }
-            if (x > 0) { const q = p - 1; if (!lab[q] && (bright ? a[q] > thr : a[q] <= thr)) { lab[q] = id; stack[sp++] = q; } }
-            if (x < W - 1) { const q = p + 1; if (!lab[q] && (bright ? a[q] > thr : a[q] <= thr)) { lab[q] = id; stack[sp++] = q; } }
-            if (y > 0) { const q = p - W; if (!lab[q] && (bright ? a[q] > thr : a[q] <= thr)) { lab[q] = id; stack[sp++] = q; } }
-            if (y < H - 1) { const q = p + W; if (!lab[q] && (bright ? a[q] > thr : a[q] <= thr)) { lab[q] = id; stack[sp++] = q; } }
-          }
-          const full = (maxx - minx) >= W * 0.98 && (maxy - miny) >= H * 0.98;
-          if (!full && area > N * 0.08 && (!bestC || area > bestC.area)) bestC = { area, q: [tl, tr, br, bl] };
-        }
-        if (!bestC) return null;
-        const q = bestC.q, qa = Math.abs(q.reduce((s2, p, i) => { const n2 = q[(i + 1) % 4]; return s2 + (p[0] * n2[1] - n2[0] * p[1]); }, 0)) / 2;
-        if (qa < N * 0.15 || qa > N * 0.97 || bestC.area / qa < 0.55) return null;
-        return q.map(p => [p[0] / k, p[1] / k]);
-      };
-      return tryPol(true) || tryPol(false);
-    } catch (_) { return null; }
-  }
-  function scAutoApply(quiet) {
-    const q = scDetect();
-    if (q) { sc.pts = q.map(p => [clamp(p[0], 0, sc.src.width), clamp(p[1], 0, sc.src.height)]); scDraw(); if (!quiet) toast('모서리를 찾았습니다. 어긋나면 ●를 끌어 맞추세요.'); }
-    else { scReset(); scDraw(); toast('문서 모서리를 자동으로 찾지 못했습니다. ●를 직접 맞춰 주세요.'); }
-  }
-  function scReset() { const w = sc.src.width, h = sc.src.height, m = 0.06; sc.pts = [[w * m, h * m], [w * (1 - m), h * m], [w * (1 - m), h * (1 - m)], [w * m, h * (1 - m)]]; }
-  function scLayout() {
-    const w = sc.src.width, h = sc.src.height, maxW = Math.min(480, window.innerWidth - 80), maxH = window.innerHeight * 0.5;
-    sc.k = Math.min(maxW / w, maxH / h);
-    const dw = Math.round(w * sc.k), dh = Math.round(h * sc.k);
-    scWrap.style.width = dw + 'px'; scWrap.style.height = dh + 'px'; scCv.width = dw; scCv.height = dh;
-    scCv.getContext('2d').drawImage(sc.src, 0, 0, dw, dh);
-    if (!sc.hs.length) for (let i = 0; i < 4; i++) {
-      const h2 = document.createElement('div'); h2.className = 'scH'; scWrap.appendChild(h2); sc.hs.push(h2);
-      h2.addEventListener('pointerdown', ev => { ev.preventDefault(); h2.setPointerCapture(ev.pointerId); h2._d = true; });
-      h2.addEventListener('pointermove', ev => {
-        if (!h2._d) return; const r = scWrap.getBoundingClientRect();
-        sc.pts[i] = [clamp((ev.clientX - r.left) / sc.k, 0, sc.src.width), clamp((ev.clientY - r.top) / sc.k, 0, sc.src.height)]; scDraw();
-      });
-      h2.addEventListener('pointerup', () => { h2._d = false; }); h2.addEventListener('pointercancel', () => { h2._d = false; });
-    }
-    scDraw();
-  }
-  function scDraw() {
-    sc.hs.forEach((h, i) => { h.style.left = sc.pts[i][0] * sc.k + 'px'; h.style.top = sc.pts[i][1] * sc.k + 'px'; });
-    $('scSvg').setAttribute('viewBox', '0 0 ' + scCv.width + ' ' + scCv.height);
-    $('scPoly').setAttribute('points', sc.pts.map(p => (p[0] * sc.k) + ',' + (p[1] * sc.k)).join(' '));
-  }
-  $('scRot').onclick = () => {
-    const s0 = sc.src, c = document.createElement('canvas'); c.width = s0.height; c.height = s0.width;
-    const g = c.getContext('2d'); g.translate(c.width, 0); g.rotate(Math.PI / 2); g.drawImage(s0, 0, 0);
-    sc.src = c; scReset(); scLayout(); scAutoApply(true);
-  };
-  $('scAuto').onclick = () => scAutoApply();
-  $('scFilters').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; sc.f = b.dataset.sf; document.querySelectorAll('#scFilters button').forEach(x => x.classList.toggle('on', x === b)); });
-  $('scCancel').onclick = () => $('mScan').classList.remove('show');
-  function quadMap(P) {      // 단위 정사각형 → 사각형 호모그래피 (Heckbert)
-    const [x0, y0] = P[0], [x1, y1] = P[1], [x2, y2] = P[2], [x3, y3] = P[3];
-    const dx1 = x1 - x2, dx2 = x3 - x2, dx3 = x0 - x1 + x2 - x3, dy1 = y1 - y2, dy2 = y3 - y2, dy3 = y0 - y1 + y2 - y3;
-    const den = dx1 * dy2 - dy1 * dx2; let g = 0, h = 0;
-    if (Math.abs(den) > 1e-9 && (Math.abs(dx3) > 1e-9 || Math.abs(dy3) > 1e-9)) { g = (dx3 * dy2 - dy3 * dx2) / den; h = (dx1 * dy3 - dy1 * dx3) / den; }
-    return [x1 - x0 + g * x1, x3 - x0 + h * x3, x0, y1 - y0 + g * y1, y3 - y0 + h * y3, y0, g, h];
-  }
-  function scWarp() {
-    const P = sc.pts, d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-    let W = Math.max(d(P[0], P[1]), d(P[3], P[2])), H = Math.max(d(P[0], P[3]), d(P[1], P[2]));
-    const k = Math.min(1, 1800 / Math.max(W, H)); W = Math.round(W * k); H = Math.round(H * k);
-    if (W < 40 || H < 40) return null;
-    const [a, b, c, dd, e, f, g, h] = quadMap(P), sw = sc.src.width, sh = sc.src.height;
-    const sd = sc.src.getContext('2d').getImageData(0, 0, sw, sh).data, out = document.createElement('canvas'); out.width = W; out.height = H;
-    const og = out.getContext('2d'), id = og.createImageData(W, H), o = id.data;
-    for (let y = 0; y < H; y++) {
-      const v = (y + 0.5) / H;
-      for (let x = 0; x < W; x++) {
-        const u = (x + 0.5) / W, w = g * u + h * v + 1, X = (a * u + b * v + c) / w - 0.5, Y = (dd * u + e * v + f) / w - 0.5;
-        const x0 = Math.floor(X), y0 = Math.floor(Y), fx = X - x0, fy = Y - y0, i = (y * W + x) * 4;
-        const xa = clamp(x0, 0, sw - 1), xb = clamp(x0 + 1, 0, sw - 1), ya = clamp(y0, 0, sh - 1), yb = clamp(y0 + 1, 0, sh - 1);
-        const p00 = (ya * sw + xa) * 4, p10 = (ya * sw + xb) * 4, p01 = (yb * sw + xa) * 4, p11 = (yb * sw + xb) * 4;
-        for (let ch = 0; ch < 3; ch++) o[i + ch] = sd[p00 + ch] * (1 - fx) * (1 - fy) + sd[p10 + ch] * fx * (1 - fy) + sd[p01 + ch] * (1 - fx) * fy + sd[p11 + ch] * fx * fy;
-        o[i + 3] = 255;
-      }
-    }
-    og.putImageData(id, 0, 0);
-    if (sc.f !== 'orig') {     // 조명 얼룩 제거: 흐린 배경으로 나눠 종이를 흰색으로
-      const sm = document.createElement('canvas'); sm.width = Math.max(8, Math.round(W / 14)); sm.height = Math.max(8, Math.round(H / 14));
-      sm.getContext('2d').drawImage(out, 0, 0, sm.width, sm.height);
-      const bg = document.createElement('canvas'); bg.width = W; bg.height = H; const bgc = bg.getContext('2d'); bgc.imageSmoothingEnabled = true; bgc.imageSmoothingQuality = 'high'; bgc.drawImage(sm, 0, 0, W, H);
-      const bd = bgc.getImageData(0, 0, W, H).data, bw = sc.f === 'bw', lo = bw ? 105 : 80, hi = bw ? 215 : 225;
-      for (let i = 0; i < o.length; i += 4) {
-        let r = o[i] / Math.max(bd[i], 40) * 255, gg = o[i + 1] / Math.max(bd[i + 1], 40) * 255, bb = o[i + 2] / Math.max(bd[i + 2], 40) * 255;
-        if (bw) r = gg = bb = 0.299 * r + 0.587 * gg + 0.114 * bb;
-        o[i] = clamp((r - lo) / (hi - lo) * 255, 0, 255); o[i + 1] = clamp((gg - lo) / (hi - lo) * 255, 0, 255); o[i + 2] = clamp((bb - lo) / (hi - lo) * 255, 0, 255);
-      }
-      og.putImageData(id, 0, 0);
-    }
-    return out;
-  }
-  $('scOk').onclick = async () => {
-    busy('스캔 보정 중…'); await nextFrame();
-    try {
-      const cv = scWarp(); if (!cv) { unbusy(); toast('모서리 영역이 너무 작습니다.'); return; }
-      $('mScan').classList.remove('show'); await onCardScanned(cv);
-    } catch (err) { unbusy(); toast('스캔 보정에 실패했습니다. 다시 시도해 주세요.'); }
-  };
-
-
-/* ───────── 명함 스캔 → 글자 인식(OCR) → 편집 화면 ───────── */
-const OCR_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
-let ocrW = null, cardMode = 'new';
-function loadScript(src) { return new Promise((res, rej) => { if (window.Tesseract) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('script')); document.head.appendChild(s); }); }
-async function ocrWorker() {
-  if (ocrW) return ocrW; await loadScript(OCR_SRC);
-  ocrW = await Tesseract.createWorker('kor+eng', 1, { logger: m => { if (m && m.status && $('busy').classList.contains('show')) busy((m.status === 'recognizing text' ? '글자 인식 중… ' : '인식 엔진 준비 중(처음 한 번만 오래 걸립니다)… ') + (m.progress != null ? Math.round(m.progress * 100) + '%' : '')); } });
-  return ocrW;
-}
+/* ───────── 명함 인식 (TA 관리 앱과 같은 화면 흐름: 촬영 → 크롭 → 인식 → 저장) ───────── */
 const AI_URL = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/card-ocr', AI_KEY = 'sb_publishable_xUnGxyLCc5TB5nv4keVQVw__grqGJkP';
-async function aiOcr(img) {
+const LS_CARDOPT = 'SIMPH_CARDOPT';
+let CARD = { mode: 'new', src: null, srcUrl: '', crop: '', how: '', small: '', busy: false, stage: 'cam', man: null, stream: null };
+function compressFile(f, max, q) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(f), im = new Image();
+    im.onload = () => {
+      URL.revokeObjectURL(url);
+      const k = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(im.naturalWidth * k)); c.height = Math.max(1, Math.round(im.naturalHeight * k));
+      const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(im, 0, 0, c.width, c.height);
+      res(c.toDataURL('image/jpeg', q));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('이미지를 읽을 수 없습니다')); };
+    im.src = url;
+  });
+}
+function ta4CardFields() { return { name: 'cdName', title: 'cdTitle', company: 'cdCompany', mobile: 'cdMobile', tel: 'cdTel', fax: 'cdFax', email: 'cdEmail', address: 'cdAddr' }; }
+function ta4CardRead() { const c = {}, F = ta4CardFields(); Object.keys(F).forEach(k => { c[k] = ($(F[k]).value || '').trim(); }); return c; }
+function ta4CardFill(c) { const F = ta4CardFields(); Object.keys(F).forEach(k => { $(F[k]).value = (c && c[k]) || ''; }); }
+function ta4CardStage(st) { CARD.stage = st; $('vCard').dataset.st = st; }
+function ta4CardStatus(t, cls) { ['cdStatus', 'cdStatusCam'].forEach(id => { const s = $(id); if (s) { s.textContent = t; s.className = 'cd-st ' + (cls || ''); } }); }
+// 실시간 카메라(휴대폰에서 바로 카메라 화면이 뜸). 안 되면 사진 앱/앨범으로 대체
+// 카메라 설정: 플래시 끄기·연속 초점·노출 낮추기(빛 반사 줄이기). 지원하는 폰에서만 적용된다.
+async function ta4CardCamTune(st) {
   try {
-    busy('AI가 명함을 읽는 중…');
-    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 45000);
-    const call = h => fetch(AI_URL, { method: 'POST', signal: ctl.signal, headers: Object.assign({ 'Content-Type': 'application/json', apikey: AI_KEY }, h), body: JSON.stringify({ image: img }) });
-    let r = await call({}); if (r.status === 401) r = await call({ Authorization: 'Bearer ' + AI_KEY });
-    clearTimeout(t); const j = await r.json();
-    if (!r.ok || !j || j.error) { window._aiErr = (r.status + ' ' + ((j && (j.error || j.message)) || '')).slice(0, 120); return null; }
-    const o = {}; ['name', 'title', 'company', 'mobile', 'tel', 'fax', 'email', 'address'].forEach(k => { o[k] = String(j[k] || '').trim(); });
-    window._aiErr = ''; return Object.keys(o).some(k => o[k]) ? o : null;
-  } catch (e) { window._aiErr = String((e && e.message) || e); return null; }
+    const tr = st.getVideoTracks()[0], cp = (tr && tr.getCapabilities) ? tr.getCapabilities() : {}, row = $('cdExpRow'), sl = $('cdExp');
+    const put = async c => { try { await tr.applyConstraints({ advanced: [c] }); } catch (e) {} };
+    if (cp.torch) await put({ torch: false });
+    if (cp.focusMode && cp.focusMode.includes('continuous')) await put({ focusMode: 'continuous' });
+    if (cp.whiteBalanceMode && cp.whiteBalanceMode.includes('continuous')) await put({ whiteBalanceMode: 'continuous' });
+    if (cp.exposureMode && cp.exposureMode.includes('continuous')) await put({ exposureMode: 'continuous' });
+    const ec = cp.exposureCompensation;
+    if (ec && ec.max > ec.min) {
+      const def = Math.max(ec.min, Math.min(ec.max, -1)); await put({ exposureCompensation: def });
+      sl.min = ec.min; sl.max = ec.max; sl.step = ec.step || 0.5; sl.value = def; row.style.display = 'flex';
+      sl.oninput = () => put({ exposureCompensation: Number(sl.value) });
+    } else if (row) row.style.display = 'none';
+  } catch (e) {}
 }
-function prepForOcr(src) {
-  const sc = Math.min(1, 1800 / Math.max(src.width, src.height)), c = document.createElement('canvas'); c.width = Math.round(src.width * sc); c.height = Math.round(src.height * sc);
-  const x = c.getContext('2d'); x.drawImage(src, 0, 0, c.width, c.height);
-  const d = x.getImageData(0, 0, c.width, c.height), a = d.data; let lo = 255, hi = 0;
-  for (let i = 0; i < a.length; i += 4) { const g = (a[i] * 0.299 + a[i + 1] * 0.587 + a[i + 2] * 0.114) | 0; a[i] = a[i + 1] = a[i + 2] = g; if (g < lo) lo = g; if (g > hi) hi = g; }
-  const span = Math.max(40, hi - lo);
-  for (let i = 0; i < a.length; i += 4) { const v = Math.max(0, Math.min(255, ((a[i] - lo) * 255 / span) | 0)); a[i] = a[i + 1] = a[i + 2] = v; }
-  x.putImageData(d, 0, 0); return c;
+// 화면을 톡 누르면 그 지점으로 초점·노출을 맞춘다 (지원하지 않는 폰은 자동 초점을 다시 맞춘다)
+async function ta4CardTapFocus(ev) {
+  const C = CARD, st = C && C.stream, v = $('cdVideo'), box = $('cdLive'); if (!st || !v || !v.videoWidth) return;
+  if (C.afBusy) return;
+  const r = box.getBoundingClientRect(), px = ev.clientX - r.left, py = ev.clientY - r.top;
+  const ring = $('cdRing'); ring.style.left = px + 'px'; ring.style.top = py + 'px'; ring.classList.remove('go'); void ring.offsetWidth; ring.classList.add('go');
+  const sc = Math.max(r.width / v.videoWidth, r.height / v.videoHeight), dw = v.videoWidth * sc, dh = v.videoHeight * sc;
+  const nx = Math.min(1, Math.max(0, (px + (dw - r.width) / 2) / dw)), ny = Math.min(1, Math.max(0, (py + (dh - r.height) / 2) / dh));
+  const tr = st.getVideoTracks()[0]; if (!tr) return;
+  let cp = {}; try { cp = tr.getCapabilities ? tr.getCapabilities() : {}; } catch (e) {}
+  const put = async c => { try { await tr.applyConstraints({ advanced: [c] }); return true; } catch (e) { return false; } };
+  const modes = cp.focusMode || [], fd = cp.focusDistance, pt = [{ x: nx, y: ny }];
+  C.afBusy = true;
+  try {
+    // 1) 폰이 지점 초점을 지원하면(지원 표시가 없어도 일단 요청) 그 지점으로 초점·노출을 맞춘다
+    ta4CardStatus('초점을 맞추는 중…', 'busy');
+    await put({ focusMode: modes.includes('single-shot') ? 'single-shot' : 'continuous', pointsOfInterest: pt });
+    await put({ exposureMode: (cp.exposureMode || []).includes('single-shot') ? 'single-shot' : 'continuous', pointsOfInterest: pt });
+    // 2) 수동 초점이 되는 폰: 눌린 지점의 선명도를 직접 재면서 가장 또렷한 거리를 찾는다
+    if (modes.includes('manual') && fd && fd.max > fd.min) {
+      const lo = Math.max(fd.min, 0.05), hi = Math.min(fd.max, 0.9), N = 11;
+      const ds = []; for (let i = 0; i < N; i++) { const dio = 1 / lo + (1 / hi - 1 / lo) * (i / (N - 1)); ds.push(1 / dio); }
+      await put({ focusMode: 'manual' });
+      let best = null;
+      const score = async d => { await put({ focusMode: 'manual', focusDistance: d }); await new Promise(res => setTimeout(res, 230)); return ta4CardSharp(v, nx, ny); };
+      const res = []; for (const d of ds) { const s = await score(d); res.push({ d, s }); if (!best || s > best.s) best = { d, s }; }
+      // 가장 좋은 곳 주변을 한 번 더 촘촘히
+      const bi = res.findIndex(x => x.d === best.d), a = res[Math.max(0, bi - 1)].d, b = res[Math.min(res.length - 1, bi + 1)].d;
+      for (let i = 1; i <= 4; i++) { const d = a + (b - a) * (i / 5); const s = await score(d); if (s > best.s) best = { d, s }; }
+      await put({ focusMode: 'manual', focusDistance: best.d });
+      ta4CardStatus('초점을 맞췄어요(수동 탐색). 다른 곳을 누르면 다시 맞춰요', 'ok');
+      return;
+    }
+    clearTimeout(C.focusT);
+    C.focusT = setTimeout(async () => {
+      if (modes.includes('continuous')) await put({ focusMode: 'continuous', pointsOfInterest: pt });
+      ta4CardStatus('초점을 맞췄어요. 글자가 흐리면 폰을 15~25cm 떨어뜨려 보세요', 'ok');
+    }, 1100);
+  } finally { C.afBusy = false; }
 }
-function smallJpeg(cv, maxW) { const k = Math.min(1, maxW / cv.width), c = document.createElement('canvas'); c.width = Math.round(cv.width * k); c.height = Math.round(cv.height * k); c.getContext('2d').drawImage(cv, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', 0.78); }
-async function onCardScanned(cv) {
-  const img = smallJpeg(cv, 1200); let parsed = null, via = '';
-  parsed = await aiOcr(img); if (parsed) via = 'AI';
-  if (!parsed) try {
-    busy('인식 엔진을 불러오는 중…'); const w = await ocrWorker(); busy('글자 인식 중…');
-    const r = await w.recognize(prepForOcr(cv)); window._lastOcr = r.data.text; parsed = ta4CardParse(r.data.text || '');
-  } catch (er) { parsed = null; }
-  unbusy();
-  const got = parsed ? Object.keys(parsed).filter(k => parsed[k]).length : 0;
-  if (cardMode === 'edit' && S.ed) {
-    S.ed.card_img = img;
-    if (parsed) Object.keys(FIELD).forEach(k => { if (parsed[k] && !$(FIELD[k]).value.trim()) $(FIELD[k]).value = parsed[k]; });
-    edMedia(); toast(parsed ? (via ? 'AI로 ' : '명함에서 ') + got + '개 항목을 읽었습니다. 틀린 곳은 고쳐 주세요.' : '글자 인식에 실패했습니다. 명함 이미지는 저장했으니 직접 입력해 주세요.', 4000); return;
+// 눌린 지점 주변의 선명도(라플라시안 분산) — 클수록 또렷하다
+function ta4CardSharp(v, nx, ny) {
+  const S = 120, c = ta4CardSharp.c || (ta4CardSharp.c = document.createElement('canvas')); c.width = S; c.height = S;
+  const rw = Math.max(80, Math.round(v.videoWidth * 0.22)), x0 = Math.min(v.videoWidth - rw, Math.max(0, Math.round(nx * v.videoWidth - rw / 2))), y0 = Math.min(v.videoHeight - rw, Math.max(0, Math.round(ny * v.videoHeight - rw / 2)));
+  const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(v, x0, y0, rw, rw, 0, 0, S, S);
+  const d = g.getImageData(0, 0, S, S).data, gr = new Float32Array(S * S);
+  for (let i = 0; i < S * S; i++) gr[i] = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11;
+  let sum = 0, sq = 0, n = 0;
+  for (let y = 1; y < S - 1; y++) for (let x = 1; x < S - 1; x++) { const i = y * S + x, l = 4 * gr[i] - gr[i - 1] - gr[i + 1] - gr[i - S] - gr[i + S]; sum += l; sq += l * l; n++; }
+  const m = sum / n; return sq / n - m * m;
+}
+// 대비(콘트라스트): 미리보기와 촬영본에 같은 값을 적용 + 글자 선명도(샤프닝)
+function ta4CardCon() { const s = $('cdCon'); const v = s ? Number(s.value) : 1.25; return isFinite(v) ? v : 1.25; }
+function ta4CardConPreview() { const v = $('cdVideo'); if (v) v.style.filter = 'contrast(' + ta4CardCon() + ')'; }
+function ta4CardEnhance(c, con) {
+  const x = c.getContext('2d'), w = c.width, h = c.height, im = x.getImageData(0, 0, w, h), d = im.data, src = new Uint8ClampedArray(d);
+  // 선명도: 3x3 언샤프 (중심 +, 주변 -)
+  const k = 0.6;
+  for (let y = 1; y < h - 1; y++) for (let xx = 1; xx < w - 1; xx++) {
+    const i = (y * w + xx) * 4;
+    for (let ch = 0; ch < 3; ch++) {
+      const v = src[i + ch] * (1 + 4 * k) - k * (src[i - 4 + ch] + src[i + 4 + ch] + src[i - w * 4 + ch] + src[i + w * 4 + ch]);
+      d[i + ch] = v;
+    }
   }
-  openEdit('', Object.assign({}, parsed || {}, { card_img: img }));
-  toast(parsed ? (via ? 'AI로 ' : '명함에서 ') + got + '개 항목을 읽었습니다. 틀린 곳은 고친 뒤 저장하세요.' : '글자 인식에 실패했습니다. 명함 이미지는 첨부했으니 직접 입력해 주세요.', 4500);
+  // 대비: 128 기준으로 늘린다
+  if (Math.abs(con - 1) > 0.01) for (let i = 0; i < d.length; i += 4) { d[i] = (d[i] - 128) * con + 128; d[i + 1] = (d[i + 1] - 128) * con + 128; d[i + 2] = (d[i + 2] - 128) * con + 128; }
+  x.putImageData(im, 0, 0);
 }
-$('btnCard').onclick = () => { cardMode = 'new'; $('scanFile').click(); };
-$('edCardScan').onclick = () => { cardMode = 'edit'; $('scanFile').click(); };
-[$('scanFile'), $('scanPick')].forEach(inp => inp.addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) scOpen(f); }));
+async function ta4CardCamStart() {
+  ta4CardCamStop();
+  const v = $('cdVideo');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { ta4CardStatus('실시간 카메라를 쓸 수 없어 사진 앱으로 촬영합니다', 'err'); try { $('cdCam').click(); } catch (e) {} return false; }
+  try {
+    const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1440 } }, audio: false });
+    CARD.stream = st; v.srcObject = st; try { await v.play(); } catch (e) {}
+    try { const lv = $('cdLive'), cs = $('cdCon'); lv.onpointerdown = ta4CardTapFocus; cs.oninput = ta4CardConPreview; ta4CardConPreview(); } catch (x) {}
+    ta4CardCamTune(st);   // 반사가 심한 명함용: 플래시 끄고 노출을 낮추고 초점을 계속 맞춘다
+    ta4CardStatus('명함을 틀 안에 맞추고 아래 촬영 버튼을 누르세요', 'busy'); return true;
+  } catch (e) {
+    const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+    ta4CardStatus(denied ? '카메라 권한이 꺼져 있습니다. 주소창 자물쇠 > 권한 > 카메라를 허용하거나, 앨범 버튼을 이용하세요' : '카메라를 시작하지 못했습니다(' + ((e && e.name) || '오류') + '). 앨범 버튼을 이용하세요', 'err');
+    return false;
+  }
+}
+function ta4CardCamStop() {
+  const s = CARD && CARD.stream; if (s) s.getTracks().forEach(t => t.stop());
+  if (CARD) CARD.stream = null;
+  const v = $('cdVideo'); if (v) v.srcObject = null;
+  const er = $('cdExpRow'); if (er) er.style.display = 'none';
+}
+function ta4CardSharpCv(cv) {
+  const S = 160, t = document.createElement('canvas'); t.width = S; t.height = S; const g = t.getContext('2d', { willReadFrequently: true });
+  g.drawImage(cv, cv.width * 0.2, cv.height * 0.2, cv.width * 0.6, cv.height * 0.6, 0, 0, S, S);
+  const d = g.getImageData(0, 0, S, S).data, gr = new Float32Array(S * S);
+  for (let i = 0; i < S * S; i++) gr[i] = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11;
+  let sum = 0, sq = 0, n = 0;
+  for (let y = 1; y < S - 1; y++) for (let x = 1; x < S - 1; x++) { const i = y * S + x, l = 4 * gr[i] - gr[i - 1] - gr[i + 1] - gr[i - S] - gr[i + S]; sum += l; sq += l * l; n++; }
+  const m = sum / n; return sq / n - m * m;
+}
+async function ta4CardShoot() {
+  if (!CARD.stream) { await ta4CardCamStart(); return; }
+  const v = $('cdVideo'); if (!v.videoWidth) { ta4CardStatus('카메라 준비 중입니다. 잠시 후 다시 눌러주세요', 'busy'); return; }
+  // 화면에 보이는 4:3 창(명함 틀)과 같은 범위만 촬영한다
+  const vw = v.videoWidth, vh = v.videoHeight, ra = 4 / 3; let sw = vw, sh = vh;
+  if (vw / vh < ra) sh = Math.round(vw / ra); else sw = Math.round(vh * ra);
+  const sx = Math.round((vw - sw) / 2), sy = Math.round((vh - sh) / 2);
+  // 손떨림·초점 흔들림 대비: 짧게 5장 받아 가장 선명한 한 장을 쓴다
+  let c = null, bestS = -1;
+  for (let k = 0; k < 5; k++) {
+    const t = document.createElement('canvas'); t.width = sw; t.height = sh; t.getContext('2d').drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh);
+    let sc2 = 0; try { sc2 = ta4CardSharpCv(t); } catch (x) {}
+    if (sc2 > bestS) { bestS = sc2; c = t; }
+    if (k < 4) await new Promise(res => setTimeout(res, 90));
+  }
+  try { ta4CardEnhance(c, ta4CardCon()); } catch (x) {}
+  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92));
+  ta4CardCamStop(); ta4CardGot(new File([blob], 'card.jpg', { type: 'image/jpeg' }));
+}
+function ta4CardPick(inp) { const f = inp.files && inp.files[0]; inp.value = ''; if (f) { ta4CardCamStop(); ta4CardGot(f); } }
+function ta4CardRetake() {   // 재촬영: 촬영부터 다시
+  CARD.crop = ''; CARD.how = ''; CARD.small = ''; CARD.busy = false;
+  ta4CardStage('cam'); ta4CardStatus('', ''); ta4CardCamStart();
+}
+// 1단계: 크롭 먼저 — 명함을 찾아 기울기를 바로잡고 명함 부분만 자른다
+async function ta4CardGot(f) {
+  const C = CARD; if (!f || C.busy) return;
+  C.busy = true; ta4CardStage('crop'); $('cdCropImg').removeAttribute('src'); $('cdCropNote').textContent = '명함을 찾는 중…'; $('cdCropNote').className = 'cd2-note busy';
+  try {
+    const url = await compressFile(f, 1800, 0.88), img = await ta4LoadImg(url); C.src = img; C.srcUrl = url;
+    let crop = ta4CardDeskew(img, 1400), how = 'auto';
+    if (!crop) { let box = null; try { box = ta4CardAutoCrop(img); } catch (x) {} if (box) { crop = ta4CardCropImg(img, box); how = 'box'; } }
+    if (!crop) { crop = ta4CardCropImg(img, null); how = 'none'; }
+    ta4CardSetCrop(crop, how);
+    if (how === 'none') { ta4CardManual(); }   // 명함을 못 찾으면 바로 직접 자르기 화면으로
+  } catch (e) { $('cdCropNote').textContent = '이미지를 읽지 못했어요. 재촬영해 주세요. (' + ((e && e.message) || '오류') + ')'; $('cdCropNote').className = 'cd2-note err'; }
+  C.busy = false;
+}
+function ta4CardSetCrop(crop, how) {
+  const C = CARD; C.crop = crop; C.how = how; C.small = '';
+  $('cdCropImg').src = crop; ta4CardStage('crop');
+  const n = $('cdCropNote');
+  n.textContent = how === 'auto' ? '명함을 찾아 수평으로 맞춰 잘랐어요. 맞으면 [인식하기]를 누르세요' : how === 'box' ? '명함 부분을 잘랐어요. 틀어졌으면 [직접 자르기]를 눌러 주세요' : how === 'manual' ? '직접 자른 이미지예요. 맞으면 [인식하기]를 누르세요' : '명함을 정확히 찾지 못했어요. [직접 자르기]로 명함 부분을 맞춰 주세요';
+  n.className = 'cd2-note ' + (how === 'none' ? 'err' : 'ok');
+}
+// 직접 자르기: 사각형을 끌어 명함에 맞춘다
+function ta4CardManual() {
+  const C = CARD; if (!C.srcUrl) return;
+  ta4CardStage('manual'); $('cdManImg').src = C.srcUrl; C.man = { x0: .08, y0: .12, x1: .92, y1: .88 };
+  try { const b = ta4CardAutoCrop(C.src); if (b) C.man = { x0: b[1] / 1000, y0: b[0] / 1000, x1: b[3] / 1000, y1: b[2] / 1000 }; } catch (x) {}   // 자동으로 찾은 명함 위치에서 시작
+  const w = $('cdManWrap');
+  if (!w._bound) {
+    w._bound = true; let drag = null; const im = $('cdManImg'), cl = v => Math.max(0, Math.min(1, v));
+    w.addEventListener('pointerdown', e => { const t = e.target.closest('[data-h]'); if (!t) return; drag = { h: t.dataset.h, sx: e.clientX, sy: e.clientY, m: Object.assign({}, CARD.man) }; try { w.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); });
+    w.addEventListener('pointermove', e => {
+      if (!drag) return; const r = im.getBoundingClientRect(), dx = (e.clientX - drag.sx) / r.width, dy = (e.clientY - drag.sy) / r.height, m = Object.assign({}, drag.m), h = drag.h;
+      if (h === 'mv') { const w0 = m.x1 - m.x0, h0 = m.y1 - m.y0; m.x0 = Math.max(0, Math.min(drag.m.x0 + dx, 1 - w0)); m.y0 = Math.max(0, Math.min(drag.m.y0 + dy, 1 - h0)); m.x1 = m.x0 + w0; m.y1 = m.y0 + h0; }
+      else {
+        if (h.includes('l')) m.x0 = cl(Math.min(drag.m.x0 + dx, m.x1 - .1)); if (h.includes('r')) m.x1 = cl(Math.max(drag.m.x1 + dx, m.x0 + .1));
+        if (h.includes('t')) m.y0 = cl(Math.min(drag.m.y0 + dy, m.y1 - .1)); if (h.includes('b')) m.y1 = cl(Math.max(drag.m.y1 + dy, m.y0 + .1));
+      }
+      CARD.man = m; ta4ManDraw();
+    });
+    ['pointerup', 'pointercancel'].forEach(ev => w.addEventListener(ev, () => { drag = null; }));
+  }
+  ta4ManDraw();
+}
+function ta4ManDraw() { const m = CARD.man, b = $('cdManBox'); if (!m || !b) return; b.style.left = m.x0 * 100 + '%'; b.style.top = m.y0 * 100 + '%'; b.style.width = (m.x1 - m.x0) * 100 + '%'; b.style.height = (m.y1 - m.y0) * 100 + '%'; }
+function ta4CardManualDone() {
+  const C = CARD, m = C.man; if (!m || !C.src) return;
+  const crop = ta4CardCropImg(C.src, [Math.round(m.y0 * 1000), Math.round(m.x0 * 1000), Math.round(m.y1 * 1000), Math.round(m.x1 * 1000)]);
+  ta4CardSetCrop(crop, 'manual');
+}
+function ta4CardCancel() { try { ta4CardCamStop(); } catch (e) {} back(); }
+function ta4CardEngine(t) { const e = $('cdEngine'); if (e) e.textContent = t ? '인식: ' + t : ''; }
+// 실패 사유를 짧게 요약
+function ta4CardWhy(w) {
+  const t = String(w || ''); let s = '';
+  if (/credit balance|크레딧|billing/i.test(t) && !/429|quota|사용량/.test(t)) s = 'AI 크레딧/요금 문제';
+  else if (/429|quota|exceeded|rate|사용량/i.test(t)) s = 'AI 사용량 한도 초과(잠시 뒤 재시도)';
+  else if (/시간 초과|timeout|timed out|abort/i.test(t)) s = '응답 시간 초과';
+  else if (/401|403|api.?key|permission|unauthor|jwt/i.test(t)) s = '인증/키 오류';
+  else if (/404|not.?found|does not exist/i.test(t)) s = 'AI 모델을 찾을 수 없음';
+  else if (/413|너무 큽니다|too large/i.test(t)) s = '이미지가 너무 큼';
+  else if (/이미지 형식|400|invalid/i.test(t)) s = '이미지 형식/요청 오류';
+  else if (/50\d|혼잡|unavailable|overload/i.test(t)) s = 'AI 서버 혼잡/오류';
+  else if (/fetch|network|연결|Failed to send/i.test(t)) s = '네트워크 연결 실패';
+  else if (/미설정/.test(t)) s = 'AI 키 미설정';
+  else s = t.replace(/\s+/g, ' ').slice(0, 60) || '알 수 없는 오류';
+  return s;
+}
+function ta4CardFail(msg, pop) {
+  ta4CardEngine(''); ta4CardStage('fail'); ta4CardStatus(msg + '\n[재시도] 또는 [재촬영]을 눌러 주세요.', 'err');
+  if (pop) { try { setTimeout(() => alert('명함 인식 실패\n\n' + msg), 60); } catch (e) {} }
+}
+function ta4CardManualInput() { ta4CardStage('ok'); ta4CardStatus('직접 입력한 뒤 [저장]을 눌러 주세요.', 'busy'); }
+// 명함 부분만 잘라내기: AI가 알려준 위치(card_box, 0~1000) 우선 / 없으면 배경과 다른 영역을 자동 탐지
+function ta4BoxOk(b) {
+  if (!Array.isArray(b) || b.length !== 4) return false; b = b.map(Number); if (b.some(v => !isFinite(v))) return false;
+  const h = b[2] - b[0], w = b[3] - b[1]; return b[0] >= 0 && b[1] >= 0 && b[2] <= 1000 && b[3] <= 1000 && h > 150 && w > 150 && h * w >= 120000;
+}
+// 명함을 찾아 기울기를 바로잡아(수평 조정) 명함 부분만 잘라낸다. 실패하면 null
+// 밝은 영역/어두운 영역 중 '명함처럼 반듯한 사각형'인 덩어리를 찾는다 (배경이 복잡해도 동작)
+function ta4MinRect(pts, sampleMax) {
+  const step = Math.max(1, Math.floor(pts.length / sampleMax)), P = [];
+  for (let k = 0; k < pts.length; k += step) P.push(pts[k]);
+  const fit = deg => {
+    const t = deg * Math.PI / 180, cs = Math.cos(t), sn = Math.sin(t); let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (const p of P) { const x = p[0] * cs + p[1] * sn, y = -p[0] * sn + p[1] * cs; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    return { d: deg, cs, sn, x0, x1, y0, y1, area: (x1 - x0) * (y1 - y0) };
+  };
+  let best = null;
+  for (let d = -45; d < 45; d += 1.5) { const f = fit(d); if (!best || f.area < best.area) best = f; }
+  for (let d = best.d - 1.5; d <= best.d + 1.5; d += 0.25) { const f = fit(d); if (f.area < best.area) best = f; }
+  return best;
+}
+
+// 명함 덩어리의 네 모서리(왼위·오른위·오른아래·왼아래). 이상하면 null
+function ta4CardQuad(best, w, h) {
+  const { cs, sn, pts } = best, R = pts.map(p => [p[0] * cs + p[1] * sn, -p[0] * sn + p[1] * cs]);
+  const dirs = [[-1, -1], [1, -1], [1, 1], [-1, 1]], m = Math.max(2, Math.round(R.length * 0.0004)), C = [];
+  for (const d of dirs) {
+    const arr = R.map(p => [p[0] * d[0] + p[1] * d[1], p]).sort((u, v) => v[0] - u[0]).slice(0, m);
+    const mx = arr.reduce((s, e) => s + e[1][0], 0) / m, my = arr.reduce((s, e) => s + e[1][1], 0) / m;
+    C.push([mx * cs - my * sn, mx * sn + my * cs]);   // 원래 좌표로 되돌림
+  }
+  let A = 0; for (let i = 0; i < 4; i++) { const p = C[i], q = C[(i + 1) % 4]; A += p[0] * q[1] - q[0] * p[1]; } A = Math.abs(A) / 2;
+  const fill = pts.length / A; if (!(fill > 0.8 && fill < 1.2)) return null;   // 사각형이 덩어리와 안 맞으면 포기
+  const cx = C.reduce((s, p) => s + p[0], 0) / 4, cy = C.reduce((s, p) => s + p[1], 0) / 4;
+  return C.map(p => [cx + (p[0] - cx) * 0.985, cy + (p[1] - cy) * 0.985]);   // 가장자리 배경이 안 묻도록 살짝 안쪽
+}
+// 원근 보정: 네 모서리를 반듯한 직사각형으로 편다
+function ta4Warp(img, Q, outMax) {
+  try {
+    const d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    let W = (d(Q[0], Q[1]) + d(Q[3], Q[2])) / 2, H = (d(Q[0], Q[3]) + d(Q[1], Q[2])) / 2; if (W < 40 || H < 40) return null;
+    const k = Math.min(1, outMax / Math.max(W, H)); W = Math.max(2, Math.round(W * k)); H = Math.max(2, Math.round(H * k));
+    const sw = Math.min(img.naturalWidth, 2400), ks = sw / img.naturalWidth, sh = Math.round(img.naturalHeight * ks);
+    const sc = document.createElement('canvas'); sc.width = sw; sc.height = sh; const sx = sc.getContext('2d'); sx.drawImage(img, 0, 0, sw, sh);
+    const S = sx.getImageData(0, 0, sw, sh).data, q = Q.map(p => [p[0] * ks, p[1] * ks]);
+    const dst = [[0, 0], [W, 0], [W, H], [0, H]], M = [], B = [];   // dst(u,v) -> src(x,y) 의 호모그래피 8개 계수
+    for (let i = 0; i < 4; i++) { const [u, v] = dst[i], [x, y] = q[i]; M.push([u, v, 1, 0, 0, 0, -u * x, -v * x]); B.push(x); M.push([0, 0, 0, u, v, 1, -u * y, -v * y]); B.push(y); }
+    for (let i = 0; i < 8; i++) {
+      let p = i; for (let r = i + 1; r < 8; r++) if (Math.abs(M[r][i]) > Math.abs(M[p][i])) p = r;
+      [M[i], M[p]] = [M[p], M[i]]; [B[i], B[p]] = [B[p], B[i]]; const pv = M[i][i]; if (Math.abs(pv) < 1e-9) return null;
+      for (let r = 0; r < 8; r++) if (r !== i) { const f = M[r][i] / pv; for (let c = i; c < 8; c++) M[r][c] -= f * M[i][c]; B[r] -= f * B[i]; }
+    }
+    const hh = B.map((v, i) => v / M[i][i]), o = document.createElement('canvas'); o.width = W; o.height = H;
+    const ox = o.getContext('2d'), out = ox.createImageData(W, H), D = out.data;
+    for (let v = 0; v < H; v++) for (let u = 0; u < W; u++) {
+      const z = hh[6] * u + hh[7] * v + 1, x = (hh[0] * u + hh[1] * v + hh[2]) / z, y = (hh[3] * u + hh[4] * v + hh[5]) / z, o4 = (v * W + u) * 4;
+      const x0 = Math.floor(x), y0 = Math.floor(y); if (x0 < 0 || y0 < 0 || x0 >= sw - 1 || y0 >= sh - 1) { D[o4] = D[o4 + 1] = D[o4 + 2] = 255; D[o4 + 3] = 255; continue; }
+      const fx = x - x0, fy = y - y0, i00 = (y0 * sw + x0) * 4, i10 = i00 + 4, i01 = i00 + sw * 4, i11 = i01 + 4;
+      for (let c = 0; c < 3; c++) D[o4 + c] = S[i00 + c] * (1 - fx) * (1 - fy) + S[i10 + c] * fx * (1 - fy) + S[i01 + c] * (1 - fx) * fy + S[i11 + c] * fx * fy;
+      D[o4 + 3] = 255;
+    }
+    ox.putImageData(out, 0, 0);
+    return ta4Flat(o).toDataURL('image/jpeg', 0.88);
+  } catch (e) { return null; }
+}
+// 조명 얼룩·그림자를 고르게 펴고 약간 선명하게 (스캔한 느낌)
+function ta4Flat(c) {
+  try {
+    const W = c.width, H = c.height, g = Math.max(8, Math.round(Math.max(W, H) / 40)), sw = Math.ceil(W / g), sh = Math.ceil(H / g);
+    const sm = document.createElement('canvas'); sm.width = sw; sm.height = sh; const sx = sm.getContext('2d'); sx.drawImage(c, 0, 0, sw, sh);
+    const sd = sx.getImageData(0, 0, sw, sh).data, L = new Float32Array(sw * sh);
+    for (let i = 0; i < sw * sh; i++) L[i] = sd[i * 4] * 0.299 + sd[i * 4 + 1] * 0.587 + sd[i * 4 + 2] * 0.114;
+    const mx = new Float32Array(sw * sh);   // 글자에 영향받지 않도록 주변 최댓값 → 부드럽게
+    for (let j = 0; j < sh; j++) for (let i = 0; i < sw; i++) { let m = 0; for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) { const ii = i + di, jj = j + dj; if (ii >= 0 && jj >= 0 && ii < sw && jj < sh) m = Math.max(m, L[jj * sw + ii]); } mx[j * sw + i] = m; }
+    const gm = document.createElement('canvas'); gm.width = sw; gm.height = sh; const gx = gm.getContext('2d'), gd = gx.createImageData(sw, sh);
+    for (let i = 0; i < sw * sh; i++) { const gain = Math.max(0.85, Math.min(1.7, 238 / Math.max(60, mx[i]))); const v = Math.round((gain - 0.5) / 1.5 * 255); gd.data[i * 4] = gd.data[i * 4 + 1] = gd.data[i * 4 + 2] = v; gd.data[i * 4 + 3] = 255; }
+    gx.putImageData(gd, 0, 0);
+    const bg = document.createElement('canvas'); bg.width = W; bg.height = H; const bx = bg.getContext('2d'); bx.imageSmoothingEnabled = true; bx.imageSmoothingQuality = 'high'; bx.drawImage(gm, 0, 0, W, H);
+    const gdat = bx.getImageData(0, 0, W, H).data, x = c.getContext('2d'), img = x.getImageData(0, 0, W, H), D = img.data;
+    for (let i = 0; i < W * H; i++) { const gain = gdat[i * 4] / 255 * 1.5 + 0.5; for (let k = 0; k < 3; k++) { const v = (D[i * 4 + k] * gain - 128) * 1.08 + 128; D[i * 4 + k] = v < 0 ? 0 : v > 255 ? 255 : v; } }
+    x.putImageData(img, 0, 0);
+  } catch (e) {}
+  return c;
+}
+function ta4CardDeskew(img, outMax) {
+  try {
+    const iw = img.naturalWidth, ih = img.naturalHeight, W = 300, sc = W / Math.max(iw, ih), w = Math.max(8, Math.round(iw * sc)), h = Math.max(8, Math.round(ih * sc)), N = w * h;
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.drawImage(img, 0, 0, w, h);
+    const a = x.getImageData(0, 0, w, h).data, g = new Float32Array(N), b = new Float32Array(N);
+    for (let i = 0; i < N; i++) g[i] = a[i * 4] * 0.299 + a[i * 4 + 1] * 0.587 + a[i * 4 + 2] * 0.114;
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { let s = 0, n = 0; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii >= 0 && jj >= 0 && ii < w && jj < h) { s += g[jj * w + ii]; n++; } } b[j * w + i] = s / n; }
+    const hist = new Array(256).fill(0); for (let i = 0; i < N; i++) hist[b[i] | 0]++;
+    let sum = 0; for (let k = 0; k < 256; k++) sum += k * hist[k];
+    let wB = 0, sB = 0, mx = -1, thr = 128;
+    for (let k = 0; k < 256; k++) { wB += hist[k]; if (!wB) continue; const wF = N - wB; if (!wF) break; sB += k * hist[k]; const mB = sB / wB, mF = (sum - sB) / wF, v = wB * wF * (mB - mF) * (mB - mF); if (v > mx) { mx = v; thr = k; } }
+    let best = null;
+    for (const pol of [1, -1]) {
+      const mask = new Uint8Array(N); for (let i = 0; i < N; i++) mask[i] = (pol > 0 ? b[i] > thr : b[i] <= thr) ? 1 : 0;
+      const seen = new Uint8Array(N);
+      for (let s0 = 0; s0 < N; s0++) {
+        if (!mask[s0] || seen[s0]) continue;
+        const st = [s0], idx = []; seen[s0] = 1;
+        while (st.length) { const p = st.pop(); idx.push(p); const px = p % w, py = (p / w) | 0; if (px > 0 && mask[p - 1] && !seen[p - 1]) { seen[p - 1] = 1; st.push(p - 1); } if (px < w - 1 && mask[p + 1] && !seen[p + 1]) { seen[p + 1] = 1; st.push(p + 1); } if (py > 0 && mask[p - w] && !seen[p - w]) { seen[p - w] = 1; st.push(p - w); } if (py < h - 1 && mask[p + w] && !seen[p + w]) { seen[p + w] = 1; st.push(p + w); } }
+        const area = idx.length; if (area < N * 0.04 || area > N * 0.9) continue;
+        let bt = 0; const pts = idx.map(p => { const px = p % w, py = (p / w) | 0; if (px <= 1 || py <= 1 || px >= w - 2 || py >= h - 2) bt++; return [px, py]; });
+        const r = ta4MinRect(pts, 2500), rw = r.x1 - r.x0, rh = r.y1 - r.y0, fill = area / r.area, asp = Math.max(rw, rh) / Math.min(rw, rh);
+        if (fill < 0.75 || asp > 3) continue;
+        const score = fill - 2.5 * bt / area - ((asp < 1.2 || asp > 2.4) ? 0.35 : 0) + 0.25 * (area / N);
+        if (!best || score > best.score) best = Object.assign(r, { score, area, pts });
+      }
+    }
+    if (!best || best.score < 0.5) return null;
+    // 1순위: 4개 모서리를 찾아 원근을 펴서 스캔한 것처럼 반듯하게 (비스듬히 찍어도 직사각형)
+    const q = ta4CardQuad(best, w, h);
+    if (q) { const o = ta4Warp(img, q.map(p => [p[0] / sc, p[1] / sc]), outMax || 1100); if (o) return o; }
+    // 2순위: 기울기만 바로잡아 자르기
+    let { cs, sn, x0, x1, y0, y1 } = best;
+    const inset = 0.01 * Math.min(x1 - x0, y1 - y0); x0 += inset; x1 -= inset; y0 += inset; y1 -= inset;
+    const rw = x1 - x0, rh = y1 - y0; if (rw < w * 0.15 || rh < h * 0.15) return null;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, ox = (cx * cs - cy * sn) / sc, oy = (cx * sn + cy * cs) / sc;
+    const OW = rw / sc, OH = rh / sc, k = Math.min(1, (outMax || 1100) / Math.max(OW, OH));
+    const o = document.createElement('canvas'); o.width = Math.max(1, Math.round(OW * k)); o.height = Math.max(1, Math.round(OH * k));
+    const qx = o.getContext('2d'); qx.fillStyle = '#fff'; qx.fillRect(0, 0, o.width, o.height);
+    qx.setTransform(cs * k, -sn * k, sn * k, cs * k, o.width / 2 - (ox * cs + oy * sn) * k, o.height / 2 - (-ox * sn + oy * cs) * k);
+    qx.drawImage(img, 0, 0);
+    return ta4Flat(o).toDataURL('image/jpeg', 0.88);
+  } catch (e) { return null; }
+}
+// 연락처 사진용: 작은 JPEG (vCard 에 넣어도 가볍게)
+function ta4PhotoSmall(im) {
+  try {
+    const k = Math.min(1, 560 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(im.naturalWidth * k)); c.height = Math.max(1, Math.round(im.naturalHeight * k));
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(im, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.8);
+  } catch (e) { return ''; }
+}
+async function ta4LoadImg(url) { const im = new Image(); await new Promise((res, rej) => { im.onload = res; im.onerror = rej; im.src = url; }); return im; }
+function ta4CardCropImg(img, box) {
+  const iw = img.naturalWidth, ih = img.naturalHeight; let sx = 0, sy = 0, sw = iw, sh = ih;
+  if (box) {
+    const m = 12, y0 = Math.max(0, box[0] - m), x0 = Math.max(0, box[1] - m), y1 = Math.min(1000, box[2] + m), x1 = Math.min(1000, box[3] + m);
+    sx = Math.round(x0 / 1000 * iw); sy = Math.round(y0 / 1000 * ih); sw = Math.round((x1 - x0) / 1000 * iw); sh = Math.round((y1 - y0) / 1000 * ih);
+  }
+  const sc = Math.min(1, 1100 / Math.max(sw, sh)), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(sw * sc)); c.height = Math.max(1, Math.round(sh * sc));
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.85);
+}
+function ta4CardAutoCrop(img) {
+  const W = 180, sc = W / Math.max(img.naturalWidth, img.naturalHeight), w = Math.max(8, Math.round(img.naturalWidth * sc)), h = Math.max(8, Math.round(img.naturalHeight * sc));
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.drawImage(img, 0, 0, w, h);
+  const a = x.getImageData(0, 0, w, h).data; let r = 0, g = 0, b = 0, n = 0;
+  const px = (i, j) => (j * w + i) * 4;
+  for (let i = 0; i < w; i++) for (const j of [0, 1, h - 2, h - 1]) { const p = px(i, j); r += a[p]; g += a[p + 1]; b += a[p + 2]; n++; }
+  for (let j = 2; j < h - 2; j++) for (const i of [0, 1, w - 2, w - 1]) { const p = px(i, j); r += a[p]; g += a[p + 1]; b += a[p + 2]; n++; }
+  r /= n; g /= n; b /= n;
+  const rows = new Array(h).fill(0), cols = new Array(w).fill(0);
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const p = px(i, j); if (Math.abs(a[p] - r) + Math.abs(a[p + 1] - g) + Math.abs(a[p + 2] - b) > 70) { rows[j]++; cols[i]++; } }
+  const span = (arr, len, need) => { let s = -1, e = -1; for (let k = 0; k < arr.length; k++) if (arr[k] > len * need) { if (s < 0) s = k; e = k; } return [s, e]; };
+  const [y0, y1] = span(rows, w, 0.2), [x0, x1] = span(cols, h, 0.2);
+  if (y0 < 0 || x0 < 0) return null;
+  const box = [y0 / h * 1000, x0 / w * 1000, (y1 + 1) / h * 1000, (x1 + 1) / w * 1000].map(Math.round);
+  const area = (box[2] - box[0]) * (box[3] - box[1]); if (!ta4BoxOk(box) || area > 960000) return null;   // 너무 작거나 거의 전체면 실패로 본다
+  return box;
+}
+function ta4CardOpen(mode) {
+  CARD = { mode, src: null, srcUrl: '', crop: '', how: '', small: '', busy: false, stage: 'cam', man: null, stream: null };
+  const c = {};
+  if (mode === 'edit' && S.ed) Object.keys(ta4CardFields()).forEach(k => { c[k] = ($(FIELD[k]) || {}).value || ''; });
+  $('cdSub').textContent = mode === 'edit' ? ($('fName').value.trim() || $('fCompany').value.trim()) : '연락처에 저장';
+  ta4CardFill(c);
+  $('cdRaw').textContent = ''; ta4CardStatus('', ''); $('cdThumb').removeAttribute('src'); ta4CardEngine('');
+  let o = {}; try { o = JSON.parse(localStorage.getItem(LS_CARDOPT) || '{}'); } catch (e) {}
+  $('cdPhoneOpt').checked = !!o.phone; $('cdPhoneRow').style.display = mode === 'edit' ? 'none' : '';
+  $('cdApply').textContent = mode === 'edit' ? '입력란에 적용' : '저장';
+  ta4CardStage('cam');
+  show('vCard', true);
+  ta4CardCamStart();   // 카메라 바로 실행(실시간 화면)
+}
+// 2단계: 글자 인식 (AI 이미지 인식). 실패하면 [재시도]/[재촬영]/[직접 입력해서 계속하기]
+async function ta4CardRecognize() {
+  const C = CARD; if (!C.crop || C.busy) return;
+  C.busy = true; ta4CardStage('work'); $('cdThumb').src = C.crop;
+  ta4CardStatus('AI가 명함을 읽는 중…', 'busy');
+  let c = null, why = '', eng = ''; ta4CardEngine('');
+  try {
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 50000);
+    try {
+      const call = h => fetch(AI_URL, { method: 'POST', signal: ctl.signal, headers: Object.assign({ 'Content-Type': 'application/json', apikey: AI_KEY }, h), body: JSON.stringify({ image: C.crop }) });
+      let r = await call({}); if (r.status === 401) r = await call({ Authorization: 'Bearer ' + AI_KEY });
+      let j = null; try { j = await r.json(); } catch (x) {}
+      if (r.ok && j && !j.error) { c = j; eng = String(c.engine || 'AI'); delete c.engine; $('cdRaw').textContent = JSON.stringify(c, null, 1); }
+      else why = (r.status + ' ' + ((j && (j.error || j.message)) || '')).trim();
+    } catch (e) { why = (e && e.name === 'AbortError') ? '응답 시간 초과(50초)' : ((e && e.message) || String(e)); }
+    finally { clearTimeout(tm); }
+    if (why) console.warn('[card-ocr]', why);
+    if (!c) { C.busy = false; const ls = String(why || '').replace(/^모든 AI 인식 실패:\s*/, '').split(' / ').filter(Boolean).map(x => '· ' + x.slice(0, 70)); ta4CardFail('AI 인식 실패 (' + ta4CardWhy(why) + ')' + (ls.length ? '\n' + ls.join('\n') : ''), true); return; }
+    const F = ta4CardFields(); let n = 0;
+    Object.keys(F).forEach(k => { if (c[k]) { $(F[k]).value = String(c[k]).trim(); n++; } });
+    try { C.small = ta4PhotoSmall(await ta4LoadImg(C.crop)); } catch (x) { C.small = ''; }
+    C.busy = false;
+    if (!n) { ta4CardFail('글자를 인식하지 못했어요. 명함이 또렷하게 나오도록 다시 찍어 보세요.', true); return; }
+    ta4CardEngine(eng); ta4CardStage('ok'); ta4CardStatus('인식 완료 — ' + n + '개 항목. 잘못된 곳은 고친 뒤 [' + (C.mode === 'edit' ? '입력란에 적용' : '저장') + ']을 눌러 주세요.', 'ok');
+  } catch (e) { C.busy = false; ta4CardFail('인식 중 오류: ' + ta4CardWhy((e && e.message) || e), true); }
+}
+// 저장: 새 연락처로 저장(같은 번호·이메일이 있으면 합침) / 편집 중이면 입력란에 채움
+async function ta4CardApply() {
+  const C = CARD, c = ta4CardRead();
+  if (!c.name && !c.mobile && !c.tel && !c.email) { toast('저장할 정보가 없습니다'); return; }
+  const img = C.crop || C.srcUrl, wantPhone = C.mode !== 'edit' && $('cdPhoneOpt').checked;
+  try { localStorage.setItem(LS_CARDOPT, JSON.stringify({ phone: wantPhone })); } catch (e) {}
+  if (C.mode === 'edit') {
+    if (!S.ed) { back(); return; }
+    Object.keys(ta4CardFields()).forEach(k => { if (c[k]) $(FIELD[k]).value = c[k]; });
+    if (img) S.ed.card_img = img; edMedia(); back(); toast('명함 정보 입력됨'); return;
+  }
+  if (wantPhone) { const pc = Object.assign({}, c); if (C.small) pc.photo = C.small; saveToPhone(pc); }   // 누른 직후 바로 공유 창을 연다
+  try {
+    const old = findDup(c, '') || {}, m = Object.assign({}, old);
+    ['name', 'title', 'company', 'mobile', 'tel', 'fax', 'email', 'address'].forEach(k => { if (c[k]) m[k] = ['mobile', 'tel', 'fax'].includes(k) ? (ta4FmtPhone(c[k]) || c[k]) : c[k]; });
+    if (C.crop) m.card_img = C.crop;
+    await saveContact(m);
+  } catch (e) { toast('저장하지 못했습니다. 저장 공간을 확인하세요.', 3500); return; }
+  back(); toast('연락처에 저장됨');
+}
+$('btnCard').onclick = () => ta4CardOpen('new');
+$('edCardScan').onclick = () => ta4CardOpen('edit');
+$('cdBack').onclick = () => ta4CardCancel();
+$('cdCam').addEventListener('change', e => ta4CardPick(e.target));
+$('cdAlb').addEventListener('change', e => ta4CardPick(e.target));
+$('vCard').addEventListener('click', e => {
+  const b = e.target.closest('[data-a]'); if (!b) return;
+  const A = {
+    album: () => $('cdAlb').click(), shoot: ta4CardShoot, retake: ta4CardRetake, manual: ta4CardManual, recog: ta4CardRecognize,
+    mcancel: () => ta4CardSetCrop(CARD.crop, CARD.how), mdone: ta4CardManualDone, cancel: ta4CardCancel, apply: ta4CardApply, minput: ta4CardManualInput
+  };
+  if (A[b.dataset.a]) A[b.dataset.a]();
+});
 
 /* ───────── 시작 ───────── */
 (async () => {

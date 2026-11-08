@@ -182,7 +182,7 @@ aside{width:340px;max-width:42vw;display:flex;flex-direction:column;background:v
   const video = $('video');
 
   // 기본 채널: iptv-org(공개 스트림 색인) 한국 목록 기반. 재생 가능 여부는 서버 상태·CORS에 따라 달라질 수 있음
-  const SEED_VERSION = 1; // 기본 채널 목록을 바꿀 때 숫자를 올리면, 기존 사용자에게도 새 채널이 추가됩니다.
+  const SEED_VERSION = 2; // 기본 채널 목록을 바꿀 때 숫자를 올리면, 기존 사용자에게도 새 채널이 추가됩니다.
   const DEFAULTS = [
     { id: 'kr01', name: "EBS 1", url: "https://ebsonair.ebs.co.kr/ebs1familypc/familypc1m/playlist.m3u8", group: "교육", logo: "https://i.imgur.com/rM7sEcA.png" },
     { id: 'kr02', name: "EBS 2", url: "https://ebsonair.ebs.co.kr/ebs2familypc/familypc1m/playlist.m3u8", group: "교육", logo: "https://i.imgur.com/8QO9M4G.png" },
@@ -199,6 +199,11 @@ aside{width:340px;max-width:42vw;display:flex;flex-direction:column;background:v
     { id: 'kr13', name: "CJ온스타일", url: "https://live-ch1.cjonstyle.net/cjmalllive/stream2/playlist.m3u8", group: "홈쇼핑", logo: "" },
     { id: 'kr14', name: "CJ온스타일플러스", url: "https://live-ch2.cjonstyle.net/cjosplus/live2/playlist.m3u8", group: "홈쇼핑", logo: "" },
     { id: 'kr15', name: "공영쇼핑", url: "https://etv.publichs.com/live5.stream/playlist.m3u8", group: "홈쇼핑", logo: "" },
+    { id: 'kr16', name: "K-바둑 (바둑TV)", url: "https://live.k-baduk.com/live/kbaduk_hd/playlist.m3u8", group: '스포츠', logo: '' },
+    { id: 'kr17', name: "빌리어즈TV (당구)", url: "https://live.billiardstv.co.kr/live/btv_hd/playlist.m3u8", group: '스포츠', logo: '' },
+    { id: 'kr18', name: "한국낚시채널 FTV", url: "https://live.ftv.co.kr/live/ftv_stream/playlist.m3u8", group: '스포츠', logo: '' },
+    { id: 'kr19', name: "한국낚시방송 Fishing TV", url: "https://live.fishingtv.kr/live/live_hd/playlist.m3u8", group: '스포츠', logo: '' },
+    { id: 'kr20', name: "대한체육회 KOC 실시간", url: "https://ktvlive.ktv.go.kr/live/ktv_sports.stream/playlist.m3u8", group: '스포츠', logo: '' },
     { id: 'demo1', name: '테스트 스트림 (Mux)', url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', group: '테스트', logo: '' }
   ];
 

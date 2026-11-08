@@ -263,6 +263,12 @@ const NLU = (() => {
     return null;
   }
 
+  function sinoNum(w) {   // 백이십삼 → 123, 일이삼 → 123
+    const D = { '영': 0, '공': 0, '일': 1, '이': 2, '삼': 3, '사': 4, '오': 5, '육': 6, '륙': 6, '칠': 7, '팔': 8, '구': 9 }, U = { '십': 10, '백': 100, '천': 1000 };
+    if (!/[십백천]/.test(w)) return w.split('').map(c => D[c]).join('');
+    let tot = 0, cur = null; for (const c of w) { if (c in D) cur = D[c]; else { tot += (cur === null ? 1 : cur) * U[c]; cur = null; } }
+    return String(tot + (cur || 0));
+  }
   /* ───────── 슬롯 추출 ───────── */
   function stripCmd(s) {
     return s.replace(/(이?라고|라는\s*내용(을|이)?|을|를)?\s*(메모|적어|기록|저장|추가|등록|넣어|알려|찾아|검색|보여|불러|읽어)\s*(해|줘|둬|놔|주세요|줄래|할래|해줘|좀|드려)?[가-힣]*/g, ' ').replace(/\s+/g, ' ').trim();
@@ -348,7 +354,8 @@ const NLU = (() => {
         .replace(/(으로|로|까지|에|를|을)?\s*(가자|가줘|가주세요|갈래|가고\s*싶어요?|가볼래|가보자)[가-힣]*/g, ' ');
       d = d.replace(/\s+/g, ' ').trim();
       for (let i = 0; i < 3; i++) d = d.replace(/^(우리|빨리|얼른|이제|지금|자|그럼|저기|여기서|좀|일단)\s+/, '');
-      d = d.replace(/(으로|까지|에|를|을)$/, '').replace(/([가-힣]{2,})로$/, '$1').trim();
+      d = d.replace(/(으로|까지|에|를|을)$/, '').replace(/(\d)로$/, '$1').replace(/([가-힣]{2,})로$/, '$1').trim();
+      d = d.split(' ').map((w, i, a) => (i > 0 && /(로|길|동|가|리|읍|면)$/.test(a[i - 1]) && /^[영공일이삼사오육륙칠팔구십백천]+(번지|번길|길|번|호)?$/.test(w)) ? w.replace(/^([영공일이삼사오육륙칠팔구십백천]+)/, m => sinoNum(m)) : w).join(' ');
       if (d && !/^(좀|자|이제|빨리|얼른|지금)$/.test(d)) sl.dest = d;
     } else if (intent === 'list_event') {
       sl.when = parseWhen(t, now);
@@ -868,10 +875,19 @@ async function geocode(q) {   // 위치 확인용 주소 검색 (OpenStreetMap N
     return j.map(x => ({ lat: +x.lat, lng: +x.lon, name: (x.name || String(x.display_name).split(',')[0]).trim(), addr: prettyAddr(x.display_name), src: '지도 검색' })).filter(inKorea);
   } finally { clearTimeout(to); }
 }
+const destNums = t => { const o = []; String(t).replace(/(\d+)(?:-(\d+))?/g, (m, a, b) => { o.push(b ? a + '-' + b : a); return m; }); return o; };
+const hasNum = (c, n) => new RegExp('(^|\\D)' + n.replace('-', '\\s*-\\s*') + '(\\D|$)').test(c.name + ' ' + c.addr);
 const near = (a, b) => { const dl = Math.max(Math.abs(a.lat - b.lat), Math.abs(a.lng - b.lng)); return dl < 0.00015 || (dl < 0.002 && a.name === b.name); };
 function noNaverApp() { return !(IS_ANDROID || IS_IOS) ? '<span class="sub">※ PC에서는 네이버 지도 앱이 열리지 않아요. 휴대폰에서 사용해 주세요.</span>' : ''; }
 function confirmNav(p, c) {
   p.stage = 'dok'; p.pick = c; autoTried = false;
+  if (c.approx) {
+    const q = p.sl.dest;
+    return bot('"' + q + '"에서 도로나 지명까지만 확인되고 번지나 도로번호는 확인하지 못했어요. 네이버 지도에서 정확히 검색할까요? 대략적인 위치로 바로 안내하려면 "대략"이라고 말씀하세요.', {
+      html: '<b>⚠ 번지·도로번호는 확인하지 못했어요</b>' + kvRows([['말씀하신 곳', q], ['찾은 위치', c.name], ['주소', c.addr]]) + '<span class="sub">찾은 곳은 도로·지명 수준이라 실제 번지와 수십~수백 m 어긋날 수 있어요. <b>네이버 지도 검색</b>은 번지까지 정확히 찾아 주지만, 거기서 도착지를 한 번 눌러야 해요.</span>' + noNaverApp(), tok: p.tok,
+      btns: [{ label: '🔎 네이버 지도에서 정확히 검색', primary: true, href: launchHref(nmapUrl.search(q)), fn: () => { pending = null; iosStoreFallback(); } }, { label: '🧭 대략 위치로 안내', href: launchHref(nmapUrl.nav(c)), fn: () => { pending = null; iosStoreFallback(); } }, { label: '🗺 위치 보기', href: launchHref(nmapUrl.place(c)), fn: iosStoreFallback }, { label: '취소', fn: () => cancelP('취소했어요.') }]
+    });
+  }
   bot('"' + c.name + '" 위치는 ' + (c.addr || '주소 정보가 없어요') + '입니다. 여기로 네이버 내비 안내를 시작할까요?', {
     html: '<b>목적지를 확인해 주세요</b>' + kvRows([['이름', c.name], ['주소', c.addr], ['출처', c.src]]) + '<span class="sub">위치 검색은 지도 데이터 기준이라 상호는 틀릴 수 있어요. <b>🗺 위치 보기</b>로 지도에서 먼저 확인하세요.</span>' + noNaverApp(), tok: p.tok,
     btns: [{ label: '🧭 네이버 내비 시작', primary: true, href: launchHref(nmapUrl.nav(c)), fn: () => { pending = null; iosStoreFallback(); } }, { label: '🗺 위치 보기', href: launchHref(nmapUrl.place(c)), fn: iosStoreFallback }, { label: '취소', fn: () => cancelP('취소했어요.') }]
@@ -879,7 +895,7 @@ function confirmNav(p, c) {
 }
 function pickNav(p, cands) {
   p.stage = 'dpick'; p.cands = cands; autoTried = false;
-  const html = '<b>' + esc(p.sl.dest) + ' — 후보 ' + cands.length + '곳</b>' + cands.map((c, i) => '<div class="who" style="margin-top:8px"><div class="av" style="background:#f2a900;color:#2b2000">' + (i + 1) + '</div><div><b>' + esc(c.name) + '</b><small>' + esc(c.addr || '') + (c.src === '연락처 주소' ? ' · 연락처 주소' : '') + '</small></div></div>').join('');
+  const html = '<b>' + esc(p.sl.dest) + ' — 후보 ' + cands.length + '곳</b>' + cands.map((c, i) => '<div class="who" style="margin-top:8px"><div class="av" style="background:#f2a900;color:#2b2000">' + (i + 1) + '</div><div><b>' + esc(c.name) + '</b><small>' + esc(c.addr || '') + (c.src === '연락처 주소' ? ' · 연락처 주소' : '') + (c.approx ? ' · ⚠ 번지 미확인' : '') + '</small></div></div>').join('');
   bot('후보가 ' + cands.length + '곳 있어요. ' + cands.map((c, i) => (i + 1) + '번 ' + c.name + ' ' + (c.addr || '')).join(', ') + '. 몇 번인가요?', { html, tok: p.tok, btns: cands.map((c, i) => ({ label: (i + 1) + '. ' + c.name, fn: () => confirmNav(p, c) })).concat([{ label: '취소', fn: () => cancelP('취소했어요.') }]) });
 }
 async function navFlow(sl) {
@@ -890,8 +906,10 @@ async function navFlow(sl) {
     await loadContacts();
     const dn = dest.replace(/\s/g, '');
     const cs = searchContacts({ name: dest }).concat(contacts.filter(c => c.name && dn.includes(c.name.replace(/\s/g, '')))).filter((c, i, a) => c.address && a.indexOf(c) === i).slice(0, 1);
-    for (const c of cs) { const r = await geocode(c.address); if (r[0]) cands.push(Object.assign(r[0], { name: c.name || c.company, addr: c.address, src: '연락처 주소' })); await sleep(1100); }
-    (await geocode(dest)).forEach(c => { if (!cands.some(o => near(o, c))) cands.push(c); });
+    for (const c of cs) { const r = await geocode(c.address); if (r[0]) { const ap = !destNums(c.address).every(n => hasNum(r[0], n)); cands.push(Object.assign(r[0], { name: c.name || c.company, addr: c.address, src: '연락처 주소', approx: ap })); } await sleep(1100); }
+    const nums = destNums(dest);
+    (await geocode(dest)).forEach(c => { c.approx = nums.length > 0 && !nums.every(n => hasNum(c, n)); if (!cands.some(o => near(o, c))) cands.push(c); });
+    cands.sort((a, b) => (a.approx ? 1 : 0) - (b.approx ? 1 : 0));
   } catch (e) { err = e && e.name === 'AbortError' ? '응답이 늦어요' : (e && e.message) || '연결 실패'; }
   if (!cands.length) {
     pending = null;
@@ -965,6 +983,13 @@ async function continueP(p, text, n) {
     if (NLU.isYes(n)) { const c = p.contact, no = dial(c); pending = null; bot((c.name || c.company) + '님께 전화를 걸어요.', { btns: callBtns(c, true).filter(b => b.href && b.href.startsWith('tel')) }); setTimeout(() => { try { location.href = 'tel:' + no; } catch (e) {} }, 400); return; }
     if (NLU.isNo(n)) return cancelP('취소했어요.');
     return bot('"네"라고 하시면 전화를 걸어요. 아니면 "취소"라고 해 주세요.', { tok: p.tok });
+  }
+  if (p.stage === 'dok' && p.pick && p.pick.approx) {
+    const c = p.pick;
+    if (/대략|그냥|근처|여기로|그대로/.test(n)) { pending = null; bot('대략적인 위치로 네이버 내비를 실행해요.', { html: '<b>대략적인 위치로 실행해요</b><span class="sub">안 열리면 아래 버튼을 눌러 주세요</span>', btns: [{ label: '🧭 대략 위치로 안내', primary: true, href: launchHref(nmapUrl.nav(c)), fn: iosStoreFallback }] }); setTimeout(() => openNaver(nmapUrl.nav(c)), 600); return; }
+    if (NLU.isYes(n)) { pending = null; bot('네이버 지도에서 검색해요.', { html: '<b>네이버 지도에서 검색해요</b><span class="sub">안 열리면 아래 버튼을 눌러 주세요</span>', btns: [{ label: '🔎 네이버 지도에서 정확히 검색', primary: true, href: launchHref(nmapUrl.search(p.sl.dest)), fn: iosStoreFallback }] }); setTimeout(() => openNaver(nmapUrl.search(p.sl.dest)), 600); return; }
+    if (NLU.isNo(n)) return cancelP('취소했어요. 다른 목적지를 말씀해 주세요.');
+    return bot('"네"는 네이버 지도 검색, "대략"은 대략 위치로 안내, "취소"는 취소예요.', { tok: p.tok });
   }
   if (p.stage === 'dok') {
     if (NLU.isYes(n)) { const c = p.pick; pending = null; bot('네이버 내비를 실행해요.', { html: '<b>네이버 내비를 실행해요</b><span class="sub">안 열리면 아래 버튼을 눌러 주세요</span>' + noNaverApp(), btns: [{ label: '🧭 네이버 내비 시작', primary: true, href: launchHref(nmapUrl.nav(c)), fn: iosStoreFallback }] }); setTimeout(() => openNaver(nmapUrl.nav(c)), 600); return; }

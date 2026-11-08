@@ -639,7 +639,7 @@ function addMsg(kind, html, btns, tok) {
 function bot(plain, o) {
   o = o || {};
   addMsg('bot', o.html || esc(plain), o.btns, o.tok);
-  const asking = pending && (pending.stage === 'fill' || pending.stage === 'confirm' || pending.stage === 'pick' || pending.stage === 'callok');
+  const asking = pending && (pending.stage === 'fill' || pending.stage === 'confirm' || pending.stage === 'pick' || pending.stage === 'callok' || pending.stage === 'dok' || pending.stage === 'dpick');
   speak(o.say || plain, () => { if (asking && lastVoice && !autoTried && !listening) { autoTried = true; startListen(); } });
 }
 const sys = t => addMsg('sys', esc(t));
@@ -920,7 +920,7 @@ function confirmNav(p, c) {
       btns: [{ label: '🔎 네이버 지도에서 정확히 검색', primary: true, href: launchHref(nmapUrl.search(q)), fn: () => { pending = null; iosStoreFallback(); } }, { label: '🧭 대략 위치로 안내', href: launchHref(nmapUrl.nav(c)), fn: () => { pending = null; iosStoreFallback(); } }, { label: '🗺 위치 보기', href: launchHref(nmapUrl.place(c)), fn: iosStoreFallback }, { label: '취소', fn: () => cancelP('취소했어요.') }]
     });
   }
-  bot('"' + c.name + '" 위치는 ' + (c.addr || '주소 정보가 없어요') + '입니다. 여기로 네이버 내비 안내를 시작할까요?', {
+  bot(c.name + (c.addr && c.addr !== c.name ? ', ' + c.addr : '') + '로 안내를 시작할까요?', {
     html: '<b>목적지를 확인해 주세요</b>' + kvRows([['이름', c.name], ['주소', c.addr], ['출처', c.src]]) + '<span class="sub">위치 검색은 지도 데이터 기준이라 상호는 틀릴 수 있어요. <b>🗺 위치 보기</b>로 지도에서 먼저 확인하세요.</span>' + noNaverApp(), tok: p.tok,
     btns: [{ label: '🧭 네이버 내비 시작', primary: true, href: launchHref(nmapUrl.nav(c)), fn: () => { pending = null; iosStoreFallback(); } }, { label: '🗺 위치 보기', href: launchHref(nmapUrl.place(c)), fn: iosStoreFallback }, { label: '취소', fn: () => cancelP('취소했어요.') }]
   });

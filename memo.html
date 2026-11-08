@@ -54,7 +54,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   .ebar input.title{min-width:50px;padding:6px 8px;font-size:14px}
   #saveState{font-size:10px;min-width:24px}
 }
-#scroller{flex:1;min-height:0;overflow:auto;background:#2b2f3d;padding:14px 12px 150px;-webkit-overflow-scrolling:touch}
+#scroller{flex:1;min-height:0;overflow:auto;touch-action:none;overscroll-behavior:contain;background:#2b2f3d;padding:14px 12px 150px;-webkit-overflow-scrolling:touch}
 .pg{position:relative;margin:0 auto 18px;background:#fff;box-shadow:0 2px 14px #0008;user-select:none;-webkit-user-select:none;overflow:hidden}
 .pg.act{outline:2px solid #34c38f66}
 .pg .bgL{position:absolute;inset:0;pointer-events:none}
@@ -63,7 +63,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
 .plabel{position:absolute;right:8px;bottom:6px;display:flex;align-items:center;gap:6px;font-size:12px;color:#556;background:#fffd;padding:2px 4px 2px 10px;border-radius:99px;z-index:3}
 .plabel button{padding:1px 7px;font-size:12px;background:#eef1f6;color:#556;border-color:#d5dae4}
 .addpg{display:block;margin:6px auto 0;padding:12px 22px;border-style:dashed;background:transparent;color:#cdd3e2}
-.mode-pen .pg,.mode-hl .pg,.mode-eraser .pg,.mode-shape .pg{touch-action:none;cursor:crosshair}
+.mode-pen .pg,.mode-hl .pg,.mode-eraser .pg,.mode-shape .pg{cursor:crosshair}
 .mode-text .pg{cursor:text}
 .mode-select .tbw,.mode-text .tbw{pointer-events:auto}
 .tbw{position:absolute;pointer-events:none}
@@ -90,7 +90,10 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
 .subrow{display:none;padding-bottom:6px;border-bottom:1px solid var(--line)}
 .tg{display:flex;gap:4px;flex:none;align-items:center}
 .tg[hidden]{display:none}
-.tg button{padding:7px 10px;font-size:13px}
+.tg button{padding:7px 9px;font-size:13px;display:flex;align-items:center;justify-content:center;min-width:40px;height:38px}
+.tg button svg{display:block}
+.hint{font-size:12px;color:var(--sub);white-space:nowrap}
+#btnPenOnly{flex:none;padding:7px 9px;height:38px;min-width:40px;display:flex;align-items:center;justify-content:center}
 .sw{width:26px;height:26px;border-radius:50%;border:2px solid #fff3;padding:0;flex:none}
 .sw.sel{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
 #cpick{width:30px;height:30px;border:none;background:none;padding:0;flex:none}
@@ -173,29 +176,30 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   <div class="tools" id="tools">
     <div class="subrow" id="subRow">
       <div class="tg" id="penTypes" hidden>
-        <button data-pt="pen" class="on">볼펜</button>
-        <button data-pt="fountain">만년필</button>
-        <button data-pt="brush">붓펜</button>
-        <button data-pt="pencil">연필</button>
+        <button data-pt="pen" class="on" title="볼펜" aria-label="볼펜"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/></svg></button>
+        <button data-pt="fountain" title="만년필" aria-label="만년필"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 3l5 9-5 9-5-9z"/><circle cx="12" cy="12" r="1.5"/><path d="M12 13.5V21"/></svg></button>
+        <button data-pt="brush" title="붓펜" aria-label="붓펜"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M18 3c2 0 3 1 3 3-2 5-6 8-9 9l-3-3c1-3 4-7 9-9z"/><path d="M9 12c-3 0-5 2-5 5 0 2-1 3-1 3 4 1 8 0 9-4"/></svg></button>
+        <button data-pt="pencil" title="연필" aria-label="연필"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M4 20l1.5-5L17 3.5 20.5 7 9 18.5z"/><path d="M14.5 6l3.5 3.5"/><path d="M4 20l3-1" stroke-width="2.5"/></svg></button>
       </div>
       <div class="tg" id="shapeTypes" hidden>
-        <button data-sk="line">직선</button>
-        <button data-sk="arrow">화살표</button>
-        <button data-sk="rect" class="on">사각형</button>
-        <button data-sk="ellipse">원</button>
-        <button data-sk="tri">삼각형</button>
+        <button data-sk="line" title="직선" aria-label="직선"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 19L19 5"/></svg></button>
+        <button data-sk="arrow" title="화살표" aria-label="화살표"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 19L19 5"/><path d="M9 5h10v10"/></svg></button>
+        <button data-sk="rect" class="on" title="사각형" aria-label="사각형"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><rect x="4" y="5" width="16" height="14" rx="1.5"/></svg></button>
+        <button data-sk="ellipse" title="원" aria-label="원"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><ellipse cx="12" cy="12" rx="9" ry="6.5"/></svg></button>
+        <button data-sk="tri" title="삼각형" aria-label="삼각형"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 4l9 16H3z"/></svg></button>
         <span class="sep"></span>
-        <button id="fillBtn" title="도형 안쪽 채우기">채움</button>
+        <button id="fillBtn" title="도형 안쪽 채우기" aria-label="채움"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 3l7 9a7 7 0 11-14 0z" fill="currentColor" fill-opacity=".35"/></svg></button>
       </div>
+      <div class="tg" id="textHint" hidden><span class="hint">페이지를 탭하면 글상자가 생기고 키보드로 입력합니다 · 크기는 슬라이더 · ✥로 이동</span></div>
     </div>
     <div class="mainrow">
       <div class="tg" id="toolBtns">
-        <button data-tool="select">선택</button>
-        <button data-tool="pen" class="on">펜</button>
-        <button data-tool="hl">형광펜</button>
-        <button data-tool="shape">도형</button>
-        <button data-tool="eraser">지우개</button>
-        <button data-tool="text">텍스트</button>
+        <button data-tool="select" title="선택 (그림·글상자 이동)" aria-label="선택"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 3l14 8-6 2-2 6z"/></svg></button>
+        <button data-tool="pen" class="on" title="펜" aria-label="펜"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/></svg></button>
+        <button data-tool="hl" title="형광펜" aria-label="형광펜"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M9 14l6-6 3 3-6 6H9z"/><path d="M9 17l-4 3h5"/><path d="M13 21h8" stroke-width="3" opacity=".5"/></svg></button>
+        <button data-tool="shape" title="도형" aria-label="도형"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><rect x="3" y="11" width="10" height="10" rx="1.5"/><circle cx="15" cy="9" r="6"/></svg></button>
+        <button data-tool="eraser" title="지우개" aria-label="지우개"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M3 17l9-10a2 2 0 013 0l4 4a2 2 0 010 3l-6 6H8z"/><path d="M8 21h12"/><path d="M8 12l6 6"/></svg></button>
+        <button data-tool="text" title="텍스트 입력" aria-label="텍스트"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 6V4h14v2"/><path d="M12 4v16"/><path d="M9 20h6"/></svg></button>
       </div>
       <div class="sep"></div>
       <div class="tg" id="swatches"></div>
@@ -204,10 +208,10 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
       <div class="tg"><input type="range" id="size" min="1" max="30" value="4"><span id="sizeLbl">4</span></div>
       <div class="sep"></div>
       <div class="tg">
-        <button id="zOut" title="축소">−</button><span id="zLbl" style="font-size:12px;color:var(--sub);min-width:38px;text-align:center">100%</span><button id="zIn" title="확대">＋</button>
+        <button id="zOut" title="축소" aria-label="축소"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5M8 11h6"/></svg></button><span id="zLbl" style="font-size:12px;color:var(--sub);min-width:38px;text-align:center">100%</span><button id="zIn" title="확대" aria-label="확대"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5M11 8v6M8 11h6"/></svg></button>
       </div>
       <div class="sep"></div>
-      <button id="btnPenOnly" title="켜면 손가락은 화면 이동만, 펜(마우스)으로만 필기합니다">✋ 손가락=스크롤</button>
+      <button id="btnPenOnly" title="켜면 한 손가락은 화면 이동만, 펜(마우스)으로만 필기합니다 (두 손가락 확대/이동은 항상 가능)" aria-label="손가락 스크롤"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M8 12V5a1.5 1.5 0 013 0v6M11 11V3.5a1.5 1.5 0 013 0V11M14 11V5a1.5 1.5 0 013 0v8c0 5-3 8-6.5 8S6 18 5 15l-1.5-3a1.5 1.5 0 012.5-1.5L8 13"/></svg></button>
     </div>
   </div>
 </section>
@@ -295,7 +299,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   const RES = 1.25;
   const sizes = { pen: 4, hl: 6, eraser: 8, text: 8, shape: 4 };
   let hist = [], hi = -1;
-  let cur = null, scrollMode = null, activeTB = null;
+  let cur = null, scrollMode = null, activeTB = null, suppressClick = false;
   const live = document.createElement('canvas'); live.className = 'live';
   const liveCtx = live.getContext('2d');
   let saveTimer = null, dirty = false;
@@ -554,17 +558,19 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     } else { const m = Math.max(Math.abs(dx), Math.abs(dy)); s.b = [s.a[0] + Math.sign(dx || 1) * m, s.a[1] + Math.sign(dy || 1) * m]; }
   }
   function onDown(e) {
+    suppressClick = false;
     const el = e.currentTarget, ref = el._p;
     activePage = pageEls.indexOf(el); labels();
     if (e.target.closest('.tbw') || e.target.closest('.plabel') || e.target.closest('.iw')) return;
-    if (tool === 'select') { deselectImages(); return; }
-    if (tool === 'text') return;
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    if (e.pointerType === 'touch' && penOnly) {
-      scrollMode = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    if (e.pointerType === 'touch' && (penOnly || tool === 'select' || tool === 'text')) {
+      if (tool === 'select') deselectImages();
+      scrollMode = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: 0 };
       try { el.setPointerCapture(e.pointerId); } catch (_) {}
       return;
     }
+    if (tool === 'select') { deselectImages(); return; }
+    if (tool === 'text') return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (!ref.vis) showPage(ref);
     e.preventDefault();
     try { el.setPointerCapture(e.pointerId); } catch (_) {}
@@ -586,7 +592,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   function onMove(e) {
     if (scrollMode && e.pointerId === scrollMode.id) {
       const sc = $('scroller'); sc.scrollTop -= e.clientY - scrollMode.y; sc.scrollLeft -= e.clientX - scrollMode.x;
-      scrollMode.x = e.clientX; scrollMode.y = e.clientY; return;
+      scrollMode.moved += Math.abs(e.clientX - scrollMode.x) + Math.abs(e.clientY - scrollMode.y); scrollMode.x = e.clientX; scrollMode.y = e.clientY; return;
     }
     if (!cur || e.pointerId !== cur.id) return;
     const el = cur.ref.el;
@@ -602,7 +608,12 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     if (!cur.erase) { liveCtx.clearRect(0, 0, cur.ref.p.w, cur.ref.p.h); drawStroke(liveCtx, cur.s); }
   }
   function onUp(e) {
-    if (scrollMode && e.pointerId === scrollMode.id) { scrollMode = null; return; }
+    if (scrollMode && e.pointerId === scrollMode.id) {
+      const moved = scrollMode.moved; scrollMode = null;
+      if (moved > 8) suppressClick = true;
+      else if (tool === 'text' && e.pointerType === 'touch' && !e.target.closest('.tbw') && !e.target.closest('.plabel')) createTextAt(e.currentTarget, e);
+      return;
+    }
     if (!cur || e.pointerId !== cur.id) return;
     const c = cur; cur = null;
     if (c.erase) { if (c.changed) { pushHistory(); scheduleSave(); } return; }
@@ -633,13 +644,18 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     ref.p.strokes = ref.p.strokes.filter(s => !strokeHit(s, q[0], q[1], r));
     if (ref.p.strokes.length !== before) { cur.changed = true; redrawInk(ref); }
   }
-  function onClickPage(e) {
-    if (tool !== 'text') return;
-    if (e.target.closest('.tbw') || e.target.closest('.plabel')) return;
-    const el = e.currentTarget, ref = el._p, q = pt(e, el);
+  let lastTextAt = 0;
+  function createTextAt(el, e) {
+    const ref = el._p, q = pt(e, el);
     const t = { id: rid('t'), x: Math.max(0, q[0] - 10), y: Math.max(0, q[1] - 20), text: '', fs: 24 + sizes.text * 2, color };
-    ref.p.texts.push(t);
+    ref.p.texts.push(t); lastTextAt = Date.now();
     addTB(ref, t).querySelector('.tbt').focus();
+  }
+  function onClickPage(e) {
+    if (suppressClick) { suppressClick = false; return; }
+    if (tool !== 'text' || Date.now() - lastTextAt < 600) return;
+    if (e.target.closest('.tbw') || e.target.closest('.plabel')) return;
+    createTextAt(e.currentTarget, e);
   }
 
   /* ───────── 텍스트 상자 ───────── */
@@ -871,8 +887,8 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     const k = t === 'hl' ? 'hl' : t === 'pen' ? 'pen' : t;
     $('size').value = sizes[k] || 4; $('sizeLbl').textContent = sizes[k] || 4;
     $('size').disabled = t === 'select';
-    $('penTypes').hidden = t !== 'pen'; $('shapeTypes').hidden = t !== 'shape';
-    $('subRow').style.display = (t === 'pen' || t === 'shape') ? 'flex' : 'none';
+    $('penTypes').hidden = t !== 'pen'; $('shapeTypes').hidden = t !== 'shape'; $('textHint').hidden = t !== 'text';
+    $('subRow').style.display = (t === 'pen' || t === 'shape' || t === 'text') ? 'flex' : 'none';
     if (t !== 'select') deselectImages();
     const a = document.activeElement;
     if (a && a.classList && a.classList.contains('tbt') && ['pen', 'hl', 'eraser', 'shape'].includes(t)) a.blur();
@@ -895,10 +911,66 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     const v = +e.target.value, k = tool === 'hl' ? 'hl' : tool; if (sizes[k] != null) sizes[k] = v; $('sizeLbl').textContent = v;
     if (activeTB && tool === 'text') { activeTB.t.fs = 24 + v * 2; activeTB.e.style.fontSize = activeTB.t.fs + 'px'; scheduleSave(); }
   });
-  $('zIn').onclick = () => { zoom = Math.min(3, Math.round((zoom + 0.25) * 100) / 100); layout(); };
+  $('zIn').onclick = () => { zoom = Math.min(4, Math.round((zoom + 0.25) * 100) / 100); layout(); };
   $('zOut').onclick = () => { zoom = Math.max(0.5, Math.round((zoom - 0.25) * 100) / 100); layout(); };
   $('btnPenOnly').onclick = () => { penOnly = !penOnly; $('btnPenOnly').classList.toggle('on', penOnly); toast(penOnly ? '손가락은 화면 이동만, 펜·마우스로 필기합니다.' : '손가락으로도 필기합니다.'); };
   markSwatch();
+
+  /* ───────── 두 손가락 확대/축소 + 이동 ───────── */
+  (() => {
+    const sc = $('scroller'), tp = new Map(); let g = null, gids = new Set(), raf = 0;
+    const cancelStroke = () => {
+      if (cur) {
+        const c = cur; cur = null;
+        if (c.erase) { if (c.changed) { pushHistory(); scheduleSave(); } }
+        else { liveCtx.clearRect(0, 0, c.ref.p.w, c.ref.p.h); if (live.parentNode) live.parentNode.removeChild(live); }
+      }
+      scrollMode = null;
+    };
+    const info = () => { const a = [...tp.values()]; return { mx: (a[0].x + a[1].x) / 2, my: (a[0].y + a[1].y) / 2, d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1 }; };
+    sc.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'touch') return;
+      tp.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (tp.size === 2) {
+        cancelStroke(); tp.forEach((_, id) => gids.add(id));
+        const r = sc.getBoundingClientRect(), i = info();
+        g = { d0: i.d, z0: zoom, cx: sc.scrollLeft + i.mx - r.left, cy: sc.scrollTop + i.my - r.top, r };
+        e.stopPropagation(); e.preventDefault();
+      } else if (tp.size > 2) { gids.add(e.pointerId); e.stopPropagation(); }
+      else if (!e.target.closest('.pg') && !e.target.closest('button')) {
+        scrollMode = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: 0 };   // 페이지 바깥 여백에서도 스크롤
+      }
+    }, true);
+    sc.addEventListener('pointermove', e => {
+      if (e.pointerType !== 'touch') return;
+      if (tp.has(e.pointerId)) tp.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (gids.has(e.pointerId)) {
+        e.stopPropagation(); e.preventDefault();
+        if (g && tp.size >= 2 && !raf) raf = requestAnimationFrame(() => {
+          raf = 0; if (!g || tp.size < 2) return;
+          const i = info(), nz = clamp(Math.round(g.z0 * i.d / g.d0 * 100) / 100, 0.5, 4), k = nz / g.z0;
+          if (nz !== zoom) { zoom = nz; layout(); }
+          sc.scrollLeft = g.cx * (nz / g.z0) - (i.mx - g.r.left);
+          sc.scrollTop = g.cy * (nz / g.z0) - (i.my - g.r.top);
+        });
+      } else if (scrollMode && e.pointerId === scrollMode.id && !e.target.closest('.pg')) {
+        sc.scrollTop -= e.clientY - scrollMode.y; sc.scrollLeft -= e.clientX - scrollMode.x; scrollMode.x = e.clientX; scrollMode.y = e.clientY;
+      }
+    }, true);
+    const up = e => {
+      if (e.pointerType !== 'touch') return;
+      tp.delete(e.pointerId);
+      if (gids.has(e.pointerId)) { e.stopPropagation(); gids.delete(e.pointerId); if (tp.size < 2) g = null; if (!tp.size) gids.clear(); }
+      else if (scrollMode && e.pointerId === scrollMode.id && !e.target.closest('.pg')) scrollMode = null;
+    };
+    sc.addEventListener('pointerup', up, true); sc.addEventListener('pointercancel', up, true);
+    sc.addEventListener('wheel', e => {
+      if (!e.ctrlKey) return; e.preventDefault();
+      const r = sc.getBoundingClientRect(), z0 = zoom, cx = sc.scrollLeft + e.clientX - r.left, cy = sc.scrollTop + e.clientY - r.top;
+      zoom = clamp(Math.round(z0 * Math.exp(-e.deltaY * 0.01) * 100) / 100, 0.5, 4); layout();
+      sc.scrollLeft = cx * zoom / z0 - (e.clientX - r.left); sc.scrollTop = cy * zoom / z0 - (e.clientY - r.top);
+    }, { passive: false });
+  })();
 
   /* ───────── 삽입 / 배경 모달 ───────── */
   const closeIns = () => $('mIns').classList.remove('show');

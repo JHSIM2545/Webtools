@@ -30,7 +30,10 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
 .spacer{flex:1}
 
 /* 목록 */
-.listwrap{flex:1;overflow-y:auto;padding:14px 14px 40px}
+.listwrap{flex:1;overflow-y:auto;padding:14px 14px calc(100px + env(safe-area-inset-bottom))}
+.fab{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom));width:60px;height:60px;padding:0;border-radius:50%;background:var(--accent2);border:none;color:#fff;font-size:34px;font-weight:300;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px #0009;z-index:30}
+.fab:hover{background:var(--accent);border:none}
+.fab:active{transform:scale(.94)}
 .search input{width:100%;max-width:960px;display:block;margin:0 auto 14px;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit;outline:none}
 .search input:focus{border-color:var(--accent)}
 .ngrid{max-width:960px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
@@ -162,13 +165,13 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     <h1>SIM <span>Note</span></h1>
     <div class="spacer"></div>
     <button id="btnPdfNew" title="PDF·Word·Excel·PowerPoint 파일을 새 노트로 열기">파일 열기</button>
-    <button class="primary" id="btnNew">+ 새 노트</button>
     <input type="file" id="pdfNew" accept="application/pdf,.pdf,.docx,.xlsx,.xls,.pptx" hidden>
   </div>
   <div class="listwrap">
     <div class="search"><input id="nq" type="search" placeholder="노트 검색 (제목)"></div>
     <div class="ngrid" id="ngrid"></div>
   </div>
+  <button class="fab" id="btnNew" aria-label="새 노트" title="새 노트">+</button>
 </section>
 
 <!-- 편집기 -->
@@ -370,7 +373,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     const q = $('nq').value.trim().toLowerCase();
     all = all.filter(n => !q || (n.title || '제목 없음').toLowerCase().includes(q)).sort((a, b) => b.updated - a.updated);
     if (!all.length) {
-      $('ngrid').innerHTML = '<div class="empty">' + (q ? '검색 결과가 없습니다.' : '아직 노트가 없습니다.<br>오른쪽 위 <b>+ 새 노트</b>로 시작하거나 <b>PDF 열기</b>로 PDF에 필기하세요.') + '</div>';
+      $('ngrid').innerHTML = '<div class="empty">' + (q ? '검색 결과가 없습니다.' : '아직 노트가 없습니다.<br>오른쪽 아래 <b>+</b> 버튼으로 새 노트를 시작하거나 <b>PDF 열기</b>로 PDF에 필기하세요.') + '</div>';
       return;
     }
     $('ngrid').innerHTML = all.map(n =>

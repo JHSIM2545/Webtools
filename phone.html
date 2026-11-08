@@ -678,6 +678,18 @@ async function ocrWorker() {
   ocrW = await Tesseract.createWorker('kor+eng', 1, { logger: m => { if (m && m.status && $('busy').classList.contains('show')) busy((m.status === 'recognizing text' ? '글자 인식 중… ' : '인식 엔진 준비 중(처음 한 번만 오래 걸립니다)… ') + (m.progress != null ? Math.round(m.progress * 100) + '%' : '')); } });
   return ocrW;
 }
+const AI_URL = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/card-ocr', AI_KEY = 'sb_publishable_xUnGxyLCc5TB5nv4keVQVw__grqGJkP';
+async function aiOcr(img) {
+  try {
+    busy('AI가 명함을 읽는 중…');
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 45000);
+    const r = await fetch(AI_URL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', apikey: AI_KEY, Authorization: 'Bearer ' + AI_KEY }, body: JSON.stringify({ image: img }) });
+    clearTimeout(t); const j = await r.json();
+    if (!r.ok || !j || j.error) { window._aiErr = (r.status + ' ' + ((j && (j.error || j.message)) || '')).slice(0, 120); return null; }
+    const o = {}; ['name', 'title', 'company', 'mobile', 'tel', 'fax', 'email', 'address'].forEach(k => { o[k] = String(j[k] || '').trim(); });
+    window._aiErr = ''; return Object.keys(o).some(k => o[k]) ? o : null;
+  } catch (e) { window._aiErr = String((e && e.message) || e); return null; }
+}
 function prepForOcr(src) {
   const sc = Math.min(1, 1800 / Math.max(src.width, src.height)), c = document.createElement('canvas'); c.width = Math.round(src.width * sc); c.height = Math.round(src.height * sc);
   const x = c.getContext('2d'); x.drawImage(src, 0, 0, c.width, c.height);
@@ -689,8 +701,9 @@ function prepForOcr(src) {
 }
 function smallJpeg(cv, maxW) { const k = Math.min(1, maxW / cv.width), c = document.createElement('canvas'); c.width = Math.round(cv.width * k); c.height = Math.round(cv.height * k); c.getContext('2d').drawImage(cv, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', 0.78); }
 async function onCardScanned(cv) {
-  const img = smallJpeg(cv, 1200); let parsed = null;
-  try {
+  const img = smallJpeg(cv, 1200); let parsed = null, via = '';
+  parsed = await aiOcr(img); if (parsed) via = 'AI';
+  if (!parsed) try {
     busy('인식 엔진을 불러오는 중…'); const w = await ocrWorker(); busy('글자 인식 중…');
     const r = await w.recognize(prepForOcr(cv)); window._lastOcr = r.data.text; parsed = ta4CardParse(r.data.text || '');
   } catch (er) { parsed = null; }
@@ -699,10 +712,10 @@ async function onCardScanned(cv) {
   if (cardMode === 'edit' && S.ed) {
     S.ed.card_img = img;
     if (parsed) Object.keys(FIELD).forEach(k => { if (parsed[k] && !$(FIELD[k]).value.trim()) $(FIELD[k]).value = parsed[k]; });
-    edMedia(); toast(parsed ? '명함에서 ' + got + '개 항목을 읽었습니다. 틀린 곳은 고쳐 주세요.' : '글자 인식에 실패했습니다. 명함 이미지는 저장했으니 직접 입력해 주세요.', 4000); return;
+    edMedia(); toast(parsed ? (via ? 'AI로 ' : '명함에서 ') + got + '개 항목을 읽었습니다. 틀린 곳은 고쳐 주세요.' : '글자 인식에 실패했습니다. 명함 이미지는 저장했으니 직접 입력해 주세요.', 4000); return;
   }
   openEdit('', Object.assign({}, parsed || {}, { card_img: img }));
-  toast(parsed ? '명함에서 ' + got + '개 항목을 읽었습니다. 틀린 곳은 고친 뒤 저장하세요.' : '글자 인식에 실패했습니다. 명함 이미지는 첨부했으니 직접 입력해 주세요.', 4500);
+  toast(parsed ? (via ? 'AI로 ' : '명함에서 ') + got + '개 항목을 읽었습니다. 틀린 곳은 고친 뒤 저장하세요.' : '글자 인식에 실패했습니다. 명함 이미지는 첨부했으니 직접 입력해 주세요.', 4500);
 }
 $('btnCard').onclick = () => { cardMode = 'new'; $('scanFile').click(); };
 $('edCardScan').onclick = () => { cardMode = 'edit'; $('scanFile').click(); };

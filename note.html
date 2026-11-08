@@ -121,6 +121,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
 .box select{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit}
 .papers{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .papers button{padding:12px 4px;font-size:13px}
+.papers button.on{background:#17352b;border-color:var(--accent);color:#fff}
 .row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 .insgrid{display:grid;gap:8px;margin-top:6px}
 .insgrid button{text-align:left;padding:13px 14px;line-height:1.4}
@@ -179,7 +180,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     <button id="btnUndo" title="되돌리기 (Ctrl+Z)">↶</button>
     <button id="btnRedo" title="다시 실행 (Ctrl+Y)">↷</button>
     <button id="btnIns">삽입</button>
-    <button id="btnPrint">인쇄</button>
+    <button id="btnExport">내보내기</button>
     <button class="danger" id="btnDelNote" title="노트 삭제">🗑</button>
   </div>
   <div id="scroller" class="mode-pen"></div>
@@ -249,6 +250,24 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
 </div>
 
 <!-- 배경 설정 -->
+<div class="modal" id="mExp">
+  <div class="box">
+    <h2>내보내기 · 공유</h2>
+    <div class="sub" id="expSub"></div>
+    <label>범위</label>
+    <select id="expScope"><option value="all">전체 페이지</option><option value="cur">현재 페이지</option></select>
+    <label>형식</label>
+    <div class="papers" id="expFmt" style="grid-template-columns:repeat(3,1fr)"><button data-f="pdf" class="on">PDF</button><button data-f="png">PNG 그림</button><button data-f="jpg">JPG 그림</button></div>
+    <div class="insgrid">
+      <button id="expSave">💾 파일로 저장<small>위에서 고른 형식으로 저장합니다. 그림은 여러 쪽이면 .zip 하나로 묶입니다.</small></button>
+      <button id="expShare">📤 공유하기<small>카카오톡·메일·문자·드라이브 등 다른 앱으로 보냅니다.</small></button>
+      <button id="expSamsung">📓 삼성 노트로 보내기<small>PDF로 만들어 공유 창을 엽니다. (삼성 노트 전용 .sdocx 파일은 만들 수 없습니다)</small></button>
+      <button id="expPrint">🖨 인쇄<small>인쇄 창에서 "PDF로 저장"도 고를 수 있습니다.</small></button>
+    </div>
+    <div id="expReady" style="display:none;margin-top:10px"><button class="primary" id="expReadyBtn" style="width:100%">📤 준비된 파일 공유 창 열기</button></div>
+    <div class="row"><button id="expClose">닫기</button></div>
+  </div>
+</div>
 <div class="modal" id="mBg">
   <div class="box">
     <h2>배경 설정</h2>
@@ -1384,6 +1403,120 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     } catch (_) { toast('그림 파일을 읽을 수 없습니다.'); }
   });
 
+  /* ───────── 내보내기 · 공유 (PDF / 그림 / 삼성 노트용) ───────── */
+  async function renderPageCanvas(p, k) {
+    const c = document.createElement('canvas'); c.width = Math.round(p.w * k); c.height = Math.round(p.h * k);
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.setTransform(k, 0, 0, k, 0, 0);
+    const bg = p.bg;
+    if (bg.type === 'image' && bg.img) {
+      const im = await loadImg(bg.img);
+      if (im) { const cover = bg.fit === 'cover', sc2 = cover ? Math.max(p.w / im.naturalWidth, p.h / im.naturalHeight) : Math.min(p.w / im.naturalWidth, p.h / im.naturalHeight); g.drawImage(im, (p.w - im.naturalWidth * sc2) / 2, (p.h - im.naturalHeight * sc2) / 2, im.naturalWidth * sc2, im.naturalHeight * sc2); }
+    } else if (bg.type === 'lined') { g.strokeStyle = '#c5d0e2'; g.lineWidth = 2; for (let y = 190; y < p.h - 60; y += 56) { g.beginPath(); g.moveTo(80, y); g.lineTo(p.w - 80, y); g.stroke(); } }
+    else if (bg.type === 'grid') { g.strokeStyle = '#c5d0e2'; g.lineWidth = 2; for (let x = 60; x < p.w; x += 56) { g.beginPath(); g.moveTo(x, 60); g.lineTo(x, p.h - 60); g.stroke(); } for (let y = 60; y < p.h; y += 56) { g.beginPath(); g.moveTo(60, y); g.lineTo(p.w - 60, y); g.stroke(); } }
+    else if (bg.type === 'dots') { g.fillStyle = '#b8c2d4'; for (let x = 90; x < p.w - 40; x += 56) for (let y = 90; y < p.h - 40; y += 56) { g.beginPath(); g.arc(x, y, 3, 0, 6.2832); g.fill(); } }
+    for (const im of p.images) { const el = await loadImg(note.assets[im.a] || ''); if (el) g.drawImage(el, im.x, im.y, im.w, im.h); }
+    p.strokes.forEach(s => drawStroke(g, s));
+    p.texts.forEach(t => {          // 글상자: 안쪽 여백 10/6px, 최대 폭 1000px, 줄 간격 1.4
+      g.fillStyle = t.color; g.textBaseline = 'middle'; g.font = t.fs + 'px -apple-system,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif';
+      const maxW = 980, lh = t.fs * 1.4; let row = 0;
+      String(t.text).split('\n').forEach(par => {
+        let line = '';
+        for (const ch of par) { if (line && g.measureText(line + ch).width > maxW) { g.fillText(line, t.x + 10, t.y + 6 + row * lh + lh / 2); row++; line = ch; } else line += ch; }
+        g.fillText(line, t.x + 10, t.y + 6 + row * lh + lh / 2); row++;
+      });
+    });
+    return c;
+  }
+  const toBlob = (cv, type, q) => new Promise(res => cv.toBlob(res, type, q));
+  function buildPdf(pgs, title) {
+    const enc = new TextEncoder(), parts = [], offs = []; let len = 0, n = 0;
+    const push = b => { const u = typeof b === 'string' ? enc.encode(b) : b; parts.push(u); len += u.length; };
+    push('%PDF-1.4\n'); push(new Uint8Array([37, 226, 227, 207, 211, 10]));
+    const N = 2 + pgs.length * 3, kids = pgs.map((_, i) => (3 + i * 3) + ' 0 R').join(' ');
+    const hex = Array.from(title || '').map(ch => ch.charCodeAt(0).toString(16).padStart(4, '0')).join('');
+    offs[1] = len; push('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+    offs[2] = len; push('2 0 obj\n<< /Type /Pages /Kids [' + kids + '] /Count ' + pgs.length + ' >>\nendobj\n');
+    pgs.forEach((p, i) => {
+      const o = 3 + i * 3, pw = p.land ? 841.89 : 595.28, ph = p.land ? 595.28 : 841.89, sc2 = Math.min(pw / p.w, ph / p.h), dw = p.w * sc2, dh = p.h * sc2, dx = (pw - dw) / 2, dy = (ph - dh) / 2;
+      const cs = 'q ' + dw.toFixed(2) + ' 0 0 ' + dh.toFixed(2) + ' ' + dx.toFixed(2) + ' ' + dy.toFixed(2) + ' cm /Im0 Do Q';
+      offs[o] = len; push(o + ' 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + pw + ' ' + ph + '] /Resources << /XObject << /Im0 ' + (o + 2) + ' 0 R >> >> /Contents ' + (o + 1) + ' 0 R >>\nendobj\n');
+      offs[o + 1] = len; push((o + 1) + ' 0 obj\n<< /Length ' + cs.length + ' >>\nstream\n' + cs + '\nendstream\nendobj\n');
+      offs[o + 2] = len; push((o + 2) + ' 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + p.pw + ' /Height ' + p.ph + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + p.jpeg.length + ' >>\nstream\n'); push(p.jpeg); push('\nendstream\nendobj\n');
+    });
+    const info = N + 1; offs[info] = len; push(info + ' 0 obj\n<< /Title <FEFF' + hex + '> /Producer (SIM Note) >>\nendobj\n');
+    const xr = len; let x = 'xref\n0 ' + (info + 1) + '\n0000000000 65535 f \n';
+    for (let i = 1; i <= info; i++) x += String(offs[i]).padStart(10, '0') + ' 00000 n \n';
+    push(x + 'trailer\n<< /Size ' + (info + 1) + ' /Root 1 0 R /Info ' + info + ' 0 R >>\nstartxref\n' + xr + '\n%%EOF\n');
+    return new Blob(parts, { type: 'application/pdf' });
+  }
+  const safeName = () => ((note && note.title) || 'SIM Note').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'SIM Note';
+  let expFmt = 'pdf', pendingShare = null;
+  function expIdx() { return $('expScope').value === 'cur' ? [activePage] : note.pages.map((_, i) => i); }
+  /* fmt: pdf | png | jpg → [{name, blob}] */
+  async function makeFiles(fmt) {
+    const idx = expIdx(), base = safeName(), out = [];
+    if (fmt === 'pdf') {
+      const pgs = [];
+      for (let n = 0; n < idx.length; n++) {
+        busy('PDF 만드는 중… ' + (n + 1) + ' / ' + idx.length); await nextFrame();
+        const p = note.pages[idx[n]], k = Math.min(1.5, 2400 / Math.max(p.w, p.h)), cv = await renderPageCanvas(p, k), bl = await toBlob(cv, 'image/jpeg', 0.88);
+        pgs.push({ jpeg: new Uint8Array(await bl.arrayBuffer()), pw: cv.width, ph: cv.height, w: p.w, h: p.h, land: p.w > p.h });
+      }
+      out.push({ name: base + '.pdf', blob: buildPdf(pgs, note.title || 'SIM Note') });
+    } else {
+      for (let n = 0; n < idx.length; n++) {
+        busy('그림 만드는 중… ' + (n + 1) + ' / ' + idx.length); await nextFrame();
+        const p = note.pages[idx[n]], cv = await renderPageCanvas(p, Math.min(1.5, 2400 / Math.max(p.w, p.h))), bl = fmt === 'png' ? await toBlob(cv, 'image/png') : await toBlob(cv, 'image/jpeg', 0.92);
+        out.push({ name: base + (idx.length > 1 || $('expScope').value === 'all' && note.pages.length > 1 ? '_' + (idx[n] + 1) : '') + '.' + fmt, blob: bl });
+      }
+    }
+    return out;
+  }
+  function saveBlob(name, blob) { const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
+  async function expSave() {
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    try {
+      const files = await makeFiles(expFmt);
+      if (files.length > 1) { busy('압축 중…'); await loadLib('jszip'); const z = new window.JSZip(); files.forEach(f => z.file(f.name, f.blob)); saveBlob(safeName() + '.zip', await z.generateAsync({ type: 'blob' })); }
+      else saveBlob(files[0].name, files[0].blob);
+      unbusy(); $('mExp').classList.remove('show'); toast('파일로 저장했습니다. (다운로드 폴더)');
+    } catch (e) { unbusy(); toast('내보내지 못했습니다. 페이지 수를 줄여 다시 시도하세요.'); }
+  }
+  async function tryShare(files, title) {
+    const fl = files.map(f => new File([f.blob], f.name, { type: f.blob.type }));
+    if (!(navigator.share && navigator.canShare && navigator.canShare({ files: fl }))) return 'unsupported';
+    try { await navigator.share({ files: fl, title }); return 'ok'; }
+    catch (e) { return e && e.name === 'AbortError' ? 'cancel' : 'blocked'; }
+  }
+  async function expShare(fmt, samsung) {
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    $('expReady').style.display = 'none'; pendingShare = null;
+    try {
+      const t0 = Date.now(), files = await makeFiles(fmt); unbusy();
+      let r = await tryShare(files, safeName());
+      if (r === 'blocked' && Date.now() - t0 > 2000) { pendingShare = { files, samsung }; $('expReady').style.display = 'block'; toast('준비 완료 — 아래 버튼을 눌러 공유 창을 여세요', 3500); return; }
+      if (r === 'unsupported' || r === 'blocked') { files.forEach((f, i) => setTimeout(() => saveBlob(f.name, f.blob), i * 400)); toast('이 브라우저는 공유 기능이 없어 파일로 저장했습니다.', 3500); }
+      else if (r === 'ok') { $('mExp').classList.remove('show'); if (samsung) toast('공유 창에서 "삼성 노트"를 고르세요. 안 보이면 삼성 노트 앱의 가져오기로 이 PDF를 불러오세요.', 5000); }
+    } catch (e) { unbusy(); toast('공유 파일을 만들지 못했습니다.'); }
+  }
+  $('expReadyBtn').onclick = async () => {
+    if (!pendingShare) return; const ps = pendingShare, r = await tryShare(ps.files, safeName());
+    if (r === 'ok') { pendingShare = null; $('expReady').style.display = 'none'; $('mExp').classList.remove('show'); }
+    else if (r !== 'cancel') { ps.files.forEach((f, i) => setTimeout(() => saveBlob(f.name, f.blob), i * 400)); toast('공유할 수 없어 파일로 저장했습니다.'); }
+  };
+  $('btnExport').onclick = () => {
+    $('expSub').textContent = '현재 페이지: ' + (activePage + 1) + ' / ' + note.pages.length; $('expReady').style.display = 'none'; pendingShare = null;
+    if (note.pages.length < 2) $('expScope').value = 'all';
+    $('mExp').classList.add('show');
+  };
+  $('expClose').onclick = () => $('mExp').classList.remove('show');
+  $('mExp').addEventListener('click', e => { if (e.target === $('mExp')) $('mExp').classList.remove('show'); });
+  $('expFmt').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; expFmt = b.dataset.f; document.querySelectorAll('#expFmt button').forEach(x => x.classList.toggle('on', x === b)); });
+  $('expSave').onclick = expSave;
+  $('expShare').onclick = () => expShare(expFmt, false);
+  $('expSamsung').onclick = () => { expFmt = 'pdf'; document.querySelectorAll('#expFmt button').forEach(x => x.classList.toggle('on', x.dataset.f === 'pdf')); expShare('pdf', true); };
+  $('expPrint').onclick = () => { $('mExp').classList.remove('show'); doPrint(); };
+
   /* ───────── 인쇄 ───────── */
   async function doPrint() {
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -1411,7 +1544,6 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     toast('인쇄 창에서 "PDF로 저장"을 고르면 파일로도 저장됩니다.');
     setTimeout(() => window.print(), 300);
   }
-  $('btnPrint').onclick = doPrint;
 
   /* ───────── 시작 ───────── */
   (async () => {

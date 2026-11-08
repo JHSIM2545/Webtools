@@ -683,7 +683,8 @@ async function aiOcr(img) {
   try {
     busy('AI가 명함을 읽는 중…');
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 45000);
-    const r = await fetch(AI_URL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', apikey: AI_KEY, Authorization: 'Bearer ' + AI_KEY }, body: JSON.stringify({ image: img }) });
+    const call = h => fetch(AI_URL, { method: 'POST', signal: ctl.signal, headers: Object.assign({ 'Content-Type': 'application/json', apikey: AI_KEY }, h), body: JSON.stringify({ image: img }) });
+    let r = await call({}); if (r.status === 401) r = await call({ Authorization: 'Bearer ' + AI_KEY });
     clearTimeout(t); const j = await r.json();
     if (!r.ok || !j || j.error) { window._aiErr = (r.status + ' ' + ((j && (j.error || j.message)) || '')).slice(0, 120); return null; }
     const o = {}; ['name', 'title', 'company', 'mobile', 'tel', 'fax', 'email', 'address'].forEach(k => { o[k] = String(j[k] || '').trim(); });

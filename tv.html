@@ -57,6 +57,7 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
 .list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 6px calc(12px + env(safe-area-inset-bottom))}
 .ch{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:9px;cursor:pointer}
 .ch:hover{background:var(--panel2)}
+.badbar{display:flex;align-items:center;justify-content:space-between;padding:6px 8px 8px;font-size:13px;color:#ff9b9b}
 .ch.bad{opacity:.4}
 .ch.bad:hover,.ch.bad.active{opacity:.75}
 .ch .bd{flex:none;font-size:11px;padding:2px 7px;border-radius:99px;background:#3a1c1c;color:#ff9b9b;border:1px solid #5a2a2a;white-space:nowrap}
@@ -276,7 +277,8 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
       $('list').innerHTML = `<div class="empty">${state.channels.length ? '조건에 맞는 채널이 없습니다.' : '등록된 채널이 없습니다.<br>우측 상단 <b>+ 채널</b> 또는 <b>가져오기</b>로 추가하세요.'}</div>`;
       return;
     }
-    $('list').innerHTML = items.map(c => {
+    const bar = filterGroup === '접속불가' ? `<div class="badbar"><span>접속불가 ${items.length}개</span><button class="danger" id="btnDelBad">모두 삭제</button></div>` : '';
+    $('list').innerHTML = bar + items.map(c => {
       const fav = state.favs.includes(c.id);
       const logo = c.logo ? `<img src="${esc(c.logo)}" alt="" onerror="this.remove()">` : '';
       const bad = state.bad[c.id];
@@ -361,8 +363,11 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
   video.addEventListener('waiting', () => { if (currentId) setBadge('버퍼링', false); });
 
   function step(dir) {
-    const items = visible();
-    if (!items.length) return;
+    const all = visible();
+    if (!all.length) return;
+    const inBadTab = filterGroup === '접속불가';
+    const items = inBadTab ? all : all.filter(c => !state.bad[c.id] || c.id === currentId);   // 접속불가 채널은 건너뜀
+    if (!items.some(c => c.id !== currentId)) { toast('건너뛸 수 있는 정상 채널이 더 없습니다.'); return; }
     let i = items.findIndex(c => c.id === currentId);
     i = i < 0 ? 0 : (i + dir + items.length) % items.length;
     play(items[i].id);
@@ -372,6 +377,17 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
 
   // ---- 이벤트 ----
   $('list').addEventListener('click', e => {
+    if (e.target.closest('#btnDelBad')) {
+      const ids = state.channels.filter(c => state.bad[c.id]).map(c => c.id);
+      if (!ids.length) return;
+      if (!confirm('접속불가로 표시된 채널 ' + ids.length + '개를 모두 삭제할까요?\n(삭제한 채널은 앱의 기본 목록 갱신 때 다시 추가될 수 있습니다.)')) return;
+      const set = new Set(ids);
+      state.channels = state.channels.filter(c => !set.has(c.id));
+      state.favs = state.favs.filter(id => !set.has(id));
+      ids.forEach(id => delete state.bad[id]);
+      if (set.has(currentId)) { currentId = null; destroyHls(); setOverlay('idle', '오른쪽 목록에서 채널을 선택하세요.'); $('nowTitle').textContent = '선택된 채널 없음'; $('nowGrp').textContent = ''; setBadge('대기', false); }
+      filterGroup = '전체'; save(); renderTabs(); renderList(); toast(ids.length + '개 삭제했습니다.'); return;
+    }
     const s = e.target.closest('[data-star]');
     if (s) {
       const id = s.dataset.star;

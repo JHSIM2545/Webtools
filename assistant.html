@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1117">
+<title>SIM Assistant</title>
+<link rel="icon" type="image/png" href="assistant-icon-192.png">
+<style>
+:root{--bg:#0f1117;--panel:#171a23;--panel2:#1f2330;--line:#2a2f3f;--text:#e8eaf0;--sub:#8b92a8;--accent:#2fd4b4;--accent2:#12a98d;--ok:#34c38f;--warn:#f5b042;--danger:#ff5d5d}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent2);border-color:var(--accent2);color:#04251f;font-weight:700}
+button.danger{color:var(--danger)}
+button:disabled{opacity:.5;cursor:default}
+input{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:11px 16px;outline:none;width:100%}
+input:focus{border-color:var(--accent)}
+.bar{display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top));background:var(--panel);border-bottom:1px solid var(--line)}
+.bar h1{font-size:18px;font-weight:700;flex:1}.bar h1 span{color:var(--accent)}
+.back{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:20px}
+.iconbtn{width:38px;height:38px;padding:0;font-size:18px;display:flex;align-items:center;justify-content:center}
+.iconbtn.off{opacity:.45}
+.tabs{display:flex;background:var(--panel);border-bottom:1px solid var(--line)}
+.tabs button{flex:1;border:none;border-radius:0;background:none;padding:12px 0;font-weight:700;color:var(--sub);border-bottom:2px solid transparent;position:relative}
+.tabs button.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabs button i{font-style:normal;font-size:11px;font-weight:700;background:var(--panel2);color:var(--sub);border-radius:99px;padding:1px 6px;margin-left:4px}
+.tabs button.on i{background:#0f3a33;color:var(--accent)}
+.pane{display:none;flex:1;min-height:0;overflow-y:auto;padding:14px;-webkit-overflow-scrolling:touch}
+.pane.on{display:block}
+#pChat.on{display:flex;flex-direction:column}
+#chat{flex:1;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:88%;padding:10px 13px;border-radius:16px;font-size:14.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.msg.bot{background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:5px;align-self:flex-start}
+.msg.me{background:#0f3a33;border:1px solid #17574c;border-bottom-right-radius:5px;align-self:flex-end}
+.msg.sys{align-self:center;background:none;color:var(--sub);font-size:12.5px;text-align:center;max-width:94%}
+.msg .sub{display:block;color:var(--sub);font-size:12.5px;margin-top:2px}
+.msg .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.msg .btns button,.msg .btns a.btn{padding:7px 13px;border-radius:99px;font-size:13.5px}
+a.btn{display:inline-block;font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);text-decoration:none}
+a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#04251f;font-weight:700}
+.kv{margin-top:8px;border-top:1px solid var(--line);padding-top:6px;font-size:13.5px;line-height:1.7}
+.kv div{display:flex;gap:10px}.kv b{flex:none;width:58px;color:var(--sub);font-weight:600;font-size:12.5px}
+.kv span{flex:1;word-break:break-all}
+.who{display:flex;align-items:center;gap:10px;margin-top:2px}
+.av{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;flex:none}
+.who b{font-size:15.5px}.who small{display:block;color:var(--sub);font-size:12.5px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:8px 12px 2px;background:var(--bg);scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;border-radius:99px;font-size:13px;padding:6px 12px;color:var(--sub)}
+.composer{display:flex;align-items:center;gap:8px;padding:8px 12px calc(10px + env(safe-area-inset-bottom));background:var(--bg)}
+.composer input{flex:1}
+.send{width:44px;height:44px;border-radius:50%;padding:0;font-size:18px;flex:none}
+.mic{width:56px;height:56px;border-radius:50%;padding:0;flex:none;background:var(--accent2);border-color:var(--accent2);color:#04251f;display:flex;align-items:center;justify-content:center;position:relative}
+.mic svg{width:26px;height:26px}
+.mic.on{background:var(--danger);border-color:var(--danger);color:#fff;animation:pulse 1.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,93,93,.55)}70%{box-shadow:0 0 0 16px rgba(255,93,93,0)}100%{box-shadow:0 0 0 0 rgba(255,93,93,0)}}
+.listen{display:none;text-align:center;font-size:13px;color:var(--accent);padding:4px 12px 0}
+.listen.on{display:block}
+.listen em{color:var(--text);font-style:normal}
+.note{font-size:12.5px;color:var(--sub);line-height:1.6}
+.banner{background:#2a2312;border:1px solid #5a4a1c;color:var(--warn);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.55;margin-bottom:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start}
+.card .tx{flex:1;min-width:0}
+.card .tx b{display:block;font-size:15px;word-break:break-word}
+.card .tx small{display:block;color:var(--sub);font-size:12.5px;margin-top:3px;line-height:1.5}
+.card .x{flex:none;padding:4px 9px;border-radius:8px;color:var(--sub)}
+.card.off{opacity:.55}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:99px;background:var(--panel2);color:var(--sub);margin-left:6px;vertical-align:1px}
+.pill.on{background:#0f3a33;color:var(--accent)}
+.empty{padding:50px 10px;text-align:center;color:var(--sub);line-height:1.7;font-size:14px}
+.sw{position:relative;width:46px;height:26px;flex:none;margin-top:2px}
+.sw input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;z-index:2}
+.sw i{position:absolute;inset:0;background:var(--panel2);border:1px solid var(--line);border-radius:99px;transition:.15s}
+.sw i::after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:var(--sub);transition:.15s}
+.sw input:checked+i{background:var(--accent2);border-color:var(--accent2)}
+.sw input:checked+i::after{left:23px;background:#fff}
+.row{display:flex;gap:8px;margin-bottom:12px}.row>*{flex:1}
+#ring{position:fixed;inset:0;z-index:100;background:rgba(7,10,16,.96);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center}
+#ring.on{display:flex}
+#ring .big{font-size:64px;animation:shake .6s infinite}
+@keyframes shake{0%,100%{transform:rotate(0)}25%{transform:rotate(-12deg)}75%{transform:rotate(12deg)}}
+#ring h2{font-size:26px}#ring p{color:var(--sub);font-size:15px;line-height:1.6}
+#ring .btns{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;justify-content:center}
+#ring .btns button{padding:14px 22px;font-size:16px;border-radius:14px}
+#toast{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#2b2f40;border:1px solid var(--line);padding:9px 15px;border-radius:12px;font-size:13.5px;z-index:50;display:none;max-width:90%;text-align:center}
+</style>
+</head>
+<body>
+<div class="bar">
+  <a class="back" href="index.html" title="SIM Tools">‹</a>
+  <h1>SIM <span>Assistant</span></h1>
+  <button class="iconbtn" id="btnTts" title="음성 답변 켜기/끄기">🔊</button>
+</div>
+<div class="tabs" id="tabs">
+  <button data-t="chat" class="on">대화</button>
+  <button data-t="memo">메모<i id="cMemo">0</i></button>
+  <button data-t="event">일정<i id="cEvent">0</i></button>
+  <button data-t="alarm">알람<i id="cAlarm">0</i></button>
+</div>
+
+<div class="pane on" id="pChat"><div id="chat"></div></div>
+<div class="pane" id="pMemo"></div>
+<div class="pane" id="pEvent"></div>
+<div class="pane" id="pAlarm"></div>
+
+<div id="chatBar">
+  <div class="chips" id="chips"></div>
+  <div class="listen" id="listen"><em id="interim">듣고 있어요…</em></div>
+  <div class="composer">
+    <input id="txt" type="text" placeholder="말하거나 입력하세요" autocomplete="off" enterkeyhint="send">
+    <button class="send" id="btnSend" title="보내기">➤</button>
+    <button class="mic" id="btnMic" title="말하기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    </button>
+  </div>
+</div>
+
+<div id="ring">
+  <div class="big">⏰</div>
+  <h2 id="ringTitle">알람</h2>
+  <p id="ringSub"></p>
+  <div class="btns"><button id="ringSnooze">5분 뒤 다시</button><button class="primary" id="ringStop">끄기</button></div>
+</div>
+<div id="toast"></div>
+
+<script>
+/* ───────── 한국어 음성 명령 해석(NLU) — 서버 없이 브라우저에서 동작 ───────── */
+const NLU = (() => {
+  const DW = { '공': 0, '영': 0, '일': 1, '이': 2, '삼': 3, '사': 4, '오': 5, '육': 6, '륙': 6, '칠': 7, '팔': 8, '구': 9 };
+  const KNUM = { '한': 1, '하나': 1, '두': 2, '둘': 2, '세': 3, '셋': 3, '네': 4, '넷': 4, '다섯': 5, '여섯': 6, '일곱': 7, '여덟': 8, '아홉': 9, '열': 10, '열한': 11, '열두': 12 };
+  const WD = { '일': 0, '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6 };
+  const TITLES = '대표이사|대표|부사장|사장|전무|상무|이사|본부장|실장|부장|차장|과장|팀장|대리|주임|사원|소장|센터장|지점장|원장|교수|박사|변호사|선생';
+  const STOP = new Set(['연락처', '저장', '추가', '등록', '전화번호', '전화', '번호', '회사', '에', '는', '은', '이', '가', '좀', '그리고', '새로운', '새', '신규', '사람', '분', '이름', '이름은', '핸드폰', '휴대폰', '휴대전화', '핸드폰번호', '직급', '직책', '이메일', '메일', '주소', '찾아', '찾아줘', '알려', '알려줘', '해줘', '해', '해주세요', '걸어', '걸어줘', '연결', '연결해줘', '검색', '보여', '보여줘', '불러', '불러줘', '뭐야', '뭐지', '뭐', '어떻게', '되지', '되나요', '이야', '입니다', '에요', '이에요', '번', '해줄래', '할래', '주세요', '줘', '를', '을', '의', '도', '로', '으로', '한테', '에게', '께', '랑', '와', '과', '그', '저', '내', '제', '우리', '있는', '있어', '있으면', '다시', '한번', '혹시', '하고', '고', '라고', '이라고', '라는', '이라는', '어디', '몇', '번이야']);
+
+  /* 음성 → 텍스트 보정: "공일공 일이삼사" → 숫자, "골뱅이" → @ */
+  function normalize(t) {
+    let s = String(t || '').replace(/\s+/g, ' ').trim();
+    s = s.replace(/공\s*일\s*공/g, '010');
+    s = s.replace(/(?:공|영)[\s-]*[일이삼사오육륙칠팔구공영](?:[\s-]*[일이삼사오육륙칠팔구공영]){6,}/g, m => m.replace(/[\s-]/g, '').split('').map(c => DW[c]).join(''));
+    s = s.replace(/(\d)[\s-]*[일이삼사오육륙칠팔구공영](?:[\s-]*[일이삼사오육륙칠팔구공영]){3,}/g, m => m.replace(/[\s-]/g, '').replace(/[일이삼사오육륙칠팔구공영]/g, c => DW[c]));
+    s = s.replace(/\s*골뱅이\s*/g, '@').replace(/\s*닷\s*(컴|넷|케이알|코\s*케이알)/g, (m, x) => ({ '컴': '.com', '넷': '.net', '케이알': '.kr' })[x.replace(/\s/g, '')] || '.co.kr');
+    return s;
+  }
+
+  const PH_RE = /(?:\+?82[\s-]?)?0\d{1,2}[\s-]?\d{3,4}[\s-]?\d{4}|1[568]\d{2}[\s-]?\d{4}/g;
+  const EM_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
+  const digits = s => String(s || '').replace(/\D/g, '');
+  function fmtPhone(raw) {
+    let d = digits(raw); if (d.startsWith('82') && d.length >= 11) d = '0' + d.slice(2);
+    if (/^1[568]\d{6}$/.test(d)) return d.slice(0, 4) + '-' + d.slice(4);
+    if (d.startsWith('02')) return d.length === 9 ? `02-${d.slice(2, 5)}-${d.slice(5)}` : `02-${d.slice(2, 6)}-${d.slice(6)}`;
+    if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+    if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+    return d;
+  }
+
+  /* ───────── 날짜·시간 해석 ───────── */
+  function kn(s) { s = String(s).trim(); return /^\d+$/.test(s) ? +s : (KNUM[s] != null ? KNUM[s] : null); }
+  function parseWhen(text, now) {
+    now = now || new Date();
+    let s = String(text), out = { hasDate: false, hasTime: false, ambiguous: false, dur: null, y: null, mo: null, d: null, h: null, mi: 0, allDay: false, repeat: null, rest: '' };
+    const cut = re => { const m = s.match(re); if (m) s = s.replace(m[0], ' '); return m; };
+    let m;
+    // 반복
+    if (cut(/매일|every\s*day/i)) out.repeat = 'daily';
+    else if (cut(/평일마다|평일에?|주중/)) out.repeat = 'weekdays';
+    else if (cut(/주말마다|주말에?/)) out.repeat = 'weekend';
+    else if ((m = cut(/매주\s*([일월화수목금토])요일?/))) out.repeat = 'weekly' + WD[m[1]];
+    // N시간 N분 뒤 / 후
+    if ((m = cut(/(\d+|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|열한|열두)\s*시간\s*(반)?\s*(?:(\d+)\s*분)?\s*(?:뒤|후)에?/))) {
+      const h = kn(m[1]); out.dur = (h * 60 + (m[2] ? 30 : 0) + (m[3] ? +m[3] : 0)) * 60000;
+    } else if ((m = cut(/(\d+)\s*분\s*(?:뒤|후)에?/))) out.dur = +m[1] * 60000;
+    else if ((m = cut(/(\d+)\s*초\s*(?:뒤|후)에?/))) out.dur = +m[1] * 1000;
+    else if (cut(/삼십\s*분\s*(?:뒤|후)에?/)) out.dur = 30 * 60000;
+    else if (cut(/십\s*분\s*(?:뒤|후)에?/)) out.dur = 10 * 60000;
+    if (out.dur != null) { out.hasDate = out.hasTime = true; out.rest = s.replace(/\s+/g, ' ').trim(); return out; }
+
+    // 날짜
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const setD = (dt) => { out.y = dt.getFullYear(); out.mo = dt.getMonth() + 1; out.d = dt.getDate(); out.hasDate = true; };
+    if (cut(/글피/)) setD(new Date(base.getTime() + 3 * 864e5));
+    else if (cut(/모레/)) setD(new Date(base.getTime() + 2 * 864e5));
+    else if (cut(/내일모레/)) setD(new Date(base.getTime() + 2 * 864e5));
+    else if (cut(/내일/)) setD(new Date(base.getTime() + 864e5));
+    else if (cut(/오늘|금일/)) setD(base);
+    else if ((m = cut(/(다음\s*주|담\s*주|이번\s*주|이\s*번\s*주|다다음\s*주)?\s*([일월화수목금토])요일/))) {
+      const w = WD[m[2]], cur = base.getDay(); let diff = (w - cur + 7) % 7;
+      const k = (m[1] || '').replace(/\s/g, '');
+      if (k === '다음주' || k === '담주') diff = ((w - cur + 7) % 7) + (((w - cur + 7) % 7) === 0 || w <= cur ? 0 : 0); // 아래에서 재계산
+      if (k === '다음주' || k === '담주') { const mon = new Date(base.getTime() - ((cur + 6) % 7) * 864e5 + 7 * 864e5); setD(new Date(mon.getTime() + ((w + 6) % 7) * 864e5)); }
+      else if (k === '다다음주') { const mon = new Date(base.getTime() - ((cur + 6) % 7) * 864e5 + 14 * 864e5); setD(new Date(mon.getTime() + ((w + 6) % 7) * 864e5)); }
+      else if (k === '이번주') { const mon = new Date(base.getTime() - ((cur + 6) % 7) * 864e5); setD(new Date(mon.getTime() + ((w + 6) % 7) * 864e5)); }
+      else setD(new Date(base.getTime() + diff * 864e5));
+    } else if ((m = cut(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/))) { out.y = +m[1]; out.mo = +m[2]; out.d = +m[3]; out.hasDate = true; }
+    else if ((m = cut(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/))) {
+      out.mo = +m[1]; out.d = +m[2]; out.y = now.getFullYear(); out.hasDate = true;
+      if (new Date(out.y, out.mo - 1, out.d) < base) out.y++;
+    } else if ((m = cut(/(\d{1,2})\s*일\s*(?:뒤|후)/))) setD(new Date(base.getTime() + +m[1] * 864e5));
+    else if ((m = cut(/(\d{1,2})\s*일(?![가-힣])/))) {
+      out.d = +m[1]; out.mo = now.getMonth() + 1; out.y = now.getFullYear(); out.hasDate = true;
+      if (new Date(out.y, out.mo - 1, out.d) < base) { out.mo++; if (out.mo > 12) { out.mo = 1; out.y++; } }
+    }
+    // 시간
+    let ap = null;
+    if (cut(/종일|하루\s*종일/)) { out.allDay = true; out.hasTime = true; }
+    else if (cut(/정오/)) { out.h = 12; out.mi = 0; out.hasTime = true; }
+    else if (cut(/자정/)) { out.h = 0; out.mi = 0; out.hasTime = true; }
+    else if ((m = cut(/(오전|오후|아침|새벽|낮|저녁|밤)?\s*(\d{1,2})\s*시\s*(?:(\d{1,2})\s*분|(반))?/)) || (m = cut(/(오전|오후|아침|새벽|낮|저녁|밤)?\s*(\d{1,2}):(\d{2})/))) {
+      let h = +m[2]; ap = m[1] || null; const mi = m[4] ? 30 : (m[3] ? +m[3] : 0);
+      if (ap === '오후' || ap === '저녁') { if (h < 12) h += 12; }
+      else if (ap === '밤') { if (h >= 6 && h < 12) h += 12; else if (h === 12) h = 0; }
+      else if (ap === '낮') { if (h >= 1 && h <= 6) h += 12; }
+      else if (ap === '오전' || ap === '아침' || ap === '새벽') { if (h === 12) h = 0; }
+      else if (h >= 1 && h <= 12) out.ambiguous = true;   // 오전/오후 말이 없음 → 되물어야 함
+      out.h = h; out.mi = mi; out.hasTime = true;
+    } else if ((m = cut(/(오전|오후|아침|저녁|밤|새벽)\s*(?=$|[^가-힣\d])/)) && false) { /* 사용 안 함 */ }
+    out.rest = s.replace(/\s+/g, ' ').trim();
+    return out;
+  }
+  /* 오전/오후 답변("오후", "저녁에요") → 'am' | 'pm' | null */
+  function parseAmPm(t) { t = String(t); if (/오후|저녁|밤|낮|pm/i.test(t)) return 'pm'; if (/오전|아침|새벽|am/i.test(t)) return 'am'; return null; }
+
+  /* 해석 결과 → Date (없으면 null) */
+  function whenToDate(w, now) {
+    now = now || new Date();
+    if (w.dur != null) return new Date(now.getTime() + w.dur);
+    if (!w.hasTime && !w.hasDate) return null;
+    let y = w.y, mo = w.mo, d = w.d, h = w.allDay ? 0 : (w.h == null ? 9 : w.h), mi = w.mi || 0;
+    if (!w.hasDate) {  // 시각만 말함 → 가장 가까운 미래
+      let dt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, mi);
+      if (dt.getTime() <= now.getTime()) dt = new Date(dt.getTime() + 864e5);
+      return dt;
+    }
+    return new Date(y, mo - 1, d, h, mi);
+  }
+
+  /* ───────── 의도 분류 ───────── */
+  function detect(raw) {
+    const t = normalize(raw);
+    if (/알람|깨워|기상\s*시간|모닝콜/.test(t)) {
+      if (/(보여|알려|뭐|확인|목록|몇\s*시|있어|리스트)/.test(t) && !/(맞춰|설정|등록|추가|해줘\s*$)/.test(t)) return 'list_alarm';
+      if (/(꺼|삭제|지워|취소|해제)/.test(t)) return 'del_alarm';
+      return 'alarm_add';
+    }
+    const hasMemoWord = /메모|노트에|적어\s*(줘|둬|놔)|기록해/.test(t);
+    const evtWord = /일정|스케줄|약속|미팅|회의|캘린더|예약/.test(t);
+    if (evtWord && !(hasMemoWord && !/일정.*(추가|등록|잡|넣)/.test(t))) {
+      if (/(보여|알려|뭐\s*(있|야)|있어|있나|확인|목록|어때|리스트)/.test(t) && !/(추가|등록|잡아|넣어|저장|만들)/.test(t)) return 'list_event';
+      if (/(삭제|지워|취소)/.test(t)) return 'del_event';
+      return 'event_add';
+    }
+    if (/(연락처|주소록|번호).{0,12}(저장|추가|등록|넣어)|(저장|추가|등록)해/.test(t) && !hasMemoWord) return 'contact_add';
+    if (/(전화\s*(해|걸|좀|연결|드려|할)|통화\s*(해|연결|하고)|콜\s*(해|걸)|연락\s*해)/.test(t)) return 'call';
+    if (/(전화번호|번호|연락처|이메일|메일|회사|주소|핸드폰|휴대폰).{0,14}(찾아|알려|뭐|검색|보여|불러|읽어|어떻게)|(찾아|검색).{0,10}(전화번호|번호|연락처)/.test(t)) return 'contact_find';
+    if (hasMemoWord) {
+      if (/(보여|읽어|알려|목록|리스트|찾아|검색)/.test(t) && !/(메모\s*(해|좀)|적어)/.test(t)) return 'list_memo';
+      return 'memo_add';
+    }
+    return null;
+  }
+
+  /* ───────── 슬롯 추출 ───────── */
+  function stripCmd(s) {
+    return s.replace(/(이?라고|라는\s*내용(을|이)?|을|를)?\s*(메모|적어|기록|저장|추가|등록|넣어|알려|찾아|검색|보여|불러|읽어)\s*(해|줘|둬|놔|주세요|줄래|할래|해줘|좀|드려)?[가-힣]*/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  function cleanParticles(w) {
+    w = String(w);
+    const multi = w.replace(/(님|씨|이라는|이라고|한테|에게서|에게|께서|께|이랑|으로)$/, '');
+    if (multi !== w && multi.length >= 2) return multi;
+    const ch = w.slice(-1);
+    if (/[이가은는을를도의로랑와과]/.test(ch) && (w.length > 3 || (w.length === 3 && /[을를은는도의]/.test(ch)))) return w.slice(0, -1);
+    return w;
+  }
+
+  function extractName(text, exclude) {
+    // 이름 후보: 불용어·제외 문자열을 제거한 뒤 첫 한글/영문 토큰
+    let s = text;
+    (exclude || []).forEach(x => { if (x) s = s.replace(x, ' '); });
+    s = s.replace(new RegExp(TITLE_RE, 'g'), ' ');
+    const toks = s.split(/[\s,.:;!?~]+/).filter(Boolean);
+    for (const tk0 of toks) {
+      const tk = cleanParticles(tk0);
+      const tk2 = tk0.replace(/(에서|에|은|는|이|가|을|를|도)$/, '');
+      if (!tk || STOP.has(tk0) || STOP.has(tk) || STOP.has(tk2)) continue;
+      if (/^[가-힣]{2,4}$/.test(tk) || /^[A-Za-z][A-Za-z\s.]{1,19}$/.test(tk)) return tk;
+      if (/^[가-힣][씨님]$/.test(tk0)) return tk0;
+    }
+    return '';
+  }
+  const TITLE_RE = '(' + TITLES + ')(?:님|께서)?(?=[\\s,.]|$|이|가|은|는|을|를|한테|에게|께)';
+  function extractTitle(text) { const m = text.match(new RegExp(TITLE_RE)); return m ? m[1] : ''; }
+
+  function extract(intent, raw, now) {
+    const t = normalize(raw), sl = {};
+    if (intent === 'memo_add') {
+      let c = t.replace(/^(메모|노트)\s*[:：]?\s*/, '');
+      c = c.replace(/\s*(이?라고|라는\s*내용(을|이)?)?\s*(메모|노트에?\s*적|적어|기록)\s*(해|줘|둬|놔|주세요|줄래|해줘|좀|드려|할래)?[가-힣]*\s*$/g, '').trim();
+      c = c.replace(/^(메모|노트)(해|좀|해줘)?\s*/, '').trim();
+      if (c && !/^(메모|적어|기록|해줘|해|좀|줘|해주세요)[가-힣]*$/.test(c)) sl.content = c;
+    } else if (intent === 'contact_add') {
+      let s = t; const phones = (s.match(PH_RE) || []).map(fmtPhone);
+      s = s.replace(PH_RE, ' ');
+      const em = s.match(EM_RE); if (em) { sl.email = em[0]; s = s.replace(em[0], ' '); }
+      let m = s.match(/(?:회사|소속|직장)(?:는|은|명은|이름은|이)?\s*([가-힣A-Za-z0-9&().]+(?:\s(?!(?:이메일|메일|전화|번호|직급|직책|주소|메모|이고|이며)[가-힣]*)[가-힣A-Za-z0-9&().]+)?)\s*(?=이고|이며|,|입니다|이에요|에요|전화|번호|직급|직책|이메일|메일|주소|이고요|$)/);
+      if (!m) m = s.match(/([가-힣A-Za-z0-9&().]+)\s*(?:에서\s*일하는|에\s*다니는|소속)/);
+      let compStr = '';
+      if (m) { sl.company = m[1].replace(/(이고|이며|입니다|이에요|에요|이고요)$/, '').trim(); compStr = m[0];
+        const tm = sl.company.match(new RegExp('^(.+?)\\s+(' + TITLES + ')(?:님)?$')); if (tm) { sl.company = tm[1]; sl.title = tm[2]; } }
+      if (compStr) s = s.replace(compStr, ' ');
+      const am = s.match(/주소(?:는|은)?\s*(.+?)(?=\s*(?:이고|이며|전화|번호|회사|직급|이메일|메일)|$)/);
+      if (am) { sl.address = am[1].trim(); s = s.replace(am[0], ' '); }
+      const title = extractTitle(s); if (title && !sl.title) sl.title = title;
+      const mem = s.match(/(?:메모|비고)(?:는|은)?\s*(.+)$/); if (mem) { sl.memo = mem[1].trim(); s = s.replace(mem[0], ' '); }
+      sl.name = extractName(stripCmd(s), []);
+      phones.forEach(p => { const d = digits(p); if (/^01[016789]/.test(d)) { if (!sl.mobile) sl.mobile = p; else if (!sl.tel) sl.tel = p; } else { if (!sl.tel) sl.tel = p; else if (!sl.mobile) sl.mobile = p; } });
+    } else if (intent === 'contact_find' || intent === 'call') {
+      let s = t.replace(PH_RE, ' ');
+      sl.field = /이메일|메일/.test(s) ? 'email' : /회사/.test(s) ? 'company' : /주소/.test(s) ? 'address' : 'phone';
+      s = s.replace(/(전화|통화|콜|연락)\s*(해|걸어|걸|좀|연결|드려|할)[가-힣]*/g, ' ');
+      const joined = s.match(new RegExp('([가-힣]{1,4})(' + TITLES + ')(?:님|께서)?(?=[\\s,.]|$|이|가|은|는|을|를|한테|에게|께)'));
+      if (joined && !/^(대표|회사|담당)$/.test(joined[1])) { sl.name = joined[1]; sl.title = joined[2]; sl.joined = true; }
+      else sl.name = extractName(stripCmd(s), []);
+      if (/^[가-힣][씨님]$/.test(sl.name)) { sl.name = sl.name[0]; sl.title = ''; sl.joined = true; }
+      sl.raw = sl.name;
+    } else if (intent === 'event_add') {
+      const w = parseWhen(t, now); sl.when = w;
+      let c = w.rest.replace(/(일정|스케줄|캘린더)(에|을|를)?\s*(추가|등록|잡아|넣어|기록|저장|만들어)\s*(해|줘|주세요|줄래|해줘|좀)?[가-힣]*/g, ' ');
+      c = c.replace(/\s*(추가|등록|잡아|넣어|기록|저장|만들어)\s*(해|줘|주세요|줄래|해줘|좀)?[가-힣]*\s*$/g, ' ').replace(/(에|을|를|으로|로|이|가|은|는)\s*$/g, '').replace(/\s+/g, ' ').trim();
+      c = c.replace(/^(에는|에서|에)\s+/, '').replace(/^(일정|스케줄)\s*/, '').replace(/\s*(일정|스케줄)\s*$/, '').trim();
+      if (c && c.length >= 1 && !/^(에|을|를|이|가)$/.test(c)) sl.title = c;
+    } else if (intent === 'alarm_add') {
+      const w = parseWhen(t, now); sl.when = w;
+      let c = w.rest.replace(/알람(을|도)?\s*(맞춰|설정|등록|추가|해|켜|울려|만들어|저장)\s*(줘|주세요|줄래|해줘|좀)?[가-힣]*/g, ' ').replace(/깨워\s*(줘|주세요|줄래|라)?/g, ' ').replace(/알람|모닝콜/g, ' ');
+      c = c.replace(/\s*(에|으로|로|까지|부터|때|마다)\s*$/g, ' ').replace(/^(에는|에서|에|으로|로)\s+/, '').replace(/\s+/g, ' ').trim();
+      if (c && c.length > 1 && !/^(맞춰|설정|해줘|좀|줘)$/.test(c)) sl.label = c;
+    } else if (intent === 'list_event') {
+      sl.when = parseWhen(t, now);
+    } else if (intent === 'list_memo') {
+      sl.q = t.replace(/(메모|노트)(를|에서|들)?|보여|읽어|알려|목록|리스트|찾아|검색|줘|해줘|좀|주세요/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+    return sl;
+  }
+
+  const isYes = t => /^(네|예|응|어|그래|맞아|맞아요|좋아|좋아요|저장|저장해|저장해줘|확인|그렇게|해줘|오케이|ok|okay|yes|ㅇㅇ|넵|넹|그럼)/i.test(String(t).trim());
+  const isNo = t => /^(아니|아니요|아니야|아냐|싫어|취소|그만|안\s*해|노|no|말고|중지|됐어)/i.test(String(t).trim());
+
+  return { normalize, parseWhen, parseAmPm, whenToDate, detect, extract, fmtPhone, digits, isYes, isNo, extractName, PH_RE, EM_RE };
+})();
+if (typeof module !== 'undefined') module.exports = NLU;
+
+/* ───────── SIM Assistant 앱 본체 ───────── */
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const rid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const WDN = ['일', '월', '화', '수', '목', '금', '토'];
+const pad = n => String(n).padStart(2, '0');
+const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+const fmtDate = d => (d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '년 ' : '') + `${d.getMonth() + 1}월 ${d.getDate()}일(${WDN[d.getDay()]})`;
+const fmtTime = d => { const h = d.getHours(); return `${h < 12 ? '오전' : '오후'} ${h % 12 === 0 ? 12 : h % 12}:${pad(d.getMinutes())}`; };
+const fmtDT = (d, allDay) => fmtDate(d) + (allDay ? ' 종일' : ' ' + fmtTime(d));
+const REP = { daily: '매일', weekdays: '평일', weekend: '주말' };
+const repLabel = r => !r ? '' : r.startsWith('weekly') ? '매주 ' + WDN[+r.slice(6)] + '요일' : (REP[r] || '');
+let toastT;
+function toast(m, ms) { const t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toastT); toastT = setTimeout(() => { t.style.display = 'none'; }, ms || 2400); }
+const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+
+/* ───────── 저장소 (메모·일정·알람은 simassistant, 연락처는 SIM Phone과 같은 simphone DB) ───────── */
+const MEM = { memos: [], events: [], alarms: [] };
+let adb = null, pdb = null, contacts = [], memOnly = false;
+const idbOpen = (name, stores) => new Promise((res, rej) => {
+  if (!window.indexedDB) return rej(new Error('no idb'));
+  const r = indexedDB.open(name, 1);
+  r.onupgradeneeded = () => stores.forEach(n => { if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, { keyPath: 'id' }); });
+  r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+});
+const os = (db, s, m) => db.transaction(s, m).objectStore(s);
+const idbAll = (db, s) => new Promise((res, rej) => { const q = os(db, s, 'readonly').getAll(); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+const idbPut = (db, s, v) => new Promise((res, rej) => { const q = os(db, s, 'readwrite').put(v); q.onsuccess = () => res(); q.onerror = () => rej(q.error); });
+const idbDel = (db, s, id) => new Promise((res, rej) => { const q = os(db, s, 'readwrite').delete(id); q.onsuccess = () => res(); q.onerror = () => rej(q.error); });
+async function put(store, v) {
+  if (adb) { try { await idbPut(adb, store, v); } catch (e) { memOnly = true; } }
+  const a = MEM[store], i = a.findIndex(x => x.id === v.id); if (i >= 0) a[i] = v; else a.push(v);
+}
+async function del(store, id) {
+  if (adb) { try { await idbDel(adb, store, id); } catch (e) {} }
+  MEM[store] = MEM[store].filter(x => x.id !== id);
+}
+async function loadContacts() {
+  try { if (!pdb) pdb = await idbOpen('simphone', ['contacts']); contacts = await idbAll(pdb, 'contacts'); }
+  catch (e) { pdb = null; contacts = []; }
+  return contacts;
+}
+async function saveContact(c) {
+  const now = new Date().toISOString();
+  const row = { id: c.id || rid(), name: c.name || '', title: c.title || '', company: c.company || '', group_name: c.group_name || '', mobile: c.mobile || '', tel: c.tel || '', fax: c.fax || '', email: c.email || '', address: c.address || '', memo: c.memo || '', photo: c.photo || '', card_img: c.card_img || '', created_at: c.created_at || now, updated_at: now };
+  if (!pdb) { try { pdb = await idbOpen('simphone', ['contacts']); } catch (e) { throw new Error('이 브라우저는 저장소를 쓸 수 없어요'); } }
+  await idbPut(pdb, 'contacts', row);
+  const i = contacts.findIndex(o => o.id === row.id); if (i >= 0) contacts[i] = row; else contacts.push(row);
+  return row;
+}
+
+/* ───────── 알람·일정 알림 엔진 ───────── */
+let ringing = null, actx = null, ringT = null, wakeLock = null;
+function unlockAudio() {
+  try { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; if (!actx) actx = new AC(); if (actx.state === 'suspended') actx.resume(); } catch (e) {}
+}
+function beep() {
+  if (!actx) return;
+  [0, 0.22, 0.44].forEach((dt, i) => {
+    const o = actx.createOscillator(), g = actx.createGain(); o.type = 'square'; o.frequency.value = i === 1 ? 1175 : 988;
+    g.gain.setValueAtTime(0.0001, actx.currentTime + dt); g.gain.exponentialRampToValueAtTime(0.25, actx.currentTime + dt + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dt + 0.18);
+    o.connect(g); g.connect(actx.destination); o.start(actx.currentTime + dt); o.stop(actx.currentTime + dt + 0.2);
+  });
+}
+function startRing(silent) {
+  stopRing();
+  if (silent) return;
+  const go = () => { beep(); try { navigator.vibrate && navigator.vibrate([400, 200, 400]); } catch (e) {} };
+  go(); ringT = setInterval(go, 1400);
+}
+function stopRing() { clearInterval(ringT); ringT = null; try { navigator.vibrate && navigator.vibrate(0); } catch (e) {} }
+async function notifyOS(title, body, tag) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+    const opt = { body, tag, requireInteraction: true, icon: 'assistant-icon-192.png', vibrate: [300, 150, 300] };
+    if (reg && reg.showNotification) reg.showNotification(title, opt); else new Notification(title, opt);
+  } catch (e) {}
+}
+function showRing(title, sub, silent, snoozeLabel) {
+  ringing = { snoozeLabel };
+  $('ringTitle').textContent = title; $('ringSub').textContent = sub;
+  $('ring').classList.add('on'); startRing(silent);
+  if (document.hidden) notifyOS(title, sub, 'simas-ring');
+}
+function nextMatch(repeat, from, h, mi, startOffset) {
+  for (let i = startOffset; i <= 9; i++) {
+    const n = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i, h, mi), w = n.getDay();
+    if (repeat === 'daily' || (repeat === 'weekdays' && w >= 1 && w <= 5) || (repeat === 'weekend' && (w === 0 || w === 6)) || (repeat && repeat.startsWith('weekly') && w === +repeat.slice(6))) return n;
+  }
+  return null;
+}
+function firstOccurrence(h, mi, repeat, now) {
+  for (let i = 0; i <= 9; i++) {
+    const n = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i, h, mi);
+    if (n.getTime() <= now.getTime()) continue;
+    if (!repeat) return n;
+    if (nextMatch(repeat, new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1), h, mi, 1).getTime() === n.getTime()) return n;
+  }
+  return null;
+}
+async function fireAlarm(a) {
+  const at = new Date(a.at), late = Date.now() - at.getTime();
+  if (a.repeat) { let n = at; do { n = nextMatch(a.repeat, n, at.getHours(), at.getMinutes(), 1) || new Date(Date.now() + 864e5); } while (n.getTime() <= Date.now()); a.at = n.toISOString(); }
+  else a.active = false;
+  await put('alarms', a); renderAll();
+  const missed = late > 90e3;
+  showRing('⏰ ' + (a.label || '알람'), (missed ? '놓친 알람 · 예정 ' : '') + fmtDT(at), late > 3600e3, a.label || '알람');
+}
+async function fireEvent(e) {
+  e.notified = true; await put('events', e); renderAll();
+  const st = new Date(e.start), late = Date.now() - st.getTime();
+  if (late > 5 * 60e3) return;   // 이미 지난 일정은 조용히 넘김
+  showRing('📅 ' + e.title, fmtDT(st) + (late < 0 ? ' · ' + Math.max(1, Math.round(-late / 60000)) + '분 뒤 시작' : ' · 지금 시작'), false, '일정: ' + e.title);
+}
+function tick() {
+  if (ringing) return;
+  const now = Date.now();
+  const a = MEM.alarms.find(x => x.active && new Date(x.at).getTime() <= now); if (a) return fireAlarm(a);
+  const e = MEM.events.find(x => !x.allDay && !x.notified && x.remind != null && new Date(x.start).getTime() - x.remind * 60000 <= now); if (e) return fireEvent(e);
+}
+$('ringStop').onclick = () => { stopRing(); ringing = null; $('ring').classList.remove('on'); };
+$('ringSnooze').onclick = async () => {
+  const lab = ringing && ringing.snoozeLabel; stopRing(); ringing = null; $('ring').classList.remove('on');
+  await put('alarms', { id: rid(), at: new Date(Date.now() + 5 * 60000).toISOString(), label: (lab || '알람') + ' (다시 알림)', repeat: null, active: true });
+  renderAll(); toast('5분 뒤에 다시 알려드릴게요');
+};
+async function wakeOn() {
+  try { if (ls.get('SIMAS_WAKE', '0') === '1' && 'wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { wakeOn(); tick(); } });
+
+/* ───────── 캘린더 파일(.ics) 내보내기: 휴대폰 기본 캘린더가 앱이 꺼져도 알려주도록 ───────── */
+const icsDT = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+const icsDay = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+const icsEsc = s => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+function downloadText(name, text, type) {
+  const b = new Blob([text], { type }), u = URL.createObjectURL(b), a = document.createElement('a');
+  a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000);
+}
+function exportIcs(kind, id) {
+  const it = MEM[kind === 'event' ? 'events' : 'alarms'].find(x => x.id === id); if (!it) return;
+  const st = new Date(kind === 'event' ? it.start : it.at), title = kind === 'event' ? it.title : (it.label || '알람');
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SIM Assistant//KO', 'BEGIN:VEVENT', 'UID:' + it.id + '@simassistant', 'DTSTAMP:' + icsDT(new Date()) ];
+  if (kind === 'event' && it.allDay) { L.push('DTSTART;VALUE=DATE:' + icsDay(st), 'DTEND;VALUE=DATE:' + icsDay(new Date(st.getTime() + 864e5))); }
+  else { L.push('DTSTART:' + icsDT(st), 'DTEND:' + icsDT(new Date(st.getTime() + (kind === 'event' ? 3600e3 : 600e3)))); }
+  L.push('SUMMARY:' + icsEsc(title));
+  if (kind === 'alarm' && it.repeat) { const r = it.repeat; L.push('RRULE:' + (r === 'daily' ? 'FREQ=DAILY' : r === 'weekdays' ? 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR' : r === 'weekend' ? 'FREQ=WEEKLY;BYDAY=SA,SU' : 'FREQ=WEEKLY;BYDAY=' + ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][+r.slice(6)])); }
+  if (!(kind === 'event' && it.allDay)) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(title), 'TRIGGER:-PT' + (kind === 'event' ? (it.remind || 0) : 0) + 'M', 'END:VALARM');
+  L.push('END:VEVENT', 'END:VCALENDAR');
+  downloadText('SIM_' + (kind === 'event' ? '일정' : '알람') + '.ics', L.join('\r\n') + '\r\n', 'text/calendar;charset=utf-8');
+  toast('캘린더 파일을 저장했어요. 열면 휴대폰 캘린더에 추가돼요');
+}
+
+/* ───────── 탭 목록 화면 ───────── */
+function setTab(t) {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id === 'p' + t[0].toUpperCase() + t.slice(1)));
+  $('chatBar').style.display = t === 'chat' ? '' : 'none';
+  if (t === 'chat') { const p = $('pChat'); p.scrollTop = p.scrollHeight; }
+}
+document.querySelectorAll('#tabs button').forEach(b => { b.onclick = () => setTab(b.dataset.t); });
+function renderMemo() {
+  const a = MEM.memos.slice().sort((x, y) => y.created.localeCompare(x.created));
+  $('cMemo').textContent = a.length;
+  $('pMemo').innerHTML = a.length ? a.map(m => '<div class="card"><div class="tx"><b>' + esc(m.content) + '</b><small>' + esc(fmtDT(new Date(m.created))) + '</small></div><button class="x" data-del="memos" data-id="' + esc(m.id) + '">✕</button></div>').join('') : '<div class="empty">저장된 메모가 없어요<br>"메모해줘"라고 말해 보세요</div>';
+}
+function renderEvent() {
+  const now = Date.now(), a = MEM.events.slice().sort((x, y) => x.start.localeCompare(y.start));
+  const up = a.filter(e => new Date(e.start).getTime() + (e.allDay ? 864e5 : 0) >= now), past = a.filter(e => !up.includes(e)).reverse().slice(0, 15);
+  $('cEvent').textContent = up.length;
+  const card = (e, off) => '<div class="card' + (off ? ' off' : '') + '"><div class="tx"><b>' + esc(e.title) + '</b><small>' + esc(fmtDT(new Date(e.start), e.allDay)) + (!e.allDay && e.remind != null ? ' · ' + e.remind + '분 전 알림' : '') + '</small></div><button class="x" data-ics="event" data-id="' + esc(e.id) + '" title="캘린더로 내보내기">📅</button><button class="x" data-del="events" data-id="' + esc(e.id) + '">✕</button></div>';
+  $('pEvent').innerHTML = (up.length ? up.map(e => card(e)).join('') : '<div class="empty">예정된 일정이 없어요<br>"내일 오후 3시 미팅 일정 추가해줘"라고 말해 보세요</div>') + (past.length ? '<p class="note" style="margin:14px 2px 8px">지난 일정</p>' + past.map(e => card(e, true)).join('') : '');
+}
+function renderAlarm() {
+  const a = MEM.alarms.slice().sort((x, y) => x.at.localeCompare(y.at));
+  $('cAlarm').textContent = a.filter(x => x.active).length;
+  const perm = 'Notification' in window ? Notification.permission : 'unsupported';
+  const head = '<div class="banner">알람은 <b>이 앱이 열려 있거나 백그라운드에 살아 있을 때</b>만 울려요. 앱을 완전히 닫으면 울리지 않아요. 꼭 놓치면 안 되는 알람은 각 알람의 📅 버튼으로 캘린더에 내보내 휴대폰 알림을 함께 쓰세요.</div>' +
+    '<div class="card"><div class="tx"><b>알람 대기 중 화면 켜짐 유지</b><small>켜 두면 화면이 꺼지지 않아 알람이 안정적으로 울려요 (배터리 소모 증가)</small></div><label class="sw"><input type="checkbox" id="swWake"' + (ls.get('SIMAS_WAKE', '0') === '1' ? ' checked' : '') + '><i></i></label></div>' +
+    '<div class="card"><div class="tx"><b>알림 권한</b><small>' + (perm === 'granted' ? '허용됨 — 화면이 꺼져 있어도 알림이 떠요' : perm === 'denied' ? '차단됨 — 브라우저 설정에서 허용해야 해요' : perm === 'unsupported' ? '이 브라우저는 알림을 지원하지 않아요' : '아직 허용하지 않았어요') + '</small></div>' + (perm === 'default' ? '<button id="btnPerm">허용</button>' : '') + '</div>';
+  $('pAlarm').innerHTML = head + (a.length ? a.map(x => '<div class="card' + (x.active ? '' : ' off') + '"><div class="tx"><b>' + esc(fmtTime(new Date(x.at))) + (x.repeat ? '<span class="pill on">' + esc(repLabel(x.repeat)) + '</span>' : '') + '</b><small>' + esc((x.label ? x.label + ' · ' : '') + fmtDate(new Date(x.at))) + '</small></div><button class="x" data-ics="alarm" data-id="' + esc(x.id) + '" title="캘린더로 내보내기">📅</button><label class="sw"><input type="checkbox" data-tg="' + esc(x.id) + '"' + (x.active ? ' checked' : '') + '><i></i></label><button class="x" data-del="alarms" data-id="' + esc(x.id) + '">✕</button></div>').join('') : '<div class="empty">저장된 알람이 없어요<br>"내일 아침 7시에 알람 맞춰줘"라고 말해 보세요</div>');
+}
+function renderAll() { renderMemo(); renderEvent(); renderAlarm(); }
+document.addEventListener('click', async e => {
+  const d = e.target.closest('[data-del]'); if (d) { if (confirm('삭제할까요?')) { await del(d.dataset.del, d.dataset.id); renderAll(); } return; }
+  const i = e.target.closest('[data-ics]'); if (i) { exportIcs(i.dataset.ics, i.dataset.id); return; }
+  if (e.target.id === 'btnPerm') { try { await Notification.requestPermission(); } catch (x) {} renderAlarm(); }
+});
+document.addEventListener('change', async e => {
+  const t = e.target;
+  if (t.id === 'swWake') { ls.set('SIMAS_WAKE', t.checked ? '1' : '0'); if (t.checked) { unlockAudio(); await wakeOn(); if (!wakeLock) toast('이 브라우저는 화면 켜짐 유지를 지원하지 않아요'); } else { try { wakeLock && wakeLock.release(); } catch (x) {} wakeLock = null; } return; }
+  if (t.dataset.tg) {
+    const a = MEM.alarms.find(x => x.id === t.dataset.tg); if (!a) return;
+    a.active = t.checked;
+    if (a.active) {   // 켤 때 시각이 이미 지났으면 다음 시각으로
+      const at = new Date(a.at);
+      if (at.getTime() <= Date.now()) { const n = a.repeat ? nextMatch(a.repeat, new Date(Date.now() - 864e5), at.getHours(), at.getMinutes(), 1) : firstOccurrence(at.getHours(), at.getMinutes(), null, new Date()); let nn = n; while (nn && nn.getTime() <= Date.now()) nn = nextMatch(a.repeat, nn, at.getHours(), at.getMinutes(), 1); if (nn) a.at = nn.toISOString(); }
+      unlockAudio();
+    }
+    await put('alarms', a); renderAll();
+  }
+});
+
+/* ───────── 음성 출력·입력 ───────── */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let ttsOn = ls.get('SIMAS_TTS', '1') === '1', lastVoice = false, listening = false, rec = null, autoTried = false;
+function setTtsBtn() { $('btnTts').classList.toggle('off', !ttsOn); $('btnTts').textContent = ttsOn ? '🔊' : '🔇'; }
+$('btnTts').onclick = () => { ttsOn = !ttsOn; ls.set('SIMAS_TTS', ttsOn ? '1' : '0'); if (!ttsOn) stopSpeak(); setTtsBtn(); toast(ttsOn ? '음성 입력으로 말하면 음성으로 답해요' : '음성 답변을 껐어요'); };
+let koVoice = null;
+function pickVoice() { try { koVoice = (speechSynthesis.getVoices() || []).find(v => /^ko/i.test(v.lang)) || null; } catch (e) {} }
+if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+function stopSpeak() { try { window.speechSynthesis && speechSynthesis.cancel(); } catch (e) {} }
+function speak(text, then) {
+  if (!ttsOn || !lastVoice || !('speechSynthesis' in window)) { then && then(); return; }
+  try {
+    stopSpeak(); const u = new SpeechSynthesisUtterance(text); u.lang = 'ko-KR'; if (koVoice) u.voice = koVoice; u.rate = 1.02;
+    let done = false; const fin = () => { if (!done) { done = true; then && setTimeout(then, 250); } };
+    u.onend = fin; u.onerror = fin; setTimeout(fin, Math.min(30000, 2500 + text.length * 260));
+    speechSynthesis.speak(u);
+  } catch (e) { then && then(); }
+}
+const spokenNo = n => String(n || '').replace(/\d/g, d => d + ' ').replace(/-/g, ' ').trim();
+function startListen() {
+  if (!SR) { toast('이 브라우저는 음성 인식을 지원하지 않아요. 키보드의 🎤(받아쓰기)를 써 보세요', 4200); $('txt').focus(); return; }
+  if (listening) { try { rec.stop(); } catch (e) {} return; }
+  unlockAudio(); stopSpeak();
+  let finalText = '', err = '';
+  try { rec = new SR(); } catch (e) { toast('음성 인식을 시작할 수 없어요'); return; }
+  rec.lang = 'ko-KR'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+  rec.onstart = () => { listening = true; $('btnMic').classList.add('on'); $('listen').classList.add('on'); $('interim').textContent = '듣고 있어요…'; };
+  rec.onresult = ev => { let it = ''; for (let i = ev.resultIndex; i < ev.results.length; i++) { const r = ev.results[i]; if (r.isFinal) finalText += r[0].transcript; else it += r[0].transcript; } $('interim').textContent = (finalText + it).trim() || '듣고 있어요…'; };
+  rec.onerror = ev => { err = ev.error || ''; };
+  rec.onend = () => {
+    listening = false; $('btnMic').classList.remove('on'); $('listen').classList.remove('on');
+    const t = finalText.trim();
+    if (t) { lastVoice = true; handleText(t); return; }
+    if (err === 'not-allowed' || err === 'service-not-allowed') toast('마이크 권한을 허용해 주세요 (브라우저 주소창 옆 설정)', 4200);
+    else if (err === 'network') toast('음성 인식 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요', 4200);
+    else if (err === 'audio-capture') toast('마이크를 찾을 수 없어요', 3200);
+    else if (err !== 'aborted') toast('음성이 들리지 않았어요. 다시 눌러 말씀해 주세요');
+  };
+  try { rec.start(); } catch (e) { listening = false; }
+}
+$('btnMic').onclick = startListen;
+
+/* ───────── 대화 화면 ───────── */
+const chat = $('chat');
+const scrollEnd = () => { const p = $('pChat'); p.scrollTop = p.scrollHeight; };
+function addMsg(kind, html, btns, tok) {
+  const d = document.createElement('div'); d.className = 'msg ' + kind; d.innerHTML = html;
+  if (btns && btns.length) {
+    const w = document.createElement('div'); w.className = 'btns';
+    btns.forEach(b => {
+      if (b.href) { const a = document.createElement('a'); a.className = 'btn' + (b.primary ? ' primary' : ''); a.href = b.href; a.textContent = b.label; if (b.fn) a.onclick = () => b.fn(); w.appendChild(a); }
+      else { const x = document.createElement('button'); if (b.primary) x.className = 'primary'; x.textContent = b.label; x.onclick = () => { unlockAudio(); if (tok && (!pending || pending.tok !== tok)) { toast('이미 지난 요청이에요'); return; } b.fn(); }; w.appendChild(x); }
+    });
+    d.appendChild(w);
+  }
+  chat.appendChild(d); scrollEnd(); return d;
+}
+/* 어시스턴트 말풍선: plain=읽어줄 문장, html=화면에 보일 내용(없으면 plain) */
+function bot(plain, o) {
+  o = o || {};
+  addMsg('bot', o.html || esc(plain), o.btns, o.tok);
+  const asking = pending && (pending.stage === 'fill' || pending.stage === 'confirm' || pending.stage === 'pick' || pending.stage === 'callok');
+  speak(o.say || plain, () => { if (asking && lastVoice && !autoTried && !listening) { autoTried = true; startListen(); } });
+}
+const sys = t => addMsg('sys', esc(t));
+
+/* ───────── 대화 흐름 (슬롯 채우기) ───────── */
+let pending = null;
+const newP = (intent, sl) => { autoTried = false; return { tok: rid(), intent, sl: sl || {}, ask: null, stage: 'fill', tries: 0 }; };
+const cancelP = msg => { pending = null; if (msg) bot(msg); };
+
+function mergeWhen(b, w) {
+  if (w.dur != null) { b.dur = w.dur; b.hasDate = b.hasTime = true; b.ambiguous = false; return; }
+  if (w.hasDate) { b.y = w.y; b.mo = w.mo; b.d = w.d; b.hasDate = true; }
+  if (w.hasTime || w.allDay) { b.h = w.h; b.mi = w.mi; b.hasTime = true; b.allDay = w.allDay; b.ambiguous = w.ambiguous; }
+  if (w.repeat) b.repeat = w.repeat;
+}
+const whenOf = p => NLU.whenToDate(p.sl.when, new Date());
+function missing(p) {
+  const s = p.sl;
+  switch (p.intent) {
+    case 'memo_add': return s.content ? null : 'content';
+    case 'contact_add': return !s.name ? 'name' : (s.mobile || s.tel || s.noPhone) ? null : 'phone';
+    case 'event_add': return !s.title ? 'title' : !s.when.hasDate ? 'date' : !(s.when.hasTime || s.when.allDay) ? 'time' : s.when.ambiguous ? 'ampm' : null;
+    case 'alarm_add': return !s.when.hasTime ? 'time' : s.when.ambiguous ? 'ampm' : null;
+  }
+  return null;
+}
+function askText(p, k) {
+  const s = p.sl, h = s.when && s.when.h != null ? (s.when.h % 12 === 0 ? 12 : s.when.h % 12) : '';
+  return ({
+    content: '무슨 내용을 메모할까요?',
+    name: '누구를 저장할까요? 이름을 말씀해 주세요.',
+    phone: (s.name || '') + '님의 전화번호를 말씀해 주세요. 없으면 "없음"이라고 하세요.',
+    title: '어떤 일정인가요?',
+    date: '언제인가요? 날짜를 말씀해 주세요. 예: 내일, 다음주 월요일, 11월 20일',
+    time: p.intent === 'alarm_add' ? '몇 시에 알람을 울릴까요?' : '몇 시인가요? 예: 오후 3시, 종일',
+    ampm: h + '시는 오전인가요, 오후인가요?'
+  })[k];
+}
+async function step() {
+  const p = pending; if (!p) return;
+  const k = missing(p);
+  if (k) {
+    p.ask = k; p.stage = 'fill';
+    const btns = k === 'ampm' ? [{ label: '오전', fn: () => handleText('오전') }, { label: '오후', fn: () => handleText('오후') }] : [{ label: '취소', fn: () => cancelP('취소했어요.') }];
+    return bot(askText(p, k), { btns, tok: p.tok });
+  }
+  p.ask = null;
+  if (p.intent === 'memo_add') return saveNow(p);
+  p.stage = 'confirm'; await confirmView(p);
+}
+const kvRows = rows => '<div class="kv">' + rows.filter(r => r[1]).map(r => '<div><b>' + esc(r[0]) + '</b><span>' + esc(r[1]) + '</span></div>').join('') + '</div>';
+async function confirmView(p) {
+  const s = p.sl; let html, say;
+  if (p.intent === 'contact_add') {
+    await loadContacts();
+    const dg = [s.mobile, s.tel].map(NLU.digits).filter(d => d.length >= 8);
+    p.dup = contacts.find(c => [c.mobile, c.tel].map(NLU.digits).some(d => d && dg.includes(d))) || contacts.find(c => c.name && c.name === s.name) || null;
+    html = '<b>' + (p.dup ? '이미 저장된 연락처를 업데이트할까요?' : '이 연락처를 저장할까요?') + '</b>' + kvRows([['이름', s.name], ['직급', s.title], ['회사', s.company], ['휴대폰', s.mobile], ['전화', s.tel], ['이메일', s.email], ['주소', s.address], ['메모', s.memo]]) + (p.dup ? '<span class="sub">기존: ' + esc(p.dup.name) + (p.dup.company ? ' · ' + esc(p.dup.company) : '') + ' — 말씀하신 항목만 바뀌고 나머지는 그대로예요</span>' : '');
+    say = s.name + '님을 ' + (p.dup ? '업데이트' : '저장') + '할까요?' + (s.mobile || s.tel ? ' 번호는 ' + spokenNo(s.mobile || s.tel) + '입니다.' : '');
+  } else if (p.intent === 'event_add') {
+    const d = whenOf(p); p.when = d;
+    html = '<b>일정을 저장할까요?</b>' + kvRows([['제목', s.title], ['일시', fmtDT(d, s.when.allDay)], ['알림', s.when.allDay ? '' : '10분 전']]);
+    say = fmtDT(d, s.when.allDay).replace(/(\d+):(\d+)/, '$1시 $2분') + ', ' + s.title + ' 일정을 저장할까요?';
+  } else {
+    const d = whenOf(p); p.when = d; const rp = s.when.repeat;
+    html = '<b>알람을 맞출까요?</b>' + kvRows([['시각', fmtDT(d)], ['반복', repLabel(rp)], ['이름', s.label]]);
+    say = fmtDT(d).replace(/(\d+):(\d+)/, '$1시 $2분') + (rp ? ', ' + repLabel(rp) : '') + '에 알람을 맞출까요?';
+  }
+  bot(say, { html, tok: p.tok, btns: [{ label: '저장', primary: true, fn: () => doConfirm(p, true) }, { label: '취소', fn: () => doConfirm(p, false) }] });
+}
+async function doConfirm(p, yes) {
+  if (!pending || pending.tok !== p.tok) return;
+  if (!yes) return cancelP('취소했어요.');
+  await saveNow(p);
+}
+async function saveNow(p) {
+  const s = p.sl;
+  try {
+    if (p.intent === 'memo_add') {
+      await put('memos', { id: rid(), content: s.content, created: new Date().toISOString() }); renderAll(); pending = null;
+      bot('메모했어요.', { html: '<b>메모했어요</b><span class="sub">' + esc(s.content) + '</span>', btns: [{ label: '메모 보기', fn: () => setTab('memo') }] });
+    } else if (p.intent === 'contact_add') {
+      const base = p.dup ? Object.assign({}, p.dup) : {};
+      ['name', 'title', 'company', 'mobile', 'tel', 'email', 'address'].forEach(k => { if (s[k]) base[k] = s[k]; });
+      if (s.memo) base.memo = base.memo ? base.memo + '\n' + s.memo : s.memo;
+      const row = await saveContact(base); pending = null;
+      bot(row.name + '님을 ' + (p.dup ? '업데이트' : '저장') + '했어요.', { btns: [{ label: 'SIM Phone에서 보기', href: 'phone.html' }] });
+    } else if (p.intent === 'event_add') {
+      const d = p.when || whenOf(p);
+      await put('events', { id: rid(), title: s.title, start: d.toISOString(), allDay: !!s.when.allDay, remind: s.when.allDay ? null : 10, notified: false }); renderAll(); pending = null;
+      askNotifPerm();
+      bot('일정을 저장했어요.', { html: '<b>일정을 저장했어요</b>' + kvRows([['제목', s.title], ['일시', fmtDT(d, s.when.allDay)]]), btns: [{ label: '일정 보기', fn: () => setTab('event') }] });
+    } else if (p.intent === 'alarm_add') {
+      const d = p.when || whenOf(p), rp = s.when.repeat || null;
+      let at = d;
+      if (rp && !s.when.hasDate && s.when.dur == null) at = firstOccurrence(d.getHours(), d.getMinutes(), rp, new Date()) || d;
+      await put('alarms', { id: rid(), at: at.toISOString(), label: s.label || '', repeat: rp, active: true }); renderAll(); pending = null;
+      askNotifPerm(); wakeOn();
+      bot(fmtDT(at).replace(/(\d+):(\d+)/, '$1시 $2분') + '에 알람을 맞췄어요.', { html: '<b>알람을 맞췄어요</b>' + kvRows([['시각', fmtDT(at)], ['반복', repLabel(rp)], ['이름', s.label]]) + '<span class="sub">앱을 닫으면 울리지 않아요 — 알람 탭의 안내를 확인하세요</span>', btns: [{ label: '알람 보기', fn: () => setTab('alarm') }] });
+    }
+  } catch (e) { pending = null; bot('저장하지 못했어요: ' + (e.message || e)); }
+}
+function askNotifPerm() { try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().then(renderAlarm); } catch (e) {} }
+
+/* 대답을 슬롯에 채우기 */
+const cleanAns = t => String(t).replace(/\s*(이?에요|입니다|이요|예요|이야|이라고\s*해|라고\s*해)\.?$/, '').replace(/[.。]+$/, '').trim();
+function mergeContactExtra(sl, text, skipName) {
+  const x = NLU.extract('contact_add', '저장 ' + text, new Date());
+  ['title', 'company', 'email', 'address', 'memo', 'mobile', 'tel'].forEach(k => { if (x[k] && !sl[k]) sl[k] = x[k]; });
+  if (!skipName && x.name && !sl.name) sl.name = x.name;
+}
+function fill(p, text) {
+  const s = p.sl, k = p.ask, n = NLU.normalize(text);
+  if (k === 'content') { const c = NLU.extract('memo_add', '메모 ' + n).content; s.content = c || cleanAns(n); return !!s.content; }
+  if (k === 'name') {
+    const c = cleanAns(n); let nm = NLU.extractName(c, []) || (c.length <= 12 && !/\d/.test(c) ? c : '');
+    if (!nm) return false; s.name = nm; mergeContactExtra(s, n, true); return true;
+  }
+  if (k === 'phone') {
+    if (/없|나중|모르|몰라/.test(n) && !(n.match(NLU.PH_RE) || []).length) { s.noPhone = true; return true; }
+    const x = NLU.extract('contact_add', '저장 ' + n); if (!(x.mobile || x.tel)) return false;
+    ['mobile', 'tel', 'title', 'company', 'email', 'address', 'memo'].forEach(q => { if (x[q] && !s[q]) s[q] = x[q]; }); return true;
+  }
+  if (k === 'title') {
+    const w = NLU.parseWhen(n, new Date()); mergeWhen(s.when, w);
+    const t = cleanAns(w.rest).replace(/^(에는|에서|에)\s+/, '').replace(/(에|을|를)$/, '').trim(); if (!t) return false; s.title = t; return true;
+  }
+  if (k === 'ampm') {
+    const ap = NLU.parseAmPm(n), w = NLU.parseWhen(n, new Date());
+    if (w.hasTime && !w.ambiguous) { mergeWhen(s.when, w); return true; }
+    if (!ap || s.when.h == null) return false;
+    if (ap === 'pm' && s.when.h < 12) s.when.h += 12; if (ap === 'am' && s.when.h === 12) s.when.h = 0; s.when.ambiguous = false; return true;
+  }
+  if (k === 'date' || k === 'time') {
+    const w = NLU.parseWhen(n, new Date()); const before = JSON.stringify(s.when); mergeWhen(s.when, w);
+    if (k === 'date' && !s.when.hasDate && !(p.intent === 'alarm_add')) return false;
+    return JSON.stringify(s.when) !== before;
+  }
+  return false;
+}
+
+/* ───────── 연락처 찾기 · 전화 걸기 ───────── */
+const AVC = ['#2f6bff', '#0ea5a4', '#d9488a', '#f08c1f', '#7c5cff', '#16a34a', '#e5484d', '#0b7285'];
+const dial = c => String(c.mobile || c.tel || '').replace(/[^0-9+]/g, '');
+function searchContacts(sl) {
+  const q = String(sl.name || '').replace(/\s/g, '').toLowerCase(); if (!q) return [];
+  const sc = c => {
+    const nm = String(c.name || '').replace(/\s/g, '').toLowerCase(), co = String(c.company || '').replace(/\s/g, '').toLowerCase(), ti = String(c.title || '');
+    if (sl.joined) { if (nm.startsWith(q)) return ti.includes(sl.title) ? 95 : 70; return 0; }
+    if (nm === q) return 100; if (nm.startsWith(q)) return 80; if (nm.includes(q)) return 60; if (co === q) return 55; if (co.includes(q)) return 40;
+    if ((String(c.memo || '') + ti).toLowerCase().includes(q)) return 15; return 0;
+  };
+  const r = contacts.map(c => ({ c, s: sc(c) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s || String(a.c.name).localeCompare(String(b.c.name), 'ko'));
+  return r.map(x => x.c);
+}
+function whoHtml(c) {
+  const nm = c.name || c.company || '?', col = AVC[(nm.charCodeAt(0) || 0) % AVC.length];
+  return '<div class="who"><div class="av" style="background:' + col + '">' + esc(nm.charAt(0).toUpperCase()) + '</div><div><b>' + esc(c.name || c.company) + '</b><small>' + esc([c.company, c.title].filter(Boolean).join(' · ')) + '</small></div></div>';
+}
+function contactCard(c) {
+  return whoHtml(c) + kvRows([['휴대폰', c.mobile], ['전화', c.tel], ['이메일', c.email], ['주소', c.address], ['메모', c.memo]]);
+}
+function callBtns(c, primary) {
+  const b = [];
+  if (c.mobile) b.push({ label: '📞 ' + c.mobile, href: 'tel:' + c.mobile.replace(/[^0-9+]/g, ''), primary });
+  if (c.tel) b.push({ label: '📞 ' + c.tel, href: 'tel:' + c.tel.replace(/[^0-9+]/g, ''), primary: primary && !c.mobile });
+  if (c.mobile) b.push({ label: '💬 문자', href: 'sms:' + c.mobile.replace(/[^0-9+]/g, '') });
+  return b;
+}
+async function findFlow(intent, sl) {
+  if (!sl.name) { pending = newP(intent, sl); pending.ask = 'findname'; pending.stage = 'fill'; return bot('누구를 ' + (intent === 'call' ? '찾아 전화할까요?' : '찾을까요?') + ' 이름을 말씀해 주세요.', { tok: pending.tok, btns: [{ label: '취소', fn: () => cancelP('취소했어요.') }] }); }
+  await loadContacts();
+  if (!contacts.length) { pending = null; return bot('저장된 연락처가 없어요. "홍길동 저장해줘"처럼 말씀하시거나 SIM Phone에서 추가해 주세요.', { btns: [{ label: 'SIM Phone', href: 'phone.html' }] }); }
+  const res = searchContacts(sl);
+  if (!res.length) {
+    pending = null;
+    return bot(sl.name + '님을 연락처에서 찾지 못했어요. 새로 저장할까요?', { btns: [{ label: sl.name + ' 저장하기', primary: true, fn: () => { pending = newP('contact_add', { name: sl.name }); step(); } }] });
+  }
+  const top = res.filter(c => searchContacts(sl).length && true);
+  const exact = res.length === 1 || (NLU.digits(res[0].mobile) && false);
+  if (res.length === 1) return presentContact(intent, sl, res[0]);
+  pending = newP(intent, sl); pending.stage = 'pick'; pending.cands = res.slice(0, 6);
+  const html = '<b>' + esc(sl.name) + ' — ' + res.length + '명을 찾았어요</b>' + pending.cands.map((c, i) => '<div class="who" style="margin-top:8px"><div class="av" style="background:' + AVC[(String(c.name).charCodeAt(0) || 0) % AVC.length] + '">' + (i + 1) + '</div><div><b>' + esc(c.name || c.company) + '</b><small>' + esc([c.company, c.title, c.mobile || c.tel].filter(Boolean).join(' · ')) + '</small></div></div>').join('');
+  bot(res.length + '명을 찾았어요. 몇 번째 분인가요?' + pending.cands.map((c, i) => ' ' + (i + 1) + '번 ' + (c.name || c.company) + (c.company ? ' ' + c.company : '')).join(','), { html, tok: pending.tok, btns: pending.cands.map((c, i) => ({ label: (i + 1) + '. ' + (c.name || c.company), fn: () => pickContact(pending, c) })).concat([{ label: '취소', fn: () => cancelP('취소했어요.') }]) });
+}
+function pickContact(p, c) { pending = null; presentContact(p.intent, p.sl, c); }
+function presentContact(intent, sl, c) {
+  const field = sl.field || 'phone';
+  if (intent === 'call') {
+    if (!dial(c)) { pending = null; return bot(c.name + '님은 저장된 전화번호가 없어요.', { html: contactCard(c) }); }
+    pending = newP('call', sl); pending.stage = 'callok'; pending.contact = c;
+    return bot((c.name || c.company) + '님께 ' + spokenNo(c.mobile || c.tel) + '로 전화할까요?', { html: whoHtml(c) + '<span class="sub">아래 번호를 누르면 전화가 걸려요</span>', tok: pending.tok, btns: callBtns(c, true).filter(b => b.href && b.href.startsWith('tel')).concat([{ label: '취소', fn: () => cancelP('취소했어요.') }]) });
+  }
+  pending = null;
+  const val = field === 'email' ? c.email : field === 'company' ? [c.company, c.title].filter(Boolean).join(' ') : field === 'address' ? c.address : (c.mobile || c.tel);
+  const lab = { phone: '전화번호', email: '이메일', company: '회사', address: '주소' }[field];
+  const say = val ? (c.name || c.company) + '님의 ' + lab + '는 ' + (field === 'phone' ? spokenNo(val) : val) + '입니다.' : (c.name || c.company) + '님은 ' + lab + ' 정보가 없어요.';
+  bot(say, { html: contactCard(c), btns: callBtns(c, true) });
+}
+function pickIndex(t, n) {
+  const m = String(t).match(/(\d)\s*(?:번|째)?/); if (m && +m[1] >= 1 && +m[1] <= n) return +m[1] - 1;
+  const W = [/첫|일\s*번|하나|한\s*번/, /둘|두\s*번|이\s*번|두번째/, /셋|세\s*번|삼\s*번/, /넷|네\s*번|사\s*번/, /다섯|오\s*번/, /여섯|육\s*번/];
+  for (let i = 0; i < Math.min(n, 6); i++) if (W[i].test(t)) return i; return -1;
+}
+
+/* ───────── 입력 처리 ───────── */
+const HELP = ['"메모해줘"', '"홍길동 연락처 저장해줘"', '"홍길동 전화번호 찾아줘"', '"홍길동한테 전화해줘"', '"내일 오후 3시 미팅 일정 추가해줘"', '"내일 아침 7시에 알람 맞춰줘"', '"오늘 일정 알려줘"'];
+async function handleText(raw) {
+  const text = String(raw || '').trim(); if (!text) return;
+  addMsg('me', esc(text)); const n = NLU.normalize(text);
+  if (pending && /^(취소|그만|중지|됐어|아니야?\s*그만|그만해)/.test(n)) return cancelP('취소했어요.');
+  if (pending) {
+    const p = pending, di = NLU.detect(text);
+    const strong = di && (p.stage === 'pick' || p.stage === 'callok' || p.ask === 'findname' ? true : (di !== p.intent && !(p.ask === 'content' || p.ask === 'title')));
+    if (!strong) return continueP(p, text, n);
+    pending = null;   // 다른 요청이 들어오면 이전 것은 접는다
+  }
+  const intent = NLU.detect(text);
+  if (!intent) { lastVoice && (autoTried = true); return bot('잘 이해하지 못했어요. 이렇게 말해 보세요.', { html: '<b>이렇게 말해 보세요</b><span class="sub">' + HELP.map(esc).join('<br>') + '</span>', say: '잘 이해하지 못했어요. 메모, 연락처 저장, 전화번호 찾기, 전화 걸기, 일정, 알람을 말씀해 보세요.' }); }
+  const sl = NLU.extract(intent, text, new Date());
+  switch (intent) {
+    case 'memo_add': case 'contact_add': case 'event_add': case 'alarm_add': pending = newP(intent, sl); return step();
+    case 'contact_find': case 'call': return findFlow(intent, sl);
+    case 'list_memo': {
+      const q = (sl.q || '').toLowerCase(), a = MEM.memos.filter(m => !q || m.content.toLowerCase().includes(q)).sort((x, y) => y.created.localeCompare(x.created)).slice(0, 5);
+      if (!a.length) return bot(q ? '"' + sl.q + '" 메모를 찾지 못했어요.' : '저장된 메모가 없어요.');
+      return bot('최근 메모 ' + a.length + '개예요. ' + a.map((m, i) => (i + 1) + '번, ' + m.content).join('. '), { html: '<b>' + (q ? '검색된' : '최근') + ' 메모 ' + a.length + '개</b>' + a.map(m => '<span class="sub">• ' + esc(m.content) + ' <small>(' + esc(fmtDate(new Date(m.created))) + ')</small></span>').join(''), btns: [{ label: '메모 전체 보기', fn: () => setTab('memo') }] });
+    }
+    case 'list_event': {
+      const w = sl.when, day = w && w.hasDate ? NLU.whenToDate({ hasDate: true, y: w.y, mo: w.mo, d: w.d, h: 0, mi: 0, hasTime: false }, new Date()) : null;
+      const a = MEM.events.slice().sort((x, y) => x.start.localeCompare(y.start)).filter(e => day ? sameDay(new Date(e.start), day) : new Date(e.start).getTime() + (e.allDay ? 864e5 : 0) >= Date.now()).slice(0, 6);
+      const ttl = day ? fmtDate(day) + ' 일정' : '다가오는 일정';
+      if (!a.length) return bot(ttl + '이 없어요.');
+      return bot(ttl + ' ' + a.length + '개예요. ' + a.map(e => fmtDT(new Date(e.start), e.allDay).replace(/(\d+):(\d+)/, '$1시 $2분') + ' ' + e.title).join('. '), { html: '<b>' + esc(ttl) + ' ' + a.length + '개</b>' + a.map(e => '<span class="sub">• ' + esc(fmtDT(new Date(e.start), e.allDay)) + ' — ' + esc(e.title) + '</span>').join(''), btns: [{ label: '일정 탭', fn: () => setTab('event') }] });
+    }
+    case 'list_alarm': {
+      const a = MEM.alarms.filter(x => x.active).sort((x, y) => x.at.localeCompare(y.at));
+      if (!a.length) return bot('켜져 있는 알람이 없어요.');
+      return bot('알람 ' + a.length + '개가 있어요. ' + a.map(x => fmtDT(new Date(x.at)).replace(/(\d+):(\d+)/, '$1시 $2분') + (x.label ? ' ' + x.label : '')).join('. '), { html: '<b>켜진 알람 ' + a.length + '개</b>' + a.map(x => '<span class="sub">• ' + esc(fmtDT(new Date(x.at))) + (x.repeat ? ' · ' + esc(repLabel(x.repeat)) : '') + (x.label ? ' — ' + esc(x.label) : '') + '</span>').join(''), btns: [{ label: '알람 탭', fn: () => setTab('alarm') }] });
+    }
+    case 'del_alarm': setTab('alarm'); return bot('알람 탭에서 끄거나(스위치) 삭제(✕)할 수 있어요.');
+    case 'del_event': setTab('event'); return bot('일정 탭에서 삭제(✕)할 수 있어요.');
+  }
+}
+async function continueP(p, text, n) {
+  autoTried = false;
+  if (p.stage === 'confirm') {
+    if (NLU.isYes(n)) return doConfirm(p, true);
+    if (NLU.isNo(n)) return doConfirm(p, false);
+    // 확인 단계에서 정보를 덧붙이면 반영해서 다시 확인
+    let changed = false;
+    if (p.intent === 'contact_add') { const before = JSON.stringify(p.sl); const x = NLU.extract('contact_add', '저장 ' + n, new Date()); ['title', 'company', 'email', 'address', 'memo'].forEach(k => { if (x[k]) p.sl[k] = x[k]; }); ['mobile', 'tel'].forEach(k => { if (x[k]) p.sl[k] = x[k]; }); changed = before !== JSON.stringify(p.sl); }
+    else { const w = NLU.parseWhen(n, new Date()); if (w.hasDate || w.hasTime || w.allDay || w.dur != null) { mergeWhen(p.sl.when, w); changed = true; } }
+    if (changed) return step();
+    return bot('"네" 또는 "아니오"로 답해 주세요.', { tok: p.tok, btns: [{ label: '저장', primary: true, fn: () => doConfirm(p, true) }, { label: '취소', fn: () => doConfirm(p, false) }] });
+  }
+  if (p.stage === 'pick') {
+    const i = pickIndex(n, p.cands.length);
+    if (i >= 0) return pickContact(p, p.cands[i]);
+    const f = p.cands.filter(c => [c.name, c.company, c.title].join(' ').replace(/\s/g, '').toLowerCase().includes(n.replace(/\s/g, '').toLowerCase()));
+    if (f.length === 1) return pickContact(p, f[0]);
+    return bot('몇 번째 분인지 번호로 말씀해 주세요. 예: "2번"', { tok: p.tok });
+  }
+  if (p.stage === 'callok') {
+    if (NLU.isYes(n)) { const c = p.contact, no = dial(c); pending = null; bot((c.name || c.company) + '님께 전화를 걸어요.', { btns: callBtns(c, true).filter(b => b.href && b.href.startsWith('tel')) }); setTimeout(() => { try { location.href = 'tel:' + no; } catch (e) {} }, 400); return; }
+    if (NLU.isNo(n)) return cancelP('취소했어요.');
+    return bot('"네"라고 하시면 전화를 걸어요. 아니면 "취소"라고 해 주세요.', { tok: p.tok });
+  }
+  if (p.ask === 'findname') {
+    const c = cleanAns(n), nm = NLU.extractName(c, []) || (c.length <= 12 && !/\d/.test(c) ? c : '');
+    if (!nm) return bot('이름을 알아듣지 못했어요. 다시 말씀해 주세요.', { tok: p.tok });
+    pending = null; const sl = Object.assign({}, p.sl, { name: nm }); return findFlow(p.intent, sl);
+  }
+  // 빠진 정보 채우기
+  if (fill(p, text)) { p.tries = 0; return step(); }
+  p.tries++;
+  if (p.tries >= 3) return cancelP('몇 번 시도했지만 알아듣지 못했어요. 처음부터 다시 말씀해 주세요.');
+  bot('잘 알아듣지 못했어요. ' + askText(p, p.ask), { tok: p.tok, btns: p.ask === 'ampm' ? [{ label: '오전', fn: () => handleText('오전') }, { label: '오후', fn: () => handleText('오후') }] : undefined });
+}
+
+/* ───────── 입력창·시작 ───────── */
+function sendTyped() { const v = $('txt').value.trim(); if (!v) return; $('txt').value = ''; lastVoice = false; unlockAudio(); handleText(v); }
+$('btnSend').onclick = sendTyped;
+$('txt').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); sendTyped(); } });
+['메모해줘', '연락처 저장해줘', '전화번호 찾아줘', '전화 걸어줘', '일정 추가해줘', '알람 맞춰줘', '오늘 일정 알려줘'].forEach(t => {
+  const b = document.createElement('button'); b.textContent = t; b.onclick = () => { lastVoice = false; unlockAudio(); handleText(t); }; $('chips').appendChild(b);
+});
+
+(async () => {
+  setTtsBtn();
+  try { adb = await idbOpen('simassistant', ['memos', 'events', 'alarms']); for (const k of ['memos', 'events', 'alarms']) MEM[k] = await idbAll(adb, k); }
+  catch (e) { adb = null; memOnly = true; }
+  await loadContacts(); renderAll(); setInterval(tick, 1000); tick(); wakeOn();
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  addMsg('bot', '<b>안녕하세요, SIM Assistant예요.</b><span class="sub">마이크 버튼을 누르고 말씀하세요.<br>메모 · 연락처 저장/검색 · 전화 걸기 · 일정 · 알람을 도와드려요.</span>');
+  if (!SR) sys('이 브라우저는 음성 인식을 지원하지 않아요. 키보드의 🎤(받아쓰기)를 쓰거나 Chrome·Safari에서 열어 주세요.');
+  else if (ios && standalone) sys('iPhone 홈 화면 앱에서는 음성 인식이 막힐 수 있어요. 안 되면 키보드의 🎤(받아쓰기)를 쓰거나 Safari에서 열어 주세요.');
+  if (memOnly) sys('이 브라우저는 저장소를 쓸 수 없어 임시로만 동작해요. 닫으면 사라져요.');
+  contacts.length || sys('연락처가 아직 없어요. "홍길동 저장해줘"라고 말씀하시면 SIM Phone과 같은 연락처에 저장돼요.');
+})();
+})();
+</script>
+</body>
+</html>

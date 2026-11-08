@@ -580,7 +580,7 @@ document.addEventListener('change', async e => {
 
 /* ───────── 음성 출력·입력 ───────── */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let ttsOn = ls.get('SIMAS_TTS', '1') === '1', lastVoice = false, listening = false, rec = null, autoTried = false;
+let ttsOn = ls.get('SIMAS_TTS', '1') === '1', lastVoice = false, listening = false, rec = null, autoTried = false, speaking = false, bargeN = 0;
 function setTtsBtn() { $('btnTts').classList.toggle('off', !ttsOn); $('btnTts').textContent = ttsOn ? '🔊' : '🔇'; }
 $('btnTts').onclick = () => { ttsOn = !ttsOn; ls.set('SIMAS_TTS', ttsOn ? '1' : '0'); if (!ttsOn) stopSpeak(); setTtsBtn(); toast(ttsOn ? '음성 입력으로 말하면 음성으로 답해요' : '음성 답변을 껐어요'); };
 let koVoice = null;
@@ -591,16 +591,17 @@ function speak(text, then) {
   if (!ttsOn || !lastVoice || !('speechSynthesis' in window)) { then && then(); return; }
   try {
     stopSpeak(); const u = new SpeechSynthesisUtterance(text); u.lang = 'ko-KR'; if (koVoice) u.voice = koVoice; u.rate = 1.02;
-    let done = false; const fin = () => { if (!done) { done = true; then && setTimeout(then, 250); } };
+    speaking = true; let done = false; const fin = () => { if (!done) { done = true; speaking = false; then && setTimeout(then, 250); } };
     u.onend = fin; u.onerror = fin; setTimeout(fin, Math.min(30000, 2500 + text.length * 260));
     speechSynthesis.speak(u);
   } catch (e) { then && then(); }
 }
 const spokenNo = n => String(n || '').replace(/\d/g, d => d + ' ').replace(/-/g, ' ').trim();
-function startListen() {
+function startListen(barge) {
+  if (barge !== true) bargeN = 99;   // 일반 듣기는 자동 재시작 없음
   if (!SR) { toast('이 브라우저는 음성 인식을 지원하지 않아요. 키보드의 🎤(받아쓰기)를 써 보세요', 4200); $('txt').focus(); return; }
   if (listening) { try { rec.stop(); } catch (e) {} return; }
-  unlockAudio(); stopSpeak();
+  unlockAudio(); if (barge !== true) stopSpeak();
   let finalText = '', err = '';
   try { rec = new SR(); } catch (e) { toast('음성 인식을 시작할 수 없어요'); return; }
   rec.lang = 'ko-KR'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
@@ -610,7 +611,11 @@ function startListen() {
   rec.onend = () => {
     listening = false; $('btnMic').classList.remove('on'); $('listen').classList.remove('on');
     const t = finalText.trim();
-    if (t) { lastVoice = true; handleText(t); return; }
+    if (barge === true) {   // 안내 문장을 읽는 중에도 대답을 듣는다
+      if (t && speaking && t.length > 12) { err = ''; finalText = ''; return setTimeout(() => startListen(true), 150); }   // 내 목소리(스피커)가 다시 들어온 긴 문장은 버림
+      if (!t && err !== 'not-allowed' && err !== 'service-not-allowed' && err !== 'audio-capture' && pending && (pending.stage === 'dpick' || pending.stage === 'pick') && bargeN-- > 0) return setTimeout(() => startListen(true), 200);
+    }
+    if (t) { lastVoice = true; stopSpeak(); handleText(t); return; }
     if (err === 'not-allowed' || err === 'service-not-allowed') toast('마이크 권한을 허용해 주세요 (브라우저 주소창 옆 설정)', 4200);
     else if (err === 'network') toast('음성 인식 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요', 4200);
     else if (err === 'audio-capture') toast('마이크를 찾을 수 없어요', 3200);
@@ -640,6 +645,8 @@ function bot(plain, o) {
   o = o || {};
   addMsg('bot', o.html || esc(plain), o.btns, o.tok);
   const asking = pending && (pending.stage === 'fill' || pending.stage === 'confirm' || pending.stage === 'pick' || pending.stage === 'callok' || pending.stage === 'dok' || pending.stage === 'dpick');
+  const barge = asking && lastVoice && SR && !listening && pending && (pending.stage === 'dpick' || pending.stage === 'pick');
+  if (barge) { autoTried = true; bargeN = 6; speak(o.say || plain); startListen(true); return; }
   speak(o.say || plain, () => { if (asking && lastVoice && !autoTried && !listening) { autoTried = true; startListen(); } });
 }
 const sys = t => addMsg('sys', esc(t));

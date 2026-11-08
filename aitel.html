@@ -53,24 +53,13 @@ label{display:block;font-size:12.5px;color:var(--sub);margin:12px 0 5px}
 .tr .ai{background:#222a55}.tr .peer{background:var(--panel2);margin-left:auto}
 .sum{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px;line-height:1.6;white-space:pre-wrap;margin-top:8px}
 .note{font-size:12.5px;color:var(--sub);line-height:1.6;margin-top:6px}
-#login{display:none;flex:1;overflow-y:auto;padding:30px 20px;max-width:420px;width:100%;margin:0 auto}
-#login h2{font-size:22px;margin-bottom:6px}
 #toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#2b2f40;border:1px solid var(--line);padding:9px 15px;border-radius:12px;font-size:13.5px;z-index:50;display:none;max-width:90%}
 </style>
 </head>
 <body>
-<div class="bar"><a class="back" href="index.html" title="SIM Tools">‹</a><h1>SIM <span>AI-Tel</span></h1><button id="btnOut" style="display:none">로그아웃</button></div>
+<div class="bar"><a class="back" href="index.html" title="SIM Tools">‹</a><h1>SIM <span>AI-Tel</span></h1></div>
 
-<div id="login">
-  <h2>로그인</h2>
-  <p class="note">통화 요청과 통화 내용은 개인정보라서 로그인한 본인만 볼 수 있습니다. 처음이면 "가입"을 누르세요.</p>
-  <label>이메일</label><input id="lgEmail" type="email" autocomplete="username" inputmode="email">
-  <label>비밀번호 (6자 이상)</label><input id="lgPw" type="password" autocomplete="current-password">
-  <div class="row2"><button id="lgIn" class="primary">로그인</button><button id="lgUp">가입</button></div>
-  <p class="note" id="lgMsg"></p>
-</div>
-
-<div id="app" style="display:none;flex:1;min-height:0;flex-direction:column">
+<div id="app" style="display:flex;flex:1;min-height:0;flex-direction:column">
   <div class="tabs"><button data-t="req" class="on">요청</button><button data-t="log">통화 기록</button><button data-t="set">설정</button></div>
   <div class="pane on" id="pReq"></div>
   <div class="pane" id="pLog"></div>
@@ -93,45 +82,50 @@ label{display:block;font-size:12.5px;color:var(--sub);margin:12px 0 5px}
 <div class="sheet" id="shDet"><div class="in" id="detBody"></div></div>
 <div id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
-const SB_URL = 'https://rgamgjdnhunzzwzsbnbs.supabase.co', SB_KEY = 'sb_publishable_hnBcVEuMXFRdFRqJhOM0OQ_rp72JywU';
 const KIND = { reserve: '예약', change: '예약 변경', cancel: '예약 취소', inquiry: '문의·확인', other: '기타' };
 const STATUS = { draft: '초안', queued: '대기열', calling: '통화 중', done: '완료', failed: '실패', needs_input: '확인 필요', cancelled: '취소됨' };
-let sb = null, me = null, reqs = [], calls = [], settings = null, kind = 'reserve';
+let reqs = [], calls = [], settings = null, kind = 'reserve';
 const el = (t, props, ...kids) => { const e = document.createElement(t); Object.assign(e, props || {}); kids.forEach(k => e.append(k)); return e; };
 function toast(m, ms = 2800) { const t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', ms); }
 const fmt = s => { const d = new Date(s); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 const errMsg = e => (e && (e.message || e.error_description)) || String(e);
 
-/* ───────── 로그인 ───────── */
-function showLogin(msg) { $('login').style.display = 'block'; $('app').style.display = 'none'; $('btnOut').style.display = 'none'; $('lgMsg').textContent = msg || ''; }
-async function auth(up) {
-  const email = $('lgEmail').value.trim(), password = $('lgPw').value;
-  if (!email || password.length < 6) { $('lgMsg').textContent = '이메일과 6자 이상의 비밀번호를 입력하세요.'; return; }
-  $('lgMsg').textContent = '확인 중…';
-  const r = up ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
-  if (r.error) { $('lgMsg').textContent = errMsg(r.error); return; }
-  if (!r.data.session) { $('lgMsg').textContent = '가입되었습니다. 메일로 온 확인 링크를 누른 뒤 로그인하세요.'; return; }
-  await enter(r.data.session.user);
+/* ───────── 기기 저장소 (IndexedDB) ─────────
+   요청·통화 기록·설정은 이 기기의 브라우저 저장소에만 저장되며 서버로 보내지 않습니다.
+   앱 파일을 복사해 다른 곳에 올려도 저장된 데이터는 따라가지 않고, 각자의 기기·주소에만 생깁니다. */
+let dbp = null;
+function openDB() {
+  if (dbp) return dbp;
+  dbp = new Promise((res, rej) => {
+    if (!window.indexedDB) return rej(new Error('이 브라우저는 기기 저장소를 지원하지 않습니다.'));
+    const r = indexedDB.open('simaitel', 1);
+    r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('requests', { keyPath: 'id' }); d.createObjectStore('calls', { keyPath: 'id' }); d.createObjectStore('settings', { keyPath: 'key' }); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  return dbp;
 }
-$('lgIn').onclick = () => auth(false); $('lgUp').onclick = () => auth(true);
-$('btnOut').onclick = async () => { await sb.auth.signOut(); me = null; showLogin(''); };
-
-async function enter(user) {
-  me = user; $('login').style.display = 'none'; $('app').style.display = 'flex'; $('btnOut').style.display = '';
-  await loadAll(); drawAll();
+async function tx(store, mode, fn) {
+  const d = await openDB();
+  return new Promise((res, rej) => {
+    const t = d.transaction(store, mode); let out; const q = fn(t.objectStore(store));
+    if (q) q.onsuccess = () => { out = q.result; };
+    t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+  });
 }
+const dbAll = store => tx(store, 'readonly', s => s.getAll());
+const dbPut = (store, row) => tx(store, 'readwrite', s => s.put(row)).then(() => row);
+const dbDel = (store, id) => tx(store, 'readwrite', s => s.delete(id));
+const uid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+const nowISO = () => new Date().toISOString();
 async function loadAll() {
-  const [a, b, c] = await Promise.all([
-    sb.from('aitel_requests').select('*').order('created_at', { ascending: false }).limit(100),
-    sb.from('aitel_calls').select('*').order('started_at', { ascending: false }).limit(100),
-    sb.from('aitel_settings').select('*').maybeSingle()]);
-  if (a.error || b.error || c.error) toast('불러오기 실패: ' + errMsg(a.error || b.error || c.error), 4500);
-  reqs = a.data || []; calls = b.data || []; settings = c.data;
+  const [a, b, c] = await Promise.all([dbAll('requests'), dbAll('calls'), dbAll('settings')]);
+  reqs = a.sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
+  calls = b.sort((x, y) => String(y.started_at).localeCompare(String(x.started_at)));
+  settings = c.find(x => x.key === 'main') || null;
 }
 
 /* ───────── 화면 ───────── */
@@ -174,12 +168,12 @@ function drawSet() {
   f('AI가 지켜야 할 한계', 'textarea', 'limits');
   const sv = el('button', { className: 'primary', textContent: '설정 저장', style: 'margin-top:16px;width:100%' });
   sv.onclick = async () => {
-    const row = { user_id: me.id, my_name: $('s_my_name').value.trim(), my_org: $('s_my_org').value.trim(), disclose_text: $('s_disclose_text').value.trim(), inbound_mode: $('s_inbound_mode').value, inbound_greeting: $('s_inbound_greeting').value.trim(), limits: $('s_limits').value.trim(), updated_at: new Date().toISOString() };
-    const r = await sb.from('aitel_settings').upsert(row).select().single();
-    if (r.error) return toast('저장 실패: ' + errMsg(r.error), 4500);
-    settings = r.data; toast('저장했습니다.');
+    const row = { key: 'main', my_name: $('s_my_name').value.trim(), my_org: $('s_my_org').value.trim(), disclose_text: $('s_disclose_text').value.trim(), inbound_mode: $('s_inbound_mode').value, inbound_greeting: $('s_inbound_greeting').value.trim(), limits: $('s_limits').value.trim(), updated_at: new Date().toISOString() };
+    try { await dbPut('settings', row); } catch (e) { return toast('저장 실패: ' + errMsg(e), 4500); }
+    settings = row; toast('저장했습니다.');
   };
   p.append(sv);
+  p.append(el('p', { className: 'note', textContent: '요청·통화 기록·설정은 이 기기에만 저장됩니다. 서버로 전송되지 않으며, 브라우저 사이트 데이터를 지우면 함께 삭제됩니다.' }));
   p.append(el('p', { className: 'note', textContent: '받는 전화 처리는 통신사 착신 전환과 별도 번호가 연결된 뒤에 동작합니다. 지금은 설정만 저장됩니다.' }));
 }
 
@@ -189,10 +183,9 @@ $('fab').onclick = () => { kind = 'reserve'; drawKinds(); ['nName', 'nPhone', 'n
 $('nCancel').onclick = () => $('shNew').classList.remove('on');
 $('nSave').onclick = async () => {
   const goal = $('nGoal').value.trim(); if (!goal) return toast('원하는 것을 입력하세요.');
-  const row = { user_id: me.id, kind, target_name: $('nName').value.trim(), target_phone: $('nPhone').value.trim(), goal, details: $('nDetails').value.trim(), fallback: $('nFall').value.trim(), status: 'draft' };
-  const r = await sb.from('aitel_requests').insert(row).select().single();
-  if (r.error) return toast('저장 실패: ' + errMsg(r.error), 4500);
-  reqs.unshift(r.data); $('shNew').classList.remove('on'); drawReq(); toast('저장했습니다.');
+  const row = { id: uid(), kind, target_name: $('nName').value.trim(), target_phone: $('nPhone').value.trim(), goal, details: $('nDetails').value.trim(), fallback: $('nFall').value.trim(), status: 'draft', created_at: nowISO(), updated_at: nowISO() };
+  try { await dbPut('requests', row); } catch (e) { return toast('저장 실패: ' + errMsg(e), 4500); }
+  reqs.unshift(row); $('shNew').classList.remove('on'); drawReq(); toast('저장했습니다.');
 };
 
 /* ───────── 상세 / 시뮬레이션 ───────── */
@@ -214,17 +207,16 @@ function openDet(id) {
   const q = el('button', { textContent: '대기열에 넣기', disabled: r.status !== 'draft' }), t = el('button', { className: 'primary', textContent: '테스트 통화(시뮬레이션)' }), d = el('button', { className: 'danger', textContent: '삭제' }), x = el('button', { textContent: '닫기' });
   q.onclick = async () => { await setStatus(r, 'queued'); toast('대기열에 저장했습니다. 전화 회선이 연결되면 발신됩니다.', 4000); openDet(id); };
   t.onclick = () => simulate(r);
-  d.onclick = async () => { if (!confirm('이 요청을 삭제할까요?')) return; const e = (await sb.from('aitel_requests').delete().eq('id', id)).error; if (e) return toast('삭제 실패: ' + errMsg(e)); reqs = reqs.filter(z => z.id !== id); $('shDet').classList.remove('on'); drawReq(); };
+  d.onclick = async () => { if (!confirm('이 요청을 삭제할까요?')) return; try { await dbDel('requests', id); } catch (e) { return toast('삭제 실패: ' + errMsg(e)); } reqs = reqs.filter(z => z.id !== id); $('shDet').classList.remove('on'); drawReq(); };
   x.onclick = () => $('shDet').classList.remove('on');
   b.append(el('div', { className: 'row2' }, q, t), el('div', { className: 'row2' }, d, x),
     el('p', { className: 'note', textContent: '테스트 통화는 미리 정해진 대본으로 화면 흐름만 보여 주며, 실제로 전화하지 않습니다.' }));
   $('shDet').classList.add('on');
 }
 async function setStatus(r, status, extra) {
-  const u = Object.assign({ status, updated_at: new Date().toISOString() }, extra || {});
-  const res = await sb.from('aitel_requests').update(u).eq('id', r.id).select().single();
-  if (res.error) { toast('변경 실패: ' + errMsg(res.error), 4500); return false; }
-  Object.assign(r, res.data); drawReq(); return true;
+  const next = Object.assign({}, r, { status, updated_at: nowISO() }, extra || {});
+  try { await dbPut('requests', next); } catch (e) { toast('변경 실패: ' + errMsg(e), 4500); return false; }
+  Object.assign(r, next); drawReq(); return true;
 }
 async function simulate(r) {
   const org = (settings && settings.my_org) || '', who = (settings && settings.my_name) || '고객',
@@ -232,16 +224,15 @@ async function simulate(r) {
   const tr = [{ who: 'ai', text: intro }, { who: 'ai', text: who + (org ? '(' + org + ')' : '') + ' 님을 대신해 ' + KIND[r.kind] + ' 문의드립니다. ' + r.goal }, { who: 'peer', text: '(상대 응답 예시) 확인해 보겠습니다.' },
     { who: 'ai', text: r.details ? '참고로 ' + r.details + ' 입니다.' : '추가 조건은 없습니다.' }, { who: 'peer', text: '(상대 응답 예시) 가능합니다.' }, { who: 'ai', text: '감사합니다. 확정 내용은 ' + who + ' 님께 전달드리겠습니다.' }];
   const summary = '[시뮬레이션] ' + (r.target_name || '상대') + '에 ' + KIND[r.kind] + ' 요청: ' + r.goal + ' → 가능하다는 예시 응답. 실제 통화가 아니므로 확정된 내용이 아닙니다.';
-  const c = await sb.from('aitel_calls').insert({ user_id: me.id, request_id: r.id, direction: 'out', peer_number: r.target_phone, peer_name: r.target_name, status: 'done', duration_sec: 0, summary, transcript: tr, simulated: true, action_needed: false }).select().single();
-  if (c.error) return toast('기록 실패: ' + errMsg(c.error), 4500);
-  calls.unshift(c.data); await setStatus(r, 'needs_input', { result_summary: '시뮬레이션 결과입니다. 실제 통화가 연결되면 여기에 실제 결과가 표시됩니다.' }); drawLog(); openDet(r.id);
+  const c = { id: uid(), request_id: r.id, direction: 'out', peer_number: r.target_phone, peer_name: r.target_name, status: 'done', duration_sec: 0, summary, transcript: tr, simulated: true, action_needed: false, started_at: nowISO() };
+  try { await dbPut('calls', c); } catch (e) { return toast('기록 실패: ' + errMsg(e), 4500); }
+  calls.unshift(c); await setStatus(r, 'needs_input', { result_summary: '시뮬레이션 결과입니다. 실제 통화가 연결되면 여기에 실제 결과가 표시됩니다.' }); drawLog(); openDet(r.id);
 }
 
 /* ───────── 시작 ───────── */
 (async () => {
-  if (!window.supabase) { showLogin('Supabase 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.'); return; }
-  sb = window.supabase.createClient(SB_URL, SB_KEY);
-  try { const s = await sb.auth.getSession(); if (s.data && s.data.session) await enter(s.data.session.user); else showLogin(''); } catch (e) { showLogin(errMsg(e)); }
+  try { await loadAll(); } catch (e) { toast('기기 저장소를 열지 못했습니다: ' + errMsg(e), 5000); }
+  drawAll();
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 })();

@@ -586,11 +586,18 @@ $('btnTts').onclick = () => { ttsOn = !ttsOn; ls.set('SIMAS_TTS', ttsOn ? '1' : 
 let koVoice = null;
 function pickVoice() { try { koVoice = (speechSynthesis.getVoices() || []).find(v => /^ko/i.test(v.lang)) || null; } catch (e) {} }
 if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
-function stopSpeak() { try { window.speechSynthesis && speechSynthesis.cancel(); } catch (e) {} }
+let ttsGen = 0;
+function stopSpeak() {   // 안드로이드 크롬은 cancel() 한 번으로 안 멈추는 경우가 있어 pause→cancel을 겹쳐 씀
+  try {
+    if (!window.speechSynthesis) return; const g = ++ttsGen; speaking = false;
+    speechSynthesis.cancel(); speechSynthesis.pause(); speechSynthesis.cancel();
+    setTimeout(() => { if (g === ttsGen) { try { speechSynthesis.cancel(); } catch (e) {} } }, 120);
+  } catch (e) {}
+}
 function speak(text, then) {
   if (!ttsOn || !lastVoice || !('speechSynthesis' in window)) { then && then(); return; }
   try {
-    stopSpeak(); const u = new SpeechSynthesisUtterance(text); u.lang = 'ko-KR'; if (koVoice) u.voice = koVoice; u.rate = 1.02;
+    stopSpeak(); try { speechSynthesis.resume(); } catch (e) {} ttsGen++; const u = new SpeechSynthesisUtterance(text); u.lang = 'ko-KR'; if (koVoice) u.voice = koVoice; u.rate = 1.02;
     speaking = true; let done = false; const fin = () => { if (!done) { done = true; speaking = false; then && setTimeout(then, 250); } };
     u.onend = fin; u.onerror = fin; setTimeout(fin, Math.min(30000, 2500 + text.length * 260));
     speechSynthesis.speak(u);
@@ -606,7 +613,7 @@ function startListen(barge) {
   try { rec = new SR(); } catch (e) { toast('음성 인식을 시작할 수 없어요'); return; }
   rec.lang = 'ko-KR'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
   rec.onstart = () => { listening = true; $('btnMic').classList.add('on'); $('listen').classList.add('on'); $('interim').textContent = '듣고 있어요…'; };
-  rec.onspeechstart = () => { if (barge === true) stopSpeak(); };   // 마이크에 소리가 들어오면 안내를 즉시 멈춤
+  rec.onspeechstart = rec.onsoundstart = () => { if (barge === true) stopSpeak(); };   // 마이크에 소리가 들어오면 안내를 즉시 멈춤
   rec.onresult = ev => { if (barge === true) stopSpeak(); let it = ''; for (let i = ev.resultIndex; i < ev.results.length; i++) { const r = ev.results[i]; if (r.isFinal) finalText += r[0].transcript; else it += r[0].transcript; } $('interim').textContent = (finalText + it).trim() || '듣고 있어요…'; };
   rec.onerror = ev => { err = ev.error || ''; };
   rec.onend = () => {

@@ -154,9 +154,9 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     <a class="back" href="index.html" aria-label="SIM Tools 런처로" title="런처로">‹</a>
     <h1>SIM <span>Memo</span></h1>
     <div class="spacer"></div>
-    <button id="btnPdfNew" title="PDF 파일을 새 메모로 열기">PDF 열기</button>
+    <button id="btnPdfNew" title="PDF·Word·Excel·PowerPoint 파일을 새 메모로 열기">파일 열기</button>
     <button class="primary" id="btnNew">+ 새 메모</button>
-    <input type="file" id="pdfNew" accept="application/pdf,.pdf" hidden>
+    <input type="file" id="pdfNew" accept="application/pdf,.pdf,.docx,.xlsx,.xls,.pptx" hidden>
   </div>
   <div class="listwrap">
     <div class="search"><input id="nq" type="search" placeholder="메모 검색 (제목)"></div>
@@ -228,10 +228,12 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     <div class="insgrid">
       <button id="insImg">🖼 그림 넣기<small>현재 페이지 위에 올려 놓고, 이동·크기 조절은 "선택" 도구로 합니다.</small></button>
       <button id="insPdf">📄 PDF 불러오기<small>PDF의 모든 페이지를 이 메모에 페이지로 추가합니다. 그 위에 필기할 수 있습니다.</small></button>
+      <button id="insOff">📎 Word · Excel · PowerPoint<small>.docx · .xlsx · .pptx 파일을 그림(페이지)으로 바꿔 불러옵니다. 원본은 수정하지 않고 그 위에 필기만 합니다.</small></button>
       <button id="insBg">🎨 배경 설정<small>종이 종류(줄·격자·점)나 그림 파일을 배경으로 지정합니다.</small></button>
     </div>
     <input type="file" id="imgFile" accept="image/*" hidden>
     <input type="file" id="pdfFile" accept="application/pdf,.pdf" hidden>
+    <input type="file" id="offFile" accept=".docx,.xlsx,.xls,.pptx" hidden>
     <div class="row"><button id="insClose">닫기</button></div>
   </div>
 </div>
@@ -351,8 +353,8 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   $('pdfNew').addEventListener('change', async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     try {
-      const pages = await pdfToPages(f);
-      const n = newNote(); n.pages = pages; n.title = f.name.replace(/\.pdf$/i, '');
+      const pages = await filePages(f);
+      const n = newNote(); n.pages = pages; n.title = f.name.replace(/\.(pdf|docx|xlsx|xls|pptx)$/i, '');
       await dbPut(n); unbusy(); openNote(n); scheduleSave();
     } catch (err) { unbusy(); toast(pdfErrMsg(err)); }
   });
@@ -824,7 +826,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     });
     return pdfLoading;
   }
-  const pdfErrMsg = err => /pdfjs-load/.test(String(err && err.message)) ? 'PDF 엔진을 불러오지 못했습니다. 인터넷 연결을 확인하세요.' : (err && err.name === 'PasswordException' ? '암호가 걸린 PDF는 불러올 수 없습니다.' : 'PDF를 읽지 못했습니다. 손상된 파일이거나 지원되지 않는 형식일 수 있습니다.');
+  const pdfErrMsg = err => /^user:/.test(String(err && err.message)) ? String(err.message).slice(5) : /^lib-load/.test(String(err && err.message)) ? '변환 엔진을 불러오지 못했습니다. 인터넷 연결을 확인하세요.' : /pdfjs-load/.test(String(err && err.message)) ? 'PDF 엔진을 불러오지 못했습니다. 인터넷 연결을 확인하세요.' : (err && err.name === 'PasswordException' ? '암호가 걸린 PDF는 불러올 수 없습니다.' : '파일을 읽지 못했습니다. 손상된 파일이거나 지원되지 않는 형식일 수 있습니다.');
   async function pdfToPages(file) {
     busy('PDF 엔진을 불러오는 중…');
     await loadPdfJs();
@@ -847,13 +849,153 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     try { doc.destroy(); } catch (_) {}
     return pages;
   }
-  async function insertPdf(file) {
+  /* ───────── Word / Excel / PowerPoint → 페이지 그림 ───────── */
+  const CDN = 'https://cdn.jsdelivr.net/npm/';
+  const LIBS = {
+    jszip: [CDN + 'jszip@3.10.1/dist/jszip.min.js', () => window.JSZip],
+    h2c: [CDN + 'html2canvas@1.4.1/dist/html2canvas.min.js', () => window.html2canvas],
+    docx: [CDN + 'docx-preview@0.3.3/dist/docx-preview.min.js', () => window.docx],
+    xlsx: [CDN + 'xlsx@0.18.5/dist/xlsx.full.min.js', () => window.XLSX],
+    pptx: [CDN + 'pptx-preview@1.0.5/dist/pptx-preview.umd.js', () => window.pptxPreview]
+  };
+  const libP = {};
+  function loadLib(k) {
+    const [url, ok] = LIBS[k];
+    if (ok()) return Promise.resolve();
+    if (libP[k]) return libP[k];
+    return libP[k] = new Promise((res, rej) => {
+      const sc = document.createElement('script'); sc.src = url;
+      sc.onload = () => ok() ? res() : (libP[k] = null, rej(new Error('lib-load ' + k)));
+      sc.onerror = () => { libP[k] = null; rej(new Error('lib-load ' + k)); };
+      document.head.appendChild(sc);
+    });
+  }
+  const nextFrame = () => new Promise(r => setTimeout(r, 30));
+  function stage() {
+    const d = document.createElement('div');
+    d.style.cssText = 'position:absolute;left:-30000px;top:0;background:#fff;color:#000;z-index:-1';
+    document.body.appendChild(d); return d;
+  }
+  const canvasPage = (cv, label) => {
+    const cw = cv.width, ch = cv.height, port = cw <= ch;
+    const w = port ? DW : Math.round(DW * cw / ch), h = port ? Math.round(DW * ch / cw) : DW;
+    const p = newPage('blank', w, h); p.bg = { type: 'image', img: cv.toDataURL('image/jpeg', 0.85), fit: 'contain' }; return p;
+  };
+  const shot = (el, w) => window.html2canvas(el, { backgroundColor: '#fff', logging: false, useCORS: true, scale: Math.min(2, Math.max(1, 1800 / w)) });
+  async function docxToPages(file) {
+    busy('Word 변환 엔진을 불러오는 중…');
+    await Promise.all([loadLib('jszip'), loadLib('h2c')]); await loadLib('docx');
+    const st = stage(), pages = [];
     try {
-      const pages = await pdfToPages(file);
+      await window.docx.renderAsync(await file.arrayBuffer(), st, null, { className: 'docx', inWrapper: true, breakPages: true, ignoreLastRenderedPageBreak: true, renderHeaders: true, renderFooters: true, renderFootnotes: true });
+      const wrap = st.querySelector('.docx-wrapper'); if (wrap) { wrap.style.background = '#fff'; wrap.style.padding = '0'; }
+      st.querySelectorAll('section.docx').forEach(x => { x.style.boxShadow = 'none'; x.style.margin = '0'; });
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      await nextFrame();
+      const secs = [...st.querySelectorAll('section.docx')];
+      if (!secs.length) throw new Error('user:Word 문서에서 내용을 찾지 못했습니다.');
+      for (let i = 0; i < Math.min(secs.length, MAX_PDF_PAGES); i++) {
+        busy('Word 변환 중… ' + (i + 1) + ' / ' + secs.length);
+        const sec = secs[i], sw = sec.offsetWidth || 794, sh = sec.offsetHeight, mh = sec.style.minHeight || '', pgH = (parseFloat(mh) || 0) * (/pt$/.test(mh) ? 96 / 72 : 1) || sw * 1.4142;
+        const cv = await shot(sec, sw);
+        if (sh > pgH * 1.08) {                                   // 쪽 나눔 정보가 없는 긴 문서는 A4 높이로 잘라 나눔
+          const k = cv.width / sw, ph = Math.round(pgH * k);
+          for (let y = 0; y < cv.height && pages.length < MAX_PDF_PAGES; y += ph) {
+            const c2 = document.createElement('canvas'); c2.width = cv.width; c2.height = ph; const g = c2.getContext('2d');
+            g.fillStyle = '#fff'; g.fillRect(0, 0, c2.width, ph); g.drawImage(cv, 0, y, cv.width, Math.min(ph, cv.height - y), 0, 0, cv.width, Math.min(ph, cv.height - y));
+            pages.push(canvasPage(c2));
+          }
+        } else pages.push(canvasPage(cv));
+        await nextFrame();
+      }
+      return pages;
+    } finally { st.remove(); }
+  }
+  async function pptxToPages(file) {
+    busy('PowerPoint 변환 엔진을 불러오는 중…');
+    await Promise.all([loadLib('jszip'), loadLib('h2c')]); await loadLib('pptx');
+    const st = stage(), pages = [];
+    try {
+      const W = 1280, H = 720, box = document.createElement('div'); st.appendChild(box);
+      const pv = window.pptxPreview.init(box, { width: W, height: H, mode: 'list' });
+      await pv.preview(await file.arrayBuffer());
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      await nextFrame(); await nextFrame();
+      let slides = [...box.querySelectorAll('.pptx-preview-slide-wrapper')];
+      if (!slides.length) slides = [...box.querySelectorAll('[class*="slide-wrapper"]')];
+      if (!slides.length) throw new Error('user:PowerPoint에서 슬라이드를 찾지 못했습니다.');
+      box.style.cssText = 'height:auto;overflow:visible';
+      for (let i = 0; i < Math.min(slides.length, MAX_PDF_PAGES); i++) {
+        busy('PowerPoint 변환 중… ' + (i + 1) + ' / ' + slides.length);
+        const el = slides[i]; el.style.cssText += ';margin:0;position:relative;top:0;left:0;transform:none';
+        const cv = await shot(el, el.offsetWidth || W); pages.push(canvasPage(cv));
+        await nextFrame();
+      }
+      return pages;
+    } finally { st.remove(); }
+  }
+  async function xlsxToPages(file) {
+    busy('Excel 변환 엔진을 불러오는 중…');
+    await loadLib('h2c'); await loadLib('xlsx');
+    const X = window.XLSX, wb = X.read(await file.arrayBuffer(), { type: 'array' }), pages = [];
+    const ROWS = 1500, COLS = 40; let cut = false;
+    const css = 'font-family:-apple-system,"Malgun Gothic","Noto Sans KR",sans-serif;font-size:13px;color:#111;background:#fff';
+    for (const name of wb.SheetNames) {
+      const ws = wb.Sheets[name]; if (!ws || !ws['!ref']) continue;
+      const rg = X.utils.decode_range(ws['!ref']);
+      if (rg.e.r - rg.s.r + 1 > ROWS) { rg.e.r = rg.s.r + ROWS - 1; cut = true; }
+      if (rg.e.c - rg.s.c + 1 > COLS) { rg.e.c = rg.s.c + COLS - 1; cut = true; }
+      const html = X.utils.sheet_to_html(ws, { header: '', footer: '' });
+      const st = stage(); st.style.cssText += ';' + css; st.innerHTML = html;
+      const tb = st.querySelector('table'); if (!tb) { st.remove(); continue; }
+      tb.style.cssText = 'border-collapse:collapse;table-layout:auto';
+      tb.querySelectorAll('td,th').forEach(c => { c.style.cssText += ';border:1px solid #b9c2d3;padding:3px 8px;white-space:pre;max-width:420px;overflow:hidden;text-overflow:ellipsis'; });
+      const rows = [...tb.rows]; if (!rows.length) { st.remove(); continue; }
+      await nextFrame();
+      const tw = Math.max(700, Math.min(2400, Math.ceil(tb.offsetWidth) + 40)), land = tw > 1000, ph = Math.round(tw * (land ? 0.7071 : 1.4142));
+      const head = 34;      // 시트 이름 머리글 높이
+      // 줄 경계에서 페이지 나누기
+      const groups = []; let g = [], base = rows[0].offsetTop - head;
+      rows.forEach(r => {
+        const bottom = r.offsetTop + r.offsetHeight - base;
+        if (g.length && bottom > ph - 20) { groups.push(g); g = []; base = r.offsetTop - (groups.length ? 10 : head); }
+        g.push(r);
+      });
+      if (g.length) groups.push(g);
+      for (let gi = 0; gi < groups.length; gi++) {
+        if (pages.length >= MAX_PDF_PAGES) { cut = true; break; }
+        busy('Excel 변환 중… ' + name + ' ' + (gi + 1) + ' / ' + groups.length);
+        const pgEl = document.createElement('div');
+        pgEl.style.cssText = 'width:' + tw + 'px;height:' + ph + 'px;overflow:hidden;padding:10px 20px;box-sizing:border-box;' + css;
+        const t2 = document.createElement('table'); t2.style.cssText = tb.style.cssText;
+        const tbody = document.createElement('tbody'); groups[gi].forEach(r => tbody.appendChild(r.cloneNode(true))); t2.appendChild(tbody);
+        pgEl.innerHTML = '<div style="font-weight:700;margin:0 0 8px;height:' + (head - 12) + 'px;line-height:' + (head - 12) + 'px;color:#3b4a6b">' + esc(name) + (groups.length > 1 ? ' (' + (gi + 1) + '/' + groups.length + ')' : '') + '</div>';
+        pgEl.appendChild(t2);
+        const st2 = stage(); st2.appendChild(pgEl); await nextFrame();
+        try { const cv = await shot(pgEl, tw); pages.push(canvasPage(cv)); } finally { st2.remove(); }
+      }
+      st.remove();
+    }
+    if (!pages.length) throw new Error('user:Excel 파일에서 내용을 찾지 못했습니다.');
+    if (cut) toast('큰 시트는 일부(최대 ' + ROWS + '행·' + COLS + '열, ' + MAX_PDF_PAGES + '쪽)만 불러왔습니다.');
+    return pages;
+  }
+  async function filePages(file) {
+    const n = file.name.toLowerCase();
+    if (/\.pdf$/.test(n) || file.type === 'application/pdf') return pdfToPages(file);
+    if (/\.docx$/.test(n)) return docxToPages(file);
+    if (/\.pptx$/.test(n)) return pptxToPages(file);
+    if (/\.(xlsx|xls)$/.test(n)) return xlsxToPages(file);
+    if (/\.(doc|ppt)$/.test(n)) throw new Error('user:구형 .doc / .ppt 파일은 지원하지 않습니다. .docx / .pptx로 저장해서 불러오세요.');
+    throw new Error('user:지원하지 않는 파일 형식입니다. (PDF, docx, xlsx, pptx)');
+  }
+  async function insertFile(file) {
+    try {
+      const pages = await filePages(file);
       if (!pages.length) throw new Error('empty');
       let first = note.pages.length;
       if (note.pages.length === 1 && isEmptyPage(note.pages[0])) { note.pages = pages; first = 0; } else note.pages = note.pages.concat(pages);
-      if (!note.title) { note.title = file.name.replace(/\.pdf$/i, ''); $('titleIn').value = note.title; }
+      if (!note.title) { note.title = file.name.replace(/\.(pdf|docx|xlsx|xls|pptx)$/i, ''); $('titleIn').value = note.title; }
       activePage = first; buildEditor(); resetHistory(); scheduleSave(); unbusy();
       pageEls[first].scrollIntoView({ block: 'start' }); toast(pages.length + '쪽을 불러왔습니다.');
     } catch (err) { unbusy(); toast(pdfErrMsg(err)); }
@@ -1048,7 +1190,9 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   $('insPdf').onclick = () => $('pdfFile').click();
   $('insBg').onclick = () => { closeIns(); $('bgSub').textContent = '현재 페이지: ' + (activePage + 1) + ' / ' + note.pages.length; $('mBg').classList.add('show'); };
   $('imgFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; closeIns(); if (f) insertImage(f); });
-  $('pdfFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; closeIns(); if (f) insertPdf(f); });
+  $('pdfFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; closeIns(); if (f) insertFile(f); });
+  $('insOff').onclick = () => $('offFile').click();
+  $('offFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; closeIns(); if (f) insertFile(f); });
 
   $('bgClose').onclick = () => $('mBg').classList.remove('show');
   $('mBg').addEventListener('click', e => { if (e.target === $('mBg')) $('mBg').classList.remove('show'); });

@@ -57,6 +57,10 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
 .list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 6px calc(88px + env(safe-area-inset-bottom))}
 .ch{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:9px;cursor:pointer}
 .ch:hover{background:var(--panel2)}
+.scseg{display:flex;gap:6px;margin-top:12px}
+.scseg button{flex:1;padding:8px 6px;font-size:13px}
+.scseg button.on{background:var(--accent2);border-color:var(--accent2);color:#fff}
+.scseg button:disabled{opacity:.45}
 .scbar{height:8px;border-radius:99px;background:var(--panel2);overflow:hidden;margin-top:12px}
 .scbar i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
 .fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;padding:0;font-size:30px;line-height:1;display:flex;align-items:center;justify-content:center;background:var(--accent2);border-color:var(--accent2);color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.5);z-index:40}
@@ -160,6 +164,7 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
   <div class="card">
     <h2>채널 검토</h2>
     <p id="scInfo" style="font-size:13px;color:var(--sub);line-height:1.6">모든 채널의 주소가 응답하는지 빠르게 확인하고, 안 되는 채널은 <b>비활성(접속불가)</b>으로 표시해 목록에서 흐리게 만들고 넘기기에서 건너뜁니다. 삭제하지는 않습니다.</p>
+    <div class="scseg" id="scScope"><button data-m="all" class="on" id="scAll">전체 채널</button><button data-m="skip" id="scSkip">접속불가 제외</button></div>
     <div class="scbar"><i id="scFill"></i></div>
     <p id="scNow" style="font-size:13px;margin-top:8px;min-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></p>
     <p id="scRes" style="font-size:13.5px;margin-top:6px;line-height:1.7"></p>
@@ -396,7 +401,15 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
 
   // ---- 채널 검토 ----
   const SC_TIMEOUT = 9000, SC_PAR = 8;
-  let scRun = false, scCancel = false;
+  let scRun = false, scCancel = false, scMode = 'all';
+  function scCounts() {
+    const n = state.channels.length, b = state.channels.filter(c => state.bad[c.id]).length;
+    $('scAll').textContent = `전체 채널 (${n})`; $('scSkip').textContent = `접속불가 제외 (${n - b})`;
+    $('scSkip').disabled = !b; if (!b) scMode = 'all';
+    $('scAll').classList.toggle('on', scMode === 'all'); $('scSkip').classList.toggle('on', scMode === 'skip');
+    $('scRes').textContent = (scMode === 'skip' ? n - b : n) + '개 채널을 검사합니다.' + (b ? ` (이미 접속불가인 ${b}개는 ${scMode === 'skip' ? '제외' : '다시 확인'})` : '');
+  }
+  $('scScope').addEventListener('click', e => { const b = e.target.closest('button[data-m]'); if (!b || scRun || b.disabled) return; scMode = b.dataset.m; scCounts(); });
   const nativeOnly = () => !(window.Hls && Hls.isSupported());
   async function fetchT(url, opt) {
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), SC_TIMEOUT);
@@ -425,8 +438,9 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
   }
   async function runScan() {
     if (scRun) return;
-    const list = state.channels.slice(), native = nativeOnly();
-    scRun = true; scCancel = false;
+    const list = (scMode === 'skip' ? state.channels.filter(c => !state.bad[c.id]) : state.channels).slice(), native = nativeOnly();
+    if (!list.length) { toast('검토할 채널이 없습니다.'); return; }
+    scRun = true; scCancel = false; $('scAll').disabled = $('scSkip').disabled = true;
     $('scStart').textContent = '중지'; $('scBadTab').style.display = 'none'; $('scClose').disabled = true;
     let done = 0, ok = 0, bad = 0, unk = 0, idx = 0;
     const upd = (name) => {
@@ -447,12 +461,12 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
     };
     await Promise.all(Array.from({ length: Math.min(SC_PAR, list.length) }, worker));
     scRun = false; save(); renderTabs(); renderList();
-    $('scStart').textContent = '다시 검토'; $('scClose').disabled = false; $('scNow').textContent = scCancel ? '중지했습니다.' : '검토를 마쳤습니다.';
+    $('scStart').textContent = '다시 검토'; $('scClose').disabled = false; $('scAll').disabled = false; $('scSkip').disabled = !state.channels.some(c => state.bad[c.id]); $('scNow').textContent = scCancel ? '중지했습니다.' : '검토를 마쳤습니다.';
     upd('');
     if (native && unk) $('scRes').innerHTML += '<br><span style="color:var(--sub)">이 브라우저는 주소 확인이 막힌 채널을 판단할 수 없어 비활성 처리하지 않았습니다.</span>';
     $('scBadTab').style.display = bad || Object.keys(state.bad).length ? '' : 'none';
   }
-  $('btnScan').onclick = () => { if (!state.channels.length) return toast('검토할 채널이 없습니다.'); $('scFill').style.width = '0'; $('scNow').textContent = ''; $('scRes').textContent = state.channels.length + '개 채널을 검사합니다.'; $('scStart').textContent = '검토 시작'; $('scBadTab').style.display = 'none'; $('mScan').classList.add('show'); };
+  $('btnScan').onclick = () => { if (!state.channels.length) return toast('검토할 채널이 없습니다.'); $('scFill').style.width = '0'; $('scNow').textContent = ''; scCounts(); $('scStart').textContent = '검토 시작'; $('scBadTab').style.display = 'none'; $('mScan').classList.add('show'); };
   $('scStart').onclick = () => { if (scRun) { scCancel = true; return; } runScan(); };
   $('scClose').onclick = () => $('mScan').classList.remove('show');
   $('scBadTab').onclick = () => { $('mScan').classList.remove('show'); filterGroup = '접속불가'; renderTabs(); renderList(); };

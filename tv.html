@@ -19,7 +19,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;display:flex;flex-direction:column;overflow:hidden}
+body{height:100dvh;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;display:flex;flex-direction:column;overflow:hidden}
 header{display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));background:var(--panel);border-bottom:1px solid var(--line)}
 header h1{font-size:17px;font-weight:700;letter-spacing:-.3px;display:flex;align-items:center;gap:8px}
 .appicon{width:30px;height:30px;border-radius:8px;display:block}
@@ -46,7 +46,7 @@ video{width:100%;height:100%;background:#000;object-fit:contain}
 .nowbar .grp{color:var(--sub);font-size:12px}
 .badge{font-size:11px;padding:2px 7px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);color:var(--sub)}
 .badge.live{color:var(--ok);border-color:#1f5c44}
-aside{width:340px;max-width:42vw;display:flex;flex-direction:column;background:var(--panel);border-left:1px solid var(--line)}
+aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column;background:var(--panel);border-left:1px solid var(--line)}
 .search{padding:10px}
 .search input{width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;outline:none}
 .search input:focus{border-color:var(--accent)}
@@ -54,9 +54,13 @@ aside{width:340px;max-width:42vw;display:flex;flex-direction:column;background:v
 .tabs::-webkit-scrollbar{display:none}
 .tab{padding:5px 11px;border-radius:99px;font-size:13px;white-space:nowrap;background:var(--panel2);border:1px solid var(--line);color:var(--sub);cursor:pointer}
 .tab.active{background:var(--accent2);border-color:var(--accent2);color:#fff}
-.list{flex:1;overflow-y:auto;padding:0 6px 12px}
+.list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 6px calc(12px + env(safe-area-inset-bottom))}
 .ch{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:9px;cursor:pointer}
 .ch:hover{background:var(--panel2)}
+.ch.bad{opacity:.4}
+.ch.bad:hover,.ch.bad.active{opacity:.75}
+.ch .bd{flex:none;font-size:11px;padding:2px 7px;border-radius:99px;background:#3a1c1c;color:#ff9b9b;border:1px solid #5a2a2a;white-space:nowrap}
+.tab.badtab{color:#ff9b9b}
 .ch.active{background:#1b2a4a;outline:1px solid var(--accent)}
 .logo{width:38px;height:38px;border-radius:8px;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--accent);flex:none;overflow:hidden;font-size:14px}
 .logo img{width:100%;height:100%;object-fit:contain}
@@ -172,6 +176,8 @@ aside{width:340px;max-width:42vw;display:flex;flex-direction:column;background:v
   const video = $('video');
 
   // 기본 채널: iptv-org(공개 스트림 색인) 한국 목록 기반. 재생 가능 여부는 서버 상태·CORS에 따라 달라질 수 있음
+  const BAD_TTL = 24 * 3600 * 1000; // 오류 표시는 24시간 뒤 자동 해제(다시 시도해 볼 수 있게)
+  const LOAD_TIMEOUT = 25000;
   const SEED_VERSION = 2; // 기본 채널 목록을 바꿀 때 숫자를 올리면, 기존 사용자에게도 새 채널이 추가됩니다.
   const DEFAULTS = [
     { id: 'kr01', name: "EBS 1", url: "https://ebsonair.ebs.co.kr/ebs1familypc/familypc1m/playlist.m3u8", group: "교육", logo: "https://i.imgur.com/rM7sEcA.png" },
@@ -203,11 +209,22 @@ aside{width:340px;max-width:42vw;display:flex;flex-direction:column;background:v
   let query = '';
   let hls = null;
   let editingId = null;
+  let loadTimer = null;
+  function markBad(id, why) {
+    state.bad[id] = { t: Date.now(), why: String(why || '').slice(0, 80) };
+    save(); renderTabs(); renderList();
+  }
+  function clearBad(id) {
+    if (!state.bad[id]) return;
+    delete state.bad[id]; save(); renderTabs(); renderList();
+  }
 
   function load() {
     let s = null;
     try { s = JSON.parse(localStorage.getItem(LS)); } catch (e) {}
     if (!s || !Array.isArray(s.channels)) s = { channels: [], favs: [], last: null };
+    if (!s.bad || typeof s.bad !== 'object') s.bad = {};
+    const now = Date.now(); Object.keys(s.bad).forEach(k => { if (now - (s.bad[k].t || 0) > BAD_TTL) delete s.bad[k]; });
     if ((s.seeded || 0) < SEED_VERSION) {
       const have = new Set(s.channels.map(c => c.url));
       DEFAULTS.forEach(d => { if (!have.has(d.url)) s.channels.push({ ...d }); });
@@ -229,14 +246,18 @@ aside{width:340px;max-width:42vw;display:flex;flex-direction:column;background:v
 
   function groups() {
     const set = new Set(state.channels.map(c => c.group).filter(Boolean));
-    return ['전체', '즐겨찾기', ...set];
+    set.delete('접속불가');
+    const g = ['전체', '즐겨찾기', ...set];
+    if (Object.keys(state.bad).some(id => state.channels.some(c => c.id === id))) g.push('접속불가');
+    return g;
   }
 
   function visible() {
     const q = query.trim().toLowerCase();
     return state.channels.filter(c => {
-      if (filterGroup === '즐겨찾기' && !state.favs.includes(c.id)) return false;
-      if (filterGroup !== '전체' && filterGroup !== '즐겨찾기' && c.group !== filterGroup) return false;
+      if (filterGroup === '접속불가') { if (!state.bad[c.id]) return false; }
+      else if (filterGroup === '즐겨찾기' && !state.favs.includes(c.id)) return false;
+      else if (filterGroup !== '전체' && filterGroup !== '즐겨찾기' && c.group !== filterGroup) return false;
       if (q && !(c.name.toLowerCase().includes(q) || (c.group || '').toLowerCase().includes(q))) return false;
       return true;
     });
@@ -245,8 +266,8 @@ aside{width:340px;max-width:42vw;display:flex;flex-direction:column;background:v
   function renderTabs() {
     const gs = groups();
     if (!gs.includes(filterGroup)) filterGroup = '전체';
-    $('tabs').innerHTML = gs.map(g => `<div class="tab ${g === filterGroup ? 'active' : ''}" data-g="${esc(g)}">${esc(g)}</div>`).join('');
-    $('groupList').innerHTML = gs.filter(g => g !== '전체' && g !== '즐겨찾기').map(g => `<option value="${esc(g)}">`).join('');
+    $('tabs').innerHTML = gs.map(g => `<div class="tab ${g === filterGroup ? 'active' : ''} ${g === '접속불가' ? 'badtab' : ''}" data-g="${esc(g)}">${esc(g)}</div>`).join('');
+    $('groupList').innerHTML = gs.filter(g => g !== '전체' && g !== '즐겨찾기' && g !== '접속불가').map(g => `<option value="${esc(g)}">`).join('');
   }
 
   function renderList() {
@@ -258,9 +279,11 @@ aside{width:340px;max-width:42vw;display:flex;flex-direction:column;background:v
     $('list').innerHTML = items.map(c => {
       const fav = state.favs.includes(c.id);
       const logo = c.logo ? `<img src="${esc(c.logo)}" alt="" onerror="this.remove()">` : '';
-      return `<div class="ch ${c.id === currentId ? 'active' : ''}" data-id="${c.id}">
+      const bad = state.bad[c.id];
+      return `<div class="ch ${c.id === currentId ? 'active' : ''} ${bad ? 'bad' : ''}" data-id="${c.id}" ${bad ? `title="${esc(bad.why || '접속 오류')}"` : ''}>
         <div class="logo">${logo}${esc(c.name.slice(0, 2))}</div>
         <div class="info"><div class="name">${esc(c.name)}</div><div class="sub">${esc(c.group || '미분류')}</div></div>
+        ${bad ? '<span class="bd">접속불가</span>' : ''}
         <button class="star ${fav ? 'on' : ''}" data-star="${c.id}" title="즐겨찾기">${fav ? '★' : '☆'}</button>
         <button class="star" data-edit="${c.id}" title="편집">⋯</button>
       </div>`;
@@ -298,7 +321,11 @@ aside{width:340px;max-width:42vw;display:flex;flex-direction:column;background:v
     const url = ch.url;
     const isHls = /\.m3u8(\?|$)/i.test(url) || /m3u8/i.test(url);
 
+    clearTimeout(loadTimer);
+    loadTimer = setTimeout(() => { if (currentId === id) onFail('응답이 없어 연결하지 못했습니다(시간 초과).'); }, LOAD_TIMEOUT);
     const onFail = (why) => {
+      if (currentId !== id) return;
+      clearTimeout(loadTimer); markBad(id, why);
       setOverlay('error', why + '\n주소가 유효한지, 해당 서버가 브라우저 접근(CORS)을 허용하는지 확인하세요.');
       setBadge('오류', false);
     };
@@ -327,6 +354,7 @@ aside{width:340px;max-width:42vw;display:flex;flex-direction:column;background:v
   }
 
   video.addEventListener('playing', () => {
+    clearTimeout(loadTimer); if (currentId) clearBad(currentId);
     setOverlay(null);
     setBadge(isFinite(video.duration) ? 'VOD' : 'LIVE', !isFinite(video.duration));
   });
@@ -405,13 +433,13 @@ aside{width:340px;max-width:42vw;display:flex;flex-direction:column;background:v
     if (!name || !url) return toast('채널명과 URL은 필수입니다.');
     if (!/^https?:\/\//i.test(url)) return toast('URL은 http(s)://로 시작해야 합니다.');
     const data = { name, url, group: $('fGroup').value.trim(), logo: $('fLogo').value.trim() };
-    if (editingId) Object.assign(state.channels.find(c => c.id === editingId), data);
+    if (editingId) { Object.assign(state.channels.find(c => c.id === editingId), data); delete state.bad[editingId]; }
     else { const id = uid(); state.channels.push({ id, ...data }); }
     save(); closeModals(); renderTabs(); renderList(); toast('저장되었습니다.');
   };
   $('fDelete').onclick = () => {
     if (!editingId || !confirm('이 채널을 삭제할까요?')) return;
-    state.channels = state.channels.filter(c => c.id !== editingId);
+    state.channels = state.channels.filter(c => c.id !== editingId); delete state.bad[editingId];
     state.favs = state.favs.filter(f => f !== editingId);
     if (currentId === editingId) { currentId = null; destroyHls(); setOverlay('idle', '오른쪽 목록에서 채널을 선택하세요.'); $('nowTitle').textContent = '선택된 채널 없음'; $('nowGrp').textContent = ''; setBadge('대기', false); }
     save(); closeModals(); renderTabs(); renderList();

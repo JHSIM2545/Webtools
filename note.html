@@ -105,6 +105,12 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
 #sizeLbl{font-size:12px;color:var(--sub);min-width:22px;text-align:center;flex:none}
 .sep{width:1px;height:26px;background:var(--line);flex:none}
 
+#scWrap{position:relative;margin:0 auto;touch-action:none;user-select:none;-webkit-user-select:none;background:#000}
+#scCv{display:block;width:100%;height:100%}
+#scSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#scPoly{fill:rgba(52,195,143,.15);stroke:#34c38f;stroke-width:2}
+.scH{position:absolute;width:32px;height:32px;margin:-16px 0 0 -16px;border-radius:50%;background:#34c38f;border:3px solid #fff;box-shadow:0 1px 4px #0008;touch-action:none;box-sizing:border-box}
+#scFilters button.on{background:#17352b;border-color:var(--accent);color:#fff}
 /* 모달 */
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;padding:16px;z-index:60}
 .modal.show{display:flex}
@@ -154,12 +160,12 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     <a class="back" href="index.html" aria-label="SIM Tools 런처로" title="런처로">‹</a>
     <h1>SIM <span>Note</span></h1>
     <div class="spacer"></div>
-    <button id="btnPdfNew" title="PDF·Word·Excel·PowerPoint 파일을 새 메모로 열기">파일 열기</button>
-    <button class="primary" id="btnNew">+ 새 메모</button>
+    <button id="btnPdfNew" title="PDF·Word·Excel·PowerPoint 파일을 새 노트로 열기">파일 열기</button>
+    <button class="primary" id="btnNew">+ 새 노트</button>
     <input type="file" id="pdfNew" accept="application/pdf,.pdf,.docx,.xlsx,.xls,.pptx" hidden>
   </div>
   <div class="listwrap">
-    <div class="search"><input id="nq" type="search" placeholder="메모 검색 (제목)"></div>
+    <div class="search"><input id="nq" type="search" placeholder="노트 검색 (제목)"></div>
     <div class="ngrid" id="ngrid"></div>
   </div>
 </section>
@@ -174,7 +180,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     <button id="btnRedo" title="다시 실행 (Ctrl+Y)">↷</button>
     <button id="btnIns">삽입</button>
     <button id="btnPrint">인쇄</button>
-    <button class="danger" id="btnDelNote" title="메모 삭제">🗑</button>
+    <button class="danger" id="btnDelNote" title="노트 삭제">🗑</button>
   </div>
   <div id="scroller" class="mode-pen"></div>
   <div class="tools" id="tools">
@@ -227,12 +233,16 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     <div class="sub" id="insSub"></div>
     <div class="insgrid">
       <button id="insImg">🖼 그림 넣기<small>현재 페이지 위에 올려 놓고, 이동·크기 조절은 "선택" 도구로 합니다.</small></button>
-      <button id="insPdf">📄 PDF 불러오기<small>PDF의 모든 페이지를 이 메모에 페이지로 추가합니다. 그 위에 필기할 수 있습니다.</small></button>
+      <button id="insPdf">📄 PDF 불러오기<small>PDF의 모든 페이지를 이 노트에 페이지로 추가합니다. 그 위에 필기할 수 있습니다.</small></button>
       <button id="insOff">📎 Word · Excel · PowerPoint<small>.docx · .xlsx · .pptx 파일을 그림(페이지)으로 바꿔 불러옵니다. 원본은 수정하지 않고 그 위에 필기만 합니다.</small></button>
+      <button id="insScan">📷 카메라로 스캔<small>문서를 촬영해 네 모서리를 맞추면 반듯하게 펴서 새 페이지로 추가합니다. (PC에서는 파일 선택 창이 열립니다)</small></button>
+      <button id="insScanPick">🖼 앨범 사진을 문서로 스캔<small>저장된 사진을 같은 방식으로 반듯하게 보정합니다.</small></button>
       <button id="insBg">🎨 배경 설정<small>종이 종류(줄·격자·점)나 그림 파일을 배경으로 지정합니다.</small></button>
     </div>
     <input type="file" id="imgFile" accept="image/*" hidden>
     <input type="file" id="pdfFile" accept="application/pdf,.pdf" hidden>
+    <input type="file" id="scanFile" accept="image/*" capture="environment" hidden>
+    <input type="file" id="scanPick" accept="image/*" hidden>
     <input type="file" id="offFile" accept=".docx,.xlsx,.xls,.pptx" hidden>
     <div class="row"><button id="insClose">닫기</button></div>
   </div>
@@ -260,6 +270,20 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   </div>
 </div>
 
+<div class="modal" id="mScan">
+  <div class="box" style="max-width:540px">
+    <h2>문서 스캔</h2>
+    <div class="sub">네 개의 ● 를 문서 모서리에 맞춘 뒤 <b>적용</b>하면 반듯하게 펴서 새 페이지로 추가됩니다.</div>
+    <div id="scWrap"><canvas id="scCv"></canvas><svg id="scSvg"><polygon id="scPoly"/></svg></div>
+    <div class="papers" id="scFilters" style="grid-template-columns:repeat(3,1fr);margin-top:12px">
+      <button data-sf="orig">원본</button><button data-sf="doc" class="on">문서(선명)</button><button data-sf="bw">흑백</button>
+    </div>
+    <div class="row" style="justify-content:space-between">
+      <button id="scRot">⟳ 회전</button>
+      <span style="display:flex;gap:8px"><button id="scCancel">취소</button><button class="primary" id="scOk">적용</button></span>
+    </div>
+  </div>
+</div>
 <div id="busy"><div id="busyMsg">처리 중…</div></div>
 <div id="printRoot"></div>
 <div class="toast" id="toast"></div>
@@ -327,7 +351,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     const q = $('nq').value.trim().toLowerCase();
     all = all.filter(n => !q || (n.title || '제목 없음').toLowerCase().includes(q)).sort((a, b) => b.updated - a.updated);
     if (!all.length) {
-      $('ngrid').innerHTML = '<div class="empty">' + (q ? '검색 결과가 없습니다.' : '아직 메모가 없습니다.<br>오른쪽 위 <b>+ 새 메모</b>로 시작하거나 <b>PDF 열기</b>로 PDF에 필기하세요.') + '</div>';
+      $('ngrid').innerHTML = '<div class="empty">' + (q ? '검색 결과가 없습니다.' : '아직 노트가 없습니다.<br>오른쪽 위 <b>+ 새 노트</b>로 시작하거나 <b>PDF 열기</b>로 PDF에 필기하세요.') + '</div>';
       return;
     }
     $('ngrid').innerHTML = all.map(n =>
@@ -341,7 +365,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     const d = e.target.closest('[data-del]');
     if (d) {
       e.stopPropagation();
-      if (!confirm('이 메모를 삭제할까요? 되돌릴 수 없습니다.')) return;
+      if (!confirm('이 노트를 삭제할까요? 되돌릴 수 없습니다.')) return;
       await dbDel(d.dataset.del); renderList(); return;
     }
     const c = e.target.closest('.ncard'); if (!c) return;
@@ -989,17 +1013,115 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     if (/\.(doc|ppt)$/.test(n)) throw new Error('user:구형 .doc / .ppt 파일은 지원하지 않습니다. .docx / .pptx로 저장해서 불러오세요.');
     throw new Error('user:지원하지 않는 파일 형식입니다. (PDF, docx, xlsx, pptx)');
   }
+  function appendPages(pages, title) {
+    let first = note.pages.length;
+    if (note.pages.length === 1 && isEmptyPage(note.pages[0])) { note.pages = pages; first = 0; } else note.pages = note.pages.concat(pages);
+    if (!note.title && title) { note.title = title; $('titleIn').value = title; }
+    activePage = first; buildEditor(); resetHistory(); scheduleSave();
+    pageEls[first].scrollIntoView({ block: 'start' }); toast(pages.length + '쪽을 불러왔습니다.');
+  }
   async function insertFile(file) {
     try {
       const pages = await filePages(file);
       if (!pages.length) throw new Error('empty');
-      let first = note.pages.length;
-      if (note.pages.length === 1 && isEmptyPage(note.pages[0])) { note.pages = pages; first = 0; } else note.pages = note.pages.concat(pages);
-      if (!note.title) { note.title = file.name.replace(/\.(pdf|docx|xlsx|xls|pptx)$/i, ''); $('titleIn').value = note.title; }
-      activePage = first; buildEditor(); resetHistory(); scheduleSave(); unbusy();
-      pageEls[first].scrollIntoView({ block: 'start' }); toast(pages.length + '쪽을 불러왔습니다.');
+      appendPages(pages, file.name.replace(/\.(pdf|docx|xlsx|xls|pptx)$/i, '')); unbusy();
     } catch (err) { unbusy(); toast(pdfErrMsg(err)); }
   }
+
+  /* ───────── 카메라 / 사진 문서 스캔 ───────── */
+  const sc = { src: null, pts: [], k: 1, f: 'doc', hs: [] };
+  const scWrap = $('scWrap'), scCv = $('scCv');
+  async function scOpen(file) {
+    try {
+      const url = URL.createObjectURL(file), im = new Image();
+      await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('img')); im.src = url; });
+      URL.revokeObjectURL(url);
+      const k = Math.min(1, 2200 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement('canvas');
+      c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      sc.src = c; scReset(); $('mScan').classList.add('show'); scLayout();
+    } catch (_) { toast('사진을 읽을 수 없습니다.'); }
+  }
+  function scReset() { const w = sc.src.width, h = sc.src.height, m = 0.06; sc.pts = [[w * m, h * m], [w * (1 - m), h * m], [w * (1 - m), h * (1 - m)], [w * m, h * (1 - m)]]; }
+  function scLayout() {
+    const w = sc.src.width, h = sc.src.height, maxW = Math.min(480, window.innerWidth - 80), maxH = window.innerHeight * 0.5;
+    sc.k = Math.min(maxW / w, maxH / h);
+    const dw = Math.round(w * sc.k), dh = Math.round(h * sc.k);
+    scWrap.style.width = dw + 'px'; scWrap.style.height = dh + 'px'; scCv.width = dw; scCv.height = dh;
+    scCv.getContext('2d').drawImage(sc.src, 0, 0, dw, dh);
+    if (!sc.hs.length) for (let i = 0; i < 4; i++) {
+      const h2 = document.createElement('div'); h2.className = 'scH'; scWrap.appendChild(h2); sc.hs.push(h2);
+      h2.addEventListener('pointerdown', ev => { ev.preventDefault(); h2.setPointerCapture(ev.pointerId); h2._d = true; });
+      h2.addEventListener('pointermove', ev => {
+        if (!h2._d) return; const r = scWrap.getBoundingClientRect();
+        sc.pts[i] = [clamp((ev.clientX - r.left) / sc.k, 0, sc.src.width), clamp((ev.clientY - r.top) / sc.k, 0, sc.src.height)]; scDraw();
+      });
+      h2.addEventListener('pointerup', () => { h2._d = false; }); h2.addEventListener('pointercancel', () => { h2._d = false; });
+    }
+    scDraw();
+  }
+  function scDraw() {
+    sc.hs.forEach((h, i) => { h.style.left = sc.pts[i][0] * sc.k + 'px'; h.style.top = sc.pts[i][1] * sc.k + 'px'; });
+    $('scSvg').setAttribute('viewBox', '0 0 ' + scCv.width + ' ' + scCv.height);
+    $('scPoly').setAttribute('points', sc.pts.map(p => (p[0] * sc.k) + ',' + (p[1] * sc.k)).join(' '));
+  }
+  $('scRot').onclick = () => {
+    const s0 = sc.src, c = document.createElement('canvas'); c.width = s0.height; c.height = s0.width;
+    const g = c.getContext('2d'); g.translate(c.width, 0); g.rotate(Math.PI / 2); g.drawImage(s0, 0, 0);
+    sc.src = c; scReset(); scLayout();
+  };
+  $('scFilters').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; sc.f = b.dataset.sf; document.querySelectorAll('#scFilters button').forEach(x => x.classList.toggle('on', x === b)); });
+  $('scCancel').onclick = () => $('mScan').classList.remove('show');
+  function quadMap(P) {      // 단위 정사각형 → 사각형 호모그래피 (Heckbert)
+    const [x0, y0] = P[0], [x1, y1] = P[1], [x2, y2] = P[2], [x3, y3] = P[3];
+    const dx1 = x1 - x2, dx2 = x3 - x2, dx3 = x0 - x1 + x2 - x3, dy1 = y1 - y2, dy2 = y3 - y2, dy3 = y0 - y1 + y2 - y3;
+    const den = dx1 * dy2 - dy1 * dx2; let g = 0, h = 0;
+    if (Math.abs(den) > 1e-9 && (Math.abs(dx3) > 1e-9 || Math.abs(dy3) > 1e-9)) { g = (dx3 * dy2 - dy3 * dx2) / den; h = (dx1 * dy3 - dy1 * dx3) / den; }
+    return [x1 - x0 + g * x1, x3 - x0 + h * x3, x0, y1 - y0 + g * y1, y3 - y0 + h * y3, y0, g, h];
+  }
+  function scWarp() {
+    const P = sc.pts, d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    let W = Math.max(d(P[0], P[1]), d(P[3], P[2])), H = Math.max(d(P[0], P[3]), d(P[1], P[2]));
+    const k = Math.min(1, 1800 / Math.max(W, H)); W = Math.round(W * k); H = Math.round(H * k);
+    if (W < 40 || H < 40) return null;
+    const [a, b, c, dd, e, f, g, h] = quadMap(P), sw = sc.src.width, sh = sc.src.height;
+    const sd = sc.src.getContext('2d').getImageData(0, 0, sw, sh).data, out = document.createElement('canvas'); out.width = W; out.height = H;
+    const og = out.getContext('2d'), id = og.createImageData(W, H), o = id.data;
+    for (let y = 0; y < H; y++) {
+      const v = (y + 0.5) / H;
+      for (let x = 0; x < W; x++) {
+        const u = (x + 0.5) / W, w = g * u + h * v + 1, X = (a * u + b * v + c) / w - 0.5, Y = (dd * u + e * v + f) / w - 0.5;
+        const x0 = Math.floor(X), y0 = Math.floor(Y), fx = X - x0, fy = Y - y0, i = (y * W + x) * 4;
+        const xa = clamp(x0, 0, sw - 1), xb = clamp(x0 + 1, 0, sw - 1), ya = clamp(y0, 0, sh - 1), yb = clamp(y0 + 1, 0, sh - 1);
+        const p00 = (ya * sw + xa) * 4, p10 = (ya * sw + xb) * 4, p01 = (yb * sw + xa) * 4, p11 = (yb * sw + xb) * 4;
+        for (let ch = 0; ch < 3; ch++) o[i + ch] = sd[p00 + ch] * (1 - fx) * (1 - fy) + sd[p10 + ch] * fx * (1 - fy) + sd[p01 + ch] * (1 - fx) * fy + sd[p11 + ch] * fx * fy;
+        o[i + 3] = 255;
+      }
+    }
+    og.putImageData(id, 0, 0);
+    if (sc.f !== 'orig') {     // 조명 얼룩 제거: 흐린 배경으로 나눠 종이를 흰색으로
+      const sm = document.createElement('canvas'); sm.width = Math.max(8, Math.round(W / 14)); sm.height = Math.max(8, Math.round(H / 14));
+      sm.getContext('2d').drawImage(out, 0, 0, sm.width, sm.height);
+      const bg = document.createElement('canvas'); bg.width = W; bg.height = H; const bgc = bg.getContext('2d'); bgc.imageSmoothingEnabled = true; bgc.imageSmoothingQuality = 'high'; bgc.drawImage(sm, 0, 0, W, H);
+      const bd = bgc.getImageData(0, 0, W, H).data, bw = sc.f === 'bw', lo = bw ? 105 : 80, hi = bw ? 215 : 225;
+      for (let i = 0; i < o.length; i += 4) {
+        let r = o[i] / Math.max(bd[i], 40) * 255, gg = o[i + 1] / Math.max(bd[i + 1], 40) * 255, bb = o[i + 2] / Math.max(bd[i + 2], 40) * 255;
+        if (bw) r = gg = bb = 0.299 * r + 0.587 * gg + 0.114 * bb;
+        o[i] = clamp((r - lo) / (hi - lo) * 255, 0, 255); o[i + 1] = clamp((gg - lo) / (hi - lo) * 255, 0, 255); o[i + 2] = clamp((bb - lo) / (hi - lo) * 255, 0, 255);
+      }
+      og.putImageData(id, 0, 0);
+    }
+    return out;
+  }
+  $('scOk').onclick = async () => {
+    busy('스캔 보정 중…'); await nextFrame();
+    try {
+      const cv = scWarp(); if (!cv) { unbusy(); toast('모서리 영역이 너무 작습니다.'); return; }
+      $('mScan').classList.remove('show'); appendPages([canvasPage(cv)], ''); unbusy();
+    } catch (err) { unbusy(); toast('스캔 보정에 실패했습니다. 사진 크기를 줄여 다시 시도하세요.'); }
+  };
+  $('insScan').onclick = () => $('scanFile').click();
+  $('insScanPick').onclick = () => $('scanPick').click();
+  [$('scanFile'), $('scanPick')].forEach(inp => inp.addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; closeIns(); if (f) scOpen(f); }));
 
   /* ───────── 되돌리기 ───────── */
   const snapshot = () => JSON.stringify(note.pages.map(p => ({ strokes: p.strokes, texts: p.texts, images: p.images })));
@@ -1078,7 +1200,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   $('btnBack').onclick = closeNote;
   $('titleIn').addEventListener('input', () => { note.title = $('titleIn').value; scheduleSave(); });
   $('btnDelNote').onclick = async () => {
-    if (!confirm('이 메모를 삭제할까요? 되돌릴 수 없습니다.')) return;
+    if (!confirm('이 노트를 삭제할까요? 되돌릴 수 없습니다.')) return;
     const id = note.id; dirty = false; clearTimeout(saveTimer); await dbDel(id);
     if (io) io.disconnect();
     note = null; pageEls = []; $('scroller').innerHTML = ''; $('viewEdit').classList.remove('on'); $('viewList').classList.add('on'); renderList();

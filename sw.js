@@ -1,6 +1,6 @@
 // SIM Tools service worker: 앱 껍데기(HTML·아이콘)만 캐시. 방송 스트림 등 외부 요청은 건드리지 않음.
 // 새 툴 파일을 추가하면 SHELL 목록에 넣고 CACHE 숫자를 올리세요.
-const CACHE = 'simwebtools-shell-v7';
+const CACHE = 'simwebtools-shell-v8';
 const SHELL = ['./', './index.html', './tv.html', './memo.html', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './tv-icon-192.png', './memo-icon-192.png'];
 

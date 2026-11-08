@@ -181,8 +181,24 @@ aside{width:340px;max-width:42vw;display:flex;flex-direction:column;background:v
   const $ = id => document.getElementById(id);
   const video = $('video');
 
-  // 기본 채널: 재생 테스트용 공개 스트림 1개만 포함 (실제 방송 채널은 직접 추가)
+  // 기본 채널: iptv-org(공개 스트림 색인) 한국 목록 기반. 재생 가능 여부는 서버 상태·CORS에 따라 달라질 수 있음
+  const SEED_VERSION = 1; // 기본 채널 목록을 바꿀 때 숫자를 올리면, 기존 사용자에게도 새 채널이 추가됩니다.
   const DEFAULTS = [
+    { id: 'kr01', name: "EBS 1", url: "https://ebsonair.ebs.co.kr/ebs1familypc/familypc1m/playlist.m3u8", group: "교육", logo: "https://i.imgur.com/rM7sEcA.png" },
+    { id: 'kr02', name: "EBS 2", url: "https://ebsonair.ebs.co.kr/ebs2familypc/familypc1m/playlist.m3u8", group: "교육", logo: "https://i.imgur.com/8QO9M4G.png" },
+    { id: 'kr03', name: "EBS Plus 1", url: "https://ebsonair.ebs.co.kr/plus1familypc/familypc1m/playlist.m3u8", group: "교육", logo: "" },
+    { id: 'kr04', name: "EBS Plus 2", url: "https://ebsonair.ebs.co.kr/plus2familypc/familypc1m/playlist.m3u8", group: "교육", logo: "" },
+    { id: 'kr05', name: "EBS English", url: "https://ebsonair.ebs.co.kr/ebsefamilypc/familypc1m/playlist.m3u8", group: "교육", logo: "" },
+    { id: 'kr06', name: "EBS Kids", url: "https://ebsonair.ebs.co.kr/ebsufamilypc/familypc1m/playlist.m3u8", group: "어린이", logo: "" },
+    { id: 'kr07', name: "KTV 국민방송", url: "https://ktvlive.ktv.go.kr/live/ktv_hd.stream/playlist.m3u8", group: "종합", logo: "" },
+    { id: 'kr08', name: "국회방송 (NATV)", url: "https://live.natv.go.kr/live/natv_high/playlist.m3u8", group: "국회", logo: "" },
+    { id: 'kr09', name: "ABN 아름방송", url: "https://vod2.abn.co.kr/IPHONE/abn.m3u8", group: "지역", logo: "" },
+    { id: 'kr10', name: "BTN 불교TV", url: "https://btn.nowcdn.co.kr/btn/btnlive2m/playlist.m3u8", group: "종교", logo: "" },
+    { id: 'kr11', name: "CTS 기독교TV", url: "https://live.cts.tv/live/ctstv_high/playlist.m3u8", group: "종교", logo: "" },
+    { id: 'kr12', name: "FGTV 순복음방송", url: "https://fgtvlive.fgtv.com/smil:fgtv.smil/playlist.m3u8", group: "종교", logo: "" },
+    { id: 'kr13', name: "CJ온스타일", url: "https://live-ch1.cjonstyle.net/cjmalllive/stream2/playlist.m3u8", group: "홈쇼핑", logo: "" },
+    { id: 'kr14', name: "CJ온스타일플러스", url: "https://live-ch2.cjonstyle.net/cjosplus/live2/playlist.m3u8", group: "홈쇼핑", logo: "" },
+    { id: 'kr15', name: "공영쇼핑", url: "https://etv.publichs.com/live5.stream/playlist.m3u8", group: "홈쇼핑", logo: "" },
     { id: 'demo1', name: '테스트 스트림 (Mux)', url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', group: '테스트', logo: '' }
   ];
 
@@ -194,11 +210,15 @@ aside{width:340px;max-width:42vw;display:flex;flex-direction:column;background:v
   let editingId = null;
 
   function load() {
-    try {
-      const s = JSON.parse(localStorage.getItem(LS));
-      if (s && Array.isArray(s.channels)) return s;
-    } catch (e) {}
-    return { channels: DEFAULTS.slice(), favs: [], last: null };
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(LS)); } catch (e) {}
+    if (!s || !Array.isArray(s.channels)) s = { channels: [], favs: [], last: null };
+    if ((s.seeded || 0) < SEED_VERSION) {
+      const have = new Set(s.channels.map(c => c.url));
+      DEFAULTS.forEach(d => { if (!have.has(d.url)) s.channels.push({ ...d }); });
+      s.seeded = SEED_VERSION;
+    }
+    return s;
   }
   function save() {
     state.last = currentId;

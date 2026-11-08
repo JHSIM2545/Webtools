@@ -1,5 +1,5 @@
 // SIM TV service worker: 앱 껍데기(HTML·아이콘)만 캐시. 방송 스트림은 건드리지 않음.
-const CACHE = 'simtv-shell-v1';
+const CACHE = 'simtv-shell-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 

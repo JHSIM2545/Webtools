@@ -908,7 +908,7 @@ async function navFlow(sl) {
     const cs = searchContacts({ name: dest }).concat(contacts.filter(c => c.name && dn.includes(c.name.replace(/\s/g, '')))).filter((c, i, a) => c.address && a.indexOf(c) === i).slice(0, 1);
     for (const c of cs) { const r = await geocode(c.address); if (r[0]) { const ap = !destNums(c.address).every(n => hasNum(r[0], n)); cands.push(Object.assign(r[0], { name: c.name || c.company, addr: c.address, src: '연락처 주소', approx: ap })); } await sleep(1100); }
     const nums = destNums(dest);
-    (await geocode(dest)).forEach(c => { c.approx = nums.length > 0 && !nums.every(n => hasNum(c, n)); if (!cands.some(o => near(o, c))) cands.push(c); });
+    (await geocode(dest)).forEach(c => { c.approx = nums.length > 0 && !nums.every(n => hasNum(c, n)); if (!cands.some(o => near(o, c) || (o.name === c.name && o.addr === c.addr))) cands.push(c); });
     cands.sort((a, b) => (a.approx ? 1 : 0) - (b.approx ? 1 : 0));
   } catch (e) { err = e && e.name === 'AbortError' ? '응답이 늦어요' : (e && e.message) || '연결 실패'; }
   if (!cands.length) {
@@ -916,6 +916,7 @@ async function navFlow(sl) {
     return bot('"' + dest + '" 위치를 확인하지 못했어요' + (err ? ' (' + err + ')' : '') + '. 네이버 지도에서 직접 검색해 볼까요?', { html: '<b>위치를 확인하지 못했어요</b><span class="sub">"' + esc(dest) + '"' + (err ? ' — ' + esc(err) : '') + '<br>도로명 주소나 "OO시 OO구 OO건물"처럼 더 자세히 말씀해 보세요.</span>' + noNaverApp(), btns: [{ label: '네이버 지도에서 검색', primary: true, href: launchHref(nmapUrl.search(dest)), fn: iosStoreFallback }] });
   }
   pending = newP('navigate', sl); const p = pending;
+  if (cands.every(c => c.approx)) return confirmNav(p, cands[0]);   // 번지까지 맞는 후보가 없음 → 목록 대신 정확 검색 안내
   if (cands.length === 1) return confirmNav(p, cands[0]);
   pickNav(p, cands.slice(0, 4));
 }

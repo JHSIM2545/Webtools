@@ -279,7 +279,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
       <button data-sf="orig">원본</button><button data-sf="doc" class="on">문서(선명)</button><button data-sf="bw">흑백</button>
     </div>
     <div class="row" style="justify-content:space-between">
-      <button id="scRot">⟳ 회전</button>
+      <span style="display:flex;gap:8px"><button id="scRot">⟳ 회전</button><button id="scAuto">✨ 자동 감지</button></span>
       <span style="display:flex;gap:8px"><button id="scCancel">취소</button><button class="primary" id="scOk">적용</button></span>
     </div>
   </div>
@@ -1038,8 +1038,56 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
       URL.revokeObjectURL(url);
       const k = Math.min(1, 2200 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement('canvas');
       c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-      sc.src = c; scReset(); $('mScan').classList.add('show'); scLayout();
+      sc.src = c; scReset(); $('mScan').classList.add('show'); scLayout(); scAutoApply();
     } catch (_) { toast('사진을 읽을 수 없습니다.'); }
+  }
+  /* 문서 모서리 자동 감지: 축소 → 밝기 분리(Otsu) → 가장 큰 덩어리 → 네 극점 */
+  function scDetect() {
+    try {
+      const sw = sc.src.width, sh = sc.src.height, k = Math.min(1, 420 / Math.max(sw, sh)), W = Math.max(8, Math.round(sw * k)), H = Math.max(8, Math.round(sh * k));
+      const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); g.drawImage(sc.src, 0, 0, W, H);
+      const d = g.getImageData(0, 0, W, H).data, N = W * H, gray = new Float32Array(N);
+      for (let i = 0; i < N; i++) gray[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+      let a = gray, b = new Float32Array(N);       // 5×5 상당 박스 블러 (가로·세로 2회)
+      for (let pass = 0; pass < 2; pass++) {
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let sum = 0, n = 0; for (let t = -2; t <= 2; t++) { const xx = x + t; if (xx >= 0 && xx < W) { sum += a[y * W + xx]; n++; } } b[y * W + x] = sum / n; }
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let sum = 0, n = 0; for (let t = -2; t <= 2; t++) { const yy = y + t; if (yy >= 0 && yy < H) { sum += b[yy * W + x]; n++; } } a[y * W + x] = sum / n; }
+      }
+      const hist = new Float64Array(256); for (let i = 0; i < N; i++) hist[Math.min(255, a[i] | 0)]++;
+      let tot = N, sumAll = 0; for (let i = 0; i < 256; i++) sumAll += i * hist[i];
+      let wB = 0, sumB = 0, best = -1, thr = 128;
+      for (let t = 0; t < 256; t++) { wB += hist[t]; if (!wB) continue; const wF = tot - wB; if (!wF) break; sumB += t * hist[t]; const mB = sumB / wB, mF = (sumAll - sumB) / wF, v = wB * wF * (mB - mF) * (mB - mF); if (v > best) { best = v; thr = t; } }
+      const tryPol = bright => {
+        const lab = new Int32Array(N), stack = new Int32Array(N); let bestC = null, id = 0;
+        for (let s0 = 0; s0 < N; s0++) {
+          if (lab[s0]) continue; const on = bright ? a[s0] > thr : a[s0] <= thr; if (!on) continue;
+          id++; let sp = 0; stack[sp++] = s0; lab[s0] = id;
+          let area = 0, minx = W, maxx = 0, miny = H, maxy = 0, tl = null, tr = null, br = null, bl = null, vtl = 1e9, vtr = -1e9, vbr = -1e9, vbl = 1e9;
+          while (sp) {
+            const p = stack[--sp], x = p % W, y = (p / W) | 0; area++;
+            if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+            const sa = x + y, df = x - y;
+            if (sa < vtl) { vtl = sa; tl = [x, y]; } if (sa > vbr) { vbr = sa; br = [x, y]; } if (df > vtr) { vtr = df; tr = [x, y]; } if (df < vbl) { vbl = df; bl = [x, y]; }
+            if (x > 0) { const q = p - 1; if (!lab[q] && (bright ? a[q] > thr : a[q] <= thr)) { lab[q] = id; stack[sp++] = q; } }
+            if (x < W - 1) { const q = p + 1; if (!lab[q] && (bright ? a[q] > thr : a[q] <= thr)) { lab[q] = id; stack[sp++] = q; } }
+            if (y > 0) { const q = p - W; if (!lab[q] && (bright ? a[q] > thr : a[q] <= thr)) { lab[q] = id; stack[sp++] = q; } }
+            if (y < H - 1) { const q = p + W; if (!lab[q] && (bright ? a[q] > thr : a[q] <= thr)) { lab[q] = id; stack[sp++] = q; } }
+          }
+          const full = (maxx - minx) >= W * 0.98 && (maxy - miny) >= H * 0.98;
+          if (!full && area > N * 0.08 && (!bestC || area > bestC.area)) bestC = { area, q: [tl, tr, br, bl] };
+        }
+        if (!bestC) return null;
+        const q = bestC.q, qa = Math.abs(q.reduce((s2, p, i) => { const n2 = q[(i + 1) % 4]; return s2 + (p[0] * n2[1] - n2[0] * p[1]); }, 0)) / 2;
+        if (qa < N * 0.15 || qa > N * 0.97 || bestC.area / qa < 0.55) return null;
+        return q.map(p => [p[0] / k, p[1] / k]);
+      };
+      return tryPol(true) || tryPol(false);
+    } catch (_) { return null; }
+  }
+  function scAutoApply(quiet) {
+    const q = scDetect();
+    if (q) { sc.pts = q.map(p => [clamp(p[0], 0, sc.src.width), clamp(p[1], 0, sc.src.height)]); scDraw(); if (!quiet) toast('모서리를 찾았습니다. 어긋나면 ●를 끌어 맞추세요.'); }
+    else { scReset(); scDraw(); toast('문서 모서리를 자동으로 찾지 못했습니다. ●를 직접 맞춰 주세요.'); }
   }
   function scReset() { const w = sc.src.width, h = sc.src.height, m = 0.06; sc.pts = [[w * m, h * m], [w * (1 - m), h * m], [w * (1 - m), h * (1 - m)], [w * m, h * (1 - m)]]; }
   function scLayout() {
@@ -1067,8 +1115,9 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   $('scRot').onclick = () => {
     const s0 = sc.src, c = document.createElement('canvas'); c.width = s0.height; c.height = s0.width;
     const g = c.getContext('2d'); g.translate(c.width, 0); g.rotate(Math.PI / 2); g.drawImage(s0, 0, 0);
-    sc.src = c; scReset(); scLayout();
+    sc.src = c; scReset(); scLayout(); scAutoApply(true);
   };
+  $('scAuto').onclick = () => scAutoApply();
   $('scFilters').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; sc.f = b.dataset.sf; document.querySelectorAll('#scFilters button').forEach(x => x.classList.toggle('on', x === b)); });
   $('scCancel').onclick = () => $('mScan').classList.remove('show');
   function quadMap(P) {      // 단위 정사각형 → 사각형 호모그래피 (Heckbert)

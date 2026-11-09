@@ -114,6 +114,21 @@ textarea{resize:vertical}
 .sw i::after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:var(--sub);transition:.15s}
 .sw input:checked+i{background:var(--accent2);border-color:var(--accent2)}
 .sw input:checked+i::after{left:23px;background:#fff}
+.tchips{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
+.tchip{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:99px;font-size:13px;background:var(--panel2);border:1px solid var(--line);cursor:pointer;color:var(--text)}
+.tchip i{font-style:normal}
+.tchip.on{font-weight:700;border-color:var(--c,#fff);background:rgba(255,255,255,.14);background:color-mix(in srgb,var(--c,#888) 32%,var(--panel2))}
+.tchip.manage{color:var(--sub);border-style:dashed}
+.trow{display:flex;align-items:center;gap:10px;padding:9px 10px;margin-bottom:8px;background:var(--panel2);border:1px solid var(--line);border-radius:12px}
+.trow .em{font-size:20px;width:28px;text-align:center;flex:none}
+.trow .dot{width:12px;height:12px;border-radius:50%;background:var(--c);flex:none}
+.trow .nm{flex:1;min-width:0;font-weight:700;word-break:break-word}
+.trow .nm small{display:block;font-weight:400;color:var(--sub);font-size:12px}
+.trow button{padding:5px 10px;font-size:13px}
+.qe{display:flex;flex-wrap:wrap;gap:4px;margin:-4px 0 12px}
+.qe button{width:36px;height:36px;padding:0;font-size:19px;border-radius:9px}
+.cc{width:44px;height:30px;padding:2px;border-radius:8px;cursor:pointer;flex:none}
+#tm{z-index:70}
 #toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#2b2f40;border:1px solid var(--line);padding:9px 15px;border-radius:12px;font-size:13.5px;z-index:90;display:none;max-width:90%;text-align:center}
 </style>
 </head>
@@ -122,6 +137,7 @@ textarea{resize:vertical}
   <a class="back" href="index.html" title="SIM Tools">‹</a>
   <h1>SIM <span>Calendar</span></h1>
   <button class="txtbtn" id="btnToday" title="오늘로 이동">오늘</button>
+  <button class="iconbtn" id="btnTypes" title="일정 종류 관리">🏷️</button>
   <a class="iconbtn" href="assistant.html" title="음성 비서로 일정 추가">🎤</a>
 </div>
 <div class="nav" id="nav">
@@ -147,11 +163,26 @@ textarea{resize:vertical}
     <div class="fr" id="rEnd"><span class="fl">종료</span><input type="date" id="eEd"><input type="time" id="eEt"></div>
     <div class="fr own" id="rRep"><span class="fl">반복</span>
       <select id="eRep"><option value="">안 함</option><option value="daily">매일</option><option value="weekly">매주</option><option value="monthly">매월</option><option value="yearly">매년</option></select></div>
-    <div class="fr own"><span class="fl">색상</span><div class="sws" id="eCol"></div></div>
+    <div class="fr top" id="rType"><span class="fl">종류</span><div class="tchips" id="eType"></div></div>
+    <div class="fr own" id="rCol"><span class="fl">색상</span><div class="sws" id="eCol"></div></div>
     <div class="fr own"><span class="fl">장소</span><input id="eLoc" type="text" maxlength="120" autocomplete="off"></div>
     <div class="fr own top"><span class="fl">메모</span><textarea id="eMemo" rows="3" maxlength="1000"></textarea></div>
     <p class="hint" id="eHint"></p>
     <div class="ef"><button class="danger" id="eDel">삭제</button><span class="spc"></span><button id="eCancel">취소</button><button class="primary" id="eSave">저장</button></div>
+  </div>
+</div>
+<div class="ov" id="tm">
+  <div class="sheet">
+    <div class="eh"><b id="tmTitle">일정 종류 관리</b></div>
+    <div id="tmList"></div>
+    <div id="tmForm" hidden>
+      <div class="fr"><span class="fl">이름</span><input id="tName" type="text" maxlength="20" autocomplete="off" placeholder="예: 팀 회식"></div>
+      <div class="fr"><span class="fl">이모지</span><input id="tEmoji" type="text" maxlength="8" autocomplete="off" placeholder="😀" style="max-width:90px;text-align:center;font-size:20px"></div>
+      <div class="qe" id="tQuick"></div>
+      <div class="fr top"><span class="fl">색상</span><div class="sws" id="tColors" style="flex:1"></div><input type="color" class="cc" id="tCustom" title="직접 고르기"></div>
+      <div class="ef"><span class="spc"></span><button id="tCancel">취소</button><button class="primary" id="tSave">저장</button></div>
+    </div>
+    <div class="ef" id="tmFoot"><button class="primary" id="tmAdd">+ 종류 추가</button><span class="spc"></span><button id="tmClose">닫기</button></div>
   </div>
 </div>
 <div id="toast"></div>
@@ -186,6 +217,34 @@ function shiftMonths(d, n) {
 let toastT;
 function toast(m, ms) { const t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toastT); toastT = setTimeout(() => { t.style.display = 'none'; }, ms || 2400); }
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+
+/* ───────── 일정 종류 (기기 로컬 저장: 이름·이모지·색상, 추가/수정/삭제 가능) ───────── */
+const DEF_TYPES = [
+  { id: 't_internal', name: '사내회의', emoji: '🏢', color: '#6366f1' },
+  { id: 't_external', name: '외부회의', emoji: '🤝', color: '#a855f7' },
+  { id: 't_visit', name: '고객방문', emoji: '🚗', color: '#f97316' },
+  { id: 't_event', name: '회사행사', emoji: '🎉', color: '#ec4899' },
+  { id: 't_video', name: '화상회의', emoji: '💻', color: '#06b6d4' },
+  { id: 't_edu', name: '교육', emoji: '📚', color: '#eab308' },
+  { id: 't_vacation', name: '휴가', emoji: '🌴', color: '#22c55e' },
+  { id: 't_hospital', name: '병원', emoji: '🏥', color: '#ef4444' },
+  { id: 't_golf', name: '골프', emoji: '⛳', color: '#84cc16' },
+  { id: 't_travel', name: '여행', emoji: '✈️', color: '#3b82f6' },
+  { id: 't_meal', name: '식사', emoji: '🍽️', color: '#14b8a6' }
+];
+const TCOLORS = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899', '#94a3b8'];
+const QEMOJI = ['🏢', '🤝', '🚗', '🎉', '💻', '📚', '🌴', '🏥', '⛳', '✈️', '🍽️', '☕', '🍻', '🏃', '💪', '🎓', '📞', '📝', '💼', '🏠', '🛒', '🎬', '🎵', '⚽', '🏔️', '🚆', '💊', '🔧', '📅', '⭐'];
+function loadTypes() {
+  try {
+    const j = JSON.parse(ls.get('simcal_types', ''));
+    if (Array.isArray(j)) return j.filter(t => t && t.id && t.name).map(t => ({ id: String(t.id), name: String(t.name), emoji: String(t.emoji || ''), color: okColor(t.color) || COLORS[0] }));
+  } catch (e) {}
+  return DEF_TYPES.map(t => Object.assign({}, t));
+}
+let TYPES = loadTypes();
+const saveTypes = () => ls.set('simcal_types', JSON.stringify(TYPES));
+const typeById = id => id ? TYPES.find(t => t.id === id) : null;
+const evTitle = ev => (ev.emoji ? ev.emoji + ' ' : '') + ev.title;
 
 /* ───────── 공휴일 (양력 고정 + 음력 계산 + 대체공휴일). 임시공휴일·선거일은 포함하지 않음 ───────── */
 const HCACHE = {};
@@ -250,14 +309,16 @@ function buildEvents() {
   for (const r of own) {
     const s = new Date(r.start); if (isNaN(s)) continue;
     const e = new Date(r.end || r.start);
-    const ev = { id: r.id, src: 'own', raw: r, title: r.title || '(제목 없음)', allDay: !!r.allDay, color: okColor(r.color) || COLORS[0], loc: r.loc || '', memo: r.memo || '', rep: r.rep || '' };
+    const ev = { id: r.id, src: 'own', raw: r, title: r.title || '(제목 없음)', allDay: !!r.allDay, color: okColor(r.color) || COLORS[0], loc: r.loc || '', memo: r.memo || '', rep: r.rep || '', type: '', emoji: '', typeName: '' };
+    const ty = typeById(r.type); if (ty) { ev.type = ty.id; ev.color = ty.color; ev.emoji = ty.emoji; ev.typeName = ty.name; }
     if (ev.allDay) { ev.start = sod(s); const last = sod(isNaN(e) ? s : e); ev.days = Math.max(1, Math.round((last - ev.start) / DAY) + 1); ev.endX = addDays(ev.start, ev.days); }
     else { ev.start = s; ev.endX = (isNaN(e) || e <= s) ? new Date(s.getTime() + 3600e3) : e; }
     L.push(ev);
   }
   for (const r of asst) {
     const s = new Date(r.start); if (isNaN(s)) continue;
-    const ev = { id: r.id, src: 'asst', raw: r, title: r.title || '(제목 없음)', allDay: !!r.allDay, color: ASST, loc: '', memo: '', rep: '' };
+    const ev = { id: r.id, src: 'asst', raw: r, title: r.title || '(제목 없음)', allDay: !!r.allDay, color: ASST, loc: '', memo: '', rep: '', type: '', emoji: '', typeName: '' };
+    const ty = typeById(r.type); if (ty) { ev.type = ty.id; ev.color = ty.color; ev.emoji = ty.emoji; ev.typeName = ty.name; }
     if (ev.allDay) { ev.start = sod(s); ev.days = 1; ev.endX = addDays(ev.start, 1); }
     else { ev.start = s; ev.endX = new Date(s.getTime() + 3600e3); }
     L.push(ev);
@@ -311,9 +372,9 @@ function label() {
 }
 const timeText = o => o.ev.allDay ? '종일' : fmtTime(o.start);
 function cardHtml(o) {
-  const ev = o.ev, sub = [ev.loc, ev.rep ? ({ daily: '매일 반복', weekly: '매주 반복', monthly: '매월 반복', yearly: '매년 반복' })[ev.rep] : '', ev.memo].filter(Boolean).join(' · ');
+  const ev = o.ev, sub = [ev.typeName, ev.loc, ev.rep ? ({ daily: '매일 반복', weekly: '매주 반복', monthly: '매월 반복', yearly: '매년 반복' })[ev.rep] : '', ev.memo].filter(Boolean).join(' · ');
   const tm = ev.allDay ? '<b>종일</b>' : '<b>' + esc(fmtTime(o.start)) + '</b>' + esc(fmtTime(o.endX));
-  return '<div class="ac" data-ev="' + ev.src + ':' + esc(ev.id) + '" style="--c:' + ev.color + '"><div class="tm">' + tm + '</div><i class="bar2"></i><div class="tx"><b>' + esc(ev.title) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>' + (ev.src === 'asst' ? '<span class="pill">🎤 음성비서</span>' : '') + '</div>';
+  return '<div class="ac" data-ev="' + ev.src + ':' + esc(ev.id) + '" style="--c:' + ev.color + '"><div class="tm">' + tm + '</div><i class="bar2"></i><div class="tx"><b>' + esc(evTitle(ev)) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>' + (ev.src === 'asst' ? '<span class="pill">🎤 음성비서</span>' : '') + '</div>';
 }
 
 /* 월 */
@@ -336,7 +397,7 @@ function fitMonth() {
     if (!list.length) return;
     const avail = c.clientHeight - 22 - (c.querySelector('.hn') ? 11 : 0) - 2, cap = Math.floor(avail / 14);
     const show = list.length <= cap ? list.length : Math.max(cap - 1, 0);
-    let h = ''; for (let i = 0; i < show; i++) h += '<div class="chip" style="--c:' + list[i].ev.color + '">' + esc(list[i].ev.title) + '</div>';
+    let h = ''; for (let i = 0; i < show; i++) h += '<div class="chip" style="--c:' + list[i].ev.color + '">' + esc(evTitle(list[i].ev)) + '</div>';
     if (list.length > show) h += '<div class="more">+' + (list.length - show) + '</div>';
     box.innerHTML = h;
   });
@@ -371,7 +432,7 @@ function renderGrid(n) {
     const h = holName(d), wd = d.getDay();
     head += '<div class="hd' + (wd === 0 ? ' sun' : wd === 6 ? ' sat' : '') + (h ? ' hol' : '') + (sameDay(d, today) ? ' today' : '') + '" data-d="' + ymd(d) + '"><small>' + (n === 1 ? WD[wd] + '요일' : WD[wd]) + '</small><b>' + d.getDate() + '</b><em>' + esc(h) + '</em></div>';
     const ad = (B.get(ymd(d)) || []).filter(o => o.ev.allDay);
-    allr += '<div class="c">' + ad.map(o => '<div class="chip" data-ev="' + o.ev.src + ':' + esc(o.ev.id) + '" style="--c:' + o.ev.color + '">' + esc(o.ev.title) + '</div>').join('') + '</div>';
+    allr += '<div class="c">' + ad.map(o => '<div class="chip" data-ev="' + o.ev.src + ':' + esc(o.ev.id) + '" style="--c:' + o.ev.color + '">' + esc(evTitle(o.ev)) + '</div>').join('') + '</div>';
   });
   let gut = '<div class="gut">'; for (let h = 1; h < 24; h++) gut += '<span style="top:' + (h * HH) + 'px">' + (h < 12 ? '오전 ' + h : h === 12 ? '정오' : '오후 ' + (h - 12)) + '</span>'; gut += '</div>';
   let cols = '';
@@ -383,7 +444,7 @@ function renderGrid(n) {
     layoutDay(items);
     const blks = items.map(it => {
       const top = it.s * HH / 60, ht = Math.max((it.re - it.s) * HH / 60, 22), ev = it.o.ev;
-      return '<div class="blk" data-ev="' + ev.src + ':' + esc(ev.id) + '" style="--c:' + ev.color + ';top:' + top + 'px;height:' + (ht - 1) + 'px;left:calc(' + (it.c * 100 / it.n) + '% + 1px);width:calc(' + (100 / it.n) + '% - 2px)"><b>' + esc(ev.title) + '</b><small>' + esc(fmtTime(it.o.start)) + (ev.loc ? ' · ' + esc(ev.loc) : '') + '</small></div>';
+      return '<div class="blk" data-ev="' + ev.src + ':' + esc(ev.id) + '" style="--c:' + ev.color + ';top:' + top + 'px;height:' + (ht - 1) + 'px;left:calc(' + (it.c * 100 / it.n) + '% + 1px);width:calc(' + (100 / it.n) + '% - 2px)"><b>' + esc(evTitle(ev)) + '</b><small>' + esc(fmtTime(it.o.start)) + (ev.loc ? ' · ' + esc(ev.loc) : '') + '</small></div>';
     }).join('');
     let now = ''; if (sameDay(d, today)) { const t = new Date(); now = '<div class="nowline" style="top:' + ((t.getHours() * 60 + t.getMinutes()) * HH / 60) + 'px"></div>'; }
     cols += '<div class="col' + (sameDay(d, today) ? ' today' : '') + '" data-d="' + ymd(d) + '" data-col="1">' + blks + now + '</div>';
@@ -402,7 +463,7 @@ function renderList() {
 function fillList() {
   const box = $('lbody'); if (!box) return;
   const today = sod(new Date()), q = listQ.trim().toLowerCase(), rs = q ? addDays(today, -365) : today, re = addDays(today, 365);
-  let occ = occurrences(rs, re); if (q) occ = occ.filter(o => (o.ev.title + ' ' + o.ev.loc + ' ' + o.ev.memo).toLowerCase().includes(q));
+  let occ = occurrences(rs, re); if (q) occ = occ.filter(o => (o.ev.title + ' ' + o.ev.loc + ' ' + o.ev.memo + ' ' + o.ev.typeName).toLowerCase().includes(q));
   const groups = new Map();
   occ.sort((a, b) => sod(a.start) - sod(b.start) || occSort(a, b)).slice(0, 500).forEach(o => {
     let d = sod(o.start); if (d < rs) d = rs; const k = ymd(d); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(o);
@@ -453,7 +514,19 @@ view.addEventListener('touchend', e => {
 window.addEventListener('resize', () => { if (mode === 'month') fitMonth(); });
 
 /* ───────── 일정 편집 ───────── */
-const ED = { ev: null, dur: 3600e3, color: COLORS[0] };
+const ED = { ev: null, dur: 3600e3, color: COLORS[0], type: '' };
+function buildTypeChips() {
+  const asst_ = ED.ev && ED.ev.src === 'asst';
+  $('eType').innerHTML = '<button type="button" class="tchip' + (!ED.type ? ' on' : '') + '" data-t="">없음</button>' +
+    TYPES.map(t => '<button type="button" class="tchip' + (t.id === ED.type ? ' on' : '') + '" data-t="' + esc(t.id) + '" style="--c:' + t.color + '"><i>' + esc(t.emoji) + '</i>' + esc(t.name) + '</button>').join('') +
+    '<button type="button" class="tchip manage" data-manage="1">⚙ 종류 관리</button>';
+  $('rCol').hidden = !!asst_ || !!ED.type;   // 종류를 고르면 종류 색상이 쓰이므로 색상 선택은 숨김
+}
+$('eType').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.manage) return openTypes();
+  ED.type = b.dataset.t || ''; buildTypeChips();
+});
 function buildSwatches() {
   $('eCol').innerHTML = COLORS.map(c => '<button type="button" data-c="' + c + '" style="--c:' + c + '" class="' + (c === ED.color ? 'on' : '') + '" aria-label="색상"></button>').join('');
 }
@@ -485,7 +558,8 @@ function openEditor(ev, pre) {
   }
   $('eSd').value = ymd(s); $('eSt').value = hm(s); setEnd(e);
   ED.dur = Math.max(0, (curEnd() || e) - (curStart() || s));
-  buildSwatches(); syncAll();
+  ED.type = ev ? (ev.type || '') : '';
+  buildSwatches(); buildTypeChips(); syncAll();
   $('ed').classList.add('on'); $('fab').hidden = true;
   if (!ev) setTimeout(() => { try { $('eTitle').focus(); } catch (x) {} }, 60);
 }
@@ -501,7 +575,11 @@ const onEnd = () => { const s = curStart(), e = curEnd(); if (s && e && e >= s) 
 $('eEd').addEventListener('change', onEnd); $('eEt').addEventListener('change', onEnd);
 $('eCancel').onclick = closeEditor;
 $('ed').addEventListener('click', e => { if (e.target === $('ed')) closeEditor(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('ed').classList.contains('on')) closeEditor(); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if ($('tm').classList.contains('on')) { if (TM.edit) { TM.edit = null; renderTypes(); } else closeTypes(); }
+  else if ($('ed').classList.contains('on')) closeEditor();
+});
 $('fab').onclick = () => openEditor(null, { date: cur });
 
 async function saveOwn(rec) {
@@ -514,7 +592,7 @@ $('eSave').onclick = async () => {
   const s = curStart(); if (!s) { toast('시작 날짜를 확인해 주세요'); return; }
   try {
     if (ev && ev.src === 'asst') {
-      const raw = ev.raw, rec = Object.assign({}, raw, { title, start: s.toISOString(), allDay, remind: allDay ? null : (raw.remind != null ? raw.remind : 10) });
+      const raw = ev.raw, rec = Object.assign({}, raw, { title, type: ED.type, start: s.toISOString(), allDay, remind: allDay ? null : (raw.remind != null ? raw.remind : 10) });
       if (+new Date(raw.start) !== +s || !!raw.allDay !== allDay) rec.notified = false;   // 시간이 바뀌면 비서 알림을 다시 울리게
       if (!adb) adb = await openDB('simassistant', ['memos', 'events', 'alarms']);
       await idbPut(adb, 'events', rec);
@@ -523,7 +601,7 @@ $('eSave').onclick = async () => {
       let e = curEnd() || s;
       if (allDay) { if (e < s) e = s; }
       else if (e <= s) { e = new Date(s.getTime() + 3600e3); toast('종료가 시작보다 빨라 1시간으로 맞췄어요'); }
-      const rec = { id: ev ? ev.id : rid(), title, start: s.toISOString(), end: e.toISOString(), allDay, rep: $('eRep').value, color: ED.color, loc: $('eLoc').value.trim(), memo: $('eMemo').value.trim(), updated: new Date().toISOString() };
+      const rec = { id: ev ? ev.id : rid(), title, start: s.toISOString(), end: e.toISOString(), allDay, rep: $('eRep').value, type: ED.type, color: ED.color, loc: $('eLoc').value.trim(), memo: $('eMemo').value.trim(), updated: new Date().toISOString() };
       await saveOwn(rec);
     }
   } catch (err) { toast('저장하지 못했어요: ' + (err && err.message || err)); return; }
@@ -539,6 +617,79 @@ $('eDel').onclick = async () => {
   } catch (err) { toast('삭제하지 못했어요'); return; }
   buildEvents(); closeEditor(); render(); toast('삭제했어요');
 };
+
+/* ───────── 일정 종류 관리 (추가 · 변경 · 삭제) ───────── */
+const TM = { edit: null };   // null = 목록 / { id|null, color } = 입력 폼
+const usage = id => EVS.filter(e => e.type === id).length;
+function openTypes() { TM.edit = null; renderTypes(); $('tm').classList.add('on'); }
+function closeTypes() {
+  $('tm').classList.remove('on'); TM.edit = null;
+  if (ED.type && !typeById(ED.type)) ED.type = '';
+  buildEvents(); if ($('ed').classList.contains('on')) buildTypeChips(); render();
+}
+function tmSwatches() {
+  const c = (TM.edit.color || '').toLowerCase();
+  $('tColors').innerHTML = TCOLORS.map(x => '<button type="button" data-c="' + x + '" style="--c:' + x + '" class="' + (x === c ? 'on' : '') + '" aria-label="색상"></button>').join('');
+  $('tCustom').value = okColor(TM.edit.color) || TCOLORS[0];
+}
+function renderTypes() {
+  const ed = TM.edit;
+  $('tmList').hidden = !!ed; $('tmFoot').hidden = !!ed; $('tmForm').hidden = !ed;
+  $('tmTitle').textContent = ed ? (ed.id ? '종류 수정' : '종류 추가') : '일정 종류 관리';
+  if (!ed) {
+    $('tmList').innerHTML = TYPES.length ? TYPES.map(t => {
+      const n = usage(t.id);
+      return '<div class="trow" style="--c:' + t.color + '"><span class="em">' + esc(t.emoji || '·') + '</span><span class="dot"></span><span class="nm">' + esc(t.name) + '<small>일정 ' + n + '개</small></span><button data-edit="' + esc(t.id) + '">수정</button><button class="danger" data-del="' + esc(t.id) + '">삭제</button></div>';
+    }).join('') : '<div class="empty">등록된 종류가 없어요<br>＋ 종류 추가로 만들어 보세요</div>';
+    return;
+  }
+  const t = ed.id ? typeById(ed.id) : null;
+  $('tName').value = t ? t.name : ''; $('tEmoji').value = t ? t.emoji : '';
+  $('tQuick').innerHTML = QEMOJI.map(x => '<button type="button" data-e="' + x + '">' + x + '</button>').join('');
+  tmSwatches();
+}
+$('btnTypes').onclick = openTypes;
+$('tmClose').onclick = closeTypes;
+$('tm').addEventListener('click', e => { if (e.target === $('tm') && !TM.edit) closeTypes(); });
+$('tmAdd').onclick = () => { TM.edit = { id: null, color: TCOLORS[8] }; renderTypes(); setTimeout(() => { try { $('tName').focus(); } catch (x) {} }, 60); };
+$('tCancel').onclick = () => { TM.edit = null; renderTypes(); };
+$('tQuick').addEventListener('click', e => { const b = e.target.closest('button[data-e]'); if (b) $('tEmoji').value = b.dataset.e; });
+$('tColors').addEventListener('click', e => { const b = e.target.closest('button[data-c]'); if (b) { TM.edit.color = b.dataset.c; tmSwatches(); } });
+$('tCustom').addEventListener('input', e => { TM.edit.color = e.target.value; tmSwatches(); });
+$('tmList').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.edit) { const t = typeById(b.dataset.edit); if (t) { TM.edit = { id: t.id, color: t.color }; renderTypes(); } }
+  else if (b.dataset.del) deleteType(b.dataset.del);
+});
+$('tSave').onclick = () => {
+  const name = $('tName').value.trim(), emoji = Array.from($('tEmoji').value.trim()).slice(0, 4).join('');
+  if (!name) { toast('종류 이름을 입력해 주세요'); $('tName').focus(); return; }
+  if (TYPES.some(t => t.id !== TM.edit.id && t.name.toLowerCase() === name.toLowerCase())) { toast('같은 이름의 종류가 이미 있어요'); return; }
+  const color = okColor(TM.edit.color) || COLORS[0];
+  if (TM.edit.id) { const t = typeById(TM.edit.id); if (t) { t.name = name; t.emoji = emoji; t.color = color; } }
+  else TYPES.push({ id: 't_' + rid(), name, emoji, color });
+  saveTypes(); TM.edit = null; buildEvents(); renderTypes(); render();
+  if ($('ed').classList.contains('on')) buildTypeChips();
+  toast('저장했어요');
+};
+async function deleteType(id) {
+  const t = typeById(id); if (!t) return;
+  const n = usage(id);
+  if (!confirm('‘' + t.name + '’ 종류를 삭제할까요?' + (n ? '\n이 종류의 일정 ' + n + '개는 지워지지 않고 종류만 해제돼요.' : ''))) return;
+  try {
+    for (const r of own.filter(x => x.type === id)) await saveOwn(Object.assign({}, r, { type: '', color: t.color }));   // 직접 만든 일정은 지금 보이던 색을 그대로 유지
+    for (const r of asst.filter(x => x.type === id)) {
+      const rec = Object.assign({}, r); delete rec.type;
+      if (adb) { try { await idbPut(adb, 'events', rec); } catch (e) {} }
+      const i = asst.findIndex(x => x.id === rec.id); if (i >= 0) asst[i] = rec;
+    }
+  } catch (err) { toast('일부 일정을 갱신하지 못했어요'); }
+  TYPES = TYPES.filter(x => x.id !== id); saveTypes();
+  if (ED.type === id) ED.type = '';
+  buildEvents(); renderTypes(); render();
+  if ($('ed').classList.contains('on')) buildTypeChips();
+  toast('삭제했어요');
+}
 
 /* 음성 비서가 새 일정을 등록하면 곧바로 반영 */
 async function refreshAsst() { if ($('ed').classList.contains('on')) return; await loadAsst(); buildEvents(); render(); }

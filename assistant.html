@@ -92,6 +92,7 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 <div class="bar">
   <a class="back" href="index.html" title="SIM Tools">‹</a>
   <h1>SIM <span>Assistant</span></h1>
+  <button class="iconbtn" id="btnAi" title="Gemini 설정">✨</button>
   <button class="iconbtn" id="btnTts" title="음성 답변 켜기/끄기">🔊</button>
 </div>
 <div class="tabs" id="tabs">
@@ -123,6 +124,15 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
   <h2 id="ringTitle">알람</h2>
   <p id="ringSub"></p>
   <div class="btns"><button id="ringSnooze">5분 뒤 다시</button><button class="primary" id="ringStop">끄기</button></div>
+</div>
+<div id="aiModal" style="display:none;position:fixed;inset:0;z-index:90;background:rgba(7,10,16,.8);align-items:center;justify-content:center;padding:18px">
+  <div style="background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;width:100%;max-width:420px">
+    <b style="font-size:16px">✨ Gemini 연결</b>
+    <p class="note" style="margin:8px 0 10px">내 말을 못 알아들을 때만 Gemini가 대신 해석하고, 일반 질문에는 짧게 대답해요. 키는 이 폰 브라우저에만 저장되고, 말한 내용은 구글 서버로 전송돼요.</p>
+    <input id="aiKey" type="password" placeholder="Gemini API 키 (AIza…)" autocomplete="off" style="border-radius:10px">
+    <div class="note" id="aiState" style="margin:8px 0;min-height:18px"></div>
+    <div class="row" style="margin:0"><button id="aiSave" class="primary">저장·테스트</button><button id="aiDel" class="danger">키 삭제</button><button id="aiClose">닫기</button></div>
+  </div>
 </div>
 <div id="toast"></div>
 
@@ -306,6 +316,7 @@ const NLU = (() => {
       let c = t.replace(/^(메모|노트)\s*[:：]?\s*/, '');
       c = c.replace(/\s*(이?라고|라는\s*내용(을|이)?)?\s*(메모|노트에?\s*적|적어|기록)\s*(해|줘|둬|놔|주세요|줄래|해줘|좀|드려|할래)?[가-힣]*\s*$/g, '').trim();
       c = c.replace(/^(메모|노트)(해|좀|해줘)?\s*/, '').trim();
+      c = c.replace(/^(?:(?:해\s*줘|해\s*주세요|해\s*줄래|해\s*둬|해|좀|줘|적어\s*줘|적어|기록\s*해\s*줘|기록해)(?:요)?)(?=[\s,.:]|$)[\s,.:]*/, '').trim();
       if (c && !/^(메모|적어|기록|해줘|해|좀|줘|해주세요)[가-힣]*$/.test(c)) sl.content = c;
     } else if (intent === 'contact_add') {
       let s = t; const phones = (s.match(PH_RE) || []).map(fmtPhone);
@@ -969,11 +980,70 @@ async function navFlow(sl) {
   pickNav(p, cands.slice(0, 4));
 }
 
+
+/* ───────── Gemini (못 알아들은 말 해석 + 짧은 대화) ───────── */
+const GKEY = 'SIMAS_GEMINI_KEY', GMODELS = ['gemini-flash-latest', 'gemini-2.5-flash'];
+const gKey = () => ls.get(GKEY, '').trim();
+async function geminiCall(key, text, system) {
+  let lastErr = '';
+  for (const m of GMODELS) {
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 12000);
+    try {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent', {
+        method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 1024 } })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) { const t = (((j.candidates || [])[0] || {}).content || {}).parts; const out = (t || []).map(x => x.text || '').join('').trim(); if (out) return out; lastErr = '빈 응답'; continue; }
+      lastErr = (j.error && j.error.message) || ('HTTP ' + r.status);
+      if (r.status === 400 || r.status === 401 || r.status === 403 || r.status === 429) break;   // 키·한도 문제는 다른 모델로 바꿔도 같음
+    } catch (e) { lastErr = e && e.name === 'AbortError' ? '응답이 늦어요' : '연결 실패'; }
+    finally { clearTimeout(to); }
+  }
+  throw new Error(lastErr || '실패');
+}
+function geminiSystem() {
+  const d = new Date(), pad = n => String(n).padStart(2, '0');
+  return '너는 한국어 음성비서의 해석기다. 지금은 ' + d.getFullYear() + '년 ' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + ['일', '월', '화', '수', '목', '금', '토'][d.getDay()] + '요일 ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + '이다.\n' +
+    '사용자의 말을 보고 정확히 한 줄만 출력한다.\n' +
+    '1) 비서가 할 수 있는 일이면 "CMD: " 뒤에 아래 예시와 같은 표준 문장 하나로 바꿔 쓴다. 날짜와 시간은 숫자로 구체화한다(예: 내일 오전 7시). 말하지 않은 정보는 만들지 않는다.\n' +
+    '   예시: 메모해줘 우유 사기 / 홍길동 연락처 저장해줘 전화번호 010-1234-5678 / 홍길동 전화번호 찾아줘 / 홍길동한테 전화해줘 / 내일 오후 3시 미팅 일정 추가해줘 / 내일 오전 7시에 알람 맞춰줘 / 오늘 일정 알려줘 / 메모 보여줘 / 강남역으로 가자\n' +
+    '2) 그 외 일반 대화나 질문이면 "SAY: " 뒤에 한국어 1~2문장으로 짧게 답한다. 모르면 모른다고 한다.\n' +
+    '다른 설명, 마크다운, 따옴표는 쓰지 않는다.';
+}
+async function askGemini(text) {
+  sys('Gemini가 해석하는 중…');
+  try {
+    const out = await geminiCall(gKey(), text, geminiSystem());
+    const line = out.split('\n').map(x => x.trim()).find(x => /^(CMD|SAY)\s*:/i.test(x)) || ('SAY: ' + out.split('\n')[0]);
+    const body = line.replace(/^(CMD|SAY)\s*:\s*/i, '').trim();
+    if (/^CMD/i.test(line)) {
+      if (!NLU.detect(body)) return bot('잘 이해하지 못했어요. 다르게 말씀해 보세요.');
+      sys('Gemini가 이해한 말: ' + body);
+      return handleText(body, true);
+    }
+    return bot(body.slice(0, 400));
+  } catch (e) {
+    sys('Gemini 연결 실패: ' + (e.message || e));
+    return bot('잘 이해하지 못했어요. 이렇게 말해 보세요.', { html: '<b>이렇게 말해 보세요</b><span class="sub">' + HELP.map(esc).join('<br>') + '</span>', say: '잘 이해하지 못했어요. 메모, 연락처 저장, 전화번호 찾기, 전화 걸기, 일정, 알람을 말씀해 보세요.' });
+  }
+}
+function aiShow(msg) { $('aiState').textContent = msg || (gKey() ? '✓ 키가 저장돼 있어요' : '저장된 키가 없어요'); }
+$('btnAi').onclick = () => { $('aiKey').value = ''; aiShow(); $('aiModal').style.display = 'flex'; };
+$('aiClose').onclick = () => { $('aiModal').style.display = 'none'; };
+$('aiDel').onclick = () => { try { localStorage.removeItem(GKEY); } catch (e) {} $('aiKey').value = ''; aiShow('키를 삭제했어요'); };
+$('aiSave').onclick = async () => {
+  const k = $('aiKey').value.trim() || gKey(); if (!k) return aiShow('키를 입력해 주세요');
+  aiShow('테스트 중…');
+  try { await geminiCall(k, '안녕', '한 단어로만 답해.'); ls.set(GKEY, k); $('aiKey').value = ''; aiShow('✓ 연결됐어요. 이제 못 알아듣는 말은 Gemini가 도와요'); }
+  catch (e) { aiShow('✗ 실패: ' + (e.message || e)); }
+};
+
 /* ───────── 입력 처리 ───────── */
 const HELP = ['"메모해줘"', '"홍길동 연락처 저장해줘"', '"홍길동 전화번호 찾아줘"', '"홍길동한테 전화해줘"', '"내일 오후 3시 미팅 일정 추가해줘"', '"내일 아침 7시에 알람 맞춰줘"', '"오늘 일정 알려줘"', '"강남역으로 가자"'];
-async function handleText(raw) {
+async function handleText(raw, viaAI) {
   const text = String(raw || '').trim(); if (!text) return;
-  addMsg('me', esc(text)); const n = NLU.normalize(text);
+  if (!viaAI) addMsg('me', esc(text)); const n = NLU.normalize(text);
   if (pending && /^(취소|그만|중지|됐어|아니야?\s*그만|그만해)/.test(n)) return cancelP('취소했어요.');
   if (pending) {
     const p = pending, di = NLU.detect(text);
@@ -982,6 +1052,7 @@ async function handleText(raw) {
     pending = null;   // 다른 요청이 들어오면 이전 것은 접는다
   }
   const intent = NLU.detect(text);
+  if (!intent && !viaAI && gKey()) return askGemini(text);
   if (!intent) { lastVoice && (autoTried = true); return bot('잘 이해하지 못했어요. 이렇게 말해 보세요.', { html: '<b>이렇게 말해 보세요</b><span class="sub">' + HELP.map(esc).join('<br>') + '</span>', say: '잘 이해하지 못했어요. 메모, 연락처 저장, 전화번호 찾기, 전화 걸기, 일정, 알람을 말씀해 보세요.' }); }
   const sl = NLU.extract(intent, text, new Date());
   switch (intent) {

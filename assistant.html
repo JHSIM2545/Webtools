@@ -30,7 +30,7 @@ input:focus{border-color:var(--accent)}
 .tabs button.on i{background:#10304a;color:var(--accent)}
 .pane{display:none;flex:1;min-height:0;overflow-y:auto;padding:14px;-webkit-overflow-scrolling:touch}
 .pane.on{display:block}
-#pChat.on{display:flex;flex-direction:column}
+#pChat.on{display:flex;flex-direction:column;padding-bottom:84px}
 #chat{flex:1;display:flex;flex-direction:column;gap:10px}
 .msg{max-width:88%;padding:10px 13px;border-radius:16px;font-size:14.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
 .msg.bot{background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:5px;align-self:flex-start}
@@ -53,7 +53,7 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 .composer{display:flex;align-items:center;gap:8px;padding:8px 12px calc(10px + env(safe-area-inset-bottom));background:var(--bg)}
 .composer input{flex:1}
 .send{width:44px;height:44px;border-radius:50%;padding:0;font-size:18px;flex:none}
-.mic{width:56px;height:56px;border-radius:50%;padding:0;flex:none;background:#d9eeff;border-color:#d9eeff;color:#111;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative}
+.mic{position:fixed;right:16px;bottom:calc(112px + env(safe-area-inset-bottom));z-index:40;box-shadow:0 6px 18px rgba(0,0,0,.55);width:64px;height:64px;border-radius:50%;padding:0;flex:none;background:#d9eeff;border-color:#d9eeff;color:#111;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative}
 .mic svg{width:100%;height:100%;display:block}
 .mic.on{border-color:var(--danger);animation:pulse 1.2s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,93,93,.55)}70%{box-shadow:0 0 0 16px rgba(255,93,93,0)}100%{box-shadow:0 0 0 0 rgba(255,93,93,0)}}

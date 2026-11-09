@@ -666,7 +666,7 @@ function startListen(barge) {
     }
     if (t) { lastVoice = true; stopSpeak(); handleText(t); return; }
     const nt = m => { toast(m, 4200); sys(m); };   // 화면 아래가 가려지는 기기(차량 화면 등)에서도 보이도록 대화창에도 남긴다
-    if (err === 'not-allowed' || err === 'service-not-allowed') nt('마이크 권한을 허용해 주세요 (브라우저 주소창 옆 설정). 차량 화면에서는 음성 인식이 막혀 있을 수 있어요');
+    if (err === 'not-allowed' || err === 'service-not-allowed') { if (lastFailMsg !== MIC_DENIED || Date.now() - lastFailAt > 60000) sys(MIC_DENIED); lastFailMsg = MIC_DENIED; lastFailAt = Date.now(); toast('마이크가 허용되지 않았어요', 4200); }
     else if (err === 'network') nt('음성 인식 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요');
     else if (err === 'audio-capture') nt('마이크를 찾을 수 없어요');
     else if (err === 'language-not-supported') nt('이 기기는 한국어 음성 인식을 지원하지 않아요');
@@ -1211,7 +1211,14 @@ function liveReconnect(why) {
   const old = LIVE.ws; LIVE.ws = null; try { old && old.close(); } catch (e) {}
   setTimeout(() => { LIVE.reconnecting = false; if (LIVE.on && !LIVE.ending) liveOpen(); }, 600 * LIVE.retries);
 }
-function liveFail(msg) { const was = LIVE.on; liveEnd(true); if (was) { sys('실시간 대화를 쓸 수 없어요: ' + msg + ' — 기본 방식으로 돌아가요'); toast('실시간 연결 실패: ' + msg, 4200); } }
+const MIC_DENIED = '이 기기의 브라우저가 마이크 사용을 허용하지 않아요. 일반 폰 브라우저라면 주소창 옆 사이트 설정에서 마이크를 허용해 주세요. 차량 화면 브라우저는 마이크를 막아 둔 경우가 많으니, 폰에서 SIM Assistant를 열고 소리만 차량 블루투스로 내보내 쓰세요.';
+let lastFailMsg = '', lastFailAt = 0;
+function liveFail(msg, denied) {
+  const was = LIVE.on; liveEnd(true); if (!was) return;
+  const text = denied ? MIC_DENIED : '실시간 대화를 쓸 수 없어요: ' + msg + ' — 기본 방식으로 돌아가요';
+  if (text !== lastFailMsg || Date.now() - lastFailAt > 60000) sys(text);   // 같은 안내를 계속 쌓지 않는다
+  lastFailMsg = text; lastFailAt = Date.now(); toast(denied ? '마이크가 허용되지 않았어요' : '실시간 연결 실패: ' + msg, 4200);
+}
 const BT_RE = /bluetooth|블루투스|hands-?free|handsfree|hfp|\bbt\b|\bcar\b|차량|카오디오|carplay|android ?auto|uconnect/i;
 async function liveAcq() {   // 마이크 열기. 차량·블루투스 마이크면 에코 제거를 켜서 다시 연다
   const mk = aec => navigator.mediaDevices.getUserMedia({ audio: Object.assign({ echoCancellation: aec, noiseSuppression: true, autoGainControl: true, channelCount: 1 }, LIVE.dev ? { deviceId: { exact: LIVE.dev } } : {}) });
@@ -1255,7 +1262,7 @@ async function liveStart() {
     try { if (navigator.wakeLock) LIVE.wake = await navigator.wakeLock.request('screen'); } catch (e) {}
     liveOpen(); liveAnim();
     clearInterval(LIVE.wd); LIVE.wd = setInterval(() => { try { if (LIVE.ictx && LIVE.ictx.state === 'suspended') LIVE.ictx.resume(); if (LIVE.octx && LIVE.octx.state === 'suspended') LIVE.octx.resume(); } catch (e) {} }, 1500);
-  } catch (e) { liveFail(e && e.name === 'NotAllowedError' ? '마이크 권한을 허용해 주세요' : (e && e.message) || '시작하지 못했어요'); }
+  } catch (e) { const dn = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError' || e.name === 'PermissionDeniedError'); liveFail(dn ? '마이크 권한' : (e && e.message) || '시작하지 못했어요', dn); }
 }
 function liveEnd(silent) {
   if (!LIVE.on && !silent) return; LIVE.ending = true; LIVE.on = false;

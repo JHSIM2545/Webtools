@@ -139,7 +139,9 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
   <p id="liveMe"></p>
   <p id="liveBot"></p>
   <div id="liveActs"></div>
-  <div class="btns"><button id="liveMute">🎤 음소거</button><button class="danger" id="liveEnd">대화 종료</button></div>
+  <div class="btns"><button id="liveCut">✋ 말 끊기</button><button id="liveMute">🎤 음소거</button><button class="danger" id="liveEnd">대화 종료</button></div>
+  <div class="row" style="align-items:center;max-width:340px;width:100%;margin:4px 0 0"><span class="note" style="flex:none;width:auto">🔊 볼륨</span><input id="liveVol" type="range" min="1" max="4" step="0.5" style="padding:0;border:none;background:none"></div>
+  <button id="liveSpk" style="font-size:13px;padding:7px 12px"></button>
   <div class="note" style="margin-top:6px">이어폰을 쓰면 인식이 가장 정확해요</div>
 </div>
 <div id="aiModal" style="display:none;position:fixed;inset:0;z-index:90;background:rgba(7,10,16,.8);align-items:center;justify-content:center;padding:18px">
@@ -1047,7 +1049,7 @@ $('aiSave').onclick = async () => {
    브라우저 ↔ Supabase Edge Function(assistant-live) ↔ Gemini Live. 키·지시문·도구 선언은 서버에만 있고,
    도구(메모·연락처·일정·알람·전화·길안내)는 이 폰 안에서 실행한다. */
 const LURL = window.SIMAS_LIVE_URL || 'wss://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-live';
-const LIVE = { on: false, ws: null, ready: false, handle: '', stream: null, ictx: null, octx: null, node: null, nextT: 0, srcs: [], retries: 0, muted: false, wake: null, cands: [], bub: { me: null, bot: null }, ending: false, reconnecting: false };
+const LIVE = { on: false, ws: null, ready: false, handle: '', stream: null, ictx: null, octx: null, node: null, nextT: 0, srcs: [], retries: 0, muted: false, wake: null, cands: [], bub: { me: null, bot: null }, ending: false, reconnecting: false, speaker: ls.get('SIMAS_LIVE_SPK', '1') === '1', vol: Math.max(1, Math.min(4, +ls.get('SIMAS_LIVE_VOL', '2.5') || 2.5)), gain: null, quietUntil: 0, drop: false };
 const liveSet = (st, ico, talk) => { $('liveState').textContent = st; if (ico) $('liveIco').textContent = ico; $('live').classList.toggle('talk', !!talk); };
 function liveBubble(kind, add) {
   if (!add) return;
@@ -1072,9 +1074,10 @@ function livePlay(b64data) {
     const i16 = new Int16Array(unb64(b64data)), f = new Float32Array(i16.length);
     for (let i = 0; i < i16.length; i++) f[i] = i16[i] / 32768;
     const buf = LIVE.octx.createBuffer(1, f.length, 24000); buf.getChannelData(0).set(f);
-    const src = LIVE.octx.createBufferSource(); src.buffer = buf; src.connect(LIVE.octx.destination);
+    if (LIVE.drop) return;
+    const src = LIVE.octx.createBufferSource(); src.buffer = buf; src.connect(LIVE.gain || LIVE.octx.destination);
     const t = Math.max(LIVE.octx.currentTime + 0.02, LIVE.nextT); src.start(t); LIVE.nextT = t + buf.duration;
-    LIVE.srcs.push(src); src.onended = () => { LIVE.srcs = LIVE.srcs.filter(x => x !== src); if (!LIVE.srcs.length && LIVE.on) liveSet('듣고 있어요', '🎙', false); };
+    LIVE.srcs.push(src); src.onended = () => { LIVE.srcs = LIVE.srcs.filter(x => x !== src); if (!LIVE.srcs.length) { LIVE.quietUntil = Date.now() + 500; if (LIVE.on) liveSet('듣고 있어요', '🎙', false); } };
     liveSet('말하는 중', '🔊', true);
   } catch (e) {}
 }
@@ -1173,11 +1176,11 @@ function liveMsg(m) {
   if (m.goAway) { liveReconnect('goAway'); return; }
   if (m.toolCall && m.toolCall.functionCalls) { liveTools(m.toolCall.functionCalls); return; }
   const sc = m.serverContent; if (!sc) return;
-  if (sc.interrupted) { liveFlush(); liveSet('듣고 있어요', '🎙', false); LIVE.bub.bot = null; }
+  if (sc.interrupted) { LIVE.drop = false; liveFlush(); liveSet('듣고 있어요', '🎙', false); LIVE.bub.bot = null; }
   if (sc.inputTranscription && sc.inputTranscription.text) { if (LIVE.bub.bot) LIVE.bub.bot = null; liveBubble('me', sc.inputTranscription.text); }
   if (sc.modelTurn && sc.modelTurn.parts) sc.modelTurn.parts.forEach(p => { if (p.inlineData && p.inlineData.data) livePlay(p.inlineData.data); });
   if (sc.outputTranscription && sc.outputTranscription.text) liveBubble('bot', sc.outputTranscription.text);
-  if (sc.turnComplete) liveTurnEnd();
+  if (sc.turnComplete) { LIVE.drop = false; liveTurnEnd(); }
 }
 function liveOpen() {
   const ph = gKey(); LIVE.ready = false;
@@ -1201,17 +1204,20 @@ async function liveStart() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !(window.AudioContext || window.webkitAudioContext) || !window.AudioWorkletNode) { toast('이 브라우저는 실시간 음성 대화를 지원하지 않아요', 4200); return; }
   if (listening) { try { rec.stop(); } catch (e) {} }
   stopSpeak(); unlockAudio(); LIVE.on = true; LIVE.ending = false; LIVE.retries = 0; LIVE.handle = ''; LIVE.muted = false; LIVE.bub = { me: null, bot: null };
-  $('live').classList.add('on'); $('liveMe').textContent = ''; $('liveBot').textContent = ''; $('liveActs').innerHTML = ''; $('liveMute').textContent = '🎤 음소거'; liveSet('연결 중…', '🎙', false);
+  $('live').classList.add('on'); $('liveMe').textContent = ''; $('liveBot').textContent = ''; $('liveActs').innerHTML = ''; $('liveMute').textContent = '🎤 음소거'; liveSet('연결 중…', '🎙', false); $('liveVol').value = LIVE.vol; spkLabel();
   try {
-    LIVE.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    LIVE.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: !LIVE.speaker, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
     const AC = window.AudioContext || window.webkitAudioContext;
     LIVE.ictx = new AC(); try { await LIVE.ictx.resume(); } catch (e) {}
     await LIVE.ictx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' })));
     const srcN = LIVE.ictx.createMediaStreamSource(LIVE.stream); LIVE.node = new AudioWorkletNode(LIVE.ictx, 'pcm-cap');
-    LIVE.node.port.onmessage = ev => { if (LIVE.muted || !LIVE.ready) return; liveSend({ realtimeInput: { audio: { data: b64(ev.data), mimeType: 'audio/pcm;rate=16000' } } }); };
+    LIVE.node.port.onmessage = ev => { if (LIVE.muted || !LIVE.ready) return; if (LIVE.speaker && (LIVE.srcs.length || Date.now() < LIVE.quietUntil)) return; liveSend({ realtimeInput: { audio: { data: b64(ev.data), mimeType: 'audio/pcm;rate=16000' } } }); };
     const mute = LIVE.ictx.createGain(); mute.gain.value = 0; srcN.connect(LIVE.node); LIVE.node.connect(mute); mute.connect(LIVE.ictx.destination);
     try { LIVE.octx = new AC({ sampleRate: 24000 }); } catch (e) { LIVE.octx = new AC(); }
     try { await LIVE.octx.resume(); } catch (e) {}
+    try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) {}
+    LIVE.gain = LIVE.octx.createGain(); LIVE.gain.gain.value = LIVE.vol;
+    if (LIVE.octx.createDynamicsCompressor) { const cp = LIVE.octx.createDynamicsCompressor(); LIVE.gain.connect(cp); cp.connect(LIVE.octx.destination); } else LIVE.gain.connect(LIVE.octx.destination);
     try { if (navigator.wakeLock) LIVE.wake = await navigator.wakeLock.request('screen'); } catch (e) {}
     liveOpen();
   } catch (e) { liveFail(e && e.name === 'NotAllowedError' ? '마이크 권한을 허용해 주세요' : (e && e.message) || '시작하지 못했어요'); }
@@ -1221,7 +1227,7 @@ function liveEnd(silent) {
   try { LIVE.ws && LIVE.ws.close(1000); } catch (e) {} LIVE.ws = null; LIVE.ready = false; liveFlush();
   try { LIVE.node && (LIVE.node.port.onmessage = null, LIVE.node.disconnect()); } catch (e) {} LIVE.node = null;
   try { LIVE.stream && LIVE.stream.getTracks().forEach(t => t.stop()); } catch (e) {} LIVE.stream = null;
-  try { LIVE.ictx && LIVE.ictx.close(); } catch (e) {} LIVE.ictx = null; try { LIVE.octx && LIVE.octx.close(); } catch (e) {} LIVE.octx = null;
+  try { LIVE.ictx && LIVE.ictx.close(); } catch (e) {} LIVE.ictx = null; try { LIVE.octx && LIVE.octx.close(); } catch (e) {} LIVE.octx = null; LIVE.gain = null; LIVE.drop = false;
   try { LIVE.wake && LIVE.wake.release(); } catch (e) {} LIVE.wake = null;
   $('live').classList.remove('on'); liveTurnEnd();
 }
@@ -1229,6 +1235,10 @@ const liveCapable = () => !!(navigator.mediaDevices && navigator.mediaDevices.ge
 // 하단 대화 버튼: 실시간 대화(번호 등록·지원 브라우저) → 아니면 기존 한 번 듣기로 자동 전환
 $('btnMic').onclick = () => { if (LIVE.on) return liveEnd(); if (gKey() && liveCapable()) return liveStart(); startListen(); };
 $('liveEnd').onclick = () => liveEnd();
+const spkLabel = () => { $('liveSpk').textContent = LIVE.speaker ? '🔈 스피커폰 모드: 켬 (소리 큼 · 말하는 동안 마이크 꺼짐)' : '🎧 이어폰 모드 (끼어들기 가능)'; };
+$('liveVol').oninput = () => { LIVE.vol = +$('liveVol').value; ls.set('SIMAS_LIVE_VOL', String(LIVE.vol)); if (LIVE.gain) LIVE.gain.gain.value = LIVE.vol; };
+$('liveCut').onclick = () => { LIVE.drop = true; liveFlush(); liveSet('듣고 있어요', '🎙', false); };
+$('liveSpk').onclick = async () => { LIVE.speaker = !LIVE.speaker; ls.set('SIMAS_LIVE_SPK', LIVE.speaker ? '1' : '0'); spkLabel(); toast('모드를 바꿔 다시 연결해요'); liveEnd(); await sleep(300); liveStart(); };
 $('liveMute').onclick = () => { LIVE.muted = !LIVE.muted; $('liveMute').textContent = LIVE.muted ? '🔇 음소거 해제' : '🎤 음소거'; };
 
 /* ───────── 입력 처리 ───────── */

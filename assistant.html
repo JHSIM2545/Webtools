@@ -433,13 +433,17 @@ const os = (db, s, m) => db.transaction(s, m).objectStore(s);
 const idbAll = (db, s) => new Promise((res, rej) => { const q = os(db, s, 'readonly').getAll(); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
 const idbPut = (db, s, v) => new Promise((res, rej) => { const q = os(db, s, 'readwrite').put(v); q.onsuccess = () => res(); q.onerror = () => rej(q.error); });
 const idbDel = (db, s, id) => new Promise((res, rej) => { const q = os(db, s, 'readwrite').delete(id); q.onsuccess = () => res(); q.onerror = () => rej(q.error); });
+const calBC = (() => { try { return new BroadcastChannel('simcal'); } catch (e) { return null; } })();   // SIM Calendar에 일정 변경 알림
+const calPing = store => { if (store === 'events' && calBC) { try { calBC.postMessage('events'); } catch (e) {} } };
 async function put(store, v) {
   if (adb) { try { await idbPut(adb, store, v); } catch (e) { memOnly = true; } }
   const a = MEM[store], i = a.findIndex(x => x.id === v.id); if (i >= 0) a[i] = v; else a.push(v);
+  calPing(store);
 }
 async function del(store, id) {
   if (adb) { try { await idbDel(adb, store, id); } catch (e) {} }
   MEM[store] = MEM[store].filter(x => x.id !== id);
+  calPing(store);
 }
 async function loadContacts() {
   try { if (!pdb) pdb = await idbOpen('simphone', ['contacts']); contacts = await idbAll(pdb, 'contacts'); }

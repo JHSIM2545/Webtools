@@ -666,7 +666,7 @@ function startListen(barge) {
     }
     if (t) { lastVoice = true; stopSpeak(); handleText(t); return; }
     const nt = m => { toast(m, 4200); sys(m); };   // 화면 아래가 가려지는 기기(차량 화면 등)에서도 보이도록 대화창에도 남긴다
-    if (err === 'not-allowed' || err === 'service-not-allowed') { if (lastFailMsg !== MIC_DENIED || Date.now() - lastFailAt > 60000) sys(MIC_DENIED); lastFailMsg = MIC_DENIED; lastFailAt = Date.now(); toast('마이크가 허용되지 않았어요', 4200); }
+    if (err === 'not-allowed' || err === 'service-not-allowed') { micAdvice().then(t => { if (t !== lastFailMsg || Date.now() - lastFailAt > 60000) sys(t); lastFailMsg = t; lastFailAt = Date.now(); }); toast('마이크가 허용되지 않았어요', 4200); }
     else if (err === 'network') nt('음성 인식 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요');
     else if (err === 'audio-capture') nt('마이크를 찾을 수 없어요');
     else if (err === 'language-not-supported') nt('이 기기는 한국어 음성 인식을 지원하지 않아요');
@@ -1211,11 +1211,18 @@ function liveReconnect(why) {
   const old = LIVE.ws; LIVE.ws = null; try { old && old.close(); } catch (e) {}
   setTimeout(() => { LIVE.reconnecting = false; if (LIVE.on && !LIVE.ending) liveOpen(); }, 600 * LIVE.retries);
 }
-const MIC_DENIED = '이 기기의 브라우저가 마이크 사용을 허용하지 않아요. 일반 폰 브라우저라면 주소창 옆 사이트 설정에서 마이크를 허용해 주세요. 차량 화면 브라우저는 마이크를 막아 둔 경우가 많으니, 폰에서 SIM Assistant를 열고 소리만 차량 블루투스로 내보내 쓰세요.';
+const MIC_DENIED = '이 기기의 브라우저가 마이크 사용을 허용하지 않아요.';
+async function micAdvice() {   // 크롬이 기억하는 마이크 권한 상태에 맞는 안내
+  let st = ''; try { st = (await navigator.permissions.query({ name: 'microphone' })).state; } catch (e) {}
+  if (st === 'denied') return MIC_DENIED + ' (권한 상태: 차단됨) 크롬 주소창 왼쪽 아이콘 → 권한 → 마이크 허용, 또는 크롬 설정 → 사이트 설정 → 마이크에서 jhsim2545.github.io를 허용으로 바꿔 주세요. 그래도 안 되면 폰 설정 → 앱 → Chrome → 권한 → 마이크도 확인해 주세요.';
+  if (st === 'prompt') return MIC_DENIED + ' (권한 상태: 아직 묻지 않음) 허용 팝업이 이 화면에 안 뜨는 것 같아요. 차량 화면이 아니라 폰의 크롬에서 먼저 열어 마이크를 허용한 뒤 다시 시도해 주세요.';
+  if (st === 'granted') return '마이크는 허용돼 있는데 열리지 않아요. 다른 앱(통화·녹음·내비 음성)이 마이크를 쓰고 있지 않은지 확인해 주세요. 차량 블루투스 연결 중이면 연결을 껐다 켜 보세요.';
+  return MIC_DENIED + ' 차량 화면 브라우저는 마이크를 막아 둔 경우가 많으니, 폰의 크롬에서 열고 소리만 차량 블루투스로 내보내 보세요.';
+}
 let lastFailMsg = '', lastFailAt = 0;
-function liveFail(msg, denied) {
+async function liveFail(msg, denied) {
   const was = LIVE.on; liveEnd(true); if (!was) return;
-  const text = denied ? MIC_DENIED : '실시간 대화를 쓸 수 없어요: ' + msg + ' — 기본 방식으로 돌아가요';
+  const text = denied ? await micAdvice() : '실시간 대화를 쓸 수 없어요: ' + msg + ' — 기본 방식으로 돌아가요';
   if (text !== lastFailMsg || Date.now() - lastFailAt > 60000) sys(text);   // 같은 안내를 계속 쌓지 않는다
   lastFailMsg = text; lastFailAt = Date.now(); toast(denied ? '마이크가 허용되지 않았어요' : '실시간 연결 실패: ' + msg, 4200);
 }

@@ -53,9 +53,9 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 .composer{display:flex;align-items:center;gap:8px;padding:8px 12px calc(10px + env(safe-area-inset-bottom));background:var(--bg)}
 .composer input{flex:1}
 .send{width:44px;height:44px;border-radius:50%;padding:0;font-size:18px;flex:none}
-.mic{width:56px;height:56px;border-radius:50%;padding:0;flex:none;background:var(--accent2);border-color:var(--accent2);color:#031a2b;display:flex;align-items:center;justify-content:center;position:relative}
-.mic svg{width:26px;height:26px}
-.mic.on{background:var(--danger);border-color:var(--danger);color:#fff;animation:pulse 1.2s infinite}
+.mic{width:56px;height:56px;border-radius:50%;padding:0;flex:none;background:#d9eeff;border-color:#d9eeff;color:#111;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative}
+.mic svg{width:100%;height:100%;display:block}
+.mic.on{border-color:var(--danger);animation:pulse 1.2s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,93,93,.55)}70%{box-shadow:0 0 0 16px rgba(255,93,93,0)}100%{box-shadow:0 0 0 0 rgba(255,93,93,0)}}
 .listen{display:none;text-align:center;font-size:13px;color:var(--accent);padding:4px 12px 0}
 .listen.on{display:block}
@@ -100,7 +100,6 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 <div class="bar">
   <a class="back" href="index.html" title="SIM Tools">‹</a>
   <h1>SIM <span>Assistant</span></h1>
-  <button class="iconbtn" id="btnLive" title="실시간 음성 대화 (Gemini Live)">🗣</button>
   <button class="iconbtn" id="btnAi" title="Gemini 설정">✨</button>
   <button class="iconbtn" id="btnTts" title="음성 답변 켜기/끄기">🔊</button>
 </div>
@@ -122,8 +121,8 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
   <div class="composer">
     <input id="txt" type="text" placeholder="말하거나 입력하세요" autocomplete="off" enterkeyhint="send">
     <button class="send" id="btnSend" title="보내기">➤</button>
-    <button class="mic" id="btnMic" title="말하기">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    <button class="mic" id="btnMic" title="대화 (실시간 음성 대화)">
+      <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="60" fill="#d9eeff"/><g stroke="#111" stroke-width="7" stroke-linecap="round"><path d="M42 44v32"/><path d="M60 32v56"/><path d="M78 52v16"/></g></svg>
     </button>
   </div>
 </div>
@@ -1226,7 +1225,9 @@ function liveEnd(silent) {
   try { LIVE.wake && LIVE.wake.release(); } catch (e) {} LIVE.wake = null;
   $('live').classList.remove('on'); liveTurnEnd();
 }
-$('btnLive').onclick = () => (LIVE.on ? liveEnd() : liveStart());
+const liveCapable = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && (window.AudioContext || window.webkitAudioContext) && window.AudioWorkletNode);
+// 하단 대화 버튼: 실시간 대화(번호 등록·지원 브라우저) → 아니면 기존 한 번 듣기로 자동 전환
+$('btnMic').onclick = () => { if (LIVE.on) return liveEnd(); if (gKey() && liveCapable()) return liveStart(); startListen(); };
 $('liveEnd').onclick = () => liveEnd();
 $('liveMute').onclick = () => { LIVE.muted = !LIVE.muted; $('liveMute').textContent = LIVE.muted ? '🔇 음소거 해제' : '🎤 음소거'; };
 
@@ -1345,7 +1346,7 @@ $('txt').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isCompos
   await loadContacts(); renderAll(); setInterval(tick, 1000); tick(); wakeOn();
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
-  addMsg('bot', '<b>안녕하세요, SIM Assistant예요.</b><span class="sub">마이크 버튼을 누르고 말씀하세요.<br>메모 · 연락처 저장/검색 · 전화 걸기 · 길안내 · 일정 · 알람을 도와드려요.</span>');
+  addMsg('bot', '<b>안녕하세요, SIM Assistant예요.</b><span class="sub">아래 대화 버튼을 누르고 말씀하세요.<br>메모 · 연락처 저장/검색 · 전화 걸기 · 길안내 · 일정 · 알람을 도와드려요.</span>');
   if (!SR) sys('이 브라우저는 음성 인식을 지원하지 않아요. 키보드의 🎤(받아쓰기)를 쓰거나 Chrome·Safari에서 열어 주세요.');
   else if (ios && standalone) sys('iPhone 홈 화면 앱에서는 음성 인식이 막힐 수 있어요. 안 되면 키보드의 🎤(받아쓰기)를 쓰거나 Safari에서 열어 주세요.');
   if (memOnly) sys('이 브라우저는 저장소를 쓸 수 없어 임시로만 동작해요. 닫으면 사라져요.');

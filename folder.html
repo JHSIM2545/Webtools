@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#d94b8a">
+<title>SIM Folder</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+:root{--ac:#d94b8a;--bg:#fff;--bg2:#f5f4ef;--tx:#1d1d1b;--tx2:#6b6a64;--bd:#e4e2da;--tint:#FCE4EF;--tintx:#8f2a58;--dng:#c0392b}
+@media(prefers-color-scheme:dark){:root{--bg:#1b1b19;--bg2:#262624;--tx:#f1efe8;--tx2:#a8a69c;--bd:#37362f;--tint:#4a1630;--tintx:#ffb3d3;--dng:#ff7b6b}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Noto Sans KR",sans-serif}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit;color:var(--tx)}
+#auth{display:none;min-height:100dvh;flex-direction:column;justify-content:center;padding:24px;gap:12px;max-width:420px;margin:0 auto}
+#auth h1{font-size:26px;margin:0 0 8px;font-weight:600}
+#auth h1 span{color:var(--ac)}
+.fld{width:100%;height:48px;border:1px solid var(--bd);border-radius:10px;padding:0 14px;background:var(--bg2)}
+.btn{width:100%;height:48px;border-radius:10px;background:var(--ac);color:#fff;font-weight:600;font-size:16px}
+.btn.s{background:var(--bg2);color:var(--tx);border:1px solid var(--bd)}
+#aerr{color:var(--dng);font-size:13px;min-height:18px}
+#app{display:none;height:100dvh;flex-direction:column}
+#hd{display:flex;align-items:center;gap:4px;padding:6px 8px 6px 14px;min-height:56px;padding-top:calc(6px + env(safe-area-inset-top))}
+#hd .t{font-size:19px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sp{flex:1}
+.ib{width:44px;height:44px;border-radius:50%;font-size:23px;color:var(--tx2);display:flex;align-items:center;justify-content:center}
+.tb{height:44px;padding:0 10px;color:var(--ac);font-weight:600}
+#sr{display:none;margin:0 14px 8px;height:42px;border:1px solid var(--bd);border-radius:10px;padding:0 12px;background:var(--bg2);width:calc(100% - 28px)}
+#cr{display:flex;justify-content:space-between;gap:8px;padding:2px 14px 8px;font-size:13px;color:var(--tx2)}
+#cr .p{white-space:nowrap;overflow-x:auto;scrollbar-width:none}
+#cr .p span{padding:6px 2px;display:inline-block}
+#cr .p span.cur{color:var(--tx);font-weight:600}
+#cr .u{white-space:nowrap}
+#ch{display:flex;gap:6px;padding:0 14px 10px;overflow-x:auto;scrollbar-width:none}
+.c{font-size:13px;padding:8px 14px;border-radius:18px;border:1px solid var(--bd);color:var(--tx2);white-space:nowrap}
+.c.a{background:var(--ac);border-color:var(--ac);color:#fff}
+#ls{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.row{display:flex;align-items:center;gap:12px;padding:0 6px 0 14px;min-height:60px;border-top:1px solid var(--bd);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.row:active{background:var(--bg2)}
+.ic{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:21px;background:var(--tint);color:var(--tintx);flex:none}
+.tx{flex:1;min-width:0}
+.n{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m{font-size:12px;color:var(--tx2)}
+.mb{width:44px;height:44px;font-size:21px;color:var(--tx2);display:flex;align-items:center;justify-content:center}
+.ck{width:23px;height:23px;border-radius:50%;border:2px solid var(--tx2);flex:none;align-items:center;justify-content:center;color:#fff;font-size:15px}
+.ck.on{background:var(--ac);border-color:var(--ac)}
+.emp{padding:64px 24px;text-align:center;color:var(--tx2)}
+.emp i{font-size:44px;display:block;margin-bottom:8px}
+#fab{position:fixed;right:16px;bottom:calc(72px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:18px;background:var(--ac);color:#fff;font-size:28px;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.25)}
+#nav,#bar{display:flex;border-top:1px solid var(--bd);background:var(--bg);padding-bottom:env(safe-area-inset-bottom)}
+#bar{display:none}
+#nav button,#bar button{flex:1;height:60px;font-size:11px;color:var(--tx2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+#nav button i,#bar button i{font-size:23px}
+#nav button.a{color:var(--ac)}
+#bar button{color:var(--tx)}
+#bar button.d{color:var(--dng)}
+#ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:20}
+#sh{background:var(--bg);width:100%;border-radius:18px 18px 0 0;padding:8px 0 calc(14px + env(safe-area-inset-bottom));max-height:80dvh;overflow:auto}
+.sht{padding:10px 18px 8px;font-weight:600;color:var(--tx2);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it{display:flex;gap:14px;align-items:center;padding:0 18px;height:52px;font-size:16px}
+.it:active{background:var(--bg2)}
+.it i{font-size:22px;color:var(--tx2)}
+.it.d,.it.d i{color:var(--dng)}
+.it.on i{color:var(--ac)}
+#toast{position:fixed;left:12px;right:12px;bottom:calc(76px + env(safe-area-inset-bottom));background:#2c2c2a;color:#fff;border-radius:10px;padding:13px 16px;display:none;justify-content:space-between;gap:12px;z-index:40;font-size:14px}
+#toast b{color:#ffb3d3;cursor:pointer;white-space:nowrap}
+#viewer{position:fixed;inset:0;background:#000;display:none;flex-direction:column;z-index:30}
+#viewer .tp{display:flex;align-items:center;gap:8px;padding:8px 8px;padding-top:calc(8px + env(safe-area-inset-top));color:#fff}
+#viewer .tp span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#viewer .ib{color:#fff}
+#vimg{flex:1;min-height:0;width:100%;object-fit:contain}
+</style>
+</head>
+<body>
+<div id="auth">
+  <h1><span>SIM</span> Folder</h1>
+  <input class="fld" id="em" type="email" placeholder="이메일" autocomplete="username">
+  <input class="fld" id="pw" type="password" placeholder="비밀번호 (6자 이상)" autocomplete="current-password">
+  <div id="aerr"></div>
+  <button class="btn" id="login">로그인</button>
+  <button class="btn s" id="signup">가입하기</button>
+</div>
+
+<div id="app">
+  <div id="hd"></div>
+  <input id="sr" type="search" placeholder="이름으로 검색">
+  <div id="cr"></div>
+  <div id="ch"></div>
+  <div id="ls"></div>
+  <button id="fab" aria-label="추가"><i class="ti ti-plus"></i></button>
+  <div id="nav">
+    <button data-tab="files"><i class="ti ti-folder"></i>파일</button>
+    <button data-tab="recent"><i class="ti ti-clock"></i>최근</button>
+    <button data-tab="star"><i class="ti ti-star"></i>즐겨찾기</button>
+    <button data-tab="trash"><i class="ti ti-trash"></i>휴지통</button>
+  </div>
+  <div id="bar"></div>
+</div>
+
+<div id="ov"><div id="sh"></div></div>
+<div id="toast"></div>
+<div id="viewer">
+  <div class="tp">
+    <button class="ib" id="vclose" aria-label="닫기"><i class="ti ti-x"></i></button>
+    <span id="vname"></span>
+    <button class="ib" id="vdl" aria-label="받기"><i class="ti ti-download"></i></button>
+  </div>
+  <img id="vimg" alt="">
+</div>
+<input type="file" id="fi" multiple hidden>
+<input type="file" id="ci" accept="image/*" capture="environment" hidden>
+
+<script>
+const SUPABASE_URL='YOUR_SUPABASE_URL';
+const SUPABASE_KEY='YOUR_SUPABASE_PUBLISHABLE_KEY';
+const BUCKET='sim-folder';
+const MAX_BYTES=50*1048576;
+const TRASH_DAYS=30;
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ICON={folder:'ti-folder',image:'ti-photo',pdf:'ti-file-type-pdf',sheet:'ti-file-spreadsheet',doc:'ti-file-text',etc:'ti-file'};
+
+let sb,user,items=[],idx=new Map();
+let tab='files',cwd=null,filter='all',sortBy='name',q='',srOpen=false;
+let sel=new Set(),selMode=false,pendingMove=[],pendingFn=null,viewId=null;
+
+function fmtSize(n){if(n<1024)return n+'B';if(n<1048576)return Math.round(n/1024)+'KB';if(n<1073741824)return (n/1048576).toFixed(1)+'MB';return (n/1073741824).toFixed(2)+'GB';}
+function fmtDate(s){const d=new Date(s),n=new Date(),ds=x=>x.toDateString();if(ds(d)===ds(n))return '오늘 '+d.toTimeString().slice(0,5);if(ds(d)===ds(new Date(n-864e5)))return '어제';return (d.getMonth()+1)+'월 '+d.getDate()+'일';}
+function ftype(it){
+  if(it.kind==='folder')return 'folder';
+  const m=it.mime||'',n=it.name.toLowerCase();
+  if(m.startsWith('image/'))return 'image';
+  if(m==='application/pdf'||n.endsWith('.pdf'))return 'pdf';
+  if(/\.(xlsx?|csv)$/.test(n))return 'sheet';
+  if(/\.(docx?|hwp|hwpx|pptx?|txt)$/.test(n))return 'doc';
+  return 'etc';
+}
+const children=pid=>items.filter(i=>(i.parent_id||null)===pid);
+function descendants(id){const out=[],st=[id];while(st.length){const p=st.pop();for(const c of children(p)){out.push(c);st.push(c.id);}}return out;}
+function isLive(it){let c=it;while(c){if(c.deleted_at)return false;c=c.parent_id?idx.get(c.parent_id):null;}return true;}
+const byName=(a,b)=>a.name.localeCompare(b.name,'ko',{numeric:true});
+
+let tt;
+function toast(msg,label,fn){
+  const t=$('#toast');
+  t.innerHTML='<span>'+esc(msg)+'</span>'+(label?'<b id="tact">'+esc(label)+'</b>':'');
+  t.style.display='flex';
+  if(label)$('#tact').onclick=()=>{t.style.display='none';fn();};
+  clearTimeout(tt);
+  tt=setTimeout(()=>{t.style.display='none';},label?5000:2500);
+}
+function sheet(title,html){$('#sh').innerHTML=(title?'<div class="sht">'+esc(title)+'</div>':'')+html;$('#ov').style.display='flex';}
+function closeSheet(){$('#ov').style.display='none';}
+
+function uniqueName(name,pid,except){
+  const names=new Set(items.filter(i=>!i.deleted_at&&(i.parent_id||null)===(pid||null)&&i.id!==except).map(i=>i.name));
+  if(!names.has(name))return name;
+  const dot=name.lastIndexOf('.');
+  const base=dot>0?name.slice(0,dot):name,ext=dot>0?name.slice(dot):'';
+  let n=1;
+  while(names.has(base+' ('+n+')'+ext))n++;
+  return base+' ('+n+')'+ext;
+}
+
+function visible(){
+  let l;
+  if(tab==='trash')l=items.filter(i=>i.deleted_at&&(!i.parent_id||!(idx.get(i.parent_id)||{}).deleted_at));
+  else if(tab==='recent')l=items.filter(i=>i.kind==='file'&&isLive(i)).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,30);
+  else if(tab==='star')l=items.filter(i=>i.starred&&isLive(i));
+  else if(q)l=items.filter(i=>isLive(i)&&i.name.toLowerCase().includes(q.toLowerCase()));
+  else l=items.filter(i=>!i.deleted_at&&(i.parent_id||null)===cwd);
+  if(tab==='files'&&!q&&filter!=='all'){
+    l=l.filter(i=>i.kind==='folder'||(filter==='doc'?['doc','sheet'].includes(ftype(i)):ftype(i)===filter));
+  }
+  if(tab!=='recent'){
+    l=l.slice().sort((a,b)=>{
+      if(a.kind!==b.kind)return a.kind==='folder'?-1:1;
+      if(sortBy==='date')return new Date(b.created_at)-new Date(a.created_at);
+      if(sortBy==='size')return b.size-a.size;
+      return byName(a,b);
+    });
+  }
+  return l;
+}
+
+function render(){
+  if(cwd&&!idx.get(cwd))cwd=null;
+  const titles={files:'SIM Folder',recent:'최근',star:'즐겨찾기',trash:'휴지통'};
+  let h;
+  if(selMode){
+    h='<button class="ib" data-h="exit" aria-label="선택 해제"><i class="ti ti-x"></i></button><span class="t">'+sel.size+'개 선택</span><span class="sp"></span><button class="tb" data-h="all">전체 선택</button>';
+  }else{
+    const back=tab==='files'&&cwd&&!q;
+    h=(back?'<button class="ib" data-h="up" aria-label="상위 폴더"><i class="ti ti-arrow-left"></i></button>':'')
+     +'<span class="t">'+esc(back?idx.get(cwd).name:titles[tab])+'</span><span class="sp"></span>'
+     +'<button class="ib" data-h="search" aria-label="검색"><i class="ti ti-search"></i></button>'
+     +'<button class="ib" data-h="more" aria-label="더보기"><i class="ti ti-dots-vertical"></i></button>';
+  }
+  $('#hd').innerHTML=h;
+
+  const showFiles=tab==='files'&&!q;
+  if(showFiles){
+    const path=[];let c=cwd;
+    while(c){const it=idx.get(c);if(!it)break;path.unshift(it);c=it.parent_id;}
+    let p='<span data-c="root"'+(path.length?'':' class="cur"')+'>홈</span>';
+    path.forEach((it,k)=>{p+=' › <span data-c="'+it.id+'"'+(k===path.length-1?' class="cur"':'')+'>'+esc(it.name)+'</span>';});
+    const used=items.filter(i=>i.kind==='file'&&isLive(i)).reduce((s,i)=>s+i.size,0);
+    $('#cr').style.display='flex';
+    $('#cr').innerHTML='<div class="p">'+p+'</div><div class="u">사용 '+fmtSize(used)+'</div>';
+    $('#ch').style.display='flex';
+    $('#ch').innerHTML=[['all','전체'],['doc','문서'],['image','이미지'],['pdf','PDF']].map(f=>'<button class="c'+(filter===f[0]?' a':'')+'" data-f="'+f[0]+'">'+f[1]+'</button>').join('');
+  }else{
+    $('#cr').style.display='none';
+    $('#ch').style.display='none';
+  }
+
+  const L=visible();
+  if(!L.length){
+    const msg={files:q?['ti-search-off','검색 결과가 없습니다.']:['ti-folder-open','폴더가 비어 있습니다. + 버튼으로 파일을 올려 보세요.'],recent:['ti-clock','최근 파일이 없습니다.'],star:['ti-star','즐겨찾기한 항목이 없습니다.'],trash:['ti-trash','휴지통이 비어 있습니다.']}[tab];
+    $('#ls').innerHTML='<div class="emp"><i class="ti '+msg[0]+'"></i>'+esc(msg[1])+'</div>';
+  }else{
+    $('#ls').innerHTML=L.map(i=>{
+      const t=ftype(i);
+      let meta;
+      if(tab==='trash')meta='삭제 '+fmtDate(i.deleted_at)+(i.kind==='file'?' · '+fmtSize(i.size):'');
+      else if(i.kind==='folder')meta='항목 '+children(i.id).filter(c=>!c.deleted_at).length+'개';
+      else meta=fmtDate(i.created_at)+' · '+fmtSize(i.size);
+      return '<div class="row" data-id="'+i.id+'">'
+        +'<div class="ck'+(sel.has(i.id)?' on':'')+'" style="display:'+(selMode?'flex':'none')+'"><i class="ti ti-check"></i></div>'
+        +'<div class="ic"><i class="ti '+ICON[t]+'"></i></div>'
+        +'<div class="tx"><div class="n">'+esc(i.name)+(i.starred?' ★':'')+'</div><div class="m">'+meta+'</div></div>'
+        +(selMode?'':'<button class="mb" data-more="'+i.id+'" aria-label="더보기"><i class="ti ti-dots-vertical"></i></button>')
+        +'</div>';
+    }).join('');
+  }
+
+  $('#fab').style.display=(tab==='files'&&!selMode)?'flex':'none';
+  $('#nav').style.display=selMode?'none':'flex';
+  $('#bar').style.display=selMode?'flex':'none';
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('a',b.dataset.tab===tab));
+  if(selMode){
+    $('#bar').innerHTML=tab==='trash'
+      ?'<button data-b="restore"><i class="ti ti-restore"></i>복원</button><button class="d" data-b="perm"><i class="ti ti-trash-x"></i>영구 삭제</button>'
+      :'<button data-b="share"><i class="ti ti-share"></i>공유</button><button data-b="move"><i class="ti ti-arrows-move"></i>이동</button><button data-b="dl"><i class="ti ti-download"></i>받기</button><button data-b="star"><i class="ti ti-star"></i>즐겨찾기</button><button class="d" data-b="trash"><i class="ti ti-trash"></i>삭제</button>';
+  }
+}
+
+function nav(id){cwd=id;q='';srOpen=false;$('#sr').style.display='none';$('#sr').value='';history.pushState({c:id},'');render();$('#ls').scrollTop=0;}
+window.addEventListener('popstate',e=>{cwd=e.state?e.state.c:null;render();});
+
+function exitSel(){selMode=false;sel.clear();}
+function toggleSel(id,force){selMode=true;if(force)sel.add(id);else if(sel.has(id))sel.delete(id);else sel.add(id);render();}
+
+async function upd(ids,patch){
+  const {error}=await sb.from('folder_items').update(Object.assign({},patch,{updated_at:new Date().toISOString()})).in('id',ids);
+  if(error){toast('저장하지 못했습니다. 다시 시도하세요.');return false;}
+  ids.forEach(id=>Object.assign(idx.get(id),patch));
+  return true;
+}
+
+async function trashItems(ids){
+  if(await upd(ids,{deleted_at:new Date().toISOString()})){exitSel();render();toast(ids.length+'개를 휴지통으로 옮겼습니다','실행 취소',()=>restore(ids));}
+}
+async function restore(ids){
+  for(const id of ids){
+    const it=idx.get(id),p=it.parent_id?idx.get(it.parent_id):null;
+    const ok=!it.parent_id||(p&&!p.deleted_at);
+    await upd([id],ok?{deleted_at:null}:{deleted_at:null,parent_id:null});
+  }
+  exitSel();render();toast('복원했습니다');
+}
+async function permDelete(ids,silent){
+  const all=new Set(ids),paths=[];
+  ids.forEach(id=>descendants(id).forEach(d=>all.add(d.id)));
+  all.forEach(id=>{const it=idx.get(id);if(it&&it.kind==='file'&&it.storage_path)paths.push(it.storage_path);});
+  for(let k=0;k<paths.length;k+=100){await sb.storage.from(BUCKET).remove(paths.slice(k,k+100));}
+  const {error}=await sb.from('folder_items').delete().in('id',ids);
+  if(error){if(!silent)toast('삭제하지 못했습니다. 다시 시도하세요.');return;}
+  items=items.filter(i=>!all.has(i.id));
+  idx=new Map(items.map(i=>[i.id,i]));
+  if(!silent){exitSel();render();toast('영구 삭제했습니다');}
+}
+function confirmSheet(msg,label,fn){
+  pendingFn=fn;
+  sheet(msg,'<div class="it d" data-act="confirmok"><i class="ti ti-trash-x"></i>'+esc(label)+'</div><div class="it" data-act="cancel"><i class="ti ti-x"></i>취소</div>');
+}
+async function purgeOld(){
+  const lim=Date.now()-TRASH_DAYS*864e5;
+  const old=items.filter(i=>i.deleted_at&&new Date(i.deleted_at)<lim&&(!i.parent_id||!(idx.get(i.parent_id)||{}).deleted_at)).map(i=>i.id);
+  if(old.length)await permDelete(old,true);
+}
+
+function askName(title,val,cb){
+  sheet(title,'<div style="padding:8px 18px 4px"><input class="fld" id="nm" value="'+esc(val)+'" maxlength="120" style="margin-bottom:12px"><button class="btn" id="nmok">확인</button></div>');
+  const inp=$('#nm');
+  setTimeout(()=>{inp.focus();inp.select();},60);
+  const go=()=>{const v=inp.value.trim().replace(/[\/\\]/g,'');if(!v){toast('이름을 입력하세요');return;}closeSheet();cb(v);};
+  $('#nmok').onclick=go;
+  inp.onkeydown=e=>{if(e.key==='Enter')go();};
+}
+function newFolder(){
+  askName('새 폴더','새 폴더',async name=>{
+    const {data,error}=await sb.from('folder_items').insert({parent_id:cwd,kind:'folder',name:uniqueName(name,cwd)}).select().single();
+    if(error){toast('폴더를 만들지 못했습니다.');return;}
+    items.push(data);idx.set(data.id,data);render();
+  });
+}
+function renameItem(id){
+  const it=idx.get(id);
+  askName('이름 바꾸기',it.name,async name=>{if(await upd([id],{name:uniqueName(name,it.parent_id,id)}))render();});
+}
+function moveSheet(ids){
+  pendingMove=ids;
+  const ex=new Set();
+  ids.forEach(i=>{ex.add(i);descendants(i).forEach(d=>ex.add(d.id));});
+  let h='<div class="it" data-act="moveto" data-to="root"><i class="ti ti-home"></i>홈</div>';
+  const walk=(pid,d)=>children(pid).filter(c=>c.kind==='folder'&&!c.deleted_at&&!ex.has(c.id)).sort(byName).forEach(c=>{
+    h+='<div class="it" data-act="moveto" data-to="'+c.id+'" style="padding-left:'+(18+d*20)+'px"><i class="ti ti-folder"></i>'+esc(c.name)+'</div>';
+    walk(c.id,d+1);
+  });
+  walk(null,1);
+  sheet('이동할 위치',h);
+}
+async function doMove(to){
+  const pid=to==='root'?null:to;
+  for(const id of pendingMove){
+    const it=idx.get(id);
+    await upd([id],{parent_id:pid,name:uniqueName(it.name,pid,id)});
+  }
+  exitSel();render();toast('이동했습니다');
+}
+
+async function upload(fl){
+  fl=[...fl];
+  if(!fl.length)return;
+  let ok=0;
+  for(let k=0;k<fl.length;k++){
+    const f=fl[k];
+    if(f.size>MAX_BYTES){toast(f.name+': 50MB를 넘어 올릴 수 없습니다');continue;}
+    toast('업로드 중 '+(k+1)+'/'+fl.length+'…');
+    const path=user.id+'/'+crypto.randomUUID();
+    const up=await sb.storage.from(BUCKET).upload(path,f,{contentType:f.type||'application/octet-stream'});
+    if(up.error){toast(f.name+' 업로드 실패. 다시 시도하세요.');continue;}
+    const ins=await sb.from('folder_items').insert({parent_id:cwd,kind:'file',name:uniqueName(f.name,cwd),size:f.size,mime:f.type||null,storage_path:path}).select().single();
+    if(ins.error){await sb.storage.from(BUCKET).remove([path]);toast(f.name+' 저장 실패. 다시 시도하세요.');continue;}
+    items.push(ins.data);idx.set(ins.data.id,ins.data);ok++;render();
+  }
+  if(ok)toast(ok+'개 업로드 완료');
+}
+
+async function signed(path,sec,name){
+  const {data,error}=await sb.storage.from(BUCKET).createSignedUrl(path,sec||60,name?{download:name}:undefined);
+  if(error)throw error;
+  return data.signedUrl;
+}
+function saveUrl(url,name){const a=document.createElement('a');a.href=url;if(name)a.download=name;document.body.appendChild(a);a.click();a.remove();}
+async function download(ids){
+  try{
+    const roots=ids.map(i=>idx.get(i));
+    if(roots.length===1&&roots[0].kind==='file'){saveUrl(await signed(roots[0].storage_path,60,roots[0].name));return;}
+    toast('압축하는 중…');
+    const zip=new JSZip();
+    const add=async(it,prefix)=>{
+      if(it.kind==='file'){
+        const b=await (await fetch(await signed(it.storage_path,120))).blob();
+        zip.file(prefix+it.name,b);
+      }else{
+        const z=prefix+it.name+'/';
+        zip.folder(z);
+        for(const c of children(it.id).filter(c=>!c.deleted_at))await add(c,z);
+      }
+    };
+    for(const r of roots)await add(r,'');
+    const blob=await zip.generateAsync({type:'blob'});
+    const u=URL.createObjectURL(blob);
+    saveUrl(u,'SIM_Folder_'+new Date().toISOString().slice(0,10)+'.zip');
+    setTimeout(()=>URL.revokeObjectURL(u),60000);
+    toast('받기 완료');
+  }catch(e){toast('받지 못했습니다. 다시 시도하세요.');}
+}
+async function shareItems(ids){
+  const fs=ids.map(i=>idx.get(i)).filter(i=>i.kind==='file');
+  if(!fs.length){toast('파일을 선택하세요');return;}
+  try{
+    toast('공유 준비 중…');
+    const files=[];
+    for(const f of fs){
+      const b=await (await fetch(await signed(f.storage_path,120))).blob();
+      files.push(new File([b],f.name,{type:f.mime||b.type}));
+    }
+    if(navigator.canShare&&navigator.canShare({files}))await navigator.share({files});
+    else toast('이 브라우저는 파일 공유를 지원하지 않습니다');
+  }catch(e){if(e.name!=='AbortError')toast('공유하지 못했습니다.');}
+}
+async function preview(it){
+  const t=ftype(it);
+  if(t==='image'){
+    try{viewId=it.id;$('#vimg').src=await signed(it.storage_path,300);$('#vname').textContent=it.name;$('#viewer').style.display='flex';}
+    catch(e){toast('열지 못했습니다.');}
+  }else if(t==='pdf'){
+    const w=window.open('','_blank');
+    try{const u=await signed(it.storage_path,300);if(w)w.location.href=u;else location.href=u;}
+    catch(e){if(w)w.close();toast('열지 못했습니다.');}
+  }else{
+    try{saveUrl(await signed(it.storage_path,60,it.name));}catch(e){toast('받지 못했습니다.');}
+  }
+}
+function openItem(id){
+  const it=idx.get(id);if(!it)return;
+  if(tab==='trash'){itemSheet(id);return;}
+  if(it.kind==='folder'){tab='files';nav(id);}
+  else preview(it);
+}
+function itemSheet(id){
+  const it=idx.get(id);
+  let h;
+  if(it.deleted_at){
+    h='<div class="it" data-act="restore" data-id="'+id+'"><i class="ti ti-restore"></i>복원</div><div class="it d" data-act="perm" data-id="'+id+'"><i class="ti ti-trash-x"></i>영구 삭제</div>';
+  }else{
+    h=(it.kind==='file'?'<div class="it" data-act="open" data-id="'+id+'"><i class="ti ti-eye"></i>열기</div>':'')
+     +'<div class="it" data-act="download" data-id="'+id+'"><i class="ti ti-download"></i>'+(it.kind==='file'?'내 기기로 받기':'ZIP으로 받기')+'</div>'
+     +(it.kind==='file'?'<div class="it" data-act="share" data-id="'+id+'"><i class="ti ti-share"></i>공유</div>':'')
+     +'<div class="it'+(it.starred?' on':'')+'" data-act="star" data-id="'+id+'"><i class="ti ti-star"></i>'+(it.starred?'즐겨찾기 해제':'즐겨찾기')+'</div>'
+     +'<div class="it" data-act="rename" data-id="'+id+'"><i class="ti ti-edit"></i>이름 바꾸기</div>'
+     +'<div class="it" data-act="move" data-id="'+id+'"><i class="ti ti-arrows-move"></i>이동</div>'
+     +'<div class="it d" data-act="trash" data-id="'+id+'"><i class="ti ti-trash"></i>삭제</div>';
+  }
+  sheet(it.name,h);
+}
+function moreSheet(){
+  const ck=v=>sortBy===v?' on':'';
+  let h='<div class="sht">정렬</div>'
+   +'<div class="it'+ck('name')+'" data-act="sort" data-v="name"><i class="ti ti-sort-ascending-letters"></i>이름순</div>'
+   +'<div class="it'+ck('date')+'" data-act="sort" data-v="date"><i class="ti ti-calendar"></i>최신순</div>'
+   +'<div class="it'+ck('size')+'" data-act="sort" data-v="size"><i class="ti ti-arrows-sort"></i>크기순</div>';
+  if(tab==='trash')h+='<div class="it d" data-act="emptytrash"><i class="ti ti-trash-x"></i>휴지통 비우기</div>';
+  h+='<div class="sht">'+esc(user.email||'')+'</div><div class="it" data-act="logout"><i class="ti ti-logout"></i>로그아웃</div>';
+  sheet('',h);
+}
+
+$('#sh').addEventListener('click',async e=>{
+  const el=e.target.closest('[data-act]');
+  if(!el)return;
+  const a=el.dataset.act,id=el.dataset.id;
+  closeSheet();
+  if(a==='pick')$('#fi').click();
+  else if(a==='cam')$('#ci').click();
+  else if(a==='nf')newFolder();
+  else if(a==='open')preview(idx.get(id));
+  else if(a==='download')download([id]);
+  else if(a==='share')shareItems([id]);
+  else if(a==='star'){const it=idx.get(id);if(await upd([id],{starred:!it.starred}))render();}
+  else if(a==='rename')renameItem(id);
+  else if(a==='move')moveSheet([id]);
+  else if(a==='moveto')doMove(el.dataset.to);
+  else if(a==='trash')trashItems([id]);
+  else if(a==='restore')restore([id]);
+  else if(a==='perm')confirmSheet('"'+idx.get(id).name+'"을(를) 영구 삭제할까요? 되돌릴 수 없습니다.','영구 삭제',()=>permDelete([id]));
+  else if(a==='sort'){sortBy=el.dataset.v;render();}
+  else if(a==='emptytrash'){
+    const top=items.filter(i=>i.deleted_at&&(!i.parent_id||!(idx.get(i.parent_id)||{}).deleted_at)).map(i=>i.id);
+    if(!top.length){toast('휴지통이 비어 있습니다');return;}
+    confirmSheet('휴지통을 비울까요? 되돌릴 수 없습니다.','휴지통 비우기',()=>permDelete(top));
+  }
+  else if(a==='confirmok'&&pendingFn){const f=pendingFn;pendingFn=null;f();}
+  else if(a==='logout'){await sb.auth.signOut();location.reload();}
+});
+$('#ov').addEventListener('click',e=>{if(e.target.id==='ov')closeSheet();});
+
+$('#hd').addEventListener('click',e=>{
+  const b=e.target.closest('[data-h]');if(!b)return;
+  const h=b.dataset.h;
+  if(h==='exit'){exitSel();render();}
+  else if(h==='all'){visible().forEach(i=>sel.add(i.id));render();}
+  else if(h==='up')history.back();
+  else if(h==='search'){
+    srOpen=!srOpen;
+    $('#sr').style.display=srOpen?'block':'none';
+    if(srOpen){tab='files';$('#sr').focus();}
+    else{q='';$('#sr').value='';}
+    render();
+  }
+  else if(h==='more')moreSheet();
+});
+$('#sr').addEventListener('input',e=>{q=e.target.value.trim();render();});
+$('#cr').addEventListener('click',e=>{
+  const s=e.target.closest('[data-c]');if(!s)return;
+  const to=s.dataset.c==='root'?null:s.dataset.c;
+  if(to!==cwd)nav(to);
+});
+$('#ch').addEventListener('click',e=>{const b=e.target.closest('[data-f]');if(b){filter=b.dataset.f;render();}});
+$('#nav').addEventListener('click',e=>{
+  const b=e.target.closest('[data-tab]');if(!b)return;
+  tab=b.dataset.tab;q='';srOpen=false;$('#sr').style.display='none';$('#sr').value='';exitSel();render();$('#ls').scrollTop=0;
+});
+$('#fab').addEventListener('click',()=>{
+  sheet('',
+   '<div class="it" data-act="pick"><i class="ti ti-upload"></i>파일 올리기</div>'
+  +'<div class="it" data-act="cam"><i class="ti ti-camera"></i>사진 촬영</div>'
+  +'<div class="it" data-act="nf"><i class="ti ti-folder-plus"></i>새 폴더</div>');
+});
+$('#bar').addEventListener('click',e=>{
+  const b=e.target.closest('[data-b]');if(!b)return;
+  const ids=[...sel];
+  if(!ids.length){toast('항목을 선택하세요');return;}
+  const k=b.dataset.b;
+  if(k==='share')shareItems(ids);
+  else if(k==='move')moveSheet(ids);
+  else if(k==='dl')download(ids);
+  else if(k==='star'){
+    const on=!ids.every(i=>idx.get(i).starred);
+    upd(ids,{starred:on}).then(ok=>{if(ok){exitSel();render();}});
+  }
+  else if(k==='trash')trashItems(ids);
+  else if(k==='restore')restore(ids);
+  else if(k==='perm')confirmSheet(ids.length+'개 항목을 영구 삭제할까요? 되돌릴 수 없습니다.','영구 삭제',()=>permDelete(ids));
+});
+
+const ls=$('#ls');
+let lpT,lpFired=false;
+ls.addEventListener('touchstart',e=>{
+  const r=e.target.closest('.row');
+  if(!r||e.target.closest('[data-more]'))return;
+  lpFired=false;
+  lpT=setTimeout(()=>{lpFired=true;if(navigator.vibrate)navigator.vibrate(15);toggleSel(r.dataset.id,true);},450);
+},{passive:true});
+['touchend','touchmove','touchcancel'].forEach(ev=>ls.addEventListener(ev,()=>clearTimeout(lpT),{passive:true}));
+ls.addEventListener('contextmenu',e=>e.preventDefault());
+ls.addEventListener('click',e=>{
+  if(lpFired){lpFired=false;return;}
+  const m=e.target.closest('[data-more]');
+  if(m){itemSheet(m.dataset.more);return;}
+  const r=e.target.closest('.row');if(!r)return;
+  if(selMode)toggleSel(r.dataset.id);
+  else openItem(r.dataset.id);
+});
+
+$('#fi').addEventListener('change',e=>{upload(e.target.files);e.target.value='';});
+$('#ci').addEventListener('change',e=>{
+  const f=e.target.files[0];e.target.value='';
+  if(!f)return;
+  const d=new Date(),p=n=>String(n).padStart(2,'0');
+  const nm='사진_'+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())+(f.type.includes('png')?'.png':'.jpg');
+  upload([new File([f],nm,{type:f.type})]);
+});
+$('#vclose').addEventListener('click',()=>{$('#viewer').style.display='none';$('#vimg').src='';});
+$('#vdl').addEventListener('click',()=>{if(viewId)download([viewId]);});
+
+async function load(){
+  const {data,error}=await sb.from('folder_items').select('*').order('created_at').limit(5000);
+  if(error){toast('불러오지 못했습니다. 연결을 확인하세요.');return;}
+  items=data;idx=new Map(items.map(i=>[i.id,i]));
+  await purgeOld();
+  render();
+}
+async function showApp(){
+  $('#auth').style.display='none';
+  $('#app').style.display='flex';
+  await load();
+}
+function showAuth(){$('#app').style.display='none';$('#auth').style.display='flex';}
+
+async function doAuth(signup){
+  const email=$('#em').value.trim(),password=$('#pw').value;
+  $('#aerr').textContent='';
+  if(!email||password.length<6){$('#aerr').textContent='이메일과 6자 이상의 비밀번호를 입력하세요.';return;}
+  const r=signup?await sb.auth.signUp({email,password}):await sb.auth.signInWithPassword({email,password});
+  if(r.error){$('#aerr').textContent=signup?'가입하지 못했습니다. 이미 가입한 이메일인지 확인하세요.':'이메일 또는 비밀번호가 맞지 않습니다.';return;}
+  if(r.data.session){user=r.data.session.user;showApp();}
+  else $('#aerr').textContent='가입했습니다. 확인 메일의 링크를 누른 뒤 로그인하세요.';
+}
+$('#login').onclick=()=>doAuth(false);
+$('#signup').onclick=()=>doAuth(true);
+$('#pw').addEventListener('keydown',e=>{if(e.key==='Enter')doAuth(false);});
+
+(async function boot(){
+  if(SUPABASE_URL.startsWith('YOUR')){showAuth();$('#aerr').textContent='설정이 필요합니다: 파일 상단의 SUPABASE_URL, SUPABASE_KEY를 입력하세요.';return;}
+  sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  const {data}=await sb.auth.getSession();
+  if(data.session){user=data.session.user;showApp();}else showAuth();
+})();
+</script>
+</body>
+</html>

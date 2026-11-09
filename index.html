@@ -42,7 +42,8 @@ a.card:hover{border-color:var(--accent);transform:translateY(-2px)}
 a.card:active{transform:scale(.98)}
 a.card.dragging{position:relative;z-index:30;transition:none;pointer-events:none;border-color:var(--accent);box-shadow:0 16px 36px rgba(0,0,0,.6);opacity:.97}
 body.dragmode,body.dragmode *{cursor:grabbing!important;-webkit-user-select:none;user-select:none}
-.reorder{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--sub);min-height:22px}
+.reorder{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--sub)}
+.reorder:empty{display:none}
 .reorder button{padding:2px 10px;font-size:12px;border-radius:99px}
 .card .ico{width:52px;height:52px;border-radius:14px;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:28px;overflow:hidden;flex:none}
 .card .ico img{width:100%;height:100%;object-fit:cover;display:block}
@@ -76,10 +77,6 @@ body.dragmode,body.dragmode *{cursor:grabbing!important;-webkit-user-select:none
 </header>
 
 <main>
-  <div class="hello">
-    <h2>사용할 툴을 선택하세요</h2>
-    <p id="count"></p>
-  </div>
   <div class="search"><input id="q" type="search" placeholder="툴 검색"></div>
   <div class="reorder" id="reorder"></div>
   <div class="grid" id="grid"></div>
@@ -138,16 +135,14 @@ body.dragmode,body.dragmode *{cursor:grabbing!important;-webkit-user-select:none
   }
   function updateHint() {
     const el = $('reorder');
-    if ($('q').value.trim()) { el.innerHTML = ''; return; }
-    const coarse = window.matchMedia && matchMedia('(pointer:coarse)').matches;
-    el.innerHTML = '<span>' + (coarse ? '카드를 길게 누른 채 끌어서' : '카드를 끌어서') + ' 순서를 바꿀 수 있어요</span>' + (loadOrder().length ? '<button id="orderReset">순서 초기화</button>' : '');
+    if ($('q').value.trim() || !loadOrder().length) { el.innerHTML = ''; return; }
+    el.innerHTML = '<button id="orderReset">순서 초기화</button>';
     const b = $('orderReset'); if (b) b.onclick = () => { lsDel(KEY_ORDER); render(); toast('기본 순서로 되돌렸어요'); };
   }
 
   function render() {
     const q = $('q').value.trim().toLowerCase();
     const list = orderedTools().filter(t => !q || t.name.toLowerCase().includes(q) || (t.desc || '').toLowerCase().includes(q));
-    $('count').textContent = '등록된 툴 ' + TOOLS.length + '개' + (q ? ' · 검색 결과 ' + list.length + '개' : '');
     updateHint();
     if (!list.length) { $('grid').innerHTML = '<div class="empty" style="grid-column:1/-1">검색 결과가 없습니다.</div>'; return; }
     let html = list.map(t => {

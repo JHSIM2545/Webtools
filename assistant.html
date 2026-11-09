@@ -1443,6 +1443,15 @@ async function continueP(p, text, n) {
 function sendTyped() { const v = $('txt').value.trim(); if (!v) return; $('txt').value = ''; lastVoice = false; unlockAudio(); handleText(v); }
 $('btnSend').onclick = sendTyped;
 $('txt').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); sendTyped(); } });
+/* 받아쓰기 자동 전송: 차량 등 마이크 권한 팝업이 안 뜨는 환경에서 키보드 🎤 받아쓰기를 쓰기 위한 옵션 */
+let autoSend = ls.get('SIMAS_AUTOSEND', '0') === '1', autoT = 0;
+(() => {
+  const b = document.createElement('button'); b.id = 'chipAuto';
+  const paint = () => { b.textContent = autoSend ? '🎤 받아쓰기 자동전송 ON' : '🎤 받아쓰기 자동전송'; b.style.color = autoSend ? 'var(--accent,#4cc9f0)' : ''; b.style.borderColor = autoSend ? 'var(--accent,#4cc9f0)' : ''; };
+  b.onclick = () => { autoSend = !autoSend; ls.set('SIMAS_AUTOSEND', autoSend ? '1' : '0'); paint(); if (autoSend) { $('txt').focus(); toast('키보드의 🎤로 말하면 말이 끝난 뒤 자동으로 전송돼요', 3600); } };
+  paint(); $('chips').appendChild(b);
+  $('txt').addEventListener('input', () => { clearTimeout(autoT); if (autoSend && $('txt').value.trim()) autoT = setTimeout(sendTyped, 1600); });
+})();
 ['메모해줘', '연락처 저장해줘', '전화번호 찾아줘', '전화 걸어줘', '길안내 해줘', '일정 추가해줘', '알람 맞춰줘', '오늘 일정 알려줘'].forEach(t => {
   const b = document.createElement('button'); b.textContent = t; b.onclick = () => { lastVoice = false; unlockAudio(); handleText(t); }; $('chips').appendChild(b);
 });

@@ -798,7 +798,7 @@ $('btnGen').onclick = async () => {
   if (g.kind === 'product' && S.matImg) payload.material_image = S.matImg;
   busy(true, 'AI가 문구를 쓰는 중…');
   let vars = null, note = '';
-  try { const j = await aiCall(payload, 40000); vars = j.variants; }
+  try { const j = await aiCall(payload, 40000); vars = j.variants; if (/^claude/.test(j.model || '')) toast('Gemini를 쓸 수 없어 Claude가 만들었어요', 3200); }
   catch (e) { note = e.message || String(e); }
   busy(false);
   if (!vars || !vars.length) {
@@ -855,7 +855,8 @@ async function editWith(instr) {
     const out = String(j.text || '').trim(); if (!out) throw new Error('빈 응답');
     const lost = cur.includes('{수신자}') && !out.includes('{수신자}');
     setBody(out); ok = true;
-    toast(lost ? '고쳤어요. 다만 받는 사람 호칭({수신자})이 빠졌으니 확인하세요 (되돌리기 가능)' : '고쳤어요 · 마음에 안 들면 ↶ 되돌리기', lost ? 5000 : 2800);
+    const viaC = /^claude/.test(j.model || '');
+    toast(lost ? '고쳤어요. 다만 받는 사람 호칭({수신자})이 빠졌으니 확인하세요 (되돌리기 가능)' : (viaC ? 'Claude가 고쳤어요(Gemini 한도) · ' : '고쳤어요 · ') + '마음에 안 들면 ↶ 되돌리기', lost ? 5000 : 2800);
   } catch (e) { toast('AI 수정 실패: ' + (e.message || e), 4200); }
   busy(false); return ok;
 }
@@ -917,6 +918,7 @@ $('btnImgAi').onclick = async () => {
     const j = await aiCall({ action: 'image', text, style: $('imgStyle').value, kind: S.kind === 'greet' ? S.sub : (S.kind === 'product' ? '상품 소개' : '일정 안내') }, 80000);
     const u = await new Promise((res, rej) => { const im = new Image(); im.onerror = rej; im.onload = () => { const k = Math.min(1, 1024 / Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.86)); }; im.src = 'data:' + (j.mime || 'image/png') + ';base64,' + j.data; });
     setImage(dataUrlToFile(u, 'SIM메시지.jpg'));
+    if (/^claude/.test(j.model || '')) toast('Gemini를 쓸 수 없어 Claude가 일러스트로 그렸어요', 3600);
   } catch (e) { toast('이미지 생성 실패: ' + (e.message || e), 4200); }
   busy(false);
 };
@@ -979,7 +981,12 @@ async function audioFor(r) {
   if (audCache.has(key)) return audCache.get(key);
   let blob;
   if (mode === 'melody') blob = await renderMelodyWav(mel, 14);
-  else { const v = await ttsBlob(text); blob = mode === 'tts' ? v : await mixVoiceWav(v, mel); }
+  else {
+    let v = null;
+    try { v = await ttsBlob(text); }
+    catch (e) { if (mode === 'tts') throw new Error('AI 음성은 Gemini로만 만들 수 있어요. 지금은 쓸 수 없어요 (' + (e.message || e) + ')'); toast('AI 음성을 쓸 수 없어 멜로디만 넣었어요', 3600); }
+    blob = !v ? await renderMelodyWav(mel, 14) : mode === 'tts' ? v : await mixVoiceWav(v, mel);
+  }
   const f = new File([blob], 'SIM메시지-' + (mode === 'melody' ? '멜로디' : '음성') + '.wav', { type: 'audio/wav' });
   audCache.set(key, f); return f;
 }

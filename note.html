@@ -6,6 +6,9 @@
 <meta name="theme-color" content="#0f1117">
 <title>SIM Note</title>
 <link rel="icon" type="image/png" href="note-icon-192.png">
+<!-- 글상자용 글꼴(고딕·명조·손글씨·고정폭). 렌더링을 막지 않게 비동기로 불러오고, 오프라인이면 기기 기본 글꼴로 대체됨 -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Gothic+Coding:wght@400;700&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@400;700&family=Noto+Serif+KR:wght@400;700&display=swap" media="print" onload="this.media='all'">
 <style>
 :root{
   --bg:#0f1117; --panel:#171a23; --panel2:#1f2330; --line:#2a2f3f;
@@ -107,6 +110,10 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
 #dictStop{flex:none;padding:5px 10px;font-size:12px}
 #btnDict.on{background:#4a1a1a;border-color:var(--danger);color:#fff}
 @keyframes dictp{50%{opacity:.25}}
+#fontChips button{font-size:14px;min-width:46px;padding:7px 10px}
+#fontChips button.on,#fmtBtns button.on{background:#17352b;border-color:var(--accent);color:#fff}
+#fsBox #fsLbl{min-width:34px;text-align:center;font-size:14px;font-weight:600}
+#fmtBtns button{font-size:16px;min-width:38px}
 #btnPenOnly{flex:none;padding:7px 9px;height:38px;min-width:40px;display:flex;align-items:center;justify-content:center}
 .sw{width:26px;height:26px;border-radius:50%;border:2px solid #fff3;padding:0;flex:none}
 .sw.sel{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
@@ -212,7 +219,18 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
         <span class="sep"></span>
         <button id="fillBtn" title="도형 안쪽 채우기" aria-label="채움"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 3l7 9a7 7 0 11-14 0z" fill="currentColor" fill-opacity=".35"/></svg></button>
       </div>
-      <div class="tg" id="textHint" hidden><span class="hint">페이지를 탭하면 글상자가 생기고 키보드로 입력합니다 · 크기는 슬라이더 · ✥로 이동 · 🎤로 음성 입력</span></div>
+      <div class="tg" id="textHint" hidden>
+        <div class="tg" id="fontChips" title="글꼴"></div>
+        <span class="sep"></span>
+        <div class="tg" id="fsBox"><button id="fsDn" title="글자 작게" aria-label="글자 작게">−</button><span id="fsLbl" title="글자 크기(px)">40</span><button id="fsUp" title="글자 크게" aria-label="글자 크게">+</button></div>
+        <span class="sep"></span>
+        <div class="tg" id="fmtBtns">
+          <button data-fmt="b" title="굵게" aria-label="굵게" style="font-weight:800">B</button>
+          <button data-fmt="i" title="기울임" aria-label="기울임" style="font-style:italic;font-family:serif">I</button>
+          <button data-fmt="u" title="밑줄" aria-label="밑줄" style="text-decoration:underline">U</button>
+        </div>
+        <span class="hint" title="페이지를 탭하면 글상자가 생기고, 색상은 아래 색 버튼으로 바꿉니다">탭해서 입력 · 색은 아래 팔레트</span>
+      </div>
     </div>
     <div class="mainrow">
       <div class="tg" id="toolBtns">
@@ -359,6 +377,34 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   let color = '#111111', zoom = 1, penOnly = false;
   const RES = 1.25;
   const sizes = { pen: 4, hl: 6, eraser: 8, text: 8, shape: 4 };
+  // 글상자 서식: 글꼴(ff)·크기(fs)·굵게(b)·기울임(i)·밑줄(u). 새 글상자는 마지막으로 고른 서식을 이어받는다
+  const FONTS = {
+    sys:    { n: '기본',   css: '-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif' },
+    gothic: { n: '고딕',   css: '"Noto Sans KR","Nanum Gothic","Apple SD Gothic Neo","Malgun Gothic",sans-serif' },
+    serif:  { n: '명조',   css: '"Noto Serif KR","Nanum Myeongjo",AppleMyungjo,Batang,serif' },
+    hand:   { n: '손글씨', css: '"Nanum Pen Script","Gaegu","Segoe Print","Comic Sans MS",cursive' },
+    mono:   { n: '고정폭', css: '"Nanum Gothic Coding","D2Coding",Consolas,Menlo,monospace' }
+  };
+  const tfmt = { ff: 'sys', fs: 24 + sizes.text * 2, b: false, i: false, u: false };
+  const fontCss = ff => (FONTS[ff] || FONTS.sys).css;
+  const fontStr = (t, px) => (t.i ? 'italic ' : '') + (t.b ? '700' : '400') + ' ' + px + 'px ' + fontCss(t.ff);   // canvas용
+  function styleTB(e, t) {
+    e.style.fontSize = t.fs + 'px'; e.style.color = t.color; e.style.fontFamily = fontCss(t.ff);
+    e.style.fontWeight = t.b ? '700' : '400'; e.style.fontStyle = t.i ? 'italic' : 'normal'; e.style.textDecoration = t.u ? 'underline' : 'none';
+  }
+  const newText = (x, y) => ({ id: rid('t'), x, y, text: '', fs: tfmt.fs, color, ff: tfmt.ff, b: tfmt.b, i: tfmt.i, u: tfmt.u });
+  // 내보내기·썸네일 그리기 전에 웹폰트가 준비되도록 (오프라인이면 2.5초 뒤 기본 글꼴로 진행)
+  async function ensureFonts(texts) {
+    if (!document.fonts || !document.fonts.load) return;
+    const seen = new Set(), jobs = [];
+    texts.forEach(t => { const f = fontStr(t, 32); if (!seen.has(f)) { seen.add(f); jobs.push(document.fonts.load(f, String(t.text).slice(0, 60) || '가').catch(() => {})); } });
+    if (jobs.length) await Promise.race([Promise.all(jobs), new Promise(r => setTimeout(r, 2500))]);
+  }
+  // 글상자 한 줄을 캔버스에 그림 (밑줄 포함)
+  function fillLine(g, t, s, x, y) {
+    g.fillText(s, x, y);
+    if (t.u && s) { const w = g.measureText(s).width; g.fillRect(x, y + t.fs * 0.42, w, Math.max(1, t.fs / 16)); }
+  }
   let hist = [], hi = -1;
   let cur = null, scrollMode = null, activeTB = null, suppressClick = false;
   const live = document.createElement('canvas'); live.className = 'live';
@@ -727,7 +773,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   let lastTextAt = 0;
   function createTextAt(el, e) {
     const ref = el._p, q = pt(e, el);
-    const t = { id: rid('t'), x: Math.max(0, q[0] - 10), y: Math.max(0, q[1] - 20), text: '', fs: 24 + sizes.text * 2, color };
+    const t = newText(Math.max(0, q[0] - 10), Math.max(0, q[1] - 20));
     ref.p.texts.push(t); lastTextAt = Date.now();
     addTB(ref, t).querySelector('.tbt').focus();
   }
@@ -786,9 +832,9 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     const w = document.createElement('div'); w.className = 'tbw';
     w.style.left = t.x + 'px'; w.style.top = t.y + 'px';
     w.innerHTML = '<div class="tbh" contenteditable="false"><span class="mv" title="이동">✥</span><span class="rm" title="삭제">×</span></div><div class="tbt" contenteditable="true" spellcheck="false"></div>';
-    const e = w.querySelector('.tbt'); e.textContent = t.text; e.style.fontSize = t.fs + 'px'; e.style.color = t.color;
+    const e = w.querySelector('.tbt'); e.textContent = t.text; styleTB(e, t);
     let startSnap = '';
-    e.addEventListener('focus', () => { activeTB = { t, e, ref }; startSnap = snapshot(); });
+    e.addEventListener('focus', () => { activeTB = { t, e, ref }; startSnap = snapshot(); syncFmt(t); });
     e.addEventListener('input', () => { t.text = e.innerText.replace(/\n$/, ''); scheduleSave(); });
     e.addEventListener('paste', ev => { ev.preventDefault(); const tx = (ev.clipboardData || window.clipboardData).getData('text'); document.execCommand('insertText', false, tx); });
     e.addEventListener('blur', () => {
@@ -1246,7 +1292,8 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     }
     for (const im of p.images) { const el = await loadImg(note.assets[im.a] || ''); if (el) g.drawImage(el, im.x, im.y, im.w, im.h); }
     p.strokes.forEach(s => drawStroke(g, s));
-    p.texts.forEach(t => { g.fillStyle = t.color; g.font = t.fs + 'px sans-serif'; String(t.text).split('\n').slice(0, 12).forEach((ln, i) => g.fillText(ln.slice(0, 60), t.x + 10, t.y + 8 + (i + 1) * t.fs * 1.4)); });
+    await ensureFonts(p.texts);
+    p.texts.forEach(t => { g.fillStyle = t.color; g.font = fontStr(t, t.fs); String(t.text).split('\n').slice(0, 12).forEach((ln, i) => g.fillText(ln.slice(0, 60), t.x + 10, t.y + 8 + (i + 1) * t.fs * 1.4)); });
     g.restore();
     return c.toDataURL('image/jpeg', 0.7);
   }
@@ -1321,8 +1368,33 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   $('cpick').addEventListener('input', e => applyColor(e.target.value));
   $('size').addEventListener('input', e => {
     const v = +e.target.value, k = tool === 'hl' ? 'hl' : tool; if (sizes[k] != null) sizes[k] = v; $('sizeLbl').textContent = v;
-    if (activeTB && tool === 'text') { activeTB.t.fs = 24 + v * 2; activeTB.e.style.fontSize = activeTB.t.fs + 'px'; scheduleSave(); }
+    if (tool === 'text') setFs(24 + v * 2, true);
   });
+  /* 글상자 서식 도구 (글꼴·크기·굵게/기울임/밑줄). 글상자가 선택돼 있으면 그 상자에, 항상 다음 새 글상자의 기본값에도 적용 */
+  $('fontChips').innerHTML = Object.keys(FONTS).map(k => '<button data-ff="' + k + '" style="font-family:' + FONTS[k].css.replace(/"/g, "'") + '">' + FONTS[k].n + '</button>').join('');
+  function paintFmt() {
+    document.querySelectorAll('#fontChips button').forEach(b => b.classList.toggle('on', b.dataset.ff === tfmt.ff));
+    document.querySelectorAll('#fmtBtns button').forEach(b => b.classList.toggle('on', !!tfmt[b.dataset.fmt]));
+    $('fsLbl').textContent = tfmt.fs;
+  }
+  function setFs(fs, fromSlider) {
+    fs = clamp(Math.round(fs), 12, 160); tfmt.fs = fs; sizes.text = clamp(Math.round((fs - 24) / 2), 1, 30);
+    if (!fromSlider && tool === 'text') { $('size').value = sizes.text; $('sizeLbl').textContent = sizes.text; }
+    $('fsLbl').textContent = fs;
+    if (activeTB) { activeTB.t.fs = fs; activeTB.e.style.fontSize = fs + 'px'; scheduleSave(); }
+  }
+  function syncFmt(t) {   // 글상자를 고르면 도구바가 그 상자의 서식을 보여줌
+    tfmt.ff = FONTS[t.ff] ? t.ff : 'sys'; tfmt.fs = t.fs; tfmt.b = !!t.b; tfmt.i = !!t.i; tfmt.u = !!t.u;
+    sizes.text = clamp(Math.round((t.fs - 24) / 2), 1, 30);
+    if (tool === 'text') { $('size').value = sizes.text; $('sizeLbl').textContent = sizes.text; }
+    paintFmt();
+  }
+  function applyFmt() { if (activeTB) { const t = activeTB.t; t.ff = tfmt.ff; t.b = tfmt.b; t.i = tfmt.i; t.u = tfmt.u; styleTB(activeTB.e, t); scheduleSave(); } paintFmt(); }
+  $('fontChips').addEventListener('click', e => { const b = e.target.closest('button[data-ff]'); if (!b) return; tfmt.ff = b.dataset.ff; applyFmt(); });
+  $('fmtBtns').addEventListener('click', e => { const b = e.target.closest('button[data-fmt]'); if (!b) return; tfmt[b.dataset.fmt] = !tfmt[b.dataset.fmt]; applyFmt(); });
+  $('fsDn').onclick = () => setFs(tfmt.fs - 2); $('fsUp').onclick = () => setFs(tfmt.fs + 2);
+  ['fontChips', 'fmtBtns', 'fsBox'].forEach(id => ['pointerdown', 'mousedown'].forEach(ev => $(id).addEventListener(ev, e => e.preventDefault())));   // 글상자의 포커스 유지
+  paintFmt();
   $('zIn').onclick = () => { zoom = Math.min(4, Math.round((zoom + 0.25) * 100) / 100); layout(); };
   $('zOut').onclick = () => { zoom = Math.max(0.5, Math.round((zoom - 0.25) * 100) / 100); layout(); };
   $('btnPenOnly').onclick = () => { penOnly = !penOnly; $('btnPenOnly').classList.toggle('on', penOnly); toast(penOnly ? '손가락은 화면 이동만, 펜·마우스로 필기합니다.' : '손가락으로도 필기합니다.'); };
@@ -1340,7 +1412,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     if (!ref.vis) showPage(ref);
     const pr = ref.el.getBoundingClientRect(), sr = $('scroller').getBoundingClientRect();
     const cy = (Math.max(sr.top, pr.top) + 24 - pr.top) / ref.scale;
-    const t = { id: rid('t'), x: 40, y: Math.round(clamp(cy, 20, Math.max(20, ref.p.h - 80))), text: '', fs: 24 + sizes.text * 2, color };
+    const t = newText(40, Math.round(clamp(cy, 20, Math.max(20, ref.p.h - 80))));
     ref.p.texts.push(t);
     return { t, e: addTB(ref, t).querySelector('.tbt'), ref };
   }
@@ -1410,7 +1482,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     if (!SR) { toast('이 브라우저는 음성 인식을 지원하지 않아요. 키보드의 🎤(받아쓰기)를 써 보세요', 4200); return; }
     if (!note) return;
     if (['pen', 'hl', 'eraser', 'shape'].includes(tool)) setTool('text');   // 받아 적은 글상자를 바로 옮기고 고칠 수 있게
-    const tb = dictTarget(); activeTB = tb;
+    const tb = dictTarget(); activeTB = tb; syncFmt(tb.t);
     dict = { tb, want: true, err: '', idle: 0, rec: null };
     dictUi(true); dictRun();
   }
@@ -1522,13 +1594,14 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     else if (bg.type === 'dots') { g.fillStyle = '#b8c2d4'; for (let x = 90; x < p.w - 40; x += 56) for (let y = 90; y < p.h - 40; y += 56) { g.beginPath(); g.arc(x, y, 3, 0, 6.2832); g.fill(); } }
     for (const im of p.images) { const el = await loadImg(note.assets[im.a] || ''); if (el) g.drawImage(el, im.x, im.y, im.w, im.h); }
     p.strokes.forEach(s => drawStroke(g, s));
+    await ensureFonts(p.texts);
     p.texts.forEach(t => {          // 글상자: 안쪽 여백 10/6px, 최대 폭 1000px, 줄 간격 1.4
-      g.fillStyle = t.color; g.textBaseline = 'middle'; g.font = t.fs + 'px -apple-system,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif';
+      g.fillStyle = t.color; g.textBaseline = 'middle'; g.font = fontStr(t, t.fs);
       const maxW = 980, lh = t.fs * 1.4; let row = 0;
       String(t.text).split('\n').forEach(par => {
         let line = '';
-        for (const ch of par) { if (line && g.measureText(line + ch).width > maxW) { g.fillText(line, t.x + 10, t.y + 6 + row * lh + lh / 2); row++; line = ch; } else line += ch; }
-        g.fillText(line, t.x + 10, t.y + 6 + row * lh + lh / 2); row++;
+        for (const ch of par) { if (line && g.measureText(line + ch).width > maxW) { fillLine(g, t, line, t.x + 10, t.y + 6 + row * lh + lh / 2); row++; line = ch; } else line += ch; }
+        fillLine(g, t, line, t.x + 10, t.y + 6 + row * lh + lh / 2); row++;
       });
     });
     return c;
@@ -1639,11 +1712,12 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
         sh.innerHTML = '<div class="b">' + bgHTML(p.bg, p.w, p.h) + '</div>';
         p.images.forEach(im => { const x = document.createElement('img'); x.className = 'pi'; x.alt = ''; x.src = note.assets[im.a] || ''; x.style.cssText = 'left:' + im.x + 'px;top:' + im.y + 'px;width:' + im.w + 'px;height:' + im.h + 'px'; sh.appendChild(x); });
         if (p.strokes.length) { const x = document.createElement('img'); x.className = 'i'; x.alt = ''; x.src = renderInk(p, 1.25).toDataURL('image/png'); sh.appendChild(x); }
-        p.texts.forEach(t => { const d = document.createElement('div'); d.className = 'tx'; d.style.cssText = 'left:' + t.x + 'px;top:' + t.y + 'px;font-size:' + t.fs + 'px;color:' + t.color; d.textContent = t.text; sh.appendChild(d); });
+        p.texts.forEach(t => { const d = document.createElement('div'); d.className = 'tx'; d.style.cssText = 'left:' + t.x + 'px;top:' + t.y + 'px;font-size:' + t.fs + 'px;color:' + t.color + ';font-family:' + fontCss(t.ff).replace(/"/g, "'") + ';font-weight:' + (t.b ? 700 : 400) + ';font-style:' + (t.i ? 'italic' : 'normal') + ';text-decoration:' + (t.u ? 'underline' : 'none'); d.textContent = t.text; sh.appendChild(d); });
         pp.appendChild(sh); root.appendChild(pp);
         if (i % 3 === 2) await new Promise(r => setTimeout(r, 0));
       }
       await Promise.all(Array.from(root.querySelectorAll('img')).map(i => (i.decode ? i.decode().catch(() => {}) : Promise.resolve())));
+      await ensureFonts(note.pages.flatMap(p => p.texts));
     } finally { unbusy(); }
     const done = () => { root.innerHTML = ''; window.removeEventListener('afterprint', done); };
     window.addEventListener('afterprint', done);

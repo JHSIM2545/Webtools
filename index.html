@@ -37,9 +37,13 @@ main{max-width:960px;margin:0 auto;padding:18px 16px 40px}
 .search input:focus{border-color:var(--accent)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:16px}
 a.card,.card.ghost{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:16px;background:var(--panel);border:1px solid var(--line);text-decoration:none;color:inherit;min-height:150px}
-a.card{transition:transform .12s,border-color .12s}
+a.card{transition:transform .12s,border-color .12s;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 a.card:hover{border-color:var(--accent);transform:translateY(-2px)}
 a.card:active{transform:scale(.98)}
+a.card.dragging{position:relative;z-index:30;transition:none;pointer-events:none;border-color:var(--accent);box-shadow:0 16px 36px rgba(0,0,0,.6);opacity:.97}
+body.dragmode,body.dragmode *{cursor:grabbing!important;-webkit-user-select:none;user-select:none}
+.reorder{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--sub);min-height:22px}
+.reorder button{padding:2px 10px;font-size:12px;border-radius:99px}
 .card .ico{width:52px;height:52px;border-radius:14px;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:28px;overflow:hidden;flex:none}
 .card .ico img{width:100%;height:100%;object-fit:cover;display:block}
 .card .name{font-size:16px;font-weight:700}
@@ -77,6 +81,7 @@ a.card:active{transform:scale(.98)}
     <p id="count"></p>
   </div>
   <div class="search"><input id="q" type="search" placeholder="툴 검색"></div>
+  <div class="reorder" id="reorder"></div>
   <div class="grid" id="grid"></div>
 </main>
 
@@ -121,14 +126,33 @@ a.card:active{transform:scale(.98)}
 
   // 이름의 'SIM'은 흰색, 나머지는 각 앱의 컨셉 컬러
   const nameHtml = t => { const m = /^SIM\s+(.+)$/.exec(t.name); return m && t.color ? 'SIM <span style="color:' + esc(t.color) + '">' + esc(m[1]) + '</span>' : esc(t.name); };
+  /* ── 순서 (이 기기에만 저장). 목록에 없는 새 툴은 맨 뒤에 붙는다 ── */
+  const KEY_ORDER = 'simtools_order';
+  const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  const lsDel = k => { try { localStorage.removeItem(k); } catch (e) {} };
+  const loadOrder = () => { try { const a = JSON.parse(lsGet(KEY_ORDER) || '[]'); return Array.isArray(a) ? a.map(String) : []; } catch (e) { return []; } };
+  function orderedTools() {
+    const rank = new Map(loadOrder().map((id, i) => [id, i]));
+    return TOOLS.filter(t => rank.has(t.id)).sort((a, b) => rank.get(a.id) - rank.get(b.id)).concat(TOOLS.filter(t => !rank.has(t.id)));
+  }
+  function updateHint() {
+    const el = $('reorder');
+    if ($('q').value.trim()) { el.innerHTML = ''; return; }
+    const coarse = window.matchMedia && matchMedia('(pointer:coarse)').matches;
+    el.innerHTML = '<span>' + (coarse ? '카드를 길게 누른 채 끌어서' : '카드를 끌어서') + ' 순서를 바꿀 수 있어요</span>' + (loadOrder().length ? '<button id="orderReset">순서 초기화</button>' : '');
+    const b = $('orderReset'); if (b) b.onclick = () => { lsDel(KEY_ORDER); render(); toast('기본 순서로 되돌렸어요'); };
+  }
+
   function render() {
     const q = $('q').value.trim().toLowerCase();
-    const list = TOOLS.filter(t => !q || t.name.toLowerCase().includes(q) || (t.desc || '').toLowerCase().includes(q));
+    const list = orderedTools().filter(t => !q || t.name.toLowerCase().includes(q) || (t.desc || '').toLowerCase().includes(q));
     $('count').textContent = '등록된 툴 ' + TOOLS.length + '개' + (q ? ' · 검색 결과 ' + list.length + '개' : '');
+    updateHint();
     if (!list.length) { $('grid').innerHTML = '<div class="empty" style="grid-column:1/-1">검색 결과가 없습니다.</div>'; return; }
     let html = list.map(t => {
-      const ico = t.icon ? '<img src="' + esc(t.icon) + '" alt="">' : esc(t.emoji || '🧰');
-      return '<a class="card" href="' + esc(t.url) + '">' +
+      const ico = t.icon ? '<img src="' + esc(t.icon) + '" alt="" draggable="false">' : esc(t.emoji || '🧰');
+      return '<a class="card" data-id="' + esc(t.id) + '" draggable="false" href="' + esc(t.url) + '">' +
         '<div class="ico">' + ico + '</div>' +
         '<div><div class="name">' + nameHtml(t) + '</div><div class="desc">' + esc(t.desc || '') + '</div></div>' +
         (t.tag ? '<span class="tag">' + esc(t.tag) + '</span>' : '') + '</a>';
@@ -138,6 +162,94 @@ a.card:active{transform:scale(.98)}
   }
   $('q').addEventListener('input', render);
   render();
+
+  /* ── 카드 끌어서 순서 바꾸기 ──
+     마우스: 6px 이상 끌면 시작. 터치: 0.4초 길게 누른 뒤 끌기(그 전에 움직이면 일반 스크롤).
+     검색 중에는 일부만 보이므로 끌기를 막는다. */
+  const grid = $('grid');
+  let D = null, suppressClick = 0;
+  grid.addEventListener('click', e => { if (Date.now() < suppressClick) { e.preventDefault(); e.stopPropagation(); } }, true);
+  grid.addEventListener('dragstart', e => e.preventDefault());
+  grid.addEventListener('contextmenu', e => { if (D) e.preventDefault(); });
+  grid.addEventListener('pointerdown', e => {
+    if (D || $('q').value.trim()) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const el = e.target.closest && e.target.closest('a.card'); if (!el) return;
+    D = { el, pid: e.pointerId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, gx: 0, gy: 0, active: false, type: e.pointerType, timer: 0, raf: 0 };
+    if (e.pointerType !== 'mouse') D.timer = setTimeout(startDrag, 400);
+  });
+  document.addEventListener('pointermove', e => {
+    if (!D || e.pointerId !== D.pid) return;
+    D.x = e.clientX; D.y = e.clientY;
+    if (!D.active) {
+      const mv = Math.hypot(D.x - D.sx, D.y - D.sy);
+      if (D.type === 'mouse') { if (mv > 6) startDrag(); }
+      else if (mv > 10) { clearTimeout(D.timer); D = null; }   // 길게 누르기 전에 움직였으면 스크롤로 본다
+      return;
+    }
+    e.preventDefault(); moveDrag();
+  });
+  const endEvt = e => { if (D && e.pointerId === D.pid) finishDrag(e.type === 'pointercancel'); };
+  document.addEventListener('pointerup', endEvt);
+  document.addEventListener('pointercancel', endEvt);
+  document.addEventListener('touchmove', e => { if (D && D.active) e.preventDefault(); }, { passive: false });
+  window.addEventListener('blur', () => { if (D) finishDrag(true); });
+
+  function startDrag() {
+    if (!D || D.active) return;
+    clearTimeout(D.timer);
+    const r = D.el.getBoundingClientRect();
+    D.active = true; D.gx = D.x - r.left; D.gy = D.y - r.top;
+    try { D.el.setPointerCapture(D.pid); } catch (e) {}
+    try { getSelection().removeAllRanges(); } catch (e) {}
+    D.el.classList.add('dragging'); document.body.classList.add('dragmode');
+    if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) {} }
+    moveDrag(); D.raf = requestAnimationFrame(autoScroll);
+  }
+  // 카드가 놓인 자리(레이아웃)를 기준으로 손가락 위치를 따라가게 한다
+  function place() {
+    const el = D.el; el.style.transform = 'none';
+    const r = el.getBoundingClientRect();
+    el.style.transform = 'translate(' + (D.x - D.gx - r.left) + 'px,' + (D.y - D.gy - r.top) + 'px) scale(1.04)';
+  }
+  function moveDrag() {
+    const el = D.el; place();
+    // 화면에 보이는 위치(이동 애니메이션 중일 수 있음)가 아니라 레이아웃 칸을 기준으로 어느 카드 위인지 찾는다
+    const px = D.x + window.scrollX, py = D.y + window.scrollY;
+    const tgt = [].slice.call(grid.querySelectorAll('a.card')).find(c => c !== el && px >= c.offsetLeft && px <= c.offsetLeft + c.offsetWidth && py >= c.offsetTop && py <= c.offsetTop + c.offsetHeight);
+    if (!tgt) return;
+    const cards = [].slice.call(grid.querySelectorAll('a.card'));
+    const from = cards.indexOf(el), to = cards.indexOf(tgt);
+    const first = cards.filter(c => c !== el).map(c => [c, c.getBoundingClientRect()]);
+    grid.insertBefore(el, from < to ? tgt.nextSibling : tgt);
+    place();
+    first.forEach(([c, r0]) => {   // 밀려나는 카드는 부드럽게 제자리로
+      const r1 = c.getBoundingClientRect(), dx = r0.left - r1.left, dy = r0.top - r1.top;
+      if (!dx && !dy) return;
+      c.style.transition = 'none'; c.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; c.getBoundingClientRect();
+      c.style.transition = 'transform .18s'; c.style.transform = '';
+      setTimeout(() => { c.style.transition = ''; }, 230);
+    });
+  }
+  function autoScroll() {
+    if (!D || !D.active) return;
+    const h = window.innerHeight; let dy = 0;
+    if (D.y < 120) dy = -Math.min(18, Math.ceil((120 - D.y) / 5));
+    else if (D.y > h - 70) dy = Math.min(18, Math.ceil((D.y - (h - 70)) / 5));
+    if (dy) { window.scrollBy(0, dy); moveDrag(); }
+    D.raf = requestAnimationFrame(autoScroll);
+  }
+  function finishDrag(cancelled) {
+    const d = D; D = null; if (!d) return;
+    clearTimeout(d.timer); cancelAnimationFrame(d.raf);
+    if (!d.active) return;
+    d.el.classList.remove('dragging'); d.el.style.transform = ''; document.body.classList.remove('dragmode');
+    try { d.el.releasePointerCapture(d.pid); } catch (e) {}
+    suppressClick = Date.now() + 350;
+    if (cancelled) { render(); return; }
+    lsSet(KEY_ORDER, JSON.stringify([].slice.call(grid.querySelectorAll('a.card')).map(c => c.dataset.id)));
+    updateHint();
+  }
 
   /* ── 앱 설치 (PWA) ── */
   let deferredPrompt = null;

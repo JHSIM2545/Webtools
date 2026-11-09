@@ -85,6 +85,14 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 #ring h2{font-size:26px}#ring p{color:var(--sub);font-size:15px;line-height:1.6}
 #ring .btns{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;justify-content:center}
 #ring .btns button{padding:14px 22px;font-size:16px;border-radius:14px}
+#live{position:fixed;inset:0;z-index:95;background:rgba(7,10,16,.97);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center}
+#live.on{display:flex}
+#live .big{font-size:72px}#live.talk .big{animation:pulse2 1s infinite}
+@keyframes pulse2{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+#live h2{font-size:22px}#live p{color:var(--sub);font-size:15px;line-height:1.6;max-width:92%;min-height:22px}
+#liveMe{color:var(--text)}#liveBot{color:var(--accent)}
+#liveActs{display:flex;flex-direction:column;gap:8px;align-items:center}
+#live .btns{display:flex;gap:10px;margin-top:6px}#live .btns button{padding:13px 20px;font-size:16px;border-radius:14px}
 #toast{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#2b2f40;border:1px solid var(--line);padding:9px 15px;border-radius:12px;font-size:13.5px;z-index:50;display:none;max-width:90%;text-align:center}
 </style>
 </head>
@@ -92,6 +100,7 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 <div class="bar">
   <a class="back" href="index.html" title="SIM Tools">‹</a>
   <h1>SIM <span>Assistant</span></h1>
+  <button class="iconbtn" id="btnLive" title="실시간 음성 대화 (Gemini Live)">🗣</button>
   <button class="iconbtn" id="btnAi" title="Gemini 설정">✨</button>
   <button class="iconbtn" id="btnTts" title="음성 답변 켜기/끄기">🔊</button>
 </div>
@@ -124,6 +133,15 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
   <h2 id="ringTitle">알람</h2>
   <p id="ringSub"></p>
   <div class="btns"><button id="ringSnooze">5분 뒤 다시</button><button class="primary" id="ringStop">끄기</button></div>
+</div>
+<div id="live">
+  <div class="big" id="liveIco">🎙</div>
+  <h2 id="liveState">연결 중…</h2>
+  <p id="liveMe"></p>
+  <p id="liveBot"></p>
+  <div id="liveActs"></div>
+  <div class="btns"><button id="liveMute">🎤 음소거</button><button class="danger" id="liveEnd">대화 종료</button></div>
+  <div class="note" style="margin-top:6px">이어폰을 쓰면 인식이 가장 정확해요</div>
 </div>
 <div id="aiModal" style="display:none;position:fixed;inset:0;z-index:90;background:rgba(7,10,16,.8);align-items:center;justify-content:center;padding:18px">
   <div style="background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;width:100%;max-width:420px">
@@ -1025,6 +1043,193 @@ $('aiSave').onclick = async () => {
   try { const o = await geminiCall(ph, '안녕'); ls.set(GPHONE, ph); $('aiKey').value = ''; aiShow('✓ 연결됐어요. 이제 Gemini가 먼저 해석해요'); }
   catch (e) { aiShow('✗ 실패: ' + (e.message || e)); }
 };
+
+/* ───────── 실시간 음성 대화 (Gemini Live) ─────────
+   브라우저 ↔ Supabase Edge Function(assistant-live) ↔ Gemini Live. 키·지시문·도구 선언은 서버에만 있고,
+   도구(메모·연락처·일정·알람·전화·길안내)는 이 폰 안에서 실행한다. */
+const LURL = window.SIMAS_LIVE_URL || 'wss://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-live';
+const LIVE = { on: false, ws: null, ready: false, handle: '', stream: null, ictx: null, octx: null, node: null, nextT: 0, srcs: [], retries: 0, muted: false, wake: null, cands: [], bub: { me: null, bot: null }, ending: false, reconnecting: false };
+const liveSet = (st, ico, talk) => { $('liveState').textContent = st; if (ico) $('liveIco').textContent = ico; $('live').classList.toggle('talk', !!talk); };
+function liveBubble(kind, add) {
+  if (!add) return;
+  let b = LIVE.bub[kind];
+  if (!b) { b = LIVE.bub[kind] = { text: '', el: addMsg(kind === 'me' ? 'me' : 'bot', '') }; }
+  b.text += add; b.el.textContent = b.text.trim(); scrollEnd();
+  $(kind === 'me' ? 'liveMe' : 'liveBot').textContent = b.text.trim();
+}
+const liveTurnEnd = () => { LIVE.bub = { me: null, bot: null }; };
+const b64 = buf => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = t => { const s = atob(t), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; };
+
+const WORKLET = `class Cap extends AudioWorkletProcessor{constructor(){super();this.buf=[];this.acc=0;this.pos=0}
+process(inputs){const ch=inputs[0]&&inputs[0][0];if(!ch)return true;const r=sampleRate/16000;
+for(let i=0;i<ch.length;i++){this.acc+=ch[i];this.pos++;if(this.pos>=r){this.buf.push(Math.max(-1,Math.min(1,this.acc/this.pos)));this.acc=0;this.pos-=r}}
+if(this.buf.length>=1600){const o=new Int16Array(this.buf.length);for(let i=0;i<o.length;i++)o[i]=this.buf[i]<0?this.buf[i]*32768:this.buf[i]*32767;this.port.postMessage(o.buffer,[o.buffer]);this.buf=[]}return true}}
+registerProcessor('pcm-cap',Cap)`;
+
+function livePlay(b64data) {
+  if (!LIVE.octx) return;
+  try {
+    const i16 = new Int16Array(unb64(b64data)), f = new Float32Array(i16.length);
+    for (let i = 0; i < i16.length; i++) f[i] = i16[i] / 32768;
+    const buf = LIVE.octx.createBuffer(1, f.length, 24000); buf.getChannelData(0).set(f);
+    const src = LIVE.octx.createBufferSource(); src.buffer = buf; src.connect(LIVE.octx.destination);
+    const t = Math.max(LIVE.octx.currentTime + 0.02, LIVE.nextT); src.start(t); LIVE.nextT = t + buf.duration;
+    LIVE.srcs.push(src); src.onended = () => { LIVE.srcs = LIVE.srcs.filter(x => x !== src); if (!LIVE.srcs.length && LIVE.on) liveSet('듣고 있어요', '🎙', false); };
+    liveSet('말하는 중', '🔊', true);
+  } catch (e) {}
+}
+function liveFlush() { LIVE.srcs.forEach(x => { try { x.onended = null; x.stop(); } catch (e) {} }); LIVE.srcs = []; LIVE.nextT = 0; }
+const liveSend = o => { try { if (LIVE.ws && LIVE.ws.readyState === 1) LIVE.ws.send(JSON.stringify(o)); } catch (e) {} };
+
+/* 도구 실행 — 서버(Gemini)가 부르면 이 폰의 데이터에 실제로 적용한다 */
+const L_DT = (d, t) => { const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(d || '').trim()), h = /^(\d{1,2}):(\d{2})/.exec(String(t || '').trim()); if (!m) return null; return new Date(+m[1], +m[2] - 1, +m[3], h ? +h[1] : 0, h ? +h[2] : 0); };
+function liveCard(html, btns) { addMsg('bot', html, btns); }
+const LTOOLS = {
+  async save_memo(a) {
+    const c = String(a.content || '').trim(); if (!c) return { ok: false, error: '내용이 비었어요' };
+    await put('memos', { id: rid(), content: c, created: new Date().toISOString() }); renderAll();
+    liveCard('<b>메모했어요</b><span class="sub">' + esc(c) + '</span>', [{ label: '메모 보기', fn: () => { liveEnd(); setTab('memo'); } }]); return { ok: true };
+  },
+  async save_contact(a) {
+    const name = String(a.name || '').trim(); if (!name) return { ok: false, error: '이름이 필요해요' };
+    await loadContacts();
+    const dup = contacts.find(c => String(c.name || '').replace(/\s/g, '') === name.replace(/\s/g, ''));
+    const base = dup ? Object.assign({}, dup) : {};
+    ['name', 'title', 'company', 'mobile', 'tel', 'email', 'address'].forEach(k => { if (a[k]) base[k] = String(a[k]).trim(); });
+    if (a.mobile) base.mobile = NLU.fmtPhone ? NLU.fmtPhone(a.mobile) : base.mobile;
+    if (a.memo) base.memo = base.memo ? base.memo + '\n' + a.memo : a.memo;
+    const row = await saveContact(base);
+    liveCard('<b>' + esc(row.name) + '님을 ' + (dup ? '업데이트' : '저장') + '했어요</b>' + kvRows([['휴대폰', row.mobile], ['회사', row.company], ['주소', row.address]]), [{ label: 'SIM Phone에서 보기', href: 'phone.html' }]);
+    return { ok: true, updated: !!dup, name: row.name };
+  },
+  async find_contact(a) {
+    await loadContacts(); const r = searchContacts({ name: String(a.query || '') }).slice(0, 5);
+    if (!r.length) return { ok: true, found: 0 };
+    liveCard(contactCard(r[0]), callBtns(r[0], true));
+    return { ok: true, found: r.length, contacts: r.map(c => ({ name: c.name, company: c.company, title: c.title, mobile: c.mobile, tel: c.tel, email: c.email })) };
+  },
+  async call_contact(a) {
+    await loadContacts(); const r = searchContacts({ name: String(a.query || '') });
+    if (!r.length) return { ok: false, error: '연락처에 없어요' };
+    if (r.length > 1 && String(r[0].name).replace(/\s/g, '') !== String(a.query || '').replace(/\s/g, '')) return { ok: false, error: '여러 명이에요. 누구인지 물어보세요', candidates: r.slice(0, 4).map(c => c.name + (c.company ? ' (' + c.company + ')' : '')) };
+    const c = r[0], no = c.mobile || c.tel; if (!no) return { ok: false, error: '전화번호가 없어요' };
+    liveCard(whoHtml(c), callBtns(c, true).filter(b => b.href && b.href.startsWith('tel')));
+    $('liveActs').innerHTML = ''; const tb = document.createElement('a'); tb.className = 'btn primary'; tb.style.padding = '14px 22px'; tb.textContent = '📞 ' + (c.name || '') + ' ' + no; tb.href = 'tel:' + no.replace(/[^0-9+]/g, ''); $('liveActs').appendChild(tb);
+    setTimeout(() => { try { location.href = 'tel:' + no.replace(/[^0-9+]/g, ''); } catch (e) {} }, 700);
+    return { ok: true, name: c.name, number: no, note: '화면의 전화 버튼도 함께 떴어요' };
+  },
+  async add_event(a) {
+    const d = L_DT(a.date, a.all_day ? '' : a.time); if (!d) return { ok: false, error: '날짜 형식이 맞지 않아요' };
+    const title = String(a.title || '').trim(); if (!title) return { ok: false, error: '제목이 필요해요' };
+    await put('events', { id: rid(), title, start: d.toISOString(), allDay: !!a.all_day || !a.time, remind: (a.all_day || !a.time) ? null : 10, notified: false }); renderAll(); askNotifPerm();
+    liveCard('<b>일정을 저장했어요</b>' + kvRows([['제목', title], ['일시', fmtDT(d, !!a.all_day || !a.time)]]), [{ label: '일정 보기', fn: () => { liveEnd(); setTab('event'); } }]);
+    return { ok: true };
+  },
+  async list_events(a) {
+    const d = L_DT(a.date, ''); if (!d) return { ok: false, error: '날짜 형식이 맞지 않아요' };
+    const r = MEM.events.filter(e => sameDay(new Date(e.start), d)).sort((x, y) => x.start.localeCompare(y.start));
+    return { ok: true, events: r.map(e => ({ title: e.title, time: e.allDay ? '종일' : fmtTime(new Date(e.start)) })) };
+  },
+  async set_alarm(a) {
+    const hm = /^(\d{1,2}):(\d{2})/.exec(String(a.time || '')); if (!hm) return { ok: false, error: '시각 형식이 맞지 않아요' };
+    let d = a.date ? L_DT(a.date, a.time) : new Date(); if (!d) return { ok: false, error: '날짜 형식이 맞지 않아요' };
+    if (!a.date) { d.setHours(+hm[1], +hm[2], 0, 0); if (d.getTime() <= Date.now()) d = new Date(d.getTime() + 864e5); }
+    if (d.getTime() <= Date.now()) return { ok: false, error: '이미 지난 시각이에요' };
+    await put('alarms', { id: rid(), at: d.toISOString(), label: String(a.label || ''), repeat: null, active: true }); renderAll(); askNotifPerm(); wakeOn();
+    liveCard('<b>알람을 맞췄어요</b>' + kvRows([['시각', fmtDT(d)], ['이름', a.label]]) + '<span class="sub">앱을 열어 둬야 울려요</span>', [{ label: '알람 보기', fn: () => { liveEnd(); setTab('alarm'); } }]);
+    return { ok: true, at: fmtDT(d) };
+  },
+  async find_destination(a) {
+    const q = String(a.query || '').trim(); if (!q) return { ok: false, error: '목적지가 비었어요' };
+    let r = []; try { r = await searchPlaces(q); } catch (e) { return { ok: false, error: '위치 검색에 실패했어요' }; }
+    const nums = destNums(q), out = [];
+    r.forEach(c => { c.approx = nums.length > 0 && !nums.every(n => hasNum(c, n)); if (!out.some(o => near(o, c) || (o.name === c.name && o.addr === c.addr))) out.push(c); });
+    out.sort((x, y) => (x.approx ? 1 : 0) - (y.approx ? 1 : 0)); LIVE.cands = out.slice(0, 4);
+    if (!LIVE.cands.length) return { ok: false, error: '위치를 찾지 못했어요' };
+    liveCard('<b>' + esc(q) + ' — 후보 ' + LIVE.cands.length + '곳</b>' + LIVE.cands.map((c, i) => '<div class="who" style="margin-top:6px"><div class="av" style="background:#0ea5e9">' + (i + 1) + '</div><div><b>' + esc(c.name) + '</b><small>' + esc(c.addr || '') + (c.approx ? ' · ⚠ 번지 미확인' : '') + '</small></div></div>').join(''));
+    return { ok: true, candidates: LIVE.cands.map((c, i) => ({ index: i + 1, name: c.name, address: c.addr, exact_number_matched: !c.approx })) };
+  },
+  async start_navigation(a) {
+    const c = LIVE.cands[(+a.index || 0) - 1]; if (!c) return { ok: false, error: '그 번호의 후보가 없어요' };
+    liveCard('<b>네이버 내비를 실행해요</b><span class="sub">' + esc(c.name) + ' · ' + esc(c.addr || '') + '</span>' + noNaverApp(), [{ label: '🧭 네이버 내비 시작', primary: true, href: launchHref(nmapUrl.nav(c)), fn: iosStoreFallback }]);
+    $('liveActs').innerHTML = ''; const bt = document.createElement('a'); bt.className = 'btn primary'; bt.style.padding = '14px 22px'; bt.textContent = '🧭 네이버 내비 시작'; bt.href = launchHref(nmapUrl.nav(c)); bt.onclick = iosStoreFallback; $('liveActs').appendChild(bt);
+    setTimeout(() => { try { openNaver(nmapUrl.nav(c)); } catch (e) {} }, 800);
+    return { ok: true, note: '내비 앱을 여는 중이고 화면에 시작 버튼도 떴어요' };
+  }
+};
+async function liveTools(calls) {
+  liveSet('처리 중…', '⚙️', false); const resp = [];
+  for (const c of calls) {
+    let r; try { const f = LTOOLS[c.name]; r = f ? await f(c.args || {}) : { ok: false, error: '지원하지 않는 기능이에요' }; } catch (e) { r = { ok: false, error: String(e && e.message || e).slice(0, 120) }; }
+    resp.push({ id: c.id, name: c.name, response: r });
+  }
+  liveSend({ toolResponse: { functionResponses: resp } }); if (!LIVE.srcs.length) liveSet('듣고 있어요', '🎙', false);
+}
+function liveMsg(m) {
+  if (m.ready) { LIVE.ready = true; LIVE.retries = 0; LIVE.reconnecting = false; liveSet('듣고 있어요', '🎙', false); return; }
+  if (m.error) { liveFail(m.error === 'forbidden' ? '등록되지 않은 전화번호예요. ✨에서 확인해 주세요' : '서버 오류'); return; }
+  if (m.upstreamClosed) { liveReconnect('upstream'); return; }
+  if (m.sessionResumptionUpdate) { if (m.sessionResumptionUpdate.newHandle) LIVE.handle = m.sessionResumptionUpdate.newHandle; return; }
+  if (m.goAway) { liveReconnect('goAway'); return; }
+  if (m.toolCall && m.toolCall.functionCalls) { liveTools(m.toolCall.functionCalls); return; }
+  const sc = m.serverContent; if (!sc) return;
+  if (sc.interrupted) { liveFlush(); liveSet('듣고 있어요', '🎙', false); LIVE.bub.bot = null; }
+  if (sc.inputTranscription && sc.inputTranscription.text) { if (LIVE.bub.bot) LIVE.bub.bot = null; liveBubble('me', sc.inputTranscription.text); }
+  if (sc.modelTurn && sc.modelTurn.parts) sc.modelTurn.parts.forEach(p => { if (p.inlineData && p.inlineData.data) livePlay(p.inlineData.data); });
+  if (sc.outputTranscription && sc.outputTranscription.text) liveBubble('bot', sc.outputTranscription.text);
+  if (sc.turnComplete) liveTurnEnd();
+}
+function liveOpen() {
+  const ph = gKey(); LIVE.ready = false;
+  const ws = new WebSocket(LURL); LIVE.ws = ws;
+  ws.onopen = () => { try { ws.send(JSON.stringify({ auth: { phone: ph, resume: LIVE.handle || undefined } })); } catch (e) {} };
+  ws.onmessage = async ev => { let t = ev.data; if (t instanceof Blob) t = await t.text(); try { liveMsg(JSON.parse(t)); } catch (e) {} };
+  ws.onclose = () => { if (LIVE.ws !== ws) return; LIVE.ready = false; if (LIVE.on && !LIVE.ending) liveReconnect('close'); };
+  ws.onerror = () => {};
+}
+function liveReconnect(why) {
+  if (!LIVE.on || LIVE.ending || LIVE.reconnecting) return;
+  if (++LIVE.retries > 3) return liveFail('실시간 연결이 계속 끊겨요');
+  LIVE.reconnecting = true; liveSet('다시 연결하는 중…', '🔄', false);
+  const old = LIVE.ws; LIVE.ws = null; try { old && old.close(); } catch (e) {}
+  setTimeout(() => { LIVE.reconnecting = false; if (LIVE.on && !LIVE.ending) liveOpen(); }, 600 * LIVE.retries);
+}
+function liveFail(msg) { const was = LIVE.on; liveEnd(true); if (was) { sys('실시간 대화를 쓸 수 없어요: ' + msg + ' — 기본 방식으로 돌아가요'); toast('실시간 연결 실패: ' + msg, 4200); } }
+async function liveStart() {
+  if (LIVE.on) return;
+  if (!gKey()) { toast('✨에서 등록된 전화번호를 먼저 입력해 주세요', 4200); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !(window.AudioContext || window.webkitAudioContext) || !window.AudioWorkletNode) { toast('이 브라우저는 실시간 음성 대화를 지원하지 않아요', 4200); return; }
+  if (listening) { try { rec.stop(); } catch (e) {} }
+  stopSpeak(); unlockAudio(); LIVE.on = true; LIVE.ending = false; LIVE.retries = 0; LIVE.handle = ''; LIVE.muted = false; LIVE.bub = { me: null, bot: null };
+  $('live').classList.add('on'); $('liveMe').textContent = ''; $('liveBot').textContent = ''; $('liveActs').innerHTML = ''; $('liveMute').textContent = '🎤 음소거'; liveSet('연결 중…', '🎙', false);
+  try {
+    LIVE.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    const AC = window.AudioContext || window.webkitAudioContext;
+    LIVE.ictx = new AC(); try { await LIVE.ictx.resume(); } catch (e) {}
+    await LIVE.ictx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' })));
+    const srcN = LIVE.ictx.createMediaStreamSource(LIVE.stream); LIVE.node = new AudioWorkletNode(LIVE.ictx, 'pcm-cap');
+    LIVE.node.port.onmessage = ev => { if (LIVE.muted || !LIVE.ready) return; liveSend({ realtimeInput: { audio: { data: b64(ev.data), mimeType: 'audio/pcm;rate=16000' } } }); };
+    const mute = LIVE.ictx.createGain(); mute.gain.value = 0; srcN.connect(LIVE.node); LIVE.node.connect(mute); mute.connect(LIVE.ictx.destination);
+    try { LIVE.octx = new AC({ sampleRate: 24000 }); } catch (e) { LIVE.octx = new AC(); }
+    try { await LIVE.octx.resume(); } catch (e) {}
+    try { if (navigator.wakeLock) LIVE.wake = await navigator.wakeLock.request('screen'); } catch (e) {}
+    liveOpen();
+  } catch (e) { liveFail(e && e.name === 'NotAllowedError' ? '마이크 권한을 허용해 주세요' : (e && e.message) || '시작하지 못했어요'); }
+}
+function liveEnd(silent) {
+  if (!LIVE.on && !silent) return; LIVE.ending = true; LIVE.on = false;
+  try { LIVE.ws && LIVE.ws.close(1000); } catch (e) {} LIVE.ws = null; LIVE.ready = false; liveFlush();
+  try { LIVE.node && (LIVE.node.port.onmessage = null, LIVE.node.disconnect()); } catch (e) {} LIVE.node = null;
+  try { LIVE.stream && LIVE.stream.getTracks().forEach(t => t.stop()); } catch (e) {} LIVE.stream = null;
+  try { LIVE.ictx && LIVE.ictx.close(); } catch (e) {} LIVE.ictx = null; try { LIVE.octx && LIVE.octx.close(); } catch (e) {} LIVE.octx = null;
+  try { LIVE.wake && LIVE.wake.release(); } catch (e) {} LIVE.wake = null;
+  $('live').classList.remove('on'); liveTurnEnd();
+}
+$('btnLive').onclick = () => (LIVE.on ? liveEnd() : liveStart());
+$('liveEnd').onclick = () => liveEnd();
+$('liveMute').onclick = () => { LIVE.muted = !LIVE.muted; $('liveMute').textContent = LIVE.muted ? '🔇 음소거 해제' : '🎤 음소거'; };
+
 /* ───────── 입력 처리 ───────── */
 const HELP = ['"메모해줘"', '"홍길동 연락처 저장해줘"', '"홍길동 전화번호 찾아줘"', '"홍길동한테 전화해줘"', '"내일 오후 3시 미팅 일정 추가해줘"', '"내일 아침 7시에 알람 맞춰줘"', '"오늘 일정 알려줘"', '"강남역으로 가자"'];
 async function handleText(raw, viaAI) {

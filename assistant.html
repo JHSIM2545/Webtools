@@ -88,7 +88,8 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 #ring .btns{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;justify-content:center}
 #ring .btns button{padding:14px 22px;font-size:16px;border-radius:14px}
 #live{position:fixed;inset:0;z-index:95;background:#070a10;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center}
-#live.on{display:flex}
+#live.on{display:flex;overflow-y:auto}
+@media (max-height:560px){#live.on{justify-content:flex-start;padding:10px 16px;gap:6px}#liveWave{width:auto!important;max-height:96px}#live h2{font-size:18px}#live .btns{margin-top:0}#live p{min-height:0;font-size:13px}}
 #live .big{font-size:72px}#live.talk .big{animation:pulse2 1s infinite}
 @keyframes pulse2{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
 #live h2{font-size:22px}#live p{color:var(--sub);font-size:15px;line-height:1.6;max-width:92%;min-height:22px}
@@ -664,12 +665,14 @@ function startListen(barge) {
       if (!t && err !== 'not-allowed' && err !== 'service-not-allowed' && err !== 'audio-capture' && pending && (pending.stage === 'dpick' || pending.stage === 'pick') && bargeN-- > 0) return setTimeout(() => startListen(true), 200);
     }
     if (t) { lastVoice = true; stopSpeak(); handleText(t); return; }
-    if (err === 'not-allowed' || err === 'service-not-allowed') toast('마이크 권한을 허용해 주세요 (브라우저 주소창 옆 설정)', 4200);
-    else if (err === 'network') toast('음성 인식 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요', 4200);
-    else if (err === 'audio-capture') toast('마이크를 찾을 수 없어요', 3200);
-    else if (err !== 'aborted') toast('음성이 들리지 않았어요. 다시 눌러 말씀해 주세요');
+    const nt = m => { toast(m, 4200); sys(m); };   // 화면 아래가 가려지는 기기(차량 화면 등)에서도 보이도록 대화창에도 남긴다
+    if (err === 'not-allowed' || err === 'service-not-allowed') nt('마이크 권한을 허용해 주세요 (브라우저 주소창 옆 설정). 차량 화면에서는 음성 인식이 막혀 있을 수 있어요');
+    else if (err === 'network') nt('음성 인식 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요');
+    else if (err === 'audio-capture') nt('마이크를 찾을 수 없어요');
+    else if (err === 'language-not-supported') nt('이 기기는 한국어 음성 인식을 지원하지 않아요');
+    else if (err !== 'aborted') nt('음성이 들리지 않았어요. 다시 눌러 말씀해 주세요' + (err ? ' (' + err + ')' : ''));
   };
-  try { rec.start(); } catch (e) { listening = false; }
+  try { rec.start(); } catch (e) { listening = false; sys('음성 인식을 시작하지 못했어요 (' + (e && e.name || '오류') + ')'); }
 }
 $('btnMic').onclick = startListen;
 
@@ -1278,7 +1281,7 @@ $('btnMic').onclick = () => {
   if (LIVE.on) return liveEnd();
   if (gKey() && liveCapable()) return liveStart();
   if (SR && liveCapable() === false && gKey()) { sys('이 기기에서는 실시간 대화를 쓸 수 없어 기본 음성 인식으로 해요'); return startListen(); }
-  if (SR) { if (!gKey() && !sessionStorage.getItem('simas_hint')) { try { sessionStorage.setItem('simas_hint', '1'); } catch (e) {} sys('✨에서 등록된 전화번호를 입력하면 실시간 대화를 쓸 수 있어요 (지금은 기본 음성 인식)'); } return startListen(); }
+  if (SR) { if (!gKey() && !sessionStorage.getItem('simas_hint')) { try { sessionStorage.setItem('simas_hint', '1'); } catch (e) {} bot('실시간 대화를 쓰려면 등록된 전화번호가 필요해요 (지금은 기본 음성 인식)', { html: '<b>실시간 대화를 쓰려면 전화번호를 등록하세요</b><span class="sub">지금은 기본 음성 인식으로 동작해요</span>', btns: [{ label: '📱 전화번호 등록', primary: true, fn: openAi }] }); } return startListen(); }
   const why = whyNot();
   bot('음성 대화를 시작하지 못했어요', { html: '<b>음성 대화를 시작하지 못했어요</b><span class="sub">' + (why.length ? why.map(esc).join('<br>') : '원인을 알 수 없어요') + '<br>글자로 입력해도 모든 기능을 쓸 수 있어요.</span>' });
   if (!gKey()) openAi();

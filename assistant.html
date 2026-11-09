@@ -128,10 +128,10 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 <div id="aiModal" style="display:none;position:fixed;inset:0;z-index:90;background:rgba(7,10,16,.8);align-items:center;justify-content:center;padding:18px">
   <div style="background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;width:100%;max-width:420px">
     <b style="font-size:16px">✨ Gemini 연결</b>
-    <p class="note" style="margin:8px 0 10px">내 말을 못 알아들을 때만 Gemini가 대신 해석하고, 일반 질문에는 짧게 대답해요. 키는 이 폰 브라우저에만 저장되고, 말한 내용은 구글 서버로 전송돼요.</p>
-    <input id="aiKey" type="password" placeholder="Gemini API 키 (AIza…)" autocomplete="off" style="border-radius:10px">
+    <p class="note" style="margin:8px 0 10px">내 말을 못 알아들을 때만 Gemini가 대신 해석하고, 일반 질문에는 짧게 대답해요. 포털에 등록된 내 전화번호를 한 번 입력하면 돼요. 말한 내용은 서버를 거쳐 구글로 전송돼요.</p>
+    <input id="aiKey" type="tel" placeholder="등록된 전화번호 (010-0000-0000)" autocomplete="off" style="border-radius:10px">
     <div class="note" id="aiState" style="margin:8px 0;min-height:18px"></div>
-    <div class="row" style="margin:0"><button id="aiSave" class="primary">저장·테스트</button><button id="aiDel" class="danger">키 삭제</button><button id="aiClose">닫기</button></div>
+    <div class="row" style="margin:0"><button id="aiSave" class="primary">저장·테스트</button><button id="aiDel" class="danger">삭제</button><button id="aiClose">닫기</button></div>
   </div>
 </div>
 <div id="toast"></div>
@@ -981,40 +981,24 @@ async function navFlow(sl) {
 }
 
 
-/* ───────── Gemini (못 알아들은 말 해석 + 짧은 대화) ───────── */
-const GKEY = 'SIMAS_GEMINI_KEY', GMODELS = ['gemini-flash-latest', 'gemini-2.5-flash'];
-const gKey = () => ls.get(GKEY, '').trim();
-async function geminiCall(key, text, system) {
-  let lastErr = '';
-  for (const m of GMODELS) {
-    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 12000);
-    try {
-      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent', {
-        method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-        body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 1024 } })
-      });
-      const j = await r.json().catch(() => ({}));
-      if (r.ok) { const t = (((j.candidates || [])[0] || {}).content || {}).parts; const out = (t || []).map(x => x.text || '').join('').trim(); if (out) return out; lastErr = '빈 응답'; continue; }
-      lastErr = (j.error && j.error.message) || ('HTTP ' + r.status);
-      if (r.status === 400 || r.status === 401 || r.status === 403 || r.status === 429) break;   // 키·한도 문제는 다른 모델로 바꿔도 같음
-    } catch (e) { lastErr = e && e.name === 'AbortError' ? '응답이 늦어요' : '연결 실패'; }
-    finally { clearTimeout(to); }
-  }
-  throw new Error(lastErr || '실패');
-}
-function geminiSystem() {
-  const d = new Date(), pad = n => String(n).padStart(2, '0');
-  return '너는 한국어 음성비서의 해석기다. 지금은 ' + d.getFullYear() + '년 ' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + ['일', '월', '화', '수', '목', '금', '토'][d.getDay()] + '요일 ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + '이다.\n' +
-    '사용자의 말을 보고 정확히 한 줄만 출력한다.\n' +
-    '1) 비서가 할 수 있는 일이면 "CMD: " 뒤에 아래 예시와 같은 표준 문장 하나로 바꿔 쓴다. 날짜와 시간은 숫자로 구체화한다(예: 내일 오전 7시). 말하지 않은 정보는 만들지 않는다.\n' +
-    '   예시: 메모해줘 우유 사기 / 홍길동 연락처 저장해줘 전화번호 010-1234-5678 / 홍길동 전화번호 찾아줘 / 홍길동한테 전화해줘 / 내일 오후 3시 미팅 일정 추가해줘 / 내일 오전 7시에 알람 맞춰줘 / 오늘 일정 알려줘 / 메모 보여줘 / 강남역으로 가자\n' +
-    '2) 그 외 일반 대화나 질문이면 "SAY: " 뒤에 한국어 1~2문장으로 짧게 답한다. 모르면 모른다고 한다.\n' +
-    '다른 설명, 마크다운, 따옴표는 쓰지 않는다.';
+/* ───────── Gemini (못 알아들은 말 해석 + 짧은 대화) ─────────
+   키는 Supabase Edge Function(assistant-ai)에만 있고 앱에는 없다. 등록된 사용자 전화번호로 인증한다. */
+const GPHONE = 'SIMAS_AI_PHONE', GURL = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-ai';
+const gKey = () => ls.get(GPHONE, '').replace(/\D/g, '');
+async function geminiCall(phone, text) {
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 25000);
+  try {
+    const r = await fetch(GURL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, text }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.text) return String(j.text).trim();
+    throw new Error(r.status === 403 ? '등록되지 않은 전화번호예요' : r.status === 429 ? '잠시 뒤 다시 말씀해 주세요' : '응답 실패 (' + r.status + ')');
+  } catch (e) { throw e && e.name === 'AbortError' ? new Error('응답이 늦어요') : (e instanceof TypeError ? new Error('연결 실패') : e); }
+  finally { clearTimeout(to); }
 }
 async function askGemini(text) {
   sys('Gemini가 해석하는 중…');
   try {
-    const out = await geminiCall(gKey(), text, geminiSystem());
+    const out = await geminiCall(gKey(), text);
     const line = out.split('\n').map(x => x.trim()).find(x => /^(CMD|SAY)\s*:/i.test(x)) || ('SAY: ' + out.split('\n')[0]);
     const body = line.replace(/^(CMD|SAY)\s*:\s*/i, '').trim();
     if (/^CMD/i.test(line)) {
@@ -1028,17 +1012,16 @@ async function askGemini(text) {
     return bot('잘 이해하지 못했어요. 이렇게 말해 보세요.', { html: '<b>이렇게 말해 보세요</b><span class="sub">' + HELP.map(esc).join('<br>') + '</span>', say: '잘 이해하지 못했어요. 메모, 연락처 저장, 전화번호 찾기, 전화 걸기, 일정, 알람을 말씀해 보세요.' });
   }
 }
-function aiShow(msg) { $('aiState').textContent = msg || (gKey() ? '✓ 키가 저장돼 있어요' : '저장된 키가 없어요'); }
+function aiShow(msg) { $('aiState').textContent = msg || (gKey() ? '✓ 등록됨: ' + gKey().replace(/(\d{3})(\d+)(\d{4})/, '$1-****-$3') : '저장된 번호가 없어요'); }
 $('btnAi').onclick = () => { $('aiKey').value = ''; aiShow(); $('aiModal').style.display = 'flex'; };
 $('aiClose').onclick = () => { $('aiModal').style.display = 'none'; };
-$('aiDel').onclick = () => { try { localStorage.removeItem(GKEY); } catch (e) {} $('aiKey').value = ''; aiShow('키를 삭제했어요'); };
+$('aiDel').onclick = () => { try { localStorage.removeItem(GPHONE); } catch (e) {} $('aiKey').value = ''; aiShow('삭제했어요'); };
 $('aiSave').onclick = async () => {
-  const k = $('aiKey').value.trim() || gKey(); if (!k) return aiShow('키를 입력해 주세요');
+  const ph = ($('aiKey').value || gKey()).replace(/\D/g, ''); if (ph.length < 9) return aiShow('전화번호를 입력해 주세요');
   aiShow('테스트 중…');
-  try { await geminiCall(k, '안녕', '한 단어로만 답해.'); ls.set(GKEY, k); $('aiKey').value = ''; aiShow('✓ 연결됐어요. 이제 못 알아듣는 말은 Gemini가 도와요'); }
+  try { const o = await geminiCall(ph, '안녕'); ls.set(GPHONE, ph); $('aiKey').value = ''; aiShow('✓ 연결됐어요. 이제 못 알아듣는 말은 Gemini가 도와요'); }
   catch (e) { aiShow('✗ 실패: ' + (e.message || e)); }
 };
-
 /* ───────── 입력 처리 ───────── */
 const HELP = ['"메모해줘"', '"홍길동 연락처 저장해줘"', '"홍길동 전화번호 찾아줘"', '"홍길동한테 전화해줘"', '"내일 오후 3시 미팅 일정 추가해줘"', '"내일 아침 7시에 알람 맞춰줘"', '"오늘 일정 알려줘"', '"강남역으로 가자"'];
 async function handleText(raw, viaAI) {

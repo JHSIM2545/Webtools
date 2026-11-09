@@ -130,9 +130,12 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
 .cd2-note.ok{color:var(--ok)}.cd2-note.err{color:var(--danger)}.cd2-note.busy{color:var(--accent)}
 .cd2-man{position:relative;margin-top:10px;touch-action:none;user-select:none;-webkit-user-select:none}
 .cd2-man img{width:100%;display:block;border-radius:8px;pointer-events:none}
-.cd2-box{position:absolute;border:3px solid #22c55e;box-shadow:0 0 0 999px rgba(0,0,0,.55);box-sizing:border-box;cursor:move}
-.cd2-box i{position:absolute;width:30px;height:30px;background:#22c55e;border:3px solid #fff;border-radius:50%;box-sizing:border-box}
-.cd2-box i[data-h=tl]{left:-15px;top:-15px}.cd2-box i[data-h=tr]{right:-15px;top:-15px}.cd2-box i[data-h=bl]{left:-15px;bottom:-15px}.cd2-box i[data-h=br]{right:-15px;bottom:-15px}
+#cdManSvg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;border-radius:8px}
+.cd2-pt{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;background:rgba(34,197,94,.9);border:3px solid #fff;border-radius:50%;box-sizing:border-box;pointer-events:none;box-shadow:0 1px 6px rgba(0,0,0,.5)}
+.cd2-loupe{position:absolute;top:6px;width:100px;height:100px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.6);background-repeat:no-repeat;display:none;pointer-events:none;background-color:#000}
+.cd2-loupe::before,.cd2-loupe::after{content:"";position:absolute;background:#22c55e}
+.cd2-loupe::before{left:50%;top:6px;bottom:6px;width:1.5px;margin-left:-.75px}
+.cd2-loupe::after{top:50%;left:6px;right:6px;height:1.5px;margin-top:-.75px}
 .cd2-res{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px}
 .cd2-res img{width:132px;max-height:100px;object-fit:contain;border-radius:8px;background:#fff;border:1px solid var(--line);flex:none}
 .cd2-resr{flex:1;min-width:0}
@@ -247,8 +250,8 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
       <div class="cd2-note" id="cdCropNote"></div>
     </div>
     <div data-s="manual">
-      <div class="cd2-note ok" style="margin-top:0">모서리나 안쪽을 끌어 명함 부분에 맞추고 [자르기 완료]를 누르세요</div>
-      <div class="cd2-man" id="cdManWrap"><img id="cdManImg" alt=""><div class="cd2-box" id="cdManBox" data-h="mv"><i data-h="tl"></i><i data-h="tr"></i><i data-h="bl"></i><i data-h="br"></i></div></div>
+      <div class="cd2-note ok" style="margin-top:0">네 점을 각각 끌어 명함 모서리에 맞춰 주세요. 점마다 따로 움직여요. [자르기 완료]를 누르면 그 점 기준으로 반듯하게 펴 드려요.</div>
+      <div class="cd2-man" id="cdManWrap"><img id="cdManImg" alt=""><svg id="cdManSvg" viewBox="0 0 100 100" preserveAspectRatio="none"><path id="cdManMask" fill-rule="evenodd" fill="rgba(0,0,0,.55)"></path><polygon id="cdManPoly" fill="rgba(34,197,94,.08)" stroke="#22c55e" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polygon></svg><i class="cd2-pt" data-p="0"></i><i class="cd2-pt" data-p="1"></i><i class="cd2-pt" data-p="2"></i><i class="cd2-pt" data-p="3"></i><div class="cd2-loupe" id="cdLoupe"></div></div>
     </div>
     <div data-s="work fail ok">
       <div class="cd2-res"><img id="cdThumb" alt="명함"><div class="cd2-resr"><div class="cd-st" id="cdStatus"></div></div></div>
@@ -721,7 +724,7 @@ function ta4CardRetake() {   // 재촬영: 촬영부터 다시
 // 1단계: 크롭 먼저 — 명함을 찾아 기울기를 바로잡고 명함 부분만 자른다
 async function ta4CardGot(f) {
   const C = CARD; if (!f || C.busy) return;
-  C.busy = true; ta4CardStage('crop'); $('cdCropImg').removeAttribute('src'); $('cdCropNote').textContent = '명함을 찾는 중…'; $('cdCropNote').className = 'cd2-note busy';
+  C.busy = true; C.man = null; C.lastQuad = null; ta4CardStage('crop'); $('cdCropImg').removeAttribute('src'); $('cdCropNote').textContent = '명함을 찾는 중…'; $('cdCropNote').className = 'cd2-note busy';
   try {
     const url = await compressFile(f, 1800, 0.88), img = await ta4LoadImg(url); C.src = img; C.srcUrl = url;
     let crop = ta4CardDeskew(img, 1400), how = 'auto';
@@ -736,35 +739,64 @@ function ta4CardSetCrop(crop, how) {
   const C = CARD; C.crop = crop; C.how = how; C.small = '';
   $('cdCropImg').src = crop; ta4CardStage('crop');
   const n = $('cdCropNote');
-  n.textContent = how === 'auto' ? '명함을 찾아 수평으로 맞춰 잘랐어요. 맞으면 [인식하기]를 누르세요' : how === 'box' ? '명함 부분을 잘랐어요. 틀어졌으면 [직접 자르기]를 눌러 주세요' : how === 'manual' ? '직접 자른 이미지예요. 맞으면 [인식하기]를 누르세요' : '명함을 정확히 찾지 못했어요. [직접 자르기]로 명함 부분을 맞춰 주세요';
+  n.textContent = how === 'auto' ? '명함을 찾아 수평으로 맞춰 잘랐어요. 맞으면 [인식하기]를 누르세요' : how === 'box' ? '명함 부분을 잘랐어요. 틀어졌으면 [직접 자르기]를 눌러 주세요' : how === 'manual' ? '맞춘 네 점 기준으로 반듯하게 폈어요. 맞으면 [인식하기]를 누르세요' : '명함을 정확히 찾지 못했어요. [직접 자르기]로 명함 부분을 맞춰 주세요';
   n.className = 'cd2-note ' + (how === 'none' ? 'err' : 'ok');
 }
-// 직접 자르기: 사각형을 끌어 명함에 맞춘다
+// 직접 자르기: 네 점(왼위·오른위·오른아래·왼아래)을 각각 따로 끌어 명함 모서리에 맞추면, 그 점 기준으로 원근을 펴 반듯한 직사각형으로 만든다
+function ta4ManInit() {
+  const C = CARD, iw = C.src.naturalWidth, ih = C.src.naturalHeight; if (C.man) return;   // 이미 맞춰 둔 점이 있으면 그대로 이어서
+  let q = null;
+  if (C.lastQuad) q = C.lastQuad.map(p => [p[0] / iw, p[1] / ih]);   // 자동으로 찾은 네 모서리에서 시작
+  if (!q) { try { const bx = ta4CardAutoCrop(C.src); if (bx) q = [[bx[1], bx[0]], [bx[3], bx[0]], [bx[3], bx[2]], [bx[1], bx[2]]].map(p => [p[0] / 1000, p[1] / 1000]); } catch (x) {} }
+  if (!q) q = [[.1, .14], [.9, .14], [.9, .86], [.1, .86]];
+  C.man = q.map(p => [Math.max(0, Math.min(1, p[0])), Math.max(0, Math.min(1, p[1]))]);
+}
 function ta4CardManual() {
-  const C = CARD; if (!C.srcUrl) return;
-  ta4CardStage('manual'); $('cdManImg').src = C.srcUrl; C.man = { x0: .08, y0: .12, x1: .92, y1: .88 };
-  try { const b = ta4CardAutoCrop(C.src); if (b) C.man = { x0: b[1] / 1000, y0: b[0] / 1000, x1: b[3] / 1000, y1: b[2] / 1000 }; } catch (x) {}   // 자동으로 찾은 명함 위치에서 시작
+  const C = CARD; if (!C.srcUrl || !C.src) return;
+  ta4CardStage('manual'); $('cdManImg').src = C.srcUrl; $('cdLoupe').style.backgroundImage = 'url(' + C.srcUrl + ')'; $('cdLoupe').style.display = 'none';
+  ta4ManInit();
   const w = $('cdManWrap');
   if (!w._bound) {
     w._bound = true; let drag = null; const im = $('cdManImg'), cl = v => Math.max(0, Math.min(1, v));
-    w.addEventListener('pointerdown', e => { const t = e.target.closest('[data-h]'); if (!t) return; drag = { h: t.dataset.h, sx: e.clientX, sy: e.clientY, m: Object.assign({}, CARD.man) }; try { w.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); });
-    w.addEventListener('pointermove', e => {
-      if (!drag) return; const r = im.getBoundingClientRect(), dx = (e.clientX - drag.sx) / r.width, dy = (e.clientY - drag.sy) / r.height, m = Object.assign({}, drag.m), h = drag.h;
-      if (h === 'mv') { const w0 = m.x1 - m.x0, h0 = m.y1 - m.y0; m.x0 = Math.max(0, Math.min(drag.m.x0 + dx, 1 - w0)); m.y0 = Math.max(0, Math.min(drag.m.y0 + dy, 1 - h0)); m.x1 = m.x0 + w0; m.y1 = m.y0 + h0; }
-      else {
-        if (h.includes('l')) m.x0 = cl(Math.min(drag.m.x0 + dx, m.x1 - .1)); if (h.includes('r')) m.x1 = cl(Math.max(drag.m.x1 + dx, m.x0 + .1));
-        if (h.includes('t')) m.y0 = cl(Math.min(drag.m.y0 + dy, m.y1 - .1)); if (h.includes('b')) m.y1 = cl(Math.max(drag.m.y1 + dy, m.y0 + .1));
-      }
-      CARD.man = m; ta4ManDraw();
+    const inPoly = (q, x, y) => { let c = false; for (let i = 0, j = 3; i < 4; j = i++) { if ((q[i][1] > y) !== (q[j][1] > y) && x < (q[j][0] - q[i][0]) * (y - q[i][1]) / (q[j][1] - q[i][1]) + q[i][0]) c = !c; } return c; };
+    w.addEventListener('pointerdown', e => {
+      const q = CARD.man; if (!q) return; const r = im.getBoundingClientRect(); if (!r.width) return;
+      let bi = -1, bd = 1e9; q.forEach((p, i) => { const d = Math.hypot(r.left + p[0] * r.width - e.clientX, r.top + p[1] * r.height - e.clientY); if (d < bd) { bd = d; bi = i; } });
+      let p = -1; if (bd <= 56) p = bi; else if (!inPoly(q, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height)) return;   // 점 가까이 → 그 점만 / 사각형 안쪽 → 통째로 이동
+      drag = { p, sx: e.clientX, sy: e.clientY, q: q.map(a => a.slice()) }; try { w.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); if (p >= 0) ta4ManLoupe(p);
     });
-    ['pointerup', 'pointercancel'].forEach(ev => w.addEventListener(ev, () => { drag = null; }));
+    w.addEventListener('pointermove', e => {
+      if (!drag) return; const r = im.getBoundingClientRect(); let dx = (e.clientX - drag.sx) / r.width, dy = (e.clientY - drag.sy) / r.height;
+      if (drag.p >= 0) { CARD.man[drag.p] = [cl(drag.q[drag.p][0] + dx), cl(drag.q[drag.p][1] + dy)]; ta4ManLoupe(drag.p); }
+      else {
+        const xs = drag.q.map(a => a[0]), ys = drag.q.map(a => a[1]); dx = Math.max(-Math.min(...xs), Math.min(1 - Math.max(...xs), dx)); dy = Math.max(-Math.min(...ys), Math.min(1 - Math.max(...ys), dy));
+        CARD.man = drag.q.map(a => [a[0] + dx, a[1] + dy]);
+      }
+      ta4ManDraw();
+    });
+    ['pointerup', 'pointercancel'].forEach(ev => w.addEventListener(ev, () => { drag = null; $('cdLoupe').style.display = 'none'; }));
   }
   ta4ManDraw();
 }
-function ta4ManDraw() { const m = CARD.man, b = $('cdManBox'); if (!m || !b) return; b.style.left = m.x0 * 100 + '%'; b.style.top = m.y0 * 100 + '%'; b.style.width = (m.x1 - m.x0) * 100 + '%'; b.style.height = (m.y1 - m.y0) * 100 + '%'; }
+// 끄는 점 주변을 3배로 보여 주는 돋보기 (손가락에 가려도 정확히 맞출 수 있게)
+function ta4ManLoupe(i) {
+  const q = CARD.man, im = $('cdManImg'), lp = $('cdLoupe'); if (!q || !lp) return; const r = im.getBoundingClientRect(), p = q[i], Z = 3, S = 100;
+  lp.style.display = 'block'; lp.style.backgroundSize = (r.width * Z) + 'px ' + (r.height * Z) + 'px';
+  lp.style.backgroundPosition = (S / 2 - p[0] * r.width * Z) + 'px ' + (S / 2 - p[1] * r.height * Z) + 'px';
+  lp.style.left = (p[0] < .5 && p[1] < .35) ? 'auto' : '6px'; lp.style.right = (p[0] < .5 && p[1] < .35) ? '6px' : 'auto';
+}
+function ta4ManDraw() {
+  const q = CARD.man; if (!q) return; const pt = q.map(p => (p[0] * 100).toFixed(2) + ',' + (p[1] * 100).toFixed(2));
+  $('cdManPoly').setAttribute('points', pt.join(' ')); $('cdManMask').setAttribute('d', 'M0,0H100V100H0Z M' + pt.join('L') + 'Z');
+  document.querySelectorAll('#cdManWrap [data-p]').forEach(h => { const p = q[+h.dataset.p]; h.style.left = p[0] * 100 + '%'; h.style.top = p[1] * 100 + '%'; });
+}
 function ta4CardManualDone() {
-  const C = CARD, m = C.man; if (!m || !C.src) return;
-  const crop = ta4CardCropImg(C.src, [Math.round(m.y0 * 1000), Math.round(m.x0 * 1000), Math.round(m.y1 * 1000), Math.round(m.x1 * 1000)]);
+  const C = CARD, q = C.man; if (!q || !C.src) return; const iw = C.src.naturalWidth, ih = C.src.naturalHeight;
+  let sg = 0, ok = true;   // 네 점이 꼬이지 않은 볼록 사각형인지 확인
+  for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4], c = q[(i + 2) % 4], z = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]); if (Math.abs(z) < 1e-5 || (sg && Math.sign(z) !== sg)) ok = false; sg = sg || Math.sign(z); }
+  if (!ok) { toast('점이 꼬였어요. 왼위→오른위→오른아래→왼아래 순서로 명함 모서리에 맞춰 주세요', 3500); return; }
+  let crop = ta4Warp(C.src, q.map(p => [p[0] * iw, p[1] * ih]), 1400);   // 점 기준 원근 보정
+  if (!crop) { const xs = q.map(p => p[0]), ys = q.map(p => p[1]); crop = ta4CardCropImg(C.src, [Math.min(...ys) * 1000, Math.min(...xs) * 1000, Math.max(...ys) * 1000, Math.max(...xs) * 1000].map(Math.round)); }
   ta4CardSetCrop(crop, 'manual');
 }
 function ta4CardCancel() { try { ta4CardCamStop(); } catch (e) {} back(); }
@@ -903,7 +935,7 @@ function ta4CardDeskew(img, outMax) {
     if (!best || best.score < 0.5) return null;
     // 1순위: 4개 모서리를 찾아 원근을 펴서 스캔한 것처럼 반듯하게 (비스듬히 찍어도 직사각형)
     const q = ta4CardQuad(best, w, h);
-    if (q) { const o = ta4Warp(img, q.map(p => [p[0] / sc, p[1] / sc]), outMax || 1100); if (o) return o; }
+    if (q) { const qi = q.map(p => [p[0] / sc, p[1] / sc]); const o = ta4Warp(img, qi, outMax || 1100); if (o) { CARD.lastQuad = qi; return o; } }
     // 2순위: 기울기만 바로잡아 자르기
     let { cs, sn, x0, x1, y0, y1 } = best;
     const inset = 0.01 * Math.min(x1 - x0, y1 - y0); x0 += inset; x1 -= inset; y0 += inset; y1 -= inset;

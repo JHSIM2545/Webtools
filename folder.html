@@ -569,7 +569,7 @@ async function doAuth(signup){
   $('#aerr').textContent='';
   if(!email||password.length<6){$('#aerr').textContent='이메일과 6자 이상의 비밀번호를 입력하세요.';return;}
   const r=signup?await sb.auth.signUp({email,password}):await sb.auth.signInWithPassword({email,password});
-  if(r.error){$('#aerr').textContent=signup?'가입하지 못했습니다. 이미 가입한 이메일인지 확인하세요.':'이메일 또는 비밀번호가 맞지 않습니다.';return;}
+  if(r.error){const m=(r.error.message||'').toLowerCase();$('#aerr').textContent=m.includes('not confirmed')?'이메일 인증이 필요합니다. 받은 편지함과 스팸함에서 확인 메일의 링크를 누른 뒤 로그인하세요.':(signup?'가입하지 못했습니다. 이미 가입한 이메일인지 확인하세요.':'이메일 또는 비밀번호가 맞지 않습니다.');return;}
   if(r.data.session){user=r.data.session.user;showApp();}
   else $('#aerr').textContent='가입했습니다. 확인 메일의 링크를 누른 뒤 로그인하세요.';
 }

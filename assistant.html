@@ -145,6 +145,9 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
   <div class="btns"><button id="liveCut">✋ 말 끊기</button><button id="liveMute">🎤 음소거</button><button class="danger" id="liveEnd">대화 종료</button></div>
   <div class="row" style="align-items:center;max-width:340px;width:100%;margin:4px 0 0"><span class="note" style="flex:none;width:auto">🔊 볼륨</span><input id="liveVol" type="range" min="1" max="4" step="0.5" style="padding:0;border:none;background:none"></div>
   <button id="liveSpk" style="font-size:13px;padding:7px 12px"></button>
+  <div id="liveMic" class="note" style="max-width:92%"></div>
+  <div style="width:min(300px,80vw);height:6px;border-radius:99px;background:#1f2330;overflow:hidden"><div id="liveLvl" style="height:100%;width:0;background:#4cc9f0"></div></div>
+  <select id="liveDev" style="display:none;max-width:92%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit;font-size:13px"></select>
   <div class="note" style="margin-top:6px">이어폰을 쓰면 인식이 가장 정확해요</div>
 </div>
 <div id="aiModal" style="display:none;position:fixed;inset:0;z-index:90;background:rgba(7,10,16,.8);align-items:center;justify-content:center;padding:18px">
@@ -1056,7 +1059,7 @@ $('aiSave').onclick = async () => {
    브라우저 ↔ Supabase Edge Function(assistant-live) ↔ Gemini Live. 키·지시문·도구 선언은 서버에만 있고,
    도구(메모·연락처·일정·알람·전화·길안내)는 이 폰 안에서 실행한다. */
 const LURL = window.SIMAS_LIVE_URL || 'wss://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-live';
-const LIVE = { on: false, ws: null, ready: false, handle: '', stream: null, ictx: null, octx: null, node: null, nextT: 0, srcs: [], retries: 0, muted: false, wake: null, cands: [], bub: { me: null, bot: null }, ending: false, reconnecting: false, speaker: ls.get('SIMAS_LIVE_SPK', '1') === '1', vol: Math.max(1, Math.min(4, +ls.get('SIMAS_LIVE_VOL', '2.5') || 2.5)), gain: null, quietUntil: 0, drop: false, an: null, oan: null, raf: 0 };
+const LIVE = { on: false, ws: null, ready: false, handle: '', stream: null, ictx: null, octx: null, node: null, nextT: 0, srcs: [], retries: 0, muted: false, wake: null, cands: [], bub: { me: null, bot: null }, ending: false, reconnecting: false, speaker: ls.get('SIMAS_LIVE_SPK', '1') === '1', vol: Math.max(1, Math.min(4, +ls.get('SIMAS_LIVE_VOL', '2.5') || 2.5)), gain: null, quietUntil: 0, drop: false, an: null, oan: null, raf: 0, dev: ls.get('SIMAS_LIVE_DEV', ''), label: '', autoBt: false, readyAt: 0, loud: 0, wd: 0 };
 const liveSet = (st, ico, talk) => { $('liveState').textContent = st; if (ico) $('liveIco').textContent = ico; $('live').classList.toggle('talk', !!talk); };
 function liveBubble(kind, add) {
   if (!add) return;
@@ -1205,6 +1208,22 @@ function liveReconnect(why) {
   setTimeout(() => { LIVE.reconnecting = false; if (LIVE.on && !LIVE.ending) liveOpen(); }, 600 * LIVE.retries);
 }
 function liveFail(msg) { const was = LIVE.on; liveEnd(true); if (was) { sys('실시간 대화를 쓸 수 없어요: ' + msg + ' — 기본 방식으로 돌아가요'); toast('실시간 연결 실패: ' + msg, 4200); } }
+const BT_RE = /bluetooth|블루투스|hands-?free|handsfree|hfp|\bbt\b|\bcar\b|차량|카오디오|carplay|android ?auto|uconnect/i;
+async function liveAcq() {   // 마이크 열기. 차량·블루투스 마이크면 에코 제거를 켜서 다시 연다
+  const mk = aec => navigator.mediaDevices.getUserMedia({ audio: Object.assign({ echoCancellation: aec, noiseSuppression: true, autoGainControl: true, channelCount: 1 }, LIVE.dev ? { deviceId: { exact: LIVE.dev } } : {}) });
+  let st; try { st = await mk(!LIVE.speaker); } catch (e) { if (LIVE.dev) { LIVE.dev = ''; ls.set('SIMAS_LIVE_DEV', ''); st = await mk(!LIVE.speaker); } else throw e; }
+  const lab = (st.getAudioTracks ? (st.getAudioTracks()[0] || {}).label : '') || '';
+  if (LIVE.speaker && BT_RE.test(lab)) { LIVE.autoBt = true; LIVE.speaker = false; try { st.getTracks().forEach(t => t.stop()); } catch (e) {} st = await mk(true); }
+  LIVE.label = lab; return st;
+}
+async function liveDevices() {
+  try {
+    const all = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput' && d.deviceId), sel = $('liveDev');
+    if (all.length < 2) { sel.style.display = 'none'; return; }
+    sel.innerHTML = '<option value="">🎤 마이크 선택 (자동)</option>' + all.map(d => '<option value="' + esc(d.deviceId) + '"' + (d.deviceId === LIVE.dev ? ' selected' : '') + '>' + esc(d.label || '마이크') + '</option>').join(''); sel.style.display = 'block';
+  } catch (e) {}
+}
+$('liveDev').onchange = async () => { LIVE.dev = $('liveDev').value; ls.set('SIMAS_LIVE_DEV', LIVE.dev); toast('마이크를 바꿔 다시 연결해요'); liveEnd(); await sleep(300); liveStart(); };
 async function liveStart() {
   if (LIVE.on) return;
   if (!gKey()) { toast('✨에서 등록된 전화번호를 먼저 입력해 주세요', 4200); return; }
@@ -1213,9 +1232,11 @@ async function liveStart() {
   stopSpeak(); unlockAudio(); LIVE.on = true; LIVE.ending = false; LIVE.retries = 0; LIVE.handle = ''; LIVE.muted = false; LIVE.bub = { me: null, bot: null };
   $('live').classList.add('on'); $('liveMe').textContent = ''; $('liveBot').textContent = ''; $('liveActs').innerHTML = ''; $('liveMute').textContent = '🎤 음소거'; liveSet('연결 중…', '🎙', false); $('liveVol').value = LIVE.vol; spkLabel();
   try {
-    LIVE.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: !LIVE.speaker, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    LIVE.autoBt = false; LIVE.stream = await liveAcq(); LIVE.loud = 0; LIVE.readyAt = 0;
+    $('liveMic').textContent = '🎤 ' + (LIVE.label || '기본 마이크') + (LIVE.autoBt ? ' · 차량/블루투스로 인식해 에코 제거를 켰어요' : ''); spkLabel(); liveDevices();
+    try { const tr = LIVE.stream.getAudioTracks && LIVE.stream.getAudioTracks()[0]; if (tr) tr.onended = () => { if (LIVE.on) liveFail('마이크 연결이 끊겼어요'); }; } catch (e) {}
     const AC = window.AudioContext || window.webkitAudioContext;
-    LIVE.ictx = new AC(); try { await LIVE.ictx.resume(); } catch (e) {}
+    try { LIVE.ictx = new AC({ sampleRate: 16000 }); } catch (e) { LIVE.ictx = new AC(); } try { await LIVE.ictx.resume(); } catch (e) {}
     await LIVE.ictx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' })));
     const srcN = LIVE.ictx.createMediaStreamSource(LIVE.stream); LIVE.node = new AudioWorkletNode(LIVE.ictx, 'pcm-cap');
     LIVE.node.port.onmessage = ev => { if (LIVE.muted || !LIVE.ready) return; if (LIVE.speaker && (LIVE.srcs.length || Date.now() < LIVE.quietUntil)) return; liveSend({ realtimeInput: { audio: { data: b64(ev.data), mimeType: 'audio/pcm;rate=16000' } } }); };
@@ -1229,6 +1250,7 @@ async function liveStart() {
     if (LIVE.octx.createDynamicsCompressor) { const cp = LIVE.octx.createDynamicsCompressor(); LIVE.gain.connect(cp); cp.connect(LIVE.octx.destination); } else LIVE.gain.connect(LIVE.octx.destination);
     try { if (navigator.wakeLock) LIVE.wake = await navigator.wakeLock.request('screen'); } catch (e) {}
     liveOpen(); liveAnim();
+    clearInterval(LIVE.wd); LIVE.wd = setInterval(() => { try { if (LIVE.ictx && LIVE.ictx.state === 'suspended') LIVE.ictx.resume(); if (LIVE.octx && LIVE.octx.state === 'suspended') LIVE.octx.resume(); } catch (e) {} }, 1500);
   } catch (e) { liveFail(e && e.name === 'NotAllowedError' ? '마이크 권한을 허용해 주세요' : (e && e.message) || '시작하지 못했어요'); }
 }
 function liveEnd(silent) {
@@ -1236,7 +1258,7 @@ function liveEnd(silent) {
   try { LIVE.ws && LIVE.ws.close(1000); } catch (e) {} LIVE.ws = null; LIVE.ready = false; liveFlush();
   try { LIVE.node && (LIVE.node.port.onmessage = null, LIVE.node.disconnect()); } catch (e) {} LIVE.node = null;
   try { LIVE.stream && LIVE.stream.getTracks().forEach(t => t.stop()); } catch (e) {} LIVE.stream = null;
-  try { LIVE.ictx && LIVE.ictx.close(); } catch (e) {} LIVE.ictx = null; try { LIVE.octx && LIVE.octx.close(); } catch (e) {} LIVE.octx = null; LIVE.gain = null; LIVE.an = null; LIVE.oan = null; LIVE.drop = false; cancelAnimationFrame(LIVE.raf);
+  try { LIVE.ictx && LIVE.ictx.close(); } catch (e) {} LIVE.ictx = null; try { LIVE.octx && LIVE.octx.close(); } catch (e) {} LIVE.octx = null; LIVE.gain = null; LIVE.an = null; LIVE.oan = null; LIVE.drop = false; cancelAnimationFrame(LIVE.raf); clearInterval(LIVE.wd); LIVE.speaker = ls.get('SIMAS_LIVE_SPK', '1') === '1'; clearInterval(LIVE.wd);
   try { LIVE.wake && LIVE.wake.release(); } catch (e) {} LIVE.wake = null;
   $('live').classList.remove('on'); liveTurnEnd();
 }
@@ -1255,6 +1277,10 @@ function liveAnim() {
     const t = (now - t0) / 1000, speaking = LIVE.srcs.length > 0 || (LIVE.drop && false);
     const raw = speaking ? lvl(LIVE.oan) || 0.25 : (LIVE.muted || (LIVE.speaker && Date.now() < LIVE.quietUntil) ? 0 : lvl(LIVE.an));
     sm += (raw - sm) * (raw > sm ? 0.5 : 0.12);
+    const lin = lvl(LIVE.an); $('liveLvl').style.width = Math.round(Math.min(1, lin * 1.4) * 100) + '%';
+    if (LIVE.ready && !LIVE.readyAt) LIVE.readyAt = now;
+    if (lin > 0.03) { LIVE.loud = now; if ($('liveMic').dataset.warn) { $('liveMic').dataset.warn = ''; $('liveMic').textContent = '🎤 ' + (LIVE.label || '기본 마이크') + (LIVE.autoBt ? ' · 차량/블루투스로 인식해 에코 제거를 켰어요' : ''); $('liveMic').style.color = ''; } }
+    else if (LIVE.readyAt && !LIVE.muted && !speaking && now - Math.max(LIVE.readyAt, LIVE.loud) > 8000 && !$('liveMic').dataset.warn) { $('liveMic').dataset.warn = '1'; $('liveMic').textContent = '⚠ 마이크 소리가 안 들어와요. 말씀해 보시고, 계속 안 되면 아래에서 다른 마이크를 고르거나 폰 마이크로 바꿔 보세요'; $('liveMic').style.color = '#ffb36b'; }
     const c1 = speaking ? '186,230,253' : '76,201,240', c2 = speaking ? '125,211,252' : '14,165,233';
     g.clearRect(0, 0, W, H);
     if (!still && (sm > 0.06 || speaking) && now - last > (speaking ? 520 : 380)) { rings.push({ r: 34, a: 0.55 + sm * 0.3 }); last = now; }

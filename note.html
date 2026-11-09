@@ -100,6 +100,13 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
 .tg button{padding:7px 9px;font-size:13px;display:flex;align-items:center;justify-content:center;min-width:40px;height:38px}
 .tg button svg{display:block}
 .hint{font-size:12px;color:var(--sub);white-space:nowrap}
+#dictBar{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--danger);font-size:13px}
+#dictBar[hidden]{display:none}
+#dictBar .dot{width:9px;height:9px;border-radius:50%;background:var(--danger);flex:none;animation:dictp 1s infinite}
+#dictTxt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#dictStop{flex:none;padding:5px 10px;font-size:12px}
+#btnDict.on{background:#4a1a1a;border-color:var(--danger);color:#fff}
+@keyframes dictp{50%{opacity:.25}}
 #btnPenOnly{flex:none;padding:7px 9px;height:38px;min-width:40px;display:flex;align-items:center;justify-content:center}
 .sw{width:26px;height:26px;border-radius:50%;border:2px solid #fff3;padding:0;flex:none}
 .sw.sel{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
@@ -188,6 +195,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   </div>
   <div id="scroller" class="mode-pen"></div>
   <div class="tools" id="tools">
+    <div id="dictBar" hidden><span class="dot"></span><span id="dictTxt">듣고 있어요…</span><button id="dictStop" aria-label="받아쓰기 끝내기">끝내기</button></div>
     <div class="subrow" id="subRow">
       <div class="tg" id="penTypes" hidden>
         <button data-pt="pen" class="on" title="볼펜" aria-label="볼펜"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/></svg></button>
@@ -204,7 +212,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
         <span class="sep"></span>
         <button id="fillBtn" title="도형 안쪽 채우기" aria-label="채움"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 3l7 9a7 7 0 11-14 0z" fill="currentColor" fill-opacity=".35"/></svg></button>
       </div>
-      <div class="tg" id="textHint" hidden><span class="hint">페이지를 탭하면 글상자가 생기고 키보드로 입력합니다 · 크기는 슬라이더 · ✥로 이동</span></div>
+      <div class="tg" id="textHint" hidden><span class="hint">페이지를 탭하면 글상자가 생기고 키보드로 입력합니다 · 크기는 슬라이더 · ✥로 이동 · 🎤로 음성 입력</span></div>
     </div>
     <div class="mainrow">
       <div class="tg" id="toolBtns">
@@ -215,6 +223,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
         <button data-tool="eraser" title="지우개" aria-label="지우개"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M3 17l9-10a2 2 0 013 0l4 4a2 2 0 010 3l-6 6H8z"/><path d="M8 21h12"/><path d="M8 12l6 6"/></svg></button>
         <button data-tool="text" title="텍스트 입력" aria-label="텍스트"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 6V4h14v2"/><path d="M12 4v16"/><path d="M9 20h6"/></svg></button>
       </div>
+      <div class="tg"><button id="btnDict" title="음성 인식 — 말하면 글상자에 받아 적습니다" aria-label="음성 입력"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3M9 21h6"/></svg></button></div>
       <div class="sep"></div>
       <div class="tg" id="swatches"></div>
       <input type="color" id="cpick" value="#111111" title="색상 선택">
@@ -1259,6 +1268,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     buildEditor(); resetHistory(); setTool(tool); $('scroller').scrollTop = 0;
   }
   async function closeNote() {
+    dictAbort();
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     // 더 이상 쓰이지 않는 삽입 그림 데이터 정리
     const used = new Set(); note.pages.forEach(p => p.images.forEach(im => used.add(im.a)));
@@ -1272,6 +1282,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   $('titleIn').addEventListener('input', () => { note.title = $('titleIn').value; scheduleSave(); });
   $('btnDelNote').onclick = async () => {
     if (!confirm('이 노트를 삭제할까요? 되돌릴 수 없습니다.')) return;
+    dictAbort();
     const id = note.id; dirty = false; clearTimeout(saveTimer); await dbDel(id);
     if (io) io.disconnect();
     note = null; pageEls = []; $('scroller').innerHTML = ''; $('viewEdit').classList.remove('on'); $('viewList').classList.add('on'); renderList();
@@ -1316,6 +1327,98 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   $('zOut').onclick = () => { zoom = Math.max(0.5, Math.round((zoom - 0.25) * 100) / 100); layout(); };
   $('btnPenOnly').onclick = () => { penOnly = !penOnly; $('btnPenOnly').classList.toggle('on', penOnly); toast(penOnly ? '손가락은 화면 이동만, 펜·마우스로 필기합니다.' : '손가락으로도 필기합니다.'); };
   markSwatch();
+
+  /* ───────── 음성 인식 (받아쓰기) ───────── */
+  // 마이크를 켜고 말하면 글상자에 받아 적는다. 글상자가 선택돼 있으면 그 커서 위치에, 아니면 현재 보이는 쪽에 새 글상자를 만든다.
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let dict = null, lastDict = null;
+  function dictTarget() {
+    const ref = pageEls[activePage]._p;
+    if (activeTB && activeTB.e.isConnected) return activeTB;
+    // 직전에 받아쓴 글상자가 같은 쪽에 남아 있으면 이어서 쓴다 (겹쳐 쌓이지 않게)
+    if (lastDict && lastDict.e.isConnected && lastDict.ref === ref && lastDict.t.text.trim()) return lastDict;
+    if (!ref.vis) showPage(ref);
+    const pr = ref.el.getBoundingClientRect(), sr = $('scroller').getBoundingClientRect();
+    const cy = (Math.max(sr.top, pr.top) + 24 - pr.top) / ref.scale;
+    const t = { id: rid('t'), x: 40, y: Math.round(clamp(cy, 20, Math.max(20, ref.p.h - 80))), text: '', fs: 24 + sizes.text * 2, color };
+    ref.p.texts.push(t);
+    return { t, e: addTB(ref, t).querySelector('.tbt'), ref };
+  }
+  function dictInsert(d, raw) {
+    const txt = String(raw || '').trim(); if (!txt) return;
+    const { t, e } = d.tb, whole = e.innerText.replace(/\n$/, '');
+    let before = whole;
+    const focused = document.activeElement === e;
+    if (focused) {   // 커서 앞 글자를 보고 띄어쓰기 결정
+      const s = getSelection();
+      if (s.rangeCount && e.contains(s.anchorNode)) { const r = document.createRange(); r.selectNodeContents(e); r.setEnd(s.anchorNode, s.anchorOffset); before = r.toString(); }
+    }
+    const sp = before && !/\s$/.test(before) ? ' ' : '';
+    if (focused) document.execCommand('insertText', false, sp + txt);   // input 이벤트가 t.text 갱신·저장을 처리
+    else { e.textContent = whole + sp + txt; t.text = e.innerText.replace(/\n$/, ''); scheduleSave(); }
+    d.idle = 0;
+  }
+  function dictUi(on) {
+    $('btnDict').classList.toggle('on', on); $('dictBar').hidden = !on;
+    if (on) $('dictTxt').textContent = '듣고 있어요…';
+  }
+  function dictFinish() {
+    const d = dict; if (!d) return; dict = null; dictUi(false);
+    const { t, ref } = d.tb;
+    if (!t.text.trim()) {   // 아무것도 못 받아 적었으면 빈 글상자를 치운다
+      const k = ref.p.texts.indexOf(t); if (k >= 0) ref.p.texts.splice(k, 1);
+      const w = d.tb.e.closest('.tbw'); if (w) w.remove();
+      if (activeTB === d.tb) activeTB = null; if (lastDict === d.tb) lastDict = null;
+    } else lastDict = d.tb;
+    pushHistory(); scheduleSave();
+  }
+  function dictStop() {   // 마지막 문장까지 받은 뒤 끝낸다
+    const d = dict; if (!d) return; d.want = false;
+    try { d.rec && d.rec.stop(); } catch (_) {}
+    setTimeout(() => { if (dict === d) dictFinish(); }, 1500);
+  }
+  function dictAbort() { const d = dict; if (!d) return; d.want = false; try { d.rec && d.rec.abort(); } catch (_) {} dictFinish(); }
+  function dictRun() {
+    const d = dict; if (!d || !d.want) return;
+    let rec; try { rec = new SR(); } catch (_) { toast('음성 인식을 시작할 수 없어요'); dictStop(); return; }
+    d.rec = rec; d.err = ''; let got = false;   // got: 이번 듣기에서 말소리가 인식됐는지
+    rec.lang = 'ko-KR'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+    rec.onresult = ev => {
+      if (dict !== d) return;
+      got = true;
+      if (!d.tb.e.isConnected) { dictStop(); return; }   // 되돌리기 등으로 글상자가 다시 만들어진 경우
+      let it = '';
+      for (let i = ev.resultIndex; i < ev.results.length; i++) { const r = ev.results[i]; if (r.isFinal) dictInsert(d, r[0].transcript); else it += r[0].transcript; }
+      $('dictTxt').textContent = it.trim() ? '… ' + it.trim().slice(-40) : '듣고 있어요…';
+    };
+    rec.onerror = ev => { d.err = ev.error || ''; };
+    rec.onend = () => {
+      if (dict !== d) return;
+      if (!d.want) { dictFinish(); return; }
+      if (['not-allowed', 'service-not-allowed'].includes(d.err)) { toast('마이크 권한을 허용해 주세요 (브라우저 주소창 옆 설정)', 4200); dictStop(); return; }
+      if (d.err === 'audio-capture') { toast('마이크를 찾을 수 없어요', 3200); dictStop(); return; }
+      if (d.err === 'network') { toast('음성 인식 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요', 4200); dictStop(); return; }
+      if (d.err === 'language-not-supported') { toast('이 기기는 한국어 음성 인식을 지원하지 않아요', 4200); dictStop(); return; }
+      // 한 문장이 끝나면 인식기가 멈추므로 계속 듣도록 바로 다시 시작. 말이 없는 채로 3번 이어지면 자동 종료
+      if (!got) d.idle++;
+      if (d.idle >= 3) { toast('음성이 들리지 않아 받아쓰기를 멈췄어요'); dictStop(); return; }
+      setTimeout(() => dictRun(), 150);
+    };
+    try { rec.start(); } catch (_) { setTimeout(() => { if (dict === d && d.want) dictRun(); }, 400); }
+  }
+  function dictStart() {
+    if (!SR) { toast('이 브라우저는 음성 인식을 지원하지 않아요. 키보드의 🎤(받아쓰기)를 써 보세요', 4200); return; }
+    if (!note) return;
+    if (['pen', 'hl', 'eraser', 'shape'].includes(tool)) setTool('text');   // 받아 적은 글상자를 바로 옮기고 고칠 수 있게
+    const tb = dictTarget(); activeTB = tb;
+    dict = { tb, want: true, err: '', idle: 0, rec: null };
+    dictUi(true); dictRun();
+  }
+  $('btnDict').addEventListener('pointerdown', e => e.preventDefault());   // 글상자의 포커스·커서 위치를 유지
+  $('dictStop').addEventListener('pointerdown', e => e.preventDefault());
+  $('btnDict').onclick = () => { if (dict) dictStop(); else dictStart(); };
+  $('dictStop').onclick = dictStop;
+  document.addEventListener('visibilitychange', () => { if (document.hidden) dictAbort(); });
 
   /* ───────── 두 손가락 확대/축소 + 이동 ───────── */
   (() => {

@@ -55,7 +55,9 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 .send{width:44px;height:44px;border-radius:50%;padding:0;font-size:18px;flex:none}
 .mic{position:fixed;right:16px;bottom:calc(112px + env(safe-area-inset-bottom));z-index:40;box-shadow:0 6px 18px rgba(0,0,0,.55);width:64px;height:64px;border-radius:50%;padding:0;flex:none;background:#d9eeff;border-color:#d9eeff;color:#111;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative}
 .mic svg{width:100%;height:100%;display:block}
-.mic.on{border-color:var(--danger);animation:pulse 1.2s infinite}
+.mic.on{animation:micwave 1.6s ease-out infinite}
+@keyframes micwave{0%{box-shadow:0 0 0 0 rgba(76,201,240,.7),0 0 0 0 rgba(76,201,240,.45)}70%{box-shadow:0 0 0 22px rgba(76,201,240,0),0 0 0 40px rgba(76,201,240,0)}100%{box-shadow:0 0 0 0 rgba(76,201,240,0),0 0 0 0 rgba(76,201,240,0)}}
+@media (prefers-reduced-motion:reduce){.mic.on{animation:none;box-shadow:0 0 0 6px rgba(76,201,240,.5)}}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,93,93,.55)}70%{box-shadow:0 0 0 16px rgba(255,93,93,0)}100%{box-shadow:0 0 0 0 rgba(255,93,93,0)}}
 .listen{display:none;text-align:center;font-size:13px;color:var(--accent);padding:4px 12px 0}
 .listen.on{display:block}
@@ -85,14 +87,14 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 #ring h2{font-size:26px}#ring p{color:var(--sub);font-size:15px;line-height:1.6}
 #ring .btns{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;justify-content:center}
 #ring .btns button{padding:14px 22px;font-size:16px;border-radius:14px}
-#live{position:fixed;inset:0;z-index:95;background:rgba(7,10,16,.97);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center}
+#live{position:fixed;inset:0;z-index:95;background:#070a10;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center}
 #live.on{display:flex}
 #live .big{font-size:72px}#live.talk .big{animation:pulse2 1s infinite}
 @keyframes pulse2{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
 #live h2{font-size:22px}#live p{color:var(--sub);font-size:15px;line-height:1.6;max-width:92%;min-height:22px}
 #liveMe{color:var(--text)}#liveBot{color:var(--accent)}
 #liveActs{display:flex;flex-direction:column;gap:8px;align-items:center}
-#live .btns{display:flex;gap:10px;margin-top:6px}#live .btns button{padding:13px 20px;font-size:16px;border-radius:14px}
+#live .btns{display:flex;gap:10px;margin-top:6px}#live .btns button{padding:12px 14px;font-size:15px;border-radius:14px;white-space:nowrap}
 #toast{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#2b2f40;border:1px solid var(--line);padding:9px 15px;border-radius:12px;font-size:13.5px;z-index:50;display:none;max-width:90%;text-align:center}
 </style>
 </head>
@@ -134,7 +136,8 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
   <div class="btns"><button id="ringSnooze">5분 뒤 다시</button><button class="primary" id="ringStop">끄기</button></div>
 </div>
 <div id="live">
-  <div class="big" id="liveIco">🎙</div>
+  <canvas id="liveWave" width="640" height="300" style="width:min(320px,86vw);height:auto;aspect-ratio:640/300"></canvas>
+  <div class="big" id="liveIco" style="display:none">🎙</div>
   <h2 id="liveState">연결 중…</h2>
   <p id="liveMe"></p>
   <p id="liveBot"></p>
@@ -1053,7 +1056,7 @@ $('aiSave').onclick = async () => {
    브라우저 ↔ Supabase Edge Function(assistant-live) ↔ Gemini Live. 키·지시문·도구 선언은 서버에만 있고,
    도구(메모·연락처·일정·알람·전화·길안내)는 이 폰 안에서 실행한다. */
 const LURL = window.SIMAS_LIVE_URL || 'wss://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-live';
-const LIVE = { on: false, ws: null, ready: false, handle: '', stream: null, ictx: null, octx: null, node: null, nextT: 0, srcs: [], retries: 0, muted: false, wake: null, cands: [], bub: { me: null, bot: null }, ending: false, reconnecting: false, speaker: ls.get('SIMAS_LIVE_SPK', '1') === '1', vol: Math.max(1, Math.min(4, +ls.get('SIMAS_LIVE_VOL', '2.5') || 2.5)), gain: null, quietUntil: 0, drop: false };
+const LIVE = { on: false, ws: null, ready: false, handle: '', stream: null, ictx: null, octx: null, node: null, nextT: 0, srcs: [], retries: 0, muted: false, wake: null, cands: [], bub: { me: null, bot: null }, ending: false, reconnecting: false, speaker: ls.get('SIMAS_LIVE_SPK', '1') === '1', vol: Math.max(1, Math.min(4, +ls.get('SIMAS_LIVE_VOL', '2.5') || 2.5)), gain: null, quietUntil: 0, drop: false, an: null, oan: null, raf: 0 };
 const liveSet = (st, ico, talk) => { $('liveState').textContent = st; if (ico) $('liveIco').textContent = ico; $('live').classList.toggle('talk', !!talk); };
 function liveBubble(kind, add) {
   if (!add) return;
@@ -1216,14 +1219,16 @@ async function liveStart() {
     await LIVE.ictx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' })));
     const srcN = LIVE.ictx.createMediaStreamSource(LIVE.stream); LIVE.node = new AudioWorkletNode(LIVE.ictx, 'pcm-cap');
     LIVE.node.port.onmessage = ev => { if (LIVE.muted || !LIVE.ready) return; if (LIVE.speaker && (LIVE.srcs.length || Date.now() < LIVE.quietUntil)) return; liveSend({ realtimeInput: { audio: { data: b64(ev.data), mimeType: 'audio/pcm;rate=16000' } } }); };
+    if (LIVE.ictx.createAnalyser) { LIVE.an = LIVE.ictx.createAnalyser(); LIVE.an.fftSize = 512; srcN.connect(LIVE.an); }
     const mute = LIVE.ictx.createGain(); mute.gain.value = 0; srcN.connect(LIVE.node); LIVE.node.connect(mute); mute.connect(LIVE.ictx.destination);
     try { LIVE.octx = new AC({ sampleRate: 24000 }); } catch (e) { LIVE.octx = new AC(); }
     try { await LIVE.octx.resume(); } catch (e) {}
     try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) {}
     LIVE.gain = LIVE.octx.createGain(); LIVE.gain.gain.value = LIVE.vol;
+    if (LIVE.octx.createAnalyser) { LIVE.oan = LIVE.octx.createAnalyser(); LIVE.oan.fftSize = 512; LIVE.gain.connect(LIVE.oan); }
     if (LIVE.octx.createDynamicsCompressor) { const cp = LIVE.octx.createDynamicsCompressor(); LIVE.gain.connect(cp); cp.connect(LIVE.octx.destination); } else LIVE.gain.connect(LIVE.octx.destination);
     try { if (navigator.wakeLock) LIVE.wake = await navigator.wakeLock.request('screen'); } catch (e) {}
-    liveOpen();
+    liveOpen(); liveAnim();
   } catch (e) { liveFail(e && e.name === 'NotAllowedError' ? '마이크 권한을 허용해 주세요' : (e && e.message) || '시작하지 못했어요'); }
 }
 function liveEnd(silent) {
@@ -1231,13 +1236,41 @@ function liveEnd(silent) {
   try { LIVE.ws && LIVE.ws.close(1000); } catch (e) {} LIVE.ws = null; LIVE.ready = false; liveFlush();
   try { LIVE.node && (LIVE.node.port.onmessage = null, LIVE.node.disconnect()); } catch (e) {} LIVE.node = null;
   try { LIVE.stream && LIVE.stream.getTracks().forEach(t => t.stop()); } catch (e) {} LIVE.stream = null;
-  try { LIVE.ictx && LIVE.ictx.close(); } catch (e) {} LIVE.ictx = null; try { LIVE.octx && LIVE.octx.close(); } catch (e) {} LIVE.octx = null; LIVE.gain = null; LIVE.drop = false;
+  try { LIVE.ictx && LIVE.ictx.close(); } catch (e) {} LIVE.ictx = null; try { LIVE.octx && LIVE.octx.close(); } catch (e) {} LIVE.octx = null; LIVE.gain = null; LIVE.an = null; LIVE.oan = null; LIVE.drop = false; cancelAnimationFrame(LIVE.raf);
   try { LIVE.wake && LIVE.wake.release(); } catch (e) {} LIVE.wake = null;
   $('live').classList.remove('on'); liveTurnEnd();
 }
 const liveCapable = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && (window.AudioContext || window.webkitAudioContext) && window.AudioWorkletNode);
 // 하단 대화 버튼: 실시간 대화(번호 등록·지원 브라우저) → 아니면 기존 한 번 듣기로 자동 전환
 $('btnMic').onclick = () => { if (LIVE.on) return liveEnd(); if (gKey() && liveCapable()) return liveStart(); startListen(); };
+
+/* 음성 인식 애니메이션: 말소리 크기에 맞춰 출렁이는 물결 막대 + 퍼져 나가는 파장 (하늘색 계통) */
+const lvl = an => { if (!an) return 0; const a = new Uint8Array(an.fftSize); an.getByteTimeDomainData(a); let q = 0; for (let i = 0; i < a.length; i++) { const v = (a[i] - 128) / 128; q += v * v; } return Math.min(1, Math.sqrt(q / a.length) * 4.5); };
+function liveAnim() {
+  const cv = $('liveWave'), g = cv.getContext && cv.getContext('2d'); if (!g) return;
+  const W = cv.width, H = cv.height, cx = W / 2, cy = H / 2, N = 23, rings = [], lv = new Array(N).fill(0), still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let last = 0, sm = 0, t0 = performance.now();
+  const frame = now => {
+    if (!LIVE.on) return; LIVE.raf = requestAnimationFrame(frame);
+    const t = (now - t0) / 1000, speaking = LIVE.srcs.length > 0 || (LIVE.drop && false);
+    const raw = speaking ? lvl(LIVE.oan) || 0.25 : (LIVE.muted || (LIVE.speaker && Date.now() < LIVE.quietUntil) ? 0 : lvl(LIVE.an));
+    sm += (raw - sm) * (raw > sm ? 0.5 : 0.12);
+    const c1 = speaking ? '186,230,253' : '76,201,240', c2 = speaking ? '125,211,252' : '14,165,233';
+    g.clearRect(0, 0, W, H);
+    if (!still && (sm > 0.06 || speaking) && now - last > (speaking ? 520 : 380)) { rings.push({ r: 34, a: 0.55 + sm * 0.3 }); last = now; }
+    for (let i = rings.length - 1; i >= 0; i--) { const o = rings[i]; o.r += 2.2 + sm * 2.4; o.a -= 0.0075; if (o.a <= 0) { rings.splice(i, 1); continue; } g.beginPath(); g.arc(cx, cy, o.r, 0, 6.2832); g.lineWidth = 3; g.strokeStyle = 'rgba(' + c1 + ',' + o.a.toFixed(3) + ')'; g.stroke(); }
+    const bw = 12, gap = 11, x0 = cx - (N * bw + (N - 1) * gap) / 2;
+    for (let i = 0; i < N; i++) {
+      const d = (i - (N - 1) / 2) / ((N - 1) / 2), bell = Math.cos(d * 1.25) ** 2;
+      const idle = 0.07 + 0.05 * Math.sin(t * 2.2 + i * 0.7), live = sm * bell * (0.75 + 0.25 * Math.sin(t * 9 + i * 1.3));
+      lv[i] += ((still ? idle : idle + live) - lv[i]) * 0.35;
+      const h = Math.max(8, lv[i] * (H - 60)), x = x0 + i * (bw + gap), y = cy - h / 2, gr = g.createLinearGradient(0, y, 0, y + h);
+      gr.addColorStop(0, 'rgba(' + c1 + ',1)'); gr.addColorStop(1, 'rgba(' + c2 + ',1)');
+      g.fillStyle = gr; g.beginPath(); (g.roundRect ? g.roundRect(x, y, bw, h, bw / 2) : g.rect(x, y, bw, h)); g.fill();
+    }
+  };
+  cancelAnimationFrame(LIVE.raf); LIVE.raf = requestAnimationFrame(frame);
+}
 $('liveEnd').onclick = () => liveEnd();
 const spkLabel = () => { $('liveSpk').textContent = LIVE.speaker ? '🔈 스피커폰 모드: 켬 (소리 큼 · 말하는 동안 마이크 꺼짐)' : '🎧 이어폰 모드 (끼어들기 가능)'; };
 $('liveVol').oninput = () => { LIVE.vol = +$('liveVol').value; ls.set('SIMAS_LIVE_VOL', String(LIVE.vol)); if (LIVE.gain) LIVE.gain.gain.value = LIVE.vol; };

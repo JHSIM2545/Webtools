@@ -985,8 +985,10 @@ async function navFlow(sl) {
    키는 Supabase Edge Function(assistant-ai)에만 있고 앱에는 없다. 등록된 사용자 전화번호로 인증한다. */
 const GPHONE = 'SIMAS_AI_PHONE', GURL = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-ai';
 const gKey = () => ls.get(GPHONE, '').replace(/\D/g, '');
+let aiDownUntil = 0;   // AI가 실패하면 잠시 건너뛰고 기본(로컬) 엔진만 쓴다
+const aiUsable = () => !!gKey() && navigator.onLine !== false && Date.now() >= aiDownUntil;
 async function geminiCall(phone, text) {
-  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 25000);
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 9000);
   try {
     const r = await fetch(GURL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, text }) });
     const j = await r.json().catch(() => ({}));
@@ -1008,7 +1010,8 @@ async function askGemini(text) {
     }
     return bot(body.slice(0, 400));
   } catch (e) {
-    sys('Gemini 연결 실패: ' + (e.message || e));
+    if (!/등록되지/.test(e.message || '')) aiDownUntil = Date.now() + 3 * 60 * 1000;   // 크레딧·네트워크 문제면 3분간 AI 없이 동작
+    sys('AI 연결이 불안정해 기본 모드로 동작해요 (' + (e.message || e) + ')');
     return bot('잘 이해하지 못했어요. 이렇게 말해 보세요.', { html: '<b>이렇게 말해 보세요</b><span class="sub">' + HELP.map(esc).join('<br>') + '</span>', say: '잘 이해하지 못했어요. 메모, 연락처 저장, 전화번호 찾기, 전화 걸기, 일정, 알람을 말씀해 보세요.' });
   }
 }
@@ -1035,7 +1038,7 @@ async function handleText(raw, viaAI) {
     pending = null;   // 다른 요청이 들어오면 이전 것은 접는다
   }
   const intent = NLU.detect(text);
-  if (!intent && !viaAI && gKey()) return askGemini(text);
+  if (!intent && !viaAI && aiUsable()) return askGemini(text);
   if (!intent) { lastVoice && (autoTried = true); return bot('잘 이해하지 못했어요. 이렇게 말해 보세요.', { html: '<b>이렇게 말해 보세요</b><span class="sub">' + HELP.map(esc).join('<br>') + '</span>', say: '잘 이해하지 못했어요. 메모, 연락처 저장, 전화번호 찾기, 전화 걸기, 일정, 알람을 말씀해 보세요.' }); }
   const sl = NLU.extract(intent, text, new Date());
   switch (intent) {

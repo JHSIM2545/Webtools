@@ -646,7 +646,7 @@ function speak(text, then) {
 const spokenNo = n => String(n || '').replace(/\d/g, d => d + ' ').replace(/-/g, ' ').trim();
 function startListen(barge) {
   if (barge !== true) bargeN = 99;   // 일반 듣기는 자동 재시작 없음
-  if (!SR) { toast('이 브라우저는 음성 인식을 지원하지 않아요. 키보드의 🎤(받아쓰기)를 써 보세요', 4200); $('txt').focus(); return; }
+  if (!SR) { toast('이 브라우저는 음성 인식을 지원하지 않아요. 키보드의 🎤(받아쓰기)를 써 보세요', 4200); sys('이 브라우저는 음성 인식을 지원하지 않아요. 크롬이나 삼성 인터넷으로 열거나, 키보드의 🎤(받아쓰기)를 써 보세요'); $('txt').focus(); return; }
   if (listening) { try { rec.stop(); } catch (e) {} return; }
   unlockAudio(); if (barge !== true) stopSpeak();
   let finalText = '', err = '';
@@ -1045,7 +1045,8 @@ async function askGemini(text) {   // true=처리함, false=실패 → 호출한
   }
 }
 function aiShow(msg) { $('aiState').textContent = msg || (gKey() ? '✓ 등록됨: ' + gKey().replace(/(\d{3})(\d+)(\d{4})/, '$1-****-$3') : '저장된 번호가 없어요'); }
-$('btnAi').onclick = () => { $('aiKey').value = ''; aiShow(); $('aiModal').style.display = 'flex'; };
+const openAi = () => { $('aiKey').value = ''; aiShow(); $('aiModal').style.display = 'flex'; };
+$('btnAi').onclick = openAi;
 $('aiClose').onclick = () => { $('aiModal').style.display = 'none'; };
 $('aiDel').onclick = () => { try { localStorage.removeItem(GPHONE); } catch (e) {} $('aiKey').value = ''; aiShow('삭제했어요'); };
 $('aiSave').onclick = async () => {
@@ -1263,8 +1264,25 @@ function liveEnd(silent) {
   $('live').classList.remove('on'); liveTurnEnd();
 }
 const liveCapable = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && (window.AudioContext || window.webkitAudioContext) && window.AudioWorkletNode);
-// 하단 대화 버튼: 실시간 대화(번호 등록·지원 브라우저) → 아니면 기존 한 번 듣기로 자동 전환
-$('btnMic').onclick = () => { if (LIVE.on) return liveEnd(); if (gKey() && liveCapable()) return liveStart(); startListen(); };
+// 하단 대화 버튼: 실시간 대화(번호 등록·지원 브라우저) → 아니면 기존 한 번 듣기 → 그것도 안 되면 이유를 화면에 안내
+function whyNot() {
+  const r = [];
+  if (/KAKAOTALK|NAVER\(|Instagram|FBAN|FBAV|Line\//i.test(navigator.userAgent)) r.push('앱 안의 인앱 브라우저로 열린 것 같아요. 크롬이나 삼성 인터넷으로 열어 주세요');
+  if (window.isSecureContext === false) r.push('보안 연결(https)이 아니라 마이크를 쓸 수 없어요');
+  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) r.push('이 브라우저는 마이크 접근을 지원하지 않아요');
+  else if (!window.AudioWorkletNode) r.push('이 브라우저는 실시간 음성 처리를 지원하지 않아요 (브라우저를 최신으로 업데이트해 주세요)');
+  if (!SR) r.push('이 브라우저는 기본 음성 인식도 지원하지 않아요');
+  return r;
+}
+$('btnMic').onclick = () => {
+  if (LIVE.on) return liveEnd();
+  if (gKey() && liveCapable()) return liveStart();
+  if (SR && liveCapable() === false && gKey()) { sys('이 기기에서는 실시간 대화를 쓸 수 없어 기본 음성 인식으로 해요'); return startListen(); }
+  if (SR) { if (!gKey() && !sessionStorage.getItem('simas_hint')) { try { sessionStorage.setItem('simas_hint', '1'); } catch (e) {} sys('✨에서 등록된 전화번호를 입력하면 실시간 대화를 쓸 수 있어요 (지금은 기본 음성 인식)'); } return startListen(); }
+  const why = whyNot();
+  bot('음성 대화를 시작하지 못했어요', { html: '<b>음성 대화를 시작하지 못했어요</b><span class="sub">' + (why.length ? why.map(esc).join('<br>') : '원인을 알 수 없어요') + '<br>글자로 입력해도 모든 기능을 쓸 수 있어요.</span>' });
+  if (!gKey()) openAi();
+};
 
 /* 음성 인식 애니메이션: 말소리 크기에 맞춰 출렁이는 물결 막대 + 퍼져 나가는 파장 (하늘색 계통) */
 const lvl = an => { if (!an) return 0; const a = new Uint8Array(an.fftSize); an.getByteTimeDomainData(a); let q = 0; for (let i = 0; i < a.length; i++) { const v = (a[i] - 128) / 128; q += v * v; } return Math.min(1, Math.sqrt(q / a.length) * 4.5); };

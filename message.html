@@ -91,6 +91,11 @@ audio{width:100%;margin-top:10px;height:40px}
 #busy.show{display:flex}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#222a3d;border:1px solid var(--line);padding:9px 16px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:92vw;text-align:center}
 .toast.show{opacity:1}
+.badge{display:inline-block;font-size:10px;padding:0 6px;border-radius:99px;border:1px solid var(--line);color:var(--sub);margin-left:6px;vertical-align:1px;font-weight:400}
+.badge.dev{color:var(--accent);border-color:var(--accent)}
+.rc{cursor:pointer}
+.srow{flex-wrap:wrap}
+.srow .btns{display:flex;gap:6px;flex-wrap:wrap}
 .hide{display:none!important}
 .empty{padding:16px 6px;text-align:center;color:var(--sub);font-size:13px}
 </style>
@@ -137,7 +142,12 @@ audio{width:100%;margin-top:10px;height:40px}
     <div id="pSchedule" class="hide">
       <div class="seg" id="schSeg"><button data-m="cal" class="on">달력에서 선택</button><button data-m="man">직접 입력</button></div>
       <div id="schCal">
+        <div class="chips" id="evTabs" style="margin-top:10px"></div>
         <div class="list" id="evList"></div>
+        <div class="row" style="margin-top:8px"><button class="sm" id="btnIcs">📅 기기 일정 가져오기 (.ics)</button><button class="sm ghost hide" id="btnIcsClr">가져온 일정 지우기</button></div>
+        <input type="file" id="fIcs" accept=".ics,text/calendar" multiple class="hide">
+        <div class="hint" id="devEvInfo"></div>
+        <div class="hint">기본은 SIM 일정표(SIM Calendar·SIM Assistant)예요. 폰의 기본 달력은 브라우저가 직접 읽을 수 없어서, 달력 앱에서 일정을 .ics 파일로 내보내거나 공유한 뒤 여기서 열어야 합니다. (구글 캘린더 전체 내보내기는 .zip이라 먼저 풀어야 해요)</div>
       </div>
       <div id="schMan" class="hide">
         <div class="lbl">일정 제목</div><input type="text" id="mTitle" maxlength="60" placeholder="예: 단지 보안 점검 협의">
@@ -154,8 +164,7 @@ audio{width:100%;margin-top:10px;height:40px}
     <h2><span class="n">3</span>받는 사람 <small id="rcCount"></small></h2>
     <div class="chips" id="rcs"></div>
     <div class="row" style="margin-top:10px">
-      <button class="sm" id="btnPick">연락처에서 선택</button>
-      <button class="sm hide" id="btnDev">내 폰 연락처</button>
+      <button class="sm" id="btnPick">연락처 선택 (SIM·기기)</button>
     </div>
     <div class="row nw" style="margin-top:8px">
       <input type="text" id="rName" placeholder="이름" style="width:28%">
@@ -163,7 +172,7 @@ audio{width:100%;margin-top:10px;height:40px}
       <input type="tel" id="rPhone" placeholder="전화번호" class="grow">
       <button class="sm" id="btnAddR">추가</button>
     </div>
-    <div class="hint">SIM Phone 연락처의 이름·직함이 문자마다 자동으로 들어갑니다. 예) 홍길동 부장님</div>
+    <div class="hint">연락처의 이름·직함이 문자마다 자동으로 들어갑니다. 예) 홍길동 부장님 · 받는 사람 칩을 누르면 이름·직함·번호를 고칠 수 있어요.</div>
   </section>
 
   <!-- 4. 옵션 -->
@@ -184,9 +193,13 @@ audio{width:100%;margin-top:10px;height:40px}
     <h2><span class="n">5</span>문구 <small id="aiBadge"></small></h2>
     <button class="primary" id="btnGen" style="width:100%">✨ AI로 문구 만들기</button>
     <div id="vars"></div>
-    <div class="lbl" style="margin-top:12px">최종 문구 (직접 고칠 수 있어요)</div>
+    <div class="lbl" style="margin-top:12px">최종 문구 — 직접 고치거나 아래에서 AI로 다듬을 수 있어요</div>
     <textarea id="body" rows="6" placeholder="위 버튼으로 문구를 만들거나 여기에 직접 쓰세요. 받는 사람 자리는 {수신자} 로 적습니다."></textarea>
     <div class="cnt"><span id="cntType"></span><span id="cntLen"></span></div>
+    <div class="row" style="margin-top:8px"><button class="sm" id="btnUndo" disabled>↶ 되돌리기</button><button class="sm" id="btnRedo" disabled>↷ 다시</button></div>
+    <div class="lbl">AI로 다듬기</div>
+    <div class="chips" id="edChips"><span class="chip" data-e="short">더 짧게</span><span class="chip" data-e="long">더 길게</span><span class="chip" data-e="formal">더 정중하게</span><span class="chip" data-e="friendly">더 친근하게</span><span class="chip" data-e="emoji">이모지 넣기</span><span class="chip" data-e="noemoji">이모지 빼기</span><span class="chip" data-e="spell">맞춤법 교정</span></div>
+    <div class="row nw" style="margin-top:8px"><input type="text" id="edText" class="grow" maxlength="150" placeholder="직접 요청: 예) 날짜를 맨 앞에, 부담 없는 톤으로"><button class="sm" id="btnEd">다듬기</button></div>
     <div class="prev hide" id="prevBox"><div class="pl" id="prevLbl"></div><div id="prevTxt"></div></div>
   </section>
 
@@ -234,7 +247,13 @@ audio{width:100%;margin-top:10px;height:40px}
 <!-- 연락처 선택 -->
 <div class="modal" id="mPick"><div class="box">
   <h3>연락처에서 선택</h3>
-  <div class="row nw"><input type="search" id="pq" placeholder="이름·회사·직함 검색" class="grow"><select id="pg" style="width:36%"></select></div>
+  <div class="seg" id="pSrc"><button data-s="sim" class="on">SIM 연락처</button><button data-s="dev">기기 연락처</button></div>
+  <div id="pDev" class="hide" style="margin-top:8px">
+    <div class="row"><button class="sm" id="pApi">📱 기기 연락처 불러오기</button><button class="sm" id="pVcf">연락처 파일(.vcf) 열기</button></div>
+    <div class="hint" id="pDevHint"></div>
+    <input type="file" id="fVcf" accept=".vcf,text/vcard,text/x-vcard,text/directory" multiple class="hide">
+  </div>
+  <div class="row nw" style="margin-top:8px"><input type="search" id="pq" placeholder="이름·회사·직함 검색" class="grow"><select id="pg" style="width:36%"></select></div>
   <div class="row" style="margin-top:8px"><button class="sm" id="pAll">보이는 사람 모두 선택</button><span class="hint" id="pInfo" style="margin:0"></span></div>
   <div class="scroll"><div class="list" id="pList" style="max-height:none"></div></div>
   <div class="row"><button class="grow" id="pCancel">닫기</button><button class="primary grow" id="pOk">선택 완료</button></div>
@@ -248,6 +267,23 @@ audio{width:100%;margin-top:10px;height:40px}
   <div class="hint" id="setState"></div>
   <div class="hint">SIM Assistant에서 이미 등록했다면 같은 번호가 자동으로 쓰입니다. AI 키는 서버에만 있고 이 앱에는 없습니다.</div>
   <div class="row" style="margin-top:12px"><button class="grow" id="setClose">닫기</button><button class="primary grow" id="setSave">저장·테스트</button></div>
+</div></div>
+
+<!-- 받는 사람 수정 -->
+<div class="modal" id="mChip"><div class="box">
+  <h3>받는 사람 수정</h3>
+  <div class="lbl">이름</div><input type="text" id="cName" maxlength="30">
+  <div class="lbl">직함 (문자에 "이름 직함님"으로 들어가요)</div><input type="text" id="cTitle" maxlength="20" placeholder="예: 부장">
+  <div class="lbl">전화번호</div><input type="tel" id="cPhone">
+  <div class="row" style="margin-top:14px"><button class="grow" id="cCancel">닫기</button><button class="primary grow" id="cSave">저장</button></div>
+</div></div>
+
+<!-- 사람별 개별 문구 수정 -->
+<div class="modal" id="mEdit"><div class="box">
+  <h3 id="eTitle"></h3>
+  <textarea id="eText" rows="9"></textarea>
+  <div class="hint">이 사람에게만 적용돼요. 위 본문을 다시 고치면 개별 수정은 초기화됩니다.</div>
+  <div class="row" style="margin-top:12px"><button class="grow" id="eReset">원래대로</button><button class="grow" id="eCancel">닫기</button><button class="primary grow" id="eSave">저장</button></div>
 </div></div>
 
 <div id="busy"><div id="busyTxt">처리 중…</div></div>
@@ -334,8 +370,126 @@ function localVariants(st) {
   const L = GREET_LOCAL[st.sub] || GREET_LOCAL['안부'];
   return L.map((t, i) => ({ label: LABELS[i], text: t + sign }));
 }
+// 전화번호: +82 표기를 국내 번호(0으로 시작)로 통일해 중복을 막는다
+const normPhone = s => { let d = digits(s); if (d.startsWith('82') && d.length >= 11) d = '0' + d.slice(2); return d; };
+const unescText = s => String(s || '').replace(/\\[nN]/g, '\n').replace(/\\([,;\\])/g, '$1');
+function decodeQP(s) {
+  const bytes = [], enc = new TextEncoder();
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '=' && /^[0-9A-Fa-f]{2}$/.test(s.substr(i + 1, 2))) { bytes.push(parseInt(s.substr(i + 1, 2), 16)); i += 2; }
+    else enc.encode(s[i]).forEach(b => bytes.push(b));
+  }
+  try { return new TextDecoder('utf-8').decode(new Uint8Array(bytes)); } catch (e) { return s; }
+}
+// vCard(.vcf) → [{name,title,company,phone}]  (전화번호가 없는 연락처는 건너뜀)
+function parseVcf(text) {
+  let t = String(text || '').replace(/\r\n|\r/g, '\n');
+  if (/QUOTED-PRINTABLE/i.test(t)) t = t.replace(/=\n/g, '');
+  t = t.replace(/\n[ \t]/g, '');
+  const out = [];
+  t.split(/BEGIN:VCARD/i).slice(1).forEach(card => {
+    const body = card.split(/END:VCARD/i)[0];
+    let fn = '', nn = '', title = '', org = ''; const tels = [];
+    body.split('\n').forEach(line => {
+      const i = line.indexOf(':'); if (i < 0) return;
+      const head = line.slice(0, i), key = head.split(';')[0].toUpperCase().replace(/^ITEM\d+\./, '');
+      let val = line.slice(i + 1).trim();
+      if (/ENCODING=QUOTED-PRINTABLE/i.test(head)) val = decodeQP(val);
+      if (key === 'FN') fn = unescText(val);
+      else if (key === 'N') { const p = val.split(';'), fam = (p[0] || '').trim(), giv = (p[1] || '').trim(); nn = /^[\x00-\x7f]*$/.test(fam + giv) ? (giv + ' ' + fam).trim() : fam + giv; }
+      else if (key === 'TITLE') title = unescText(val);
+      else if (key === 'ORG') org = unescText(val.split(';')[0]);
+      else if (key === 'TEL') tels.push(normPhone(val));
+    });
+    const ph = tels.filter(d => d.length >= 8), phone = ph.find(d => /^01/.test(d)) || ph[0];
+    if (phone) out.push({ name: fn || nn || '', title, company: org, phone });
+  });
+  return out;
+}
+// iCalendar(.ics) 날짜: 20261112T140000Z(UTC→현지 변환) / 20261112T140000(현지) / 20261112(종일)
+function icsDate(val, head) {
+  const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?$/.exec(String(val || '').trim()); if (!m) return null;
+  const y = +m[1], mo = +m[2] - 1, d = +m[3], allDay = m[4] === undefined, H = +(m[4] || 0), Mi = +(m[5] || 0), S = +(m[6] || 0);
+  const date = m[7] ? new Date(Date.UTC(y, mo, d, H, Mi, S)) : new Date(y, mo, d, H, Mi, S);
+  const tz = /TZID=([^;:]+)/i.exec(head || '');
+  return { date, allDay, tz: tz ? tz[1].replace(/^"|"$/g, '') : '' };
+}
+// 반복 일정(RRULE) 펼치기: DAILY·WEEKLY(BYDAY)·MONTHLY(같은 날짜/BYMONTHDAY)·YEARLY. 그 외 반복은 첫 일정만.
+function icsExpand(e, to) {
+  const s0 = e.ds.date, res = [], r = {};
+  e.rrule.split(';').forEach(p => { const k = p.indexOf('='); if (k > 0) r[p.slice(0, k).toUpperCase()] = p.slice(k + 1); });
+  const itv = Math.max(1, +r.INTERVAL || 1), cnt = r.COUNT ? +r.COUNT : Infinity;
+  let until = r.UNTIL ? (icsDate(r.UNTIL, '') || {}).date : null;
+  if (until && /^\d{8}$/.test(r.UNTIL)) until = new Date(until.getTime() + 864e5 - 1);
+  const H = [s0.getHours(), s0.getMinutes(), s0.getSeconds()], at = (y, mo, d) => new Date(y, mo, d, H[0], H[1], H[2]);
+  let n = 0;
+  const push = d => { if (d > to || (until && d > until) || n >= cnt) return false; n++; res.push(d); return true; };
+  const Y = s0.getFullYear(), M = s0.getMonth(), D = s0.getDate(), f = r.FREQ;
+  if (f === 'DAILY') { for (let k = 0; k < 4000; k++) if (!push(at(Y, M, D + k * itv))) break; }
+  else if (f === 'WEEKLY') {
+    const names = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+    const set = r.BYDAY ? r.BYDAY.split(',').map(x => names.indexOf(x.replace(/^[+-]?\d+/, ''))).filter(x => x >= 0) : [s0.getDay()];
+    const off = (s0.getDay() + 6) % 7;   // 월요일 시작 주
+    for (let k = 0; k < 4000; k++) {
+      const d = at(Y, M, D + k);
+      if (set.indexOf(d.getDay()) < 0 || Math.floor((k + off) / 7) % itv) continue;
+      if (!push(d)) break;
+    }
+  } else if (f === 'MONTHLY' && !r.BYDAY) {
+    const days = r.BYMONTHDAY ? r.BYMONTHDAY.split(',').map(Number).filter(x => x > 0).sort((a, b) => a - b) : [D];
+    outer: for (let k = 0; k < 600; k++) for (const day of days) { const d = at(Y, M + k * itv, day); if (d.getDate() !== day || d < s0) continue; if (!push(d)) break outer; }
+  } else if (f === 'YEARLY' && !r.BYDAY) {
+    for (let k = 0; k < 200; k++) { const d = at(Y + k * itv, M, D); if (d.getMonth() !== M) continue; if (!push(d)) break; }
+  } else res.push(s0);
+  return res;
+}
+// .ics 텍스트 → [{id,title,start,end,allDay,loc,memo,tzOther}]  (from~to 사이에 걸치는 일정만)
+function parseIcs(text, from, to) {
+  const t = String(text || '').replace(/\r\n|\r/g, '\n').replace(/\n[ \t]/g, '');
+  const vevs = [];
+  t.split(/BEGIN:VEVENT/i).slice(1).forEach(b => {
+    const body = b.split(/END:VEVENT/i)[0], e = { ex: [] };
+    body.split('\n').forEach(line => {
+      const i = line.indexOf(':'); if (i < 0) return;
+      const head = line.slice(0, i), key = head.split(';')[0].toUpperCase(), val = line.slice(i + 1).trim();
+      if (key === 'SUMMARY') e.title = unescText(val);
+      else if (key === 'LOCATION') e.loc = unescText(val);
+      else if (key === 'DESCRIPTION') e.memo = unescText(val);
+      else if (key === 'UID') e.uid = val;
+      else if (key === 'STATUS') e.status = val.toUpperCase();
+      else if (key === 'RRULE') e.rrule = val;
+      else if (key === 'DTSTART') e.ds = icsDate(val, head);
+      else if (key === 'DTEND') e.de = icsDate(val, head);
+      else if (key === 'DURATION') e.dur = val;
+      else if (key === 'EXDATE') val.split(',').forEach(v => { const d = icsDate(v, head); if (d) e.ex.push(d.date.getTime()); });
+      else if (key === 'RECURRENCE-ID') e.rid = icsDate(val, head);
+    });
+    if (e.ds && e.status !== 'CANCELLED') vevs.push(e);
+  });
+  // 반복 일정 중 한 회차만 따로 고친 일정(RECURRENCE-ID)은 원래 회차를 빼고 따로 둔다
+  vevs.filter(e => e.rid).forEach(o => { const m = vevs.find(x => !x.rid && x.uid && x.uid === o.uid); if (m) m.ex.push(o.rid.date.getTime()); });
+  let localTz = ''; try { localTz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) {}
+  const DAY = 864e5, out = [];
+  vevs.forEach(e => {
+    const allDay = e.ds.allDay; let span = 0;
+    if (e.de) span = e.de.date - e.ds.date;
+    else if (e.dur) { const m = /P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?/i.exec(e.dur) || []; span = ((+m[1] || 0) * 7 + (+m[2] || 0)) * DAY + (+m[3] || 0) * 36e5 + (+m[4] || 0) * 6e4; }
+    else if (allDay) span = DAY;
+    const tzOther = !!(e.ds.tz && e.ds.tz !== localTz);
+    let shown = 0;   // 반복 일정은 목록이 도배되지 않게 앞으로의 6회까지만
+    (e.rrule ? icsExpand(e, to) : [e.ds.date]).forEach(s => {
+      if (e.ex.indexOf(s.getTime()) >= 0 || s > to) return;
+      const endMs = s.getTime() + Math.max(0, span);
+      if (Math.max(endMs, s.getTime()) < from.getTime()) return;
+      if (e.rrule && ++shown > 6) return;
+      const endShow = allDay ? Math.max(s.getTime(), endMs - DAY) : endMs;   // 종일 일정의 DTEND는 다음 날 0시라 하루 뺀다
+      out.push({ id: (e.uid || e.title || 'e') + '@' + s.getTime(), title: e.title || '(제목 없음)', start: s.toISOString(), end: new Date(endShow).toISOString(), allDay, loc: e.loc || '', memo: e.memo || '', tzOther });
+    });
+  });
+  return out.sort((a, b) => new Date(a.start) - new Date(b.start));
+}
 /*PURE-END*/
-if (typeof module !== 'undefined' && module.exports) { module.exports = { digits, fmtPhone, honorific, personalize, smsBytes, smsType, fmtWhen, buildSmsUrl, wavEncode, localVariants }; return; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { digits, fmtPhone, honorific, personalize, smsBytes, smsType, fmtWhen, buildSmsUrl, wavEncode, localVariants, normPhone, parseVcf, parseIcs }; return; }
 
 /* ════════ 공통 ════════ */
 const $ = id => document.getElementById(id);
@@ -350,7 +504,7 @@ const rid = () => Math.random().toString(36).slice(2, 10);
 /* ════════ 상태 ════════ */
 const KEY_PHONE = 'SIMAS_AI_PHONE', KEY_SENDER = 'simmsg_sender', KEY_OPT = 'simmsg_opts';
 const SUBS = ['안부', '생일축하', '새해인사', '연말연시', '추석'];
-const S = { kind: 'greet', sub: '안부', recips: [], variants: [], pick: -1, schMode: 'cal', ev: null, matImg: '', opts: { tone: 'formal', len: 'mid', ch: 'sms' }, img: null, aud: 'none', audFile: null, audKey: '', sent: {} };
+const S = { kind: 'greet', sub: '안부', recips: [], variants: [], pick: -1, schMode: 'cal', ev: null, matImg: '', opts: { tone: 'formal', len: 'mid', ch: 'sms' }, img: null, aud: 'none', audFile: null, audKey: '', sent: {}, over: {} };
 try { Object.assign(S.opts, JSON.parse(ls.get(KEY_OPT, '{}'))); } catch (e) {}
 $('sender').value = ls.get(KEY_SENDER, '');
 
@@ -408,29 +562,60 @@ $('fMat').onchange = async e => { const f = e.target.files[0]; e.target.value = 
 $('btnMatImg').onclick = () => $('fMatImg').click();
 $('fMatImg').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { S.matImg = await fileToDataUrl(f, 1280, 0.82); $('matInfo').textContent = '사진 1장 첨부됨 (AI가 글자를 읽어요)'; } catch (x) { toast('사진을 불러오지 못했어요'); } };
 
-// 일정
+// 일정: 기본은 SIM 일정표(SIM Calendar·SIM Assistant). 기기(폰) 달력은 브라우저가 직접 읽을 수 없어 .ics 파일로 가져온다.
 $('schSeg').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.schMode = b.dataset.m; document.querySelectorAll('#schSeg button').forEach(x => x.classList.toggle('on', x === b)); $('schCal').classList.toggle('hide', S.schMode !== 'cal'); $('schMan').classList.toggle('hide', S.schMode !== 'man'); };
-let EVENTS = [];
+const KEY_DEVEV = 'simmsg_devev';
+let EVENTS = [], evTab = 'sim';
+const readDevEv = () => { try { const j = JSON.parse(ls.get(KEY_DEVEV, '')); return j && Array.isArray(j.ev) ? j : { at: '', ev: [] }; } catch (e) { return { at: '', ev: [] }; } };
+const evWindow = () => { const a = new Date(); a.setHours(0, 0, 0, 0); return [a, new Date(a.getTime() + 120 * 864e5)]; };
 async function loadEvents() {
   $('evList').innerHTML = '<div class="empty">일정을 불러오는 중…</div>';
   const [own, asst] = await Promise.all([idbReadAll('simcalendar', 'events'), idbReadAll('simassistant', 'events')]);
-  const now = new Date(); now.setHours(0, 0, 0, 0);
-  const lim = new Date(now.getTime() + 120 * 864e5);
-  EVENTS = [].concat(own.map(r => Object.assign({}, r, { _src: 'own' })), asst.map(r => Object.assign({}, r, { _src: 'asst' })))
-    .filter(r => { const s = new Date(r.start); return !isNaN(s) && s >= now && s <= lim; })
-    .sort((a, b) => new Date(a.start) - new Date(b.start)).slice(0, 60);
-  if (!EVENTS.length) { $('evList').innerHTML = '<div class="empty">앞으로 120일 안에 등록된 일정이 없어요.<br>달력 앱에서 일정을 추가하거나 "직접 입력"을 쓰세요.</div>'; return; }
-  renderEvents();
+  const [a, z] = evWindow();
+  const inWin = r => { const s = new Date(r.start); return !isNaN(s) && s >= a && s <= z; };
+  const byTime = (x, y) => new Date(x.start) - new Date(y.start);
+  const sim = [].concat(own.map(r => Object.assign({}, r, { _src: 'own' })), asst.map(r => Object.assign({}, r, { _src: 'asst' }))).filter(inWin).sort(byTime).slice(0, 60);
+  const dev = readDevEv().ev.map(r => Object.assign({}, r, { _src: 'dev' })).filter(inWin).sort(byTime).slice(0, 150);
+  EVENTS = sim.concat(dev);
+  if (S.ev) { S.ev = EVENTS.find(r => r._src === S.ev._src && r.id === S.ev.id && r.start === S.ev.start) || null; if (!S.ev) $('schInfo').textContent = ''; }
+  renderEvTabs(); renderEvents();
+}
+function renderEvTabs() {
+  const nd = EVENTS.filter(r => r._src === 'dev').length, dv = readDevEv();
+  $('evTabs').innerHTML = '<span class="chip' + (evTab === 'sim' ? ' on' : '') + '" data-t="sim">SIM 일정표</span><span class="chip' + (evTab === 'dev' ? ' on' : '') + '" data-t="dev">기기 일정' + (nd ? ' ' + nd : '') + '</span>';
+  $('btnIcsClr').classList.toggle('hide', !dv.ev.length);
+  $('devEvInfo').textContent = dv.at ? '가져온 기기 일정 (' + new Date(dv.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }) + ' 가져옴) · 앞으로 120일 안의 일정만 보여요' : '';
 }
 function renderEvents() {
-  $('evList').innerHTML = EVENTS.map((r, i) => '<div class="item' + (S.ev === r ? ' on' : '') + '" data-i="' + i + '"><div class="grow"><div class="t">' + esc(r.title || '(제목 없음)') + '</div><div class="s">' + esc(r.loc || '') + '</div></div><div class="dt">' + esc(fmtWhen(r.start, r.end, r.allDay)) + '</div></div>').join('');
+  const L = EVENTS.filter(r => evTab === 'dev' ? r._src === 'dev' : r._src !== 'dev');
+  if (!L.length) {
+    $('evList').innerHTML = evTab === 'dev'
+      ? '<div class="empty">가져온 기기 일정이 없어요.<br>"기기 일정 가져오기"로 폰 달력에서 내보낸 .ics 파일을 열어 주세요.</div>'
+      : '<div class="empty">앞으로 120일 안에 SIM 일정표에 등록된 일정이 없어요.<br>SIM Calendar에서 추가하거나 "기기 일정"·"직접 입력"을 쓰세요.</div>';
+    return;
+  }
+  $('evList').innerHTML = L.map(r => '<div class="item' + (S.ev === r ? ' on' : '') + '" data-i="' + EVENTS.indexOf(r) + '"><div class="grow"><div class="t">' + esc(r.title || '(제목 없음)') + '</div><div class="s">' + esc(r.loc || '') + '</div></div><div class="dt">' + esc(fmtWhen(r.start, r.end, r.allDay)) + '</div></div>').join('');
 }
+$('evTabs').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; evTab = c.dataset.t; renderEvTabs(); renderEvents(); };
 $('evList').onclick = e => {
   const it = e.target.closest('.item'); if (!it) return;
-  const r = EVENTS[+it.dataset.i]; S.ev = r;
+  const r = EVENTS[+it.dataset.i]; if (!r) return; S.ev = r;
   document.querySelectorAll('#evList .item').forEach(x => x.classList.toggle('on', x === it));
-  $('schInfo').textContent = '선택됨: ' + (r.title || '') + (r.rep ? ' (반복 일정은 이번 회차 날짜 기준이에요. 날짜를 꼭 확인하세요)' : '');
+  $('schInfo').textContent = '선택됨: ' + (r.title || '') + (r.rep ? ' (반복 일정은 이번 회차 날짜 기준이에요. 날짜를 꼭 확인하세요)' : '') + (r.tzOther ? ' — 다른 시간대 기준 일정이라 시각이 어긋날 수 있어요. 문구의 시간을 꼭 확인하세요' : '');
 };
+$('btnIcs').onclick = () => $('fIcs').click();
+$('fIcs').onchange = async e => {
+  const files = [].slice.call(e.target.files); e.target.value = ''; if (!files.length) return;
+  const [a, z] = evWindow(); let got = [];
+  for (const f of files) { try { got = got.concat(parseIcs(await f.text(), a, z)); } catch (x) { /* 읽을 수 없는 파일은 건너뜀 */ } }
+  if (!got.length) return toast('가져올 일정이 없어요. 앞으로 120일 안의 일정만 읽고, .ics 파일이어야 해요', 4600);
+  const map = new Map(readDevEv().ev.map(r => [r.id, r]));
+  got.forEach(r => map.set(r.id, r));
+  const list = [...map.values()].sort((x, y) => new Date(x.start) - new Date(y.start)).slice(0, 300);
+  ls.set(KEY_DEVEV, JSON.stringify({ at: new Date().toISOString(), ev: list }));
+  evTab = 'dev'; await loadEvents(); toast(got.length + '개 일정을 가져왔어요');
+};
+$('btnIcsClr').onclick = () => { ls.set(KEY_DEVEV, ''); if (S.ev && S.ev._src === 'dev') { S.ev = null; $('schInfo').textContent = ''; } evTab = 'sim'; loadEvents(); toast('가져온 기기 일정을 지웠어요'); };
 function scheduleText() {
   if (S.schMode === 'man') {
     const t = $('mTitle').value.trim(), d = $('mDate').value, tm = $('mTime').value; if (!t || !d) return '';
@@ -449,58 +634,124 @@ function scheduleText() {
 
 /* ════════ 3. 받는 사람 ════════ */
 function renderRecips() {
-  $('rcs').innerHTML = S.recips.length ? S.recips.map(r => '<span class="rc">' + esc(honorific(r)) + ' <small style="color:var(--sub)">' + esc(fmtPhone(r.phone)) + '</small><button data-id="' + r.id + '" aria-label="삭제">×</button></span>').join('') : '<span class="hint" style="margin:0">아직 없어요. 연락처에서 고르거나 번호를 입력하세요.</span>';
+  $('rcs').innerHTML = S.recips.length ? S.recips.map(r => '<span class="rc" data-id="' + r.id + '" title="눌러서 이름·직함·번호 고치기">' + esc(honorific(r)) + ' <small style="color:var(--sub)">' + esc(fmtPhone(r.phone)) + '</small><button aria-label="삭제">×</button></span>').join('') : '<span class="hint" style="margin:0">아직 없어요. 연락처에서 고르거나 번호를 입력하세요.</span>';
   $('rcCount').textContent = S.recips.length ? S.recips.length + '명' : '';
 }
-$('rcs').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.recips = S.recips.filter(r => r.id !== b.dataset.id); renderRecips(); updateAll(); };
+$('rcs').onclick = e => {
+  const rc = e.target.closest('.rc'); if (!rc) return;
+  if (e.target.closest('button')) { S.recips = S.recips.filter(r => r.id !== rc.dataset.id); delete S.over[rc.dataset.id]; renderRecips(); updateAll(); return; }
+  openChip(rc.dataset.id);
+};
 function addRecip(r) {
-  const d = digits(r.phone); if (d.length < 8) return false;
-  if (S.recips.some(x => digits(x.phone) === d)) return false;
+  const d = normPhone(r.phone); if (d.length < 8) return false;
+  if (S.recips.some(x => x.phone === d)) return false;
   S.recips.push({ id: rid(), name: r.name || '', title: r.title || '', company: r.company || '', phone: d }); return true;
 }
 $('btnAddR').onclick = () => {
   if (!addRecip({ name: $('rName').value.trim(), title: $('rTitle').value.trim(), phone: $('rPhone').value })) return toast('전화번호를 확인해 주세요 (이미 추가됐을 수 있어요)');
   $('rName').value = $('rTitle').value = $('rPhone').value = ''; renderRecips(); updateAll();
 };
-if (navigator.contacts && navigator.contacts.select) $('btnDev').classList.remove('hide');
-$('btnDev').onclick = async () => {
-  try {
-    const list = await navigator.contacts.select(['name', 'tel'], { multiple: true });
-    let n = 0; for (const c of list) if (c.tel && c.tel[0] && addRecip({ name: (c.name && c.name[0]) || '', phone: c.tel[0] })) n++;
-    renderRecips(); updateAll(); toast(n + '명을 추가했어요');
-  } catch (e) { /* 취소 */ }
+
+// 받는 사람 한 명 고치기 (기기 연락처는 직함이 없어서 여기서 적는다)
+let chipId = '';
+function openChip(id) {
+  const r = S.recips.find(x => x.id === id); if (!r) return;
+  chipId = id; $('cName').value = r.name; $('cTitle').value = r.title; $('cPhone').value = fmtPhone(r.phone); $('mChip').classList.add('show');
+}
+$('cCancel').onclick = () => $('mChip').classList.remove('show');
+$('cSave').onclick = () => {
+  const r = S.recips.find(x => x.id === chipId); if (!r) return $('mChip').classList.remove('show');
+  const d = normPhone($('cPhone').value);
+  if (d.length < 8) return toast('전화번호를 확인해 주세요');
+  if (S.recips.some(x => x.id !== r.id && x.phone === d)) return toast('같은 번호의 받는 사람이 이미 있어요');
+  const before = honorific(r);
+  r.name = $('cName').value.trim(); r.title = $('cTitle').value.trim(); r.phone = d;
+  if (honorific(r) !== before) delete S.over[r.id];   // 호칭이 바뀌면 그 사람의 개별 수정 문구는 맞지 않으므로 초기화
+  $('mChip').classList.remove('show'); renderRecips(); updateAll();
 };
 
-// SIM Phone 연락처 선택
-let CONTACTS = [], pSel = new Set();
+/* 연락처 선택: SIM 연락처(SIM Phone)와 기기 연락처 중에서 고른다.
+   SIM 연락처는 같은 주소의 IndexedDB를 읽고, 기기 연락처는 Contact Picker(안드로이드 크롬) 또는 .vcf 파일로 가져온다. */
+const HAS_PICKER = !!(navigator.contacts && navigator.contacts.select);
+const P = { src: 'sim' };
+let CONTACTS = [], DEVC = [], pSel = new Set();
+const simPhone = c => normPhone(c.mobile).length >= 9 ? c.mobile : c.tel;
+async function loadSimContacts() {
+  CONTACTS = (await idbReadAll('simphone', 'contacts'))
+    .filter(c => normPhone(c.mobile).length >= 9 || normPhone(c.tel).length >= 9)
+    .map(c => ({ name: c.name || '', title: c.title || '', company: c.company || '', group: c.group_name || '', phone: normPhone(simPhone(c)) }))
+    .sort((a, b) => String(a.name || a.company).localeCompare(String(b.name || b.company), 'ko'));
+}
+function setSrc(s) {
+  P.src = s;
+  document.querySelectorAll('#pSrc button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
+  $('pDev').classList.toggle('hide', s !== 'dev'); $('pg').classList.toggle('hide', s !== 'sim');
+  renderPick();
+}
+$('pSrc').onclick = e => { const b = e.target.closest('button'); if (b) setSrc(b.dataset.s); };
 $('btnPick').onclick = async () => {
   $('mPick').classList.add('show'); $('pList').innerHTML = '<div class="empty">불러오는 중…</div>';
-  CONTACTS = (await idbReadAll('simphone', 'contacts')).filter(c => digits(c.mobile).length >= 9 || digits(c.tel).length >= 9);
-  CONTACTS.sort((a, b) => String(a.name || a.company || '').localeCompare(String(b.name || b.company || ''), 'ko'));
-  pSel = new Set(S.recips.map(r => digits(r.phone)));
-  const groups = [...new Set(CONTACTS.map(c => c.group_name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+  await loadSimContacts();
+  pSel = new Set(S.recips.map(r => r.phone));
+  const groups = [...new Set(CONTACTS.map(c => c.group).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
   $('pg').innerHTML = '<option value="">전체 그룹</option>' + groups.map(g => '<option>' + esc(g) + '</option>').join('');
-  $('pq').value = ''; renderPick();
+  $('pApi').classList.toggle('hide', !HAS_PICKER);
+  $('pDevHint').textContent = HAS_PICKER
+    ? '"기기 연락처 불러오기"로 폰 연락처를 바로 고를 수 있어요. 이름·번호만 들어오니 직함은 선택 뒤 받는 사람 칩을 눌러 적어 주세요.'
+    : '이 브라우저(아이폰 Safari 등)는 폰 연락처를 직접 읽을 수 없어요. 연락처 앱에서 연락처를 .vcf 파일로 공유·내보내기한 뒤 "연락처 파일 열기"로 가져오세요. 파일에 직함·회사가 있으면 함께 들어옵니다.';
+  $('pq').value = ''; setSrc(P.src);
 };
-const pPhone = c => digits(c.mobile).length >= 9 ? c.mobile : c.tel;
+const pList = () => P.src === 'dev' ? DEVC : CONTACTS;
 function pFiltered() {
-  const q = $('pq').value.trim().toLowerCase(), g = $('pg').value;
-  return CONTACTS.filter(c => (!g || c.group_name === g) && (!q || [c.name, c.company, c.title, c.group_name].join(' ').toLowerCase().includes(q)));
+  const q = $('pq').value.trim().toLowerCase(), g = P.src === 'sim' ? $('pg').value : '';
+  return pList().filter(c => (!g || c.group === g) && (!q || [c.name, c.company, c.title, c.group].join(' ').toLowerCase().includes(q)));
 }
 function renderPick() {
   const L = pFiltered();
   $('pInfo').textContent = L.length + '명 · 선택 ' + pSel.size + '명';
-  if (!CONTACTS.length) { $('pList').innerHTML = '<div class="empty">SIM Phone에 저장된 연락처가 없거나 이 브라우저에서 읽을 수 없어요.<br>SIM Phone을 먼저 열어 연락처를 등록하거나, 번호를 직접 입력하세요.</div>'; return; }
-  $('pList').innerHTML = L.map(c => { const d = digits(pPhone(c)); return '<div class="item' + (pSel.has(d) ? ' on' : '') + '" data-d="' + d + '"><div class="grow"><div class="t">' + esc(c.name || c.company || '(이름 없음)') + (c.title ? ' <span style="color:var(--sub);font-weight:400">' + esc(c.title) + '</span>' : '') + '</div><div class="s">' + esc([c.company, fmtPhone(pPhone(c))].filter(Boolean).join(' · ')) + '</div></div><div>' + (pSel.has(d) ? '✓' : '') + '</div></div>'; }).join('') || '<div class="empty">검색 결과가 없어요.</div>';
+  if (!pList().length) {
+    $('pList').innerHTML = P.src === 'sim'
+      ? '<div class="empty">SIM Phone에 저장된 연락처가 없거나 이 브라우저에서 읽을 수 없어요.<br>SIM Phone에서 연락처를 등록하거나 "기기 연락처" 탭을 쓰세요.</div>'
+      : '<div class="empty">아직 가져온 기기 연락처가 없어요.<br>위 버튼으로 연락처를 불러오세요.</div>';
+    return;
+  }
+  $('pList').innerHTML = L.map(c => '<div class="item' + (pSel.has(c.phone) ? ' on' : '') + '" data-d="' + c.phone + '"><div class="grow"><div class="t">' + esc(c.name || c.company || '(이름 없음)') + (c.title ? ' <span style="color:var(--sub);font-weight:400">' + esc(c.title) + '</span>' : '') + '</div><div class="s">' + esc([c.company, fmtPhone(c.phone)].filter(Boolean).join(' · ')) + '</div></div><div>' + (pSel.has(c.phone) ? '✓' : '') + '</div></div>').join('') || '<div class="empty">검색 결과가 없어요.</div>';
 }
 $('pList').onclick = e => { const it = e.target.closest('.item'); if (!it) return; const d = it.dataset.d; pSel.has(d) ? pSel.delete(d) : pSel.add(d); renderPick(); };
 $('pq').oninput = renderPick; $('pg').onchange = renderPick;
-$('pAll').onclick = () => { pFiltered().forEach(c => pSel.add(digits(pPhone(c)))); renderPick(); };
+$('pAll').onclick = () => { pFiltered().forEach(c => pSel.add(c.phone)); renderPick(); };
 $('pCancel').onclick = () => $('mPick').classList.remove('show');
+
+// 기기 연락처 가져오기
+function addDev(list, select) {
+  let n = 0;
+  list.forEach(c => { if (!c.phone) return; if (!DEVC.some(x => x.phone === c.phone)) { DEVC.push({ name: c.name || '', title: c.title || '', company: c.company || '', group: '', phone: c.phone }); n++; } if (select) pSel.add(c.phone); });
+  DEVC.sort((a, b) => String(a.name || a.company).localeCompare(String(b.name || b.company), 'ko'));
+  renderPick(); return n;
+}
+const pickTel = tels => { const l = (tels || []).map(normPhone).filter(d => d.length >= 8); return l.find(d => /^01/.test(d)) || l[0] || ''; };
+$('pApi').onclick = async () => {
+  try {
+    const list = await navigator.contacts.select(['name', 'tel'], { multiple: true });
+    const n = addDev(list.map(c => ({ name: (c.name && c.name[0]) || '', phone: pickTel(c.tel) })), true);
+    toast(list.length ? list.length + '명을 선택했어요' + (list.length > n ? ' (이미 가져온 연락처 포함)' : '') : '선택한 연락처가 없어요');
+  } catch (e) { if (!e || e.name !== 'AbortError') toast('기기 연락처를 열지 못했어요. 파일(.vcf)로 가져와 보세요', 4200); }
+};
+$('pVcf').onclick = () => $('fVcf').click();
+$('fVcf').onchange = async e => {
+  const files = [].slice.call(e.target.files); e.target.value = ''; if (!files.length) return;
+  let got = [];
+  for (const f of files) { try { got = got.concat(parseVcf(await f.text())); } catch (x) { /* 건너뜀 */ } }
+  if (!got.length) return toast('가져올 연락처가 없어요. 전화번호가 있는 .vcf 파일인지 확인해 주세요', 4400);
+  const auto = got.length <= 10;   // 주소록 전체를 내보낸 큰 파일은 자동 선택하지 않는다
+  addDev(got, auto);
+  toast(got.length + '명을 가져왔어요' + (auto ? ' · 모두 선택됨' : ' · 아래 목록에서 고르세요'), 3600);
+};
 $('pOk').onclick = () => {
-  const keep = S.recips.filter(r => pSel.has(digits(r.phone)));
-  const have = new Set(keep.map(r => digits(r.phone)));
-  CONTACTS.forEach(c => { const d = digits(pPhone(c)); if (pSel.has(d) && !have.has(d)) { keep.push({ id: rid(), name: c.name || '', title: c.title || '', company: c.company || '', phone: d }); have.add(d); } });
+  const all = CONTACTS.concat(DEVC);
+  const keep = S.recips.filter(r => pSel.has(r.phone)), have = new Set(keep.map(r => r.phone));
+  [...pSel].forEach(d => { if (have.has(d)) return; const c = all.find(x => x.phone === d); if (c) { keep.push({ id: rid(), name: c.name, title: c.title, company: c.company, phone: d }); have.add(d); } });
+  Object.keys(S.over).forEach(id => { if (!keep.some(r => r.id === id)) delete S.over[id]; });
   S.recips = keep; renderRecips(); updateAll(); $('mPick').classList.remove('show');
 };
 
@@ -516,12 +767,12 @@ $('sender').oninput = () => { ls.set(KEY_SENDER, $('sender').value); };
 
 /* ════════ AI 호출 ════════ */
 const aiPhone = () => digits(ls.get(KEY_PHONE, ''));
-async function aiCall(payload, ms) {
+async function aiCall(payload, ms, fn) {
   const phone = aiPhone();
   if (!phone) { openSet(); throw new Error('먼저 AI 연결 번호를 등록해 주세요'); }
   const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), ms || 40000);
   try {
-    const r = await fetch('https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/message-ai', { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ phone }, payload)) });
+    const r = await fetch('https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/' + (fn || 'message-ai'), { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ phone }, payload)) });
     const j = await r.json().catch(() => ({}));
     if (r.ok) return j;
     throw new Error(r.status === 403 ? '등록되지 않은 전화번호예요' : r.status === 429 ? (j.error === 'quota' ? 'AI 사용 한도에 도달했어요' : '잠시 뒤 다시 눌러 주세요') : 'AI 응답 실패 (' + r.status + ')');
@@ -561,8 +812,72 @@ function renderVars() {
   $('vars').innerHTML = S.variants.map((v, i) => '<div class="var' + (i === S.pick ? ' on' : '') + '" data-i="' + i + '"><span class="vl">' + esc(v.label || '문안 ' + (i + 1)) + '</span><br>' + esc(personalize(v.text, S.recips[0])) + '</div>').join('');
 }
 $('vars').onclick = e => { const v = e.target.closest('.var'); if (v) applyVariant(+v.dataset.i); };
-function applyVariant(i) { S.pick = i; $('body').value = S.variants[i].text; renderVars(); updateAll(); }
-$('body').oninput = updateAll;
+/* ── 문구 수정: 직접 고치기 · AI로 다듬기 · 되돌리기 · 받는 사람별 개별 수정 ── */
+const H = { stack: [], i: -1, t: 0 };
+function histBtns() { $('btnUndo').disabled = H.i <= 0; $('btnRedo').disabled = H.i >= H.stack.length - 1; }
+function histPush(txt) {
+  if (H.stack[H.i] === txt) return histBtns();
+  H.stack = H.stack.slice(0, H.i + 1); H.stack.push(txt);
+  if (H.stack.length > 60) H.stack.shift();
+  H.i = H.stack.length - 1; histBtns();
+}
+function dropOverrides() { if (Object.keys(S.over).length) { S.over = {}; toast('본문이 바뀌어 사람별 개별 수정이 초기화됐어요', 3400); } }
+function setBody(txt, track) {
+  if ($('body').value !== txt) dropOverrides();
+  $('body').value = txt;
+  if (track !== false) histPush(txt);
+  updateAll();
+}
+function applyVariant(i) { S.pick = i; setBody(S.variants[i].text); renderVars(); }
+$('body').oninput = () => { dropOverrides(); clearTimeout(H.t); H.t = setTimeout(() => histPush($('body').value), 700); updateAll(); };
+function flushHist() { clearTimeout(H.t); histPush($('body').value); }
+$('btnUndo').onclick = () => { flushHist(); if (H.i > 0) { H.i--; setBody(H.stack[H.i], false); histBtns(); } };
+$('btnRedo').onclick = () => { flushHist(); if (H.i < H.stack.length - 1) { H.i++; setBody(H.stack[H.i], false); histBtns(); } };
+
+const EDITS = {
+  short: '핵심 내용과 사실은 그대로 두고 분량을 절반쯤으로 줄여 주세요',
+  long: '사실은 바꾸지 말고 문장을 조금 더 정성스럽게 보태 주세요',
+  formal: '더 정중하고 격식 있는 어투로 바꿔 주세요',
+  friendly: '더 친근하고 다정한 어투로 바꿔 주세요(존댓말은 유지)',
+  emoji: '문맥에 맞는 이모지를 2~3개만 자연스럽게 넣어 주세요',
+  noemoji: '이모지와 이모티콘을 모두 빼 주세요',
+  spell: '맞춤법과 띄어쓰기만 바로잡고 내용과 어투는 바꾸지 마세요'
+};
+async function editWith(instr) {
+  const cur = $('body').value.trim();
+  if (!cur) { toast('고칠 문구가 없어요. 먼저 문구를 만들거나 써 주세요'); return false; }
+  if (!instr) { toast('어떻게 고칠지 적어 주세요'); return false; }
+  flushHist();
+  busy(true, 'AI가 문구를 고치는 중…');
+  let ok = false;
+  try {
+    const j = await aiCall({ action: 'edit', text: cur, instruction: instr, channel: S.opts.ch }, 40000, 'message-edit');
+    const out = String(j.text || '').trim(); if (!out) throw new Error('빈 응답');
+    const lost = cur.includes('{수신자}') && !out.includes('{수신자}');
+    setBody(out); ok = true;
+    toast(lost ? '고쳤어요. 다만 받는 사람 호칭({수신자})이 빠졌으니 확인하세요 (되돌리기 가능)' : '고쳤어요 · 마음에 안 들면 ↶ 되돌리기', lost ? 5000 : 2800);
+  } catch (e) { toast('AI 수정 실패: ' + (e.message || e), 4200); }
+  busy(false); return ok;
+}
+$('edChips').onclick = e => { const c = e.target.closest('.chip'); if (c) editWith(EDITS[c.dataset.e]); };
+$('btnEd').onclick = async () => { if (await editWith($('edText').value.trim())) $('edText').value = ''; };
+$('edText').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('btnEd').click(); } };
+
+// 받는 사람별 최종 문구: 개별 수정이 있으면 그것, 없으면 본문에 호칭을 넣은 것
+const textFor = r => (r && S.over[r.id] != null) ? S.over[r.id] : personalize($('body').value, r);
+let editId = '';
+function openEdit(id) {
+  const r = S.recips.find(x => x.id === id); if (!r) return;
+  editId = id; $('eTitle').textContent = honorific(r) + '에게 보낼 문구'; $('eText').value = textFor(r); $('mEdit').classList.add('show');
+}
+$('eCancel').onclick = () => $('mEdit').classList.remove('show');
+$('eReset').onclick = () => { const r = S.recips.find(x => x.id === editId); if (r) $('eText').value = personalize($('body').value, r); };
+$('eSave').onclick = () => {
+  const r = S.recips.find(x => x.id === editId); if (!r) return $('mEdit').classList.remove('show');
+  const v = $('eText').value; if (!v.trim()) return toast('문구가 비어 있어요');
+  if (v === personalize($('body').value, r)) delete S.over[r.id]; else S.over[r.id] = v;
+  $('mEdit').classList.remove('show'); updateAll();
+};
 
 /* ════════ 6. 이미지 ════════ */
 function fileToDataUrl(file, max, q) {
@@ -659,7 +974,7 @@ const audCache = new Map();
 async function audioFor(r) {
   const mode = S.aud; if (mode === 'none') return null;
   const mel = $('melody').value;
-  const text = personalize($('body').value, r);
+  const text = textFor(r);
   const key = [mode, mel, $('voice').value, mode === 'melody' ? '' : text].join('|');
   if (audCache.has(key)) return audCache.get(key);
   let blob;
@@ -691,12 +1006,12 @@ $('btnAud').onclick = async () => {
 const hasMedia = () => !!S.img || S.aud !== 'none';
 function updateAll() {
   const body = $('body').value, r0 = S.recips[0];
-  const bytes = smsBytes(personalize(body, r0)), type = S.opts.ch === 'kakao' ? '카카오톡' : smsType(personalize(body, r0), hasMedia());
+  const bytes = smsBytes(textFor(r0)), type = S.opts.ch === 'kakao' ? '카카오톡' : smsType(textFor(r0), hasMedia());
   $('cntType').textContent = body.trim() ? (S.opts.ch === 'kakao' ? '카카오톡' : type + (type === 'LMS' ? ' (장문)' : type === 'MMS' ? ' (첨부)' : '')) : '';
-  $('cntLen').textContent = body.trim() ? [...personalize(body, r0)].length + '자 · ' + bytes + '바이트' : '';
+  $('cntLen').textContent = body.trim() ? [...textFor(r0)].length + '자 · ' + bytes + '바이트' : '';
   const pb = $('prevBox'); pb.classList.toggle('hide', !body.trim());
   $('prevLbl').textContent = '미리보기 · ' + (r0 ? honorific(r0) + '에게' : '받는 사람을 고르면 이름이 들어가요');
-  $('prevTxt').textContent = personalize(body, r0);
+  $('prevTxt').textContent = textFor(r0);
   $('sendCount').textContent = S.recips.length ? S.recips.length + '명' : '';
   $('attHint').textContent = hasMedia() ? '이미지·소리를 붙이면 "공유하기"로 열려요. 문자앱 링크에는 파일을 실을 수 없어서, 공유창에서 문자/카카오톡과 받는 사람을 고르게 됩니다. (수신자 번호는 복사 버튼으로 가져오세요)' : '';
   renderSend();
@@ -705,13 +1020,14 @@ function renderSend() {
   const L = S.recips.length ? S.recips : [null];
   const media = hasMedia();
   $('sendList').innerHTML = L.map(r => {
-    const id = r ? r.id : '_none', done = S.sent[id];
-    return '<div class="srow' + (done ? ' done' : '') + '"><div class="grow"><div class="nm">' + esc(r ? honorific(r) : '받는 사람은 문자앱에서 직접 선택') + '</div><div class="ph">' + esc(r ? fmtPhone(r.phone) : '') + '</div>' + (done ? '<div class="st">✓ ' + esc(done) + '</div>' : '') + '</div>' +
+    const id = r ? r.id : '_none', done = S.sent[id], ov = r && S.over[r.id] != null;
+    return '<div class="srow' + (done ? ' done' : '') + '"><div class="grow"><div class="nm">' + esc(r ? honorific(r) : '받는 사람은 문자앱에서 직접 선택') + (ov ? '<span class="badge dev">개별 수정</span>' : '') + '</div><div class="ph">' + esc(r ? fmtPhone(r.phone) : '') + '</div>' + (done ? '<div class="st">✓ ' + esc(done) + '</div>' : '') + '</div><div class="btns">' +
       (media ? '' : '<button class="primary sm" data-a="sms" data-id="' + id + '">문자앱</button>') +
       '<button class="sm" data-a="share" data-id="' + id + '">' + (media ? '공유하기' : '공유') + '</button>' +
-      (r && media ? '<button class="sm" data-a="num" data-id="' + id + '">번호복사</button>' : '') + '</div>';
+      (r ? '<button class="sm" data-a="edit" data-id="' + id + '">수정</button>' : '') +
+      (r && media ? '<button class="sm" data-a="num" data-id="' + id + '">번호복사</button>' : '') + '</div></div>';
   }).join('');
-  $('sendHint').textContent = S.opts.ch === 'kakao' ? '카카오톡은 외부에서 대화방을 지정해 보낼 수 없어, 공유창에서 받는 사람을 고르는 방식이에요.' : '"문자앱"을 누르면 번호와 문구가 채워진 문자앱이 열립니다. 전송 버튼만 누르고 돌아와서 다음 사람을 보내세요.';
+  $('sendHint').textContent = S.opts.ch === 'kakao' ? '카카오톡은 외부에서 대화방을 지정해 보낼 수 없어, 공유창에서 받는 사람을 고르는 방식이에요.' : '"문자앱"을 누르면 번호와 문구가 채워진 문자앱이 열립니다. 전송 버튼만 누르고 돌아와서 다음 사람을 보내세요. "수정"으로 그 사람에게만 문구를 따로 고칠 수 있어요.';
 }
 const recipById = id => S.recips.find(r => r.id === id) || null;
 async function copyText(t) {
@@ -724,7 +1040,7 @@ function markSent(id, how) { S.sent[id] = how + ' · ' + new Date().toLocaleTime
 let pendingSms = null;
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && pendingSms) { markSent(pendingSms, '문자앱 열림'); pendingSms = null; } });
 async function shareFor(r, via) {
-  const text = personalize($('body').value, r);
+  const text = textFor(r);
   const files = [];
   if (S.img) files.push(S.img);
   try {
@@ -743,12 +1059,13 @@ $('sendList').onclick = async e => {
   if (!$('body').value.trim()) return toast('보낼 문구가 비어 있어요');
   const r = recipById(b.dataset.id), a = b.dataset.a;
   if (a === 'sms') {
-    const url = buildSmsUrl(r ? [r.phone] : [], personalize($('body').value, r), isIOS);
+    const url = buildSmsUrl(r ? [r.phone] : [], textFor(r), isIOS);
     pendingSms = r ? r.id : '_none'; location.href = url;
   } else if (a === 'share') await shareFor(r, S.opts.ch === 'kakao' ? 'kakao' : 'share');
+  else if (a === 'edit') openEdit(b.dataset.id);
   else if (a === 'num') toast((await copyText(fmtPhone(r.phone))) ? '번호를 복사했어요: ' + fmtPhone(r.phone) : '복사 실패');
 };
-$('btnCopy').onclick = async () => { if (!$('body').value.trim()) return toast('복사할 문구가 없어요'); toast((await copyText(personalize($('body').value, S.recips[0]))) ? '복사했어요' : '복사 실패'); };
+$('btnCopy').onclick = async () => { if (!$('body').value.trim()) return toast('복사할 문구가 없어요'); toast((await copyText(textFor(S.recips[0]))) ? '복사했어요' : '복사 실패'); };
 $('btnKakao').onclick = async () => { if (!$('body').value.trim()) return toast('보낼 문구가 비어 있어요'); await shareFor(S.recips[0] || null, 'kakao'); };
 
 /* ════════ 설정 ════════ */
@@ -764,9 +1081,10 @@ $('setSave').onclick = async () => {
 };
 $('mSet').addEventListener('click', e => { if (e.target === $('mSet')) $('mSet').classList.remove('show'); });
 $('mPick').addEventListener('click', e => { if (e.target === $('mPick')) $('mPick').classList.remove('show'); });
+['mChip', 'mEdit'].forEach(id => $(id).addEventListener('click', e => { if (e.target === $(id)) $(id).classList.remove('show'); }));
 
 /* ════════ 시작 ════════ */
-renderRecips(); refreshBadge(); setKind('greet');
+renderRecips(); refreshBadge(); histPush(''); setKind('greet');
 $('melody').value = defaultMelody(); $('melody').classList.remove('hide'); $('voice').classList.remove('hide');
 $('mDate').value = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -66,6 +66,12 @@ main{max-width:680px;margin:0 auto;padding:12px 12px calc(40px + env(safe-area-i
 .cnt{display:flex;justify-content:space-between;font-size:12px;color:var(--sub);margin-top:6px}
 .prev{margin-top:10px;padding:12px;border-radius:14px;background:#0b0d13;border:1px dashed var(--line);white-space:pre-wrap;font-size:14px;line-height:1.6}
 .prev .pl{font-size:11px;color:var(--accent);margin-bottom:4px;font-weight:700}
+.pgimgs{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px}
+.pgimgs img{width:84px;height:84px;object-fit:cover;border-radius:10px;border:2px solid var(--line);flex:none;cursor:pointer;background:var(--panel2)}
+.pgimgs img:active{border-color:var(--accent)}
+#cWrap{position:relative;touch-action:none;align-self:center;max-width:100%;line-height:0;margin:6px 0}
+#cImg{display:block;max-width:100%;max-height:48vh;user-select:none;-webkit-user-drag:none}
+#cBox{position:absolute;border:2px solid var(--accent);box-shadow:0 0 0 9999px rgba(0,0,0,.6);cursor:move;touch-action:none}
 .thumb{position:relative;display:inline-block;margin-top:10px}
 .thumb img{display:block;width:150px;height:150px;object-fit:cover;border-radius:12px;border:1px solid var(--line)}
 .thumb button{position:absolute;top:6px;right:6px;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,.65);font-size:14px}
@@ -140,6 +146,18 @@ audio{width:100%;margin-top:10px;height:40px}
         <button class="sm" id="btnMatUrl">링크에서 읽기</button>
       </div>
       <label class="hint" style="display:flex;gap:6px;align-items:center;margin:6px 0 0"><input type="checkbox" id="matLink" checked> 문자 끝에 판매 페이지 링크 붙이기</label>
+      <div id="pgInfo" class="hide">
+        <div class="lbl">판매 페이지의 상품 이미지 — 눌러서 잘라 첨부</div>
+        <div class="pgimgs" id="pgImgs"></div>
+      </div>
+      <div class="row" style="margin-top:8px"><button class="sm" id="btnCropPick">📷 사진을 잘라서 첨부</button><span class="hint" style="margin:0">첨부한 이미지는 아래 6번에서 확인해요</span></div>
+      <div class="lbl">가격 <small>(있으면 문자에 넣을지 고르세요)</small></div>
+      <div class="chips" id="pgPrices"></div>
+      <div class="row nw" style="margin-top:6px">
+        <input type="text" id="price" placeholder="예: 29,900원 (비우면 가격 없음)" maxlength="30" style="flex:1;min-width:0">
+      </div>
+      <label class="hint" style="display:flex;gap:6px;align-items:center;margin:6px 0 0"><input type="checkbox" id="priceOn" checked> 문자에 가격 포함 (끄면 가격·할인율을 쓰지 않아요)</label>
+      <input type="file" id="fCrop" accept="image/*" class="hide">
       <input type="file" id="fMat" accept=".txt,.md,.csv,text/plain" class="hide">
       <input type="file" id="fMatImg" accept="image/*" class="hide">
       <div class="hint">자료에 없는 가격·효과는 AI가 지어내지 않도록 지시합니다. 그래도 보내기 전에 숫자는 꼭 확인하세요.</div>
@@ -281,6 +299,17 @@ audio{width:100%;margin-top:10px;height:40px}
   <div class="lbl">직함 (문자에 "이름 직함님"으로 들어가요)</div><input type="text" id="cTitle" maxlength="20" placeholder="예: 부장">
   <div class="lbl">전화번호</div><input type="tel" id="cPhone">
   <div class="row" style="margin-top:14px"><button class="grow" id="cCancel">닫기</button><button class="primary grow" id="cSave">저장</button></div>
+</div></div>
+
+<!-- 이미지 자르기 -->
+<div class="modal" id="mCrop"><div class="box">
+  <h3>이미지 자르기</h3>
+  <div class="scroll" style="display:flex;flex-direction:column;align-items:center">
+    <div id="cWrap"><img id="cImg" alt=""><div id="cBox"></div></div>
+  </div>
+  <div class="seg" id="cRatio"><button data-r="1" class="on">정사각</button><button data-r="1.3333">4:3</button><button data-r="0.75">3:4</button><button data-r="1.7778">16:9</button><button data-r="0">전체</button></div>
+  <div class="row nw" style="margin-top:8px"><span class="hint" style="margin:0">크기</span><input type="range" id="cZoom" min="1" max="4" step="0.05" value="1" style="flex:1"></div>
+  <div class="row" style="margin-top:10px"><button class="grow" id="cNo">닫기</button><button class="primary grow" id="cOk">이 영역으로 첨부</button></div>
 </div></div>
 
 <!-- 사람별 개별 문구 수정 -->
@@ -565,6 +594,54 @@ $('subs').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; 
 $('btnMatFile').onclick = () => $('fMat').click();
 $('fMat').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const t = await f.text(); $('material').value = t.slice(0, 6000); $('matInfo').textContent = f.name + (t.length > 6000 ? ' (앞 6000자만 사용)' : ''); } catch (x) { toast('파일을 읽지 못했어요'); } };
 $('btnMatImg').onclick = () => $('fMatImg').click();
+const PG = { url: '', images: [], prices: [] };
+function renderPg() {
+  $('pgInfo').classList.toggle('hide', !PG.images.length);
+  $('pgImgs').innerHTML = PG.images.map((u, i) => '<img src="' + esc(u) + '" data-i="' + i + '" loading="lazy" referrerpolicy="no-referrer" alt="상품 이미지 ' + (i + 1) + '">').join('');
+  $('pgImgs').querySelectorAll('img').forEach(im => im.onerror = () => im.remove());
+  $('pgPrices').innerHTML = PG.prices.length ? PG.prices.map((p, i) => '<span class="chip" data-i="' + i + '">' + esc(p.text) + ' <small>' + esc(p.label) + '</small></span>').join('') : '<span class="hint" style="margin:0">페이지에서 가격을 찾지 못했어요. 필요하면 아래에 직접 적으세요.</span>';
+}
+$('pgPrices').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; $('price').value = PG.prices[+c.dataset.i].text; $('priceOn').checked = true; document.querySelectorAll('#pgPrices .chip').forEach(x => x.classList.toggle('on', x === c)); };
+$('pgImgs').onclick = async e => {
+  const im = e.target.closest('img'); if (!im) return;
+  busy(true, '이미지를 가져오는 중…');
+  try { const j = await aiCall({ action: 'image', url: PG.images[+im.dataset.i], page: PG.url }, 30000, 'page-fetch'); busy(false); openCrop('data:' + j.mime + ';base64,' + j.data); }
+  catch (x) { busy(false); toast('이미지를 가져오지 못했어요. 이미지를 저장하거나 캡처해 "사진을 잘라서 첨부"를 쓰세요', 4800); }
+};
+$('btnCropPick').onclick = () => $('fCrop').click();
+$('fCrop').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { openCrop(await fileToDataUrl(f, 2000, 0.92)); } catch (x) { toast('사진을 불러오지 못했어요'); } };
+
+/* 이미지 자르기: 비율을 고르고, 영역을 끌어 옮기고, 크기 슬라이더로 줄인다 */
+const CR = { w: 0, h: 0, ratio: 1, z: 1, x: 0, y: 0, bw: 0, bh: 0 };
+function crLayout() {
+  const im = $('cImg'), W = CR.w, H = CR.h, r = CR.ratio || W / H;
+  let bw = Math.min(W, H * r), bh = bw / r; bw /= CR.z; bh /= CR.z;
+  CR.bw = bw; CR.bh = bh; CR.x = Math.max(0, Math.min(W - bw, CR.x)); CR.y = Math.max(0, Math.min(H - bh, CR.y));
+  const k = im.clientWidth / W, b = $('cBox');
+  b.style.left = CR.x * k + 'px'; b.style.top = CR.y * k + 'px'; b.style.width = bw * k + 'px'; b.style.height = bh * k + 'px';
+}
+function openCrop(url) {
+  const im = $('cImg');
+  im.onload = () => { CR.w = im.naturalWidth; CR.h = im.naturalHeight; CR.z = 1; $('cZoom').value = 1; CR.x = CR.y = 0; $('mCrop').classList.add('show'); crLayout(); const r = CR.ratio || CR.w / CR.h; CR.x = (CR.w - CR.bw) / 2; CR.y = (CR.h - CR.bh) / 2; crLayout(); };
+  im.onerror = () => toast('이미지를 열지 못했어요');
+  im.src = url;
+}
+$('cRatio').onclick = e => { const b = e.target.closest('button'); if (!b) return; CR.ratio = +b.dataset.r; document.querySelectorAll('#cRatio button').forEach(x => x.classList.toggle('on', x === b)); const cx = CR.x + CR.bw / 2, cy = CR.y + CR.bh / 2; crLayout(); CR.x = cx - CR.bw / 2; CR.y = cy - CR.bh / 2; crLayout(); };
+$('cZoom').oninput = () => { const cx = CR.x + CR.bw / 2, cy = CR.y + CR.bh / 2; CR.z = +$('cZoom').value; crLayout(); CR.x = cx - CR.bw / 2; CR.y = cy - CR.bh / 2; crLayout(); };
+(() => {
+  let d = null; const b = $('cBox');
+  b.onpointerdown = e => { d = { px: e.clientX, py: e.clientY, x: CR.x, y: CR.y }; b.setPointerCapture(e.pointerId); e.preventDefault(); };
+  b.onpointermove = e => { if (!d) return; const k = CR.w / $('cImg').clientWidth; CR.x = d.x + (e.clientX - d.px) * k; CR.y = d.y + (e.clientY - d.py) * k; crLayout(); };
+  b.onpointerup = b.onpointercancel = () => { d = null; };
+})();
+$('cNo').onclick = () => $('mCrop').classList.remove('show');
+$('cOk').onclick = () => {
+  const k = Math.min(1, 1080 / Math.max(CR.bw, CR.bh)), c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(CR.bw * k)); c.height = Math.max(1, Math.round(CR.bh * k));
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+  g.drawImage($('cImg'), CR.x, CR.y, CR.bw, CR.bh, 0, 0, c.width, c.height);
+  setImage(dataUrlToFile(c.toDataURL('image/jpeg', 0.88), 'SIM상품.jpg')); $('mCrop').classList.remove('show'); toast('이미지를 첨부했어요 (아래 6번에서 확인)');
+};
 $('btnMatUrl').onclick = async () => {
   const u = $('matUrl').value.trim(); if (!u) return toast('판매 페이지 링크를 붙여넣어 주세요');
   busy(true, '판매 페이지를 읽는 중…');
@@ -574,6 +651,9 @@ $('btnMatUrl').onclick = async () => {
     if (j.thin) { toast('이 페이지는 내용을 거의 읽지 못했어요(로그인·차단·앱 전용 페이지일 수 있어요). 화면을 캡처해 "사진·캡처로 읽기"를 쓰거나 내용을 붙여넣어 주세요', 6000); if (j.text) $('material').value = t.slice(0, 6000); }
     else { $('material').value = t.slice(0, 6000); toast('페이지 내용을 불러왔어요. 광고·불필요한 문장은 지우고 확인하세요', 4200); }
     $('matInfo').textContent = '링크에서 읽음 · ' + (j.chars || 0) + '자';
+    PG.url = j.url || normUrl(u); PG.images = j.images || []; PG.prices = j.prices || [];
+    renderPg();
+    if (PG.prices.length && PG.prices[0].label !== '본문' && !$('price').value.trim()) { $('price').value = PG.prices[0].text; }
   } catch (e) { toast('링크를 읽지 못했어요: ' + (/등록|번호|한도|잠시|네트워크|늦어/.test(e.message) ? e.message : '주소를 확인하거나 내용을 직접 붙여넣어 주세요'), 4600); }
   busy(false);
 };
@@ -800,9 +880,15 @@ function refreshBadge() { $('aiBadge').textContent = aiPhone() ? 'AI 연결됨' 
 
 /* ════════ 5. 문구 ════════ */
 const normUrl = u => { u = String(u || '').trim(); if (!u) return ''; if (!/^https?:\/\//i.test(u)) u = 'https://' + u; try { return new URL(u).href; } catch (e) { return ''; } };
+function productMaterial() {
+  let m = $('material').value.trim(); if (!m) return ''; const pr = $('price').value.trim();
+  if (pr && $('priceOn').checked) m += '\n\n[판매가] ' + pr + ' — 문자에 이 가격을 표기 그대로 포함할 것(다른 가격을 만들지 말 것)';
+  else m += '\n\n[지시] 문자에 가격·할인율·금액은 쓰지 않는다';
+  return m.trim();
+}
 function gather() {
   const sch = S.kind === 'schedule' ? scheduleText() : '';
-  return { kind: S.kind, sub: S.sub, sender: $('sender').value.trim(), material: S.kind === 'product' ? $('material').value.trim() : '', schedule: sch, extra: S.kind === 'greet' ? $('extra').value.trim() : '' };
+  return { kind: S.kind, sub: S.sub, sender: $('sender').value.trim(), material: S.kind === 'product' ? productMaterial() : '', schedule: sch, extra: S.kind === 'greet' ? $('extra').value.trim() : '' };
 }
 function validate(g) {
   if (g.kind === 'product' && !g.material && !S.matImg) return $('matUrl').value.trim() ? '"링크에서 읽기"를 눌러 판매 페이지 내용을 먼저 불러와 주세요' : '상품 안내 자료를 입력하거나 사진을 첨부해 주세요';
@@ -931,7 +1017,7 @@ $('btnImgPick').onclick = () => $('fImg').click();
 $('fImg').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { setImage(dataUrlToFile(await fileToDataUrl(f, 1280, 0.85), 'SIM메시지.jpg')); } catch (x) { toast('사진을 불러오지 못했어요'); } };
 $('btnImgAi').onclick = async () => {
   const body = $('body').value.trim(), g = gather();
-  const text = body ? personalize(body, null) : (g.extra || g.material.slice(0, 200) || g.schedule || '');
+  const text = body ? personalize(body, null) : (g.extra || $('material').value.trim().slice(0, 200) || g.schedule || '');
   if (!text) return toast('문구를 먼저 만들거나 내용을 입력하면 분위기에 맞게 그려요');
   busy(true, 'AI가 이미지를 그리는 중… (10~30초)');
   try {

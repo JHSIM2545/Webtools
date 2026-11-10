@@ -120,22 +120,22 @@ audio{width:100%;margin-top:10px;height:40px}
   <section class="card">
     <h2><span class="n">1</span>문자 종류</h2>
     <div class="kinds" id="kinds">
-      <button class="kind on" data-k="greet"><span class="e">💌</span><b>인사</b><small>안부·명절·축하</small></button>
-      <button class="kind" data-k="product"><span class="e">📦</span><b>상품소개</b><small>자료 요약</small></button>
-      <button class="kind" data-k="schedule"><span class="e">📅</span><b>일정안내</b><small>달력 일정</small></button>
+      <button class="kind on" data-k="greet"><span class="e">💌</span><b>인사</b></button>
+      <button class="kind" data-k="product"><span class="e">📦</span><b>상품소개</b></button>
+      <button class="kind" data-k="schedule"><span class="e">📅</span><b>일정안내</b></button>
     </div>
     <div class="chips" id="subs" style="margin-top:10px"></div>
   </section>
 
   <!-- 2. 내용 -->
   <section class="card" id="cContent">
-    <h2><span class="n">2</span>내용 <small id="contentHint"></small></h2>
+    <h2><span class="n">2</span>내용</h2>
     <div id="pGreet">
-      <div class="lbl">AI에게 덧붙일 말 (선택)</div>
+      <div class="lbl">AI에게 덧붙일 말</div>
       <input type="text" id="extra" placeholder="예: 지난 점검 때 도와주셔서 감사 / 환절기 건강 당부" maxlength="120">
     </div>
     <div id="pProduct" class="hide">
-      <div class="lbl">상품 안내 자료를 붙여넣거나 불러오세요</div>
+      <div class="lbl">상품 자료</div>
       <textarea id="material" rows="6" placeholder="상품 설명, 요금표, 특징 등을 붙여넣으면 AI가 핵심만 요약해 소개 문자로 만듭니다."></textarea>
       <div class="row" style="margin-top:8px">
         <button class="sm" id="btnMatFile">텍스트 파일</button>
@@ -148,20 +148,19 @@ audio{width:100%;margin-top:10px;height:40px}
       </div>
       <label class="hint" style="display:flex;gap:6px;align-items:center;margin:6px 0 0"><input type="checkbox" id="matLink" checked> 문자 끝에 판매 페이지 링크 붙이기</label>
       <div id="pgInfo" class="hide">
-        <div class="lbl">판매 페이지의 상품 이미지 — 눌러서 잘라 첨부</div>
+        <div class="lbl">상품 이미지</div>
         <div class="pgimgs" id="pgImgs"></div>
       </div>
-      <div class="row" style="margin-top:8px"><button class="sm" id="btnCropPick">📷 사진을 잘라서 첨부</button><span class="hint" style="margin:0">첨부한 이미지는 아래 6번에서 확인해요</span></div>
-      <div class="lbl">가격 <small>(있으면 문자에 넣을지 고르세요)</small></div>
+      <div class="row" style="margin-top:8px"><button class="sm" id="btnCropPick">📷 사진을 잘라서 첨부</button></div>
+      <div class="lbl">가격</div>
       <div class="chips" id="pgPrices"></div>
       <div class="row nw" style="margin-top:6px">
         <input type="text" id="price" placeholder="예: 29,900원 (비우면 가격 없음)" maxlength="30" style="flex:1;min-width:0">
       </div>
-      <label class="hint" style="display:flex;gap:6px;align-items:center;margin:6px 0 0"><input type="checkbox" id="priceOn" checked> 문자에 가격 포함 (끄면 가격·할인율을 쓰지 않아요)</label>
+      <label class="hint" style="display:flex;gap:6px;align-items:center;margin:6px 0 0"><input type="checkbox" id="priceOn" checked> 문자에 가격 포함</label>
       <input type="file" id="fCrop" accept="image/*" class="hide">
       <input type="file" id="fMat" accept=".txt,.md,.csv,text/plain" class="hide">
       <input type="file" id="fMatImg" accept="image/*" class="hide">
-      <div class="hint">자료에 없는 가격·효과는 AI가 지어내지 않도록 지시합니다. 그래도 보내기 전에 숫자는 꼭 확인하세요.</div>
     </div>
     <div id="pSchedule" class="hide">
       <div class="seg" id="schSeg"><button data-m="cal" class="on">달력에서 선택</button><button data-m="man">직접 입력</button></div>
@@ -170,8 +169,6 @@ audio{width:100%;margin-top:10px;height:40px}
         <div class="list" id="evList"></div>
         <div class="row" style="margin-top:8px"><button class="sm" id="btnIcs">📅 기기 일정 가져오기 (.ics)</button><button class="sm ghost hide" id="btnIcsClr">가져온 일정 지우기</button></div>
         <input type="file" id="fIcs" accept=".ics,text/calendar" multiple class="hide">
-        <div class="hint" id="devEvInfo"></div>
-        <div class="hint">기본은 SIM 일정표(SIM Calendar·SIM Assistant)예요. 폰의 기본 달력은 브라우저가 직접 읽을 수 없어서, 달력 앱에서 일정을 .ics 파일로 내보내거나 공유한 뒤 여기서 열어야 합니다. (구글 캘린더 전체 내보내기는 .zip이라 먼저 풀어야 해요)</div>
       </div>
       <div id="schMan" class="hide">
         <div class="lbl">일정 제목</div><input type="text" id="mTitle" maxlength="60" placeholder="예: 단지 보안 점검 협의">
@@ -196,7 +193,6 @@ audio{width:100%;margin-top:10px;height:40px}
       <input type="tel" id="rPhone" placeholder="전화번호" class="grow">
       <button class="sm" id="btnAddR">추가</button>
     </div>
-    <div class="hint">연락처의 이름·직함이 문자마다 자동으로 들어갑니다. 예) 홍길동 부장님 · 받는 사람 칩을 누르면 이름·직함·번호를 고칠 수 있어요.</div>
   </section>
 
   <!-- 4. 옵션 -->
@@ -217,7 +213,7 @@ audio{width:100%;margin-top:10px;height:40px}
     <h2><span class="n">5</span>문구 <small id="aiBadge"></small></h2>
     <button class="primary" id="btnGen" style="width:100%">✨ AI로 문구 만들기</button>
     <div id="vars"></div>
-    <div class="lbl" style="margin-top:12px">최종 문구 — 직접 고치거나 아래에서 AI로 다듬을 수 있어요</div>
+    <div class="lbl" style="margin-top:12px">최종 문구</div>
     <textarea id="body" rows="6" placeholder="위 버튼으로 문구를 만들거나 여기에 직접 쓰세요. 받는 사람 자리는 {수신자} 로 적습니다."></textarea>
     <div class="cnt"><span id="cntType"></span><span id="cntLen"></span></div>
     <div class="row" style="margin-top:8px"><button class="sm" id="btnUndo" disabled>↶ 되돌리기</button><button class="sm" id="btnRedo" disabled>↷ 다시</button></div>
@@ -253,7 +249,6 @@ audio{width:100%;margin-top:10px;height:40px}
       <button class="sm" id="btnAud" style="margin-top:8px">🔊 만들어서 들어보기</button>
     </div>
     <audio id="aud" controls class="hide"></audio>
-    <div class="hint" id="attHint"></div>
   </section>
 
   <!-- 7. 보내기 -->
@@ -264,7 +259,6 @@ audio{width:100%;margin-top:10px;height:40px}
       <button class="sm" id="btnCopy">문구 복사</button>
       <button class="sm" id="btnKakao">카톡으로 공유</button>
     </div>
-    <div class="hint" id="sendHint"></div>
   </section>
 </main>
 
@@ -274,7 +268,6 @@ audio{width:100%;margin-top:10px;height:40px}
   <div class="seg" id="pSrc"><button data-s="sim" class="on">SIM 연락처</button><button data-s="dev">기기 연락처</button></div>
   <div id="pDev" class="hide" style="margin-top:8px">
     <div class="row"><button class="sm" id="pApi">📱 기기 연락처 불러오기</button><button class="sm" id="pVcf">연락처 파일(.vcf) 열기</button></div>
-    <div class="hint" id="pDevHint"></div>
     <input type="file" id="fVcf" accept=".vcf,text/vcard,text/x-vcard,text/directory" multiple class="hide">
   </div>
   <div class="row nw" style="margin-top:8px"><input type="search" id="pq" placeholder="이름·회사·직함 검색" class="grow"><select id="pg" style="width:36%"></select></div>
@@ -307,7 +300,6 @@ audio{width:100%;margin-top:10px;height:40px}
 <div class="modal" id="mEdit"><div class="box">
   <h3 id="eTitle"></h3>
   <textarea id="eText" rows="9"></textarea>
-  <div class="hint">이 사람에게만 적용돼요. 위 본문을 다시 고치면 개별 수정은 초기화됩니다.</div>
   <div class="row" style="margin-top:12px"><button class="grow" id="eReset">원래대로</button><button class="grow" id="eCancel">닫기</button><button class="primary grow" id="eSave">저장</button></div>
 </div></div>
 
@@ -573,7 +565,6 @@ function setKind(k) {
   S.kind = k;
   document.querySelectorAll('#kinds .kind').forEach(b => b.classList.toggle('on', b.dataset.k === k));
   $('pGreet').classList.toggle('hide', k !== 'greet'); $('pProduct').classList.toggle('hide', k !== 'product'); $('pSchedule').classList.toggle('hide', k !== 'schedule');
-  $('contentHint').textContent = k === 'greet' ? '선택' : k === 'product' ? '자료 필수' : '일정 필수';
   S.variants = []; S.pick = -1; $('vars').innerHTML = '';
   $('melody').value = defaultMelody(); renderSubs(); if (k === 'schedule') loadEvents();
   updateAll();
@@ -590,7 +581,7 @@ function renderPg() {
   $('pgInfo').classList.toggle('hide', !PG.images.length);
   $('pgImgs').innerHTML = PG.images.map((u, i) => '<img src="' + esc(u) + '" data-i="' + i + '" loading="lazy" referrerpolicy="no-referrer" alt="상품 이미지 ' + (i + 1) + '">').join('');
   $('pgImgs').querySelectorAll('img').forEach(im => im.onerror = () => im.remove());
-  $('pgPrices').innerHTML = PG.prices.length ? PG.prices.map((p, i) => '<span class="chip" data-i="' + i + '">' + esc(p.text) + ' <small>' + esc(p.label) + '</small></span>').join('') : '<span class="hint" style="margin:0">페이지에서 가격을 찾지 못했어요. 필요하면 아래에 직접 적으세요.</span>';
+  $('pgPrices').innerHTML = PG.prices.length ? PG.prices.map((p, i) => '<span class="chip" data-i="' + i + '">' + esc(p.text) + ' <small>' + esc(p.label) + '</small></span>').join('') : '';
 }
 $('pgPrices').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; $('price').value = PG.prices[+c.dataset.i].text; $('priceOn').checked = true; document.querySelectorAll('#pgPrices .chip').forEach(x => x.classList.toggle('on', x === c)); };
 $('pgImgs').onclick = async e => {
@@ -672,14 +663,13 @@ function renderEvTabs() {
   const nd = EVENTS.filter(r => r._src === 'dev').length, dv = readDevEv();
   $('evTabs').innerHTML = '<span class="chip' + (evTab === 'sim' ? ' on' : '') + '" data-t="sim">SIM 일정표</span><span class="chip' + (evTab === 'dev' ? ' on' : '') + '" data-t="dev">기기 일정' + (nd ? ' ' + nd : '') + '</span>';
   $('btnIcsClr').classList.toggle('hide', !dv.ev.length);
-  $('devEvInfo').textContent = dv.at ? '가져온 기기 일정 (' + new Date(dv.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }) + ' 가져옴) · 앞으로 120일 안의 일정만 보여요' : '';
 }
 function renderEvents() {
   const L = EVENTS.filter(r => evTab === 'dev' ? r._src === 'dev' : r._src !== 'dev');
   if (!L.length) {
     $('evList').innerHTML = evTab === 'dev'
-      ? '<div class="empty">가져온 기기 일정이 없어요.<br>"기기 일정 가져오기"로 폰 달력에서 내보낸 .ics 파일을 열어 주세요.</div>'
-      : '<div class="empty">앞으로 120일 안에 SIM 일정표에 등록된 일정이 없어요.<br>SIM Calendar에서 추가하거나 "기기 일정"·"직접 입력"을 쓰세요.</div>';
+      ? '<div class="empty">가져온 기기 일정이 없어요</div>'
+      : '<div class="empty">등록된 일정이 없어요</div>';
     return;
   }
   $('evList').innerHTML = L.map(r => '<div class="item' + (S.ev === r ? ' on' : '') + '" data-i="' + EVENTS.indexOf(r) + '"><div class="grow"><div class="t">' + esc(r.title || '(제목 없음)') + '</div><div class="s">' + esc(r.loc || '') + '</div></div><div class="dt">' + esc(fmtWhen(r.start, r.end, r.allDay)) + '</div></div>').join('');
@@ -689,7 +679,7 @@ $('evList').onclick = e => {
   const it = e.target.closest('.item'); if (!it) return;
   const r = EVENTS[+it.dataset.i]; if (!r) return; S.ev = r;
   document.querySelectorAll('#evList .item').forEach(x => x.classList.toggle('on', x === it));
-  $('schInfo').textContent = '선택됨: ' + (r.title || '') + (r.rep ? ' (반복 일정은 이번 회차 날짜 기준이에요. 날짜를 꼭 확인하세요)' : '') + (r.tzOther ? ' — 다른 시간대 기준 일정이라 시각이 어긋날 수 있어요. 문구의 시간을 꼭 확인하세요' : '');
+  $('schInfo').textContent = (r.rep ? '반복 일정은 이번 회차 날짜 기준이에요. 날짜를 확인하세요. ' : '') + (r.tzOther ? '다른 시간대 기준 일정이라 시각이 다를 수 있어요.' : '');
 };
 $('btnIcs').onclick = () => $('fIcs').click();
 $('fIcs').onchange = async e => {
@@ -722,7 +712,7 @@ function scheduleText() {
 
 /* ════════ 3. 받는 사람 ════════ */
 function renderRecips() {
-  $('rcs').innerHTML = S.recips.length ? S.recips.map(r => '<span class="rc" data-id="' + r.id + '" title="눌러서 이름·직함·번호 고치기">' + esc(honorific(r)) + ' <small style="color:var(--sub)">' + esc(fmtPhone(r.phone)) + '</small><button aria-label="삭제">×</button></span>').join('') : '<span class="hint" style="margin:0">아직 없어요. 연락처에서 고르거나 번호를 입력하세요.</span>';
+  $('rcs').innerHTML = S.recips.length ? S.recips.map(r => '<span class="rc" data-id="' + r.id + '" title="눌러서 이름·직함·번호 고치기">' + esc(honorific(r)) + ' <small style="color:var(--sub)">' + esc(fmtPhone(r.phone)) + '</small><button aria-label="삭제">×</button></span>').join('') : '';
   $('rcCount').textContent = S.recips.length ? S.recips.length + '명' : '';
 }
 $('rcs').onclick = e => {
@@ -784,9 +774,6 @@ $('btnPick').onclick = async () => {
   const groups = [...new Set(CONTACTS.map(c => c.group).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
   $('pg').innerHTML = '<option value="">전체 그룹</option>' + groups.map(g => '<option>' + esc(g) + '</option>').join('');
   $('pApi').classList.toggle('hide', !HAS_PICKER);
-  $('pDevHint').textContent = HAS_PICKER
-    ? '"기기 연락처 불러오기"로 폰 연락처를 바로 고를 수 있어요. 이름·번호만 들어오니 직함은 선택 뒤 받는 사람 칩을 눌러 적어 주세요.'
-    : '이 브라우저(아이폰 Safari 등)는 폰 연락처를 직접 읽을 수 없어요. 연락처 앱에서 연락처를 .vcf 파일로 공유·내보내기한 뒤 "연락처 파일 열기"로 가져오세요. 파일에 직함·회사가 있으면 함께 들어옵니다.';
   $('pq').value = ''; setSrc(P.src);
 };
 const pList = () => P.src === 'dev' ? DEVC : CONTACTS;
@@ -799,8 +786,8 @@ function renderPick() {
   $('pInfo').textContent = L.length + '명 · 선택 ' + pSel.size + '명';
   if (!pList().length) {
     $('pList').innerHTML = P.src === 'sim'
-      ? '<div class="empty">SIM Phone에 저장된 연락처가 없거나 이 브라우저에서 읽을 수 없어요.<br>SIM Phone에서 연락처를 등록하거나 "기기 연락처" 탭을 쓰세요.</div>'
-      : '<div class="empty">아직 가져온 기기 연락처가 없어요.<br>위 버튼으로 연락처를 불러오세요.</div>';
+      ? '<div class="empty">연락처가 없어요</div>'
+      : '<div class="empty">가져온 연락처가 없어요</div>';
     return;
   }
   $('pList').innerHTML = L.map(c => '<div class="item' + (pSel.has(c.phone) ? ' on' : '') + '" data-d="' + c.phone + '"><div class="grow"><div class="t">' + esc(c.name || c.company || '(이름 없음)') + (c.title ? ' <span style="color:var(--sub);font-weight:400">' + esc(c.title) + '</span>' : '') + '</div><div class="s">' + esc([c.company, fmtPhone(c.phone)].filter(Boolean).join(' · ')) + '</div></div><div>' + (pSel.has(c.phone) ? '✓' : '') + '</div></div>').join('') || '<div class="empty">검색 결과가 없어요.</div>';
@@ -1117,7 +1104,6 @@ function updateAll() {
   $('prevLbl').textContent = '미리보기 · ' + (r0 ? honorific(r0) + '에게' : '받는 사람을 고르면 이름이 들어가요');
   $('prevTxt').textContent = textFor(r0);
   $('sendCount').textContent = S.recips.length ? S.recips.length + '명' : '';
-  $('attHint').textContent = hasMedia() ? '이미지·소리를 붙이면 "공유하기"로 열려요. 문자앱 링크에는 파일을 실을 수 없어서, 공유창에서 문자/카카오톡과 받는 사람을 고르게 됩니다. (수신자 번호는 복사 버튼으로 가져오세요)' : '';
   renderSend();
 }
 function renderSend() {
@@ -1131,7 +1117,6 @@ function renderSend() {
       (r ? '<button class="sm" data-a="edit" data-id="' + id + '">수정</button>' : '') +
       (r && media ? '<button class="sm" data-a="num" data-id="' + id + '">번호복사</button>' : '') + '</div></div>';
   }).join('');
-  $('sendHint').textContent = S.opts.ch === 'kakao' ? '카카오톡은 외부에서 대화방을 지정해 보낼 수 없어, 공유창에서 받는 사람을 고르는 방식이에요. 이미지·소리를 함께 보내면 카톡이 글을 빼고 파일만 받는 경우가 있어, 문구를 자동 복사해 둬요(대화창에 붙여넣기).' : '"문자앱"을 누르면 번호와 문구가 채워진 문자앱이 열립니다. 전송 버튼만 누르고 돌아와서 다음 사람을 보내세요. "수정"으로 그 사람에게만 문구를 따로 고칠 수 있어요.';
 }
 const recipById = id => S.recips.find(r => r.id === id) || null;
 async function copyText(t) {

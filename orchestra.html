@@ -42,12 +42,15 @@ main{flex:1;display:flex;min-height:0}
 .bgl.on{opacity:1}
 .bgl.kb{animation:kb var(--sd,10s) ease-out forwards}
 @keyframes kb{from{transform:scale(1)}to{transform:scale(1.13) translate(-1.2%,-1%)}}
+#bgbox{position:absolute;background:#000;display:none;pointer-events:none}
+.stage[data-bg="altvid"] #bgbox{display:block}
+#bgbox iframe{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none}
 #ytbox{position:absolute;background:#000;z-index:1}
 #ytbox iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 /* 이미지·없음 배경일 땐 유튜브 플레이어를 숨기지 않고 작은 창으로 보여준다 */
 .stage.pip #ytbox{left:auto!important;top:12px!important;right:12px;width:356px!important;height:200px!important;max-width:calc(100% - 24px);border-radius:10px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.6);z-index:3}
 .shade{position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,.30),rgba(0,0,0,.50));pointer-events:none;z-index:2}
-.stage[data-bg="video"] .shade{background:linear-gradient(rgba(0,0,0,.18),rgba(0,0,0,.42))}
+.stage[data-bg="video"] .shade,.stage[data-bg="altvid"] .shade{background:linear-gradient(rgba(0,0,0,.18),rgba(0,0,0,.42))}
 body.nolyr .lyr{display:none}
 #bLyr[aria-pressed="false"]{text-decoration:line-through;opacity:.55}
 #bOff0:disabled{opacity:.4}
@@ -200,6 +203,7 @@ body.fs .ctrl.show{transform:none}
   <section class="stage" id="stage" data-bg="video">
     <div class="screen" id="screen">
       <div id="bg"><div class="bgl" id="bgA"></div><div class="bgl" id="bgB"></div></div>
+      <div id="bgbox"><div id="yt2"></div></div>
       <div id="ytbox"><div id="yt"></div></div>
       <div class="shade"></div>
       <div class="lyr" id="lyr">
@@ -256,7 +260,11 @@ body.fs .ctrl.show{transform:none}
     <label for="eOff">가사 싱크 보정 (초, +면 가사가 늦게)</label>
     <input type="number" id="eOff" step="0.1" value="0">
     <label>화면 배경</label>
-    <div class="seg" id="eBg"><button type="button" data-v="video">유튜브 영상</button><button type="button" data-v="images">저장 이미지</button><button type="button" data-v="none">없음</button></div>
+    <div class="seg" id="eBg"><button type="button" data-v="video">유튜브 영상</button><button type="button" data-v="altvid">다른 영상</button><button type="button" data-v="images">저장 이미지</button><button type="button" data-v="none">없음</button></div>
+    <div id="eAltBox" style="display:none">
+      <input type="text" id="eAltUrl" placeholder="배경으로 쓸 유튜브 영상 주소 (소리는 꺼진 채 반복 재생)" autocomplete="off" inputmode="url">
+      <div class="hint" id="eAltInfo"></div>
+    </div>
     <div id="eImgBox" style="display:none">
       <div class="hint" id="eImgHint"></div>
       <div class="igrid" id="eImgs"></div>
@@ -419,9 +427,9 @@ body.fs .ctrl.show{transform:none}
     return '';
   }
   const thumb = vid => 'https://i.ytimg.com/vi/' + vid + '/mqdefault.jpg';
-  let player = null, ytReady = false, pendingVid = '', apiFailed = false;
+  let player = null, ytReady = false, pendingVid = '', apiFailed = false, bgPlayer = null, pendingBg = '', bgVid = '';
   (function loadAPI() {
-    window.onYouTubeIframeAPIReady = () => { ytReady = true; if (pendingVid) { const v = pendingVid; pendingVid = ''; loadVideo(v); } };
+    window.onYouTubeIframeAPIReady = () => { ytReady = true; if (pendingVid) { const v = pendingVid; pendingVid = ''; loadVideo(v); } if (pendingBg) { const v = pendingBg; pendingBg = ''; loadBgVid(v); } };
     const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api';
     s.onerror = () => { apiFailed = true; };
     document.head.appendChild(s);
@@ -439,8 +447,28 @@ body.fs .ctrl.show{transform:none}
         events: { onReady: e => { e.target.setVolume(S.vol); if (S.mute) e.target.mute(); }, onStateChange: onState, onError: onErr } });
     } else player.loadVideoById(vid);
   }
+  /* 배경 전용 두 번째 플레이어: 소리 없이 반복. 음원 플레이어와 재생·일시정지만 맞춘다 */
+  function loadBgVid(vid) {
+    if (!vid || apiFailed) return;
+    if (!ytReady) { pendingBg = vid; return; }
+    bgVid = vid;
+    if (!bgPlayer) {
+      const vars = { autoplay: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, playsinline: 1, modestbranding: 1, iv_load_policy: 3, mute: 1, loop: 1, playlist: vid };
+      if (/^https?:$/.test(location.protocol)) vars.origin = location.origin;
+      bgPlayer = new YT.Player('yt2', { width: '100%', height: '100%', videoId: vid, playerVars: vars,
+        events: { onReady: e => { e.target.mute(); syncBg(); }, onStateChange: e => { if (e.data === 0) { e.target.seekTo(0); e.target.playVideo(); } }, onError: () => { toast('배경 영상을 재생하지 못했어요 (퍼가기 금지·비공개일 수 있어요)'); } } });
+    } else { bgPlayer.loadVideoById(vid); if (bgPlayer.mute) bgPlayer.mute(); setTimeout(syncBg, 300); }
+  }
+  function syncBg() {
+    if (!bgPlayer || !bgPlayer.playVideo || !(cur && cur.bg === 'altvid')) return;
+    try { const st = player && player.getPlayerState ? player.getPlayerState() : -1; if (st === 2) bgPlayer.pauseVideo(); else bgPlayer.playVideo(); } catch (e) {}
+  }
+  function applyBgVid() {
+    if (cur && cur.bg === 'altvid' && cur.bgvid) { if (cur.bgvid !== bgVid || !bgPlayer) loadBgVid(cur.bgvid); else syncBg(); }
+    else if (bgPlayer && bgPlayer.stopVideo) { try { bgPlayer.stopVideo(); } catch (e) {} bgVid = ''; }
+  }
   function onState(e) {
-    const st = e.data;
+    const st = e.data; syncBg();
     $('bPlay').textContent = st === 1 || st === 3 ? '⏸' : '▶';
     if (st === 1) { hideErr(); wake(true); } else if (st === 2 || st === 0) wake(false);
     if (st === 0) nextSong(true);
@@ -470,7 +498,7 @@ body.fs .ctrl.show{transform:none}
     $('now').textContent = s.title || '(제목 없음)'; paintOff();
     $('stage').dataset.bg = s.bg;
     layoutYT(); startSlides(); renderList();
-    loadVideo(s.vid);
+    loadVideo(s.vid); applyBgVid();
     $('bPlay').textContent = '⏸';
   }
   function nextSong(auto) {
@@ -486,6 +514,8 @@ body.fs .ctrl.show{transform:none}
     const scr = $('screen'), box = $('ytbox'), W = scr.clientWidth, H = scr.clientHeight, mode = cur ? cur.bg : 'video';
     $('stage').classList.toggle('pip', mode !== 'video');
     box.style.display = cur ? '' : 'none';
+    const bb = $('bgbox');
+    if (mode === 'altvid') { const w = Math.max(W, H * 16 / 9), h = w * 9 / 16; bb.style.width = w + 'px'; bb.style.height = h + 'px'; bb.style.left = (W - w) / 2 + 'px'; bb.style.top = (H - h) / 2 + 'px'; }
     if (mode !== 'video') { ['left', 'top', 'width', 'height'].forEach(p => box.style.removeProperty(p)); return; }
     const cover = S.fit === 'cover' || (S.fit === 'auto' && W >= H * 1.45);
     const bw = cover ? Math.max(W, H * 16 / 9) : Math.min(W, H * 16 / 9), bh = bw * 9 / 16;
@@ -579,7 +609,7 @@ body.fs .ctrl.show{transform:none}
     L.innerHTML = DB.songs.map(s => {
       const n = parseLRC(s.lrc).lines.filter(x => x.text).length;
       return '<div class="song' + (cur && cur.id === s.id ? ' active' : '') + '" data-id="' + esc(s.id) + '"><img src="' + esc(thumb(s.vid)) + '" alt="" loading="lazy">' +
-        '<div class="info"><div class="name">' + esc(s.title || '(제목 없음)') + '</div><div class="sub">' + (n ? '가사 ' + n + '줄' : '가사 없음') + ' · ' + ({ video: '영상 배경', images: '이미지 배경', none: '배경 없음' }[s.bg] || '') + '</div></div>' +
+        '<div class="info"><div class="name">' + esc(s.title || '(제목 없음)') + '</div><div class="sub">' + (n ? '가사 ' + n + '줄' : '가사 없음') + ' · ' + ({ video: '영상 배경', altvid: '다른 영상 배경', images: '이미지 배경', none: '배경 없음' }[s.bg] || '') + '</div></div>' +
         '<button data-a="q" title="예약">＋</button><button data-a="e" title="편집">✎</button></div>';
     }).join('') + '<div class="tip">곡을 누르면 바로 재생돼요. ＋로 예약하면 지금 곡이 끝난 뒤 순서대로 이어집니다.</div>';
   }
@@ -604,7 +634,8 @@ body.fs .ctrl.show{transform:none}
   });
 
   /* ── 곡 추가·편집 ── */
-  const E = { id: null, vid: '', bg: 'video', imgs: new Set(), titled: false, vidSec: 0 };
+  const E = { id: null, vid: '', bg: 'video', imgs: new Set(), titled: false, vidSec: 0, alt: '' };
+  const eAlt = () => { const v = ytId($('eAltUrl').value); E.alt = v || ''; const i = $('eAltInfo'); if (!$('eAltUrl').value.trim()) { i.textContent = '유튜브 주소나 영상 ID를 붙여넣으세요. 가사·음원은 위 영상, 화면 배경만 이 영상이에요.'; i.className = 'hint'; } else if (v) { i.textContent = '✓ 영상 ID ' + v; i.className = 'hint ok'; } else { i.textContent = '유튜브 주소를 인식하지 못했어요.'; i.className = 'hint bad'; } return v; };
   const eInfo = () => {
     const t = $('eLrc').value, r = parseLRC(t), n = r.lines.filter(x => x.text).length, i = $('eLrcInfo');
     if (!t.trim()) { i.textContent = '가사 없이 저장하면 연주·반주만 재생돼요.'; i.className = 'hint'; }
@@ -626,8 +657,8 @@ body.fs .ctrl.show{transform:none}
     } catch (e) {}
   }
   async function eRenderImgs() {
-    const on = E.bg === 'images'; $('eImgBox').style.display = on ? '' : 'none';
-    $('eBgNote').textContent = E.bg === 'video' ? '유튜브 영상을 화면 가득 배경으로 쓰고 그 위에 가사를 크게 보여줘요.' : E.bg === 'none' ? '배경 없이 어두운 화면에 가사만 보여줘요. 유튜브 플레이어는 작은 창으로 남아요.' : '';
+    const on = E.bg === 'images'; $('eImgBox').style.display = on ? '' : 'none'; $('eAltBox').style.display = E.bg === 'altvid' ? '' : 'none';
+    $('eBgNote').textContent = E.bg === 'video' ? '유튜브 영상을 화면 가득 배경으로 쓰고 그 위에 가사를 크게 보여줘요.' : E.bg === 'altvid' ? '음원은 위 영상 그대로 쓰고, 화면 배경만 다른 영상으로 바꿔요. 음원 영상은 작은 창으로 남아요.' : E.bg === 'none' ? '배경 없이 어두운 화면에 가사만 보여줘요. 유튜브 플레이어는 작은 창으로 남아요.' : '';
     if (!on) return;
     const all = await IDB.all(), g = $('eImgs');
     E.imgs = new Set([...E.imgs].filter(id => all.some(r => r.id === id)));
@@ -644,13 +675,14 @@ body.fs .ctrl.show{transform:none}
     const s = id ? DB.songs.find(x => x.id === id) : null; E.id = s ? s.id : null; E.titled = false; E.vidSec = s ? (s.sec || 0) : 0; $('eDel').dataset.ask = '';
     $('sTitle').textContent = s ? '곡 편집' : '곡 추가';
     $('eUrl').value = s ? 'https://youtu.be/' + s.vid : ''; $('eName').value = s ? s.title : ''; $('eLrc').value = s ? s.lrc || '' : ''; $('eOff').value = s ? (s.offset || 0) : 0;
-    E.imgs = new Set(s ? s.imgs || [] : []); eVid(); eInfo(); setBg(s ? s.bg : 'video');
+    E.imgs = new Set(s ? s.imgs || [] : []); $('eAltUrl').value = s && s.bgvid ? 'https://youtu.be/' + s.bgvid : ''; eAlt(); eVid(); eInfo(); setBg(s ? s.bg : 'video');
     $('eDel').style.display = s ? '' : 'none'; $('eDel').textContent = '삭제';
     $('mSong').classList.add('show');
   }
   $('btnAdd').onclick = () => openEditor(null);
   $('eUrl').addEventListener('input', () => { E.vidSec = 0; const v = eVid(); if (v) eTitleFetch(v); });
   $('eLrc').addEventListener('input', eInfo);
+  $('eAltUrl').addEventListener('input', eAlt);
   $('eBg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setBg(b.dataset.v); });
   $('bLrcFile').onclick = () => $('fLrc').click();
   $('fLrc').onchange = async e => {
@@ -664,17 +696,18 @@ body.fs .ctrl.show{transform:none}
   $('eCancel').onclick = () => $('mSong').classList.remove('show');
   $('eSave').onclick = () => {
     const v = eVid(); if (!v) { toast('유튜브 주소를 확인해 주세요'); return; }
-    const rec = { vid: v, title: $('eName').value.trim() || '제목 없음', lrc: $('eLrc').value, offset: Math.round((parseFloat($('eOff').value) || 0) * 10) / 10, bg: E.bg, imgs: [...E.imgs], sec: E.vidSec || 0, updated: Date.now() };
+    if (E.bg === 'altvid' && !eAlt()) { toast('배경으로 쓸 영상 주소를 확인해 주세요'); return; }
+    const rec = { vid: v, title: $('eName').value.trim() || '제목 없음', lrc: $('eLrc').value, offset: Math.round((parseFloat($('eOff').value) || 0) * 10) / 10, bg: E.bg, bgvid: E.bg === 'altvid' ? E.alt : '', imgs: [...E.imgs], sec: E.vidSec || 0, updated: Date.now() };
     let s = E.id ? DB.songs.find(x => x.id === E.id) : null; const wasVid = s ? s.vid : '';
     if (s) Object.assign(s, rec); else { s = Object.assign({ id: uid(), added: Date.now() }, rec); DB.songs.push(s); }
     saveDB(); $('mSong').classList.remove('show'); renderList(); renderQueue();
-    if (cur && cur.id === s.id) { cur = s; if (wasVid !== s.vid) playSong(s.id); else { lines = parseLRC(s.lrc).lines; idx = -99; $('now').textContent = s.title; paintOff(); $('stage').dataset.bg = s.bg; layoutYT(); startSlides(); } }
+    if (cur && cur.id === s.id) { cur = s; if (wasVid !== s.vid) playSong(s.id); else { lines = parseLRC(s.lrc).lines; idx = -99; $('now').textContent = s.title; paintOff(); $('stage').dataset.bg = s.bg; layoutYT(); startSlides(); applyBgVid(); } }
     toast(E.id ? '저장했어요' : '곡을 추가했어요');
   };
   $('eDel').onclick = () => {
     const b = $('eDel'); if (!b.dataset.ask) { b.dataset.ask = '1'; b.textContent = '정말 삭제?'; return; }
     DB.songs = DB.songs.filter(x => x.id !== E.id); queue = queue.filter(id => id !== E.id); saveDB();
-    if (cur && cur.id === E.id) { cur = null; lines = []; if (player && player.stopVideo) player.stopVideo(); $('hello').classList.remove('hidden'); $('now').textContent = '곡을 선택하세요'; $('lCur').textContent = ''; $('lNext').textContent = ''; $('lPrev').textContent = ''; setDots(0); layoutYT(); stopSlides(); clearBg(); $('bPlay').textContent = '▶'; paintOff(); }
+    if (cur && cur.id === E.id) { cur = null; lines = []; if (player && player.stopVideo) player.stopVideo(); applyBgVid(); $('hello').classList.remove('hidden'); $('now').textContent = '곡을 선택하세요'; $('lCur').textContent = ''; $('lNext').textContent = ''; $('lPrev').textContent = ''; setDots(0); layoutYT(); stopSlides(); clearBg(); $('bPlay').textContent = '▶'; paintOff(); }
     $('mSong').classList.remove('show'); renderList(); renderQueue(); toast('삭제했어요');
   };
 

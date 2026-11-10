@@ -39,6 +39,7 @@ input:focus{border-color:var(--accent)}
 .msg .sub{display:block;color:var(--sub);font-size:12.5px;margin-top:2px}
 .msg .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
 .msg .btns button,.msg .btns a.btn{padding:7px 13px;border-radius:99px;font-size:13.5px}
+.pin{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;background:url(pin-icon.svg) center/contain no-repeat}   /* 모든 위치 아이콘은 pin-icon.svg로 통일 (버튼 라벨은 맨 앞 📍를 이 아이콘으로 바꿔 그림) */
 a.btn{display:inline-block;font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);text-decoration:none}
 a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2b;font-weight:700}
 .kv{margin-top:8px;border-top:1px solid var(--line);padding-top:6px;font-size:13.5px;line-height:1.7}
@@ -679,13 +680,18 @@ $('btnMic').onclick = startListen;
 /* ───────── 대화 화면 ───────── */
 const chat = $('chat');
 const scrollEnd = () => { const p = $('pChat'); p.scrollTop = p.scrollHeight; };
+function setBtnLabel(el, label) {   // 맨 앞의 📍는 공용 위치 아이콘(pin-icon.svg)으로 바꿔서 표시
+  label = String(label == null ? '' : label);
+  if (label.startsWith('📍')) { const i = document.createElement('i'); i.className = 'pin'; el.appendChild(i); el.appendChild(document.createTextNode(' ' + label.slice(2).trim())); }
+  else el.textContent = label;
+}
 function addMsg(kind, html, btns, tok) {
   const d = document.createElement('div'); d.className = 'msg ' + kind; d.innerHTML = html;
   if (btns && btns.length) {
     const w = document.createElement('div'); w.className = 'btns';
     btns.forEach(b => {
-      if (b.href) { const a = document.createElement('a'); a.className = 'btn' + (b.primary ? ' primary' : ''); a.href = b.href; a.textContent = b.label; if (b.fn) a.onclick = () => b.fn(); w.appendChild(a); }
-      else { const x = document.createElement('button'); if (b.primary) x.className = 'primary'; x.textContent = b.label; x.onclick = () => { unlockAudio(); if (tok && (!pending || pending.tok !== tok)) { toast('이미 지난 요청이에요'); return; } b.fn(); }; w.appendChild(x); }
+      if (b.href) { const a = document.createElement('a'); a.className = 'btn' + (b.primary ? ' primary' : ''); a.href = b.href; setBtnLabel(a, b.label); if (b.fn) a.onclick = () => b.fn(); w.appendChild(a); }
+      else { const x = document.createElement('button'); if (b.primary) x.className = 'primary'; setBtnLabel(x, b.label); x.onclick = () => { unlockAudio(); if (tok && (!pending || pending.tok !== tok)) { toast('이미 지난 요청이에요'); return; } b.fn(); }; w.appendChild(x); }
     });
     d.appendChild(w);
   }
@@ -975,12 +981,12 @@ function confirmNav(p, c) {
     const q = p.sl.dest;
     return bot('"' + q + '"에서 도로나 지명까지만 확인되고 번지나 도로번호는 확인하지 못했어요. 네이버 지도에서 정확히 검색할까요? 대략적인 위치로 바로 안내하려면 "대략"이라고 말씀하세요.', {
       html: '<b>⚠ 번지·도로번호는 확인하지 못했어요</b>' + kvRows([['말씀하신 곳', q], ['찾은 위치', c.name], ['주소', c.addr]]) + '<span class="sub">찾은 곳은 도로·지명 수준이라 실제 번지와 수십~수백 m 어긋날 수 있어요. <b>네이버 지도 검색</b>은 번지까지 정확히 찾아 주지만, 거기서 도착지를 한 번 눌러야 해요.</span>' + noNaverApp(), tok: p.tok,
-      btns: [{ label: '🔎 네이버 지도에서 정확히 검색', primary: true, href: launchHref(nmapUrl.search(q)), fn: () => { pending = null; iosStoreFallback(); } }, { label: '🧭 대략 위치로 안내', href: launchHref(nmapUrl.nav(c)), fn: () => { pending = null; iosStoreFallback(); } }, { label: '🗺 위치 보기', href: launchHref(nmapUrl.place(c)), fn: iosStoreFallback }, { label: '취소', fn: () => cancelP('취소했어요.') }]
+      btns: [{ label: '🔎 네이버 지도에서 정확히 검색', primary: true, href: launchHref(nmapUrl.search(q)), fn: () => { pending = null; iosStoreFallback(); } }, { label: '🧭 대략 위치로 안내', href: launchHref(nmapUrl.nav(c)), fn: () => { pending = null; iosStoreFallback(); } }, { label: '📍 위치 보기', href: launchHref(nmapUrl.place(c)), fn: iosStoreFallback }, { label: '취소', fn: () => cancelP('취소했어요.') }]
     });
   }
   bot(c.name + (c.addr && c.addr !== c.name ? ', ' + c.addr : '') + '로 안내를 시작할까요?', {
-    html: '<b>목적지를 확인해 주세요</b>' + kvRows([['이름', c.name], ['주소', c.addr], ['출처', c.src]]) + '<span class="sub">위치 검색은 지도 데이터 기준이라 상호는 틀릴 수 있어요. <b>🗺 위치 보기</b>로 지도에서 먼저 확인하세요.</span>' + noNaverApp(), tok: p.tok,
-    btns: [{ label: '🧭 네이버 내비 시작', primary: true, href: launchHref(nmapUrl.nav(c)), fn: () => { pending = null; iosStoreFallback(); } }, { label: '🗺 위치 보기', href: launchHref(nmapUrl.place(c)), fn: iosStoreFallback }, { label: '취소', fn: () => cancelP('취소했어요.') }]
+    html: '<b>목적지를 확인해 주세요</b>' + kvRows([['이름', c.name], ['주소', c.addr], ['출처', c.src]]) + '<span class="sub">위치 검색은 지도 데이터 기준이라 상호는 틀릴 수 있어요. <b><i class="pin"></i> 위치 보기</b>로 지도에서 먼저 확인하세요.</span>' + noNaverApp(), tok: p.tok,
+    btns: [{ label: '🧭 네이버 내비 시작', primary: true, href: launchHref(nmapUrl.nav(c)), fn: () => { pending = null; iosStoreFallback(); } }, { label: '📍 위치 보기', href: launchHref(nmapUrl.place(c)), fn: iosStoreFallback }, { label: '취소', fn: () => cancelP('취소했어요.') }]
   });
 }
 function pickNav(p, cands) {

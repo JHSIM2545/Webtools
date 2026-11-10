@@ -135,6 +135,23 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
 .ig .ck{position:absolute;right:4px;top:4px;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;line-height:20px;text-align:center;display:none}
 .ig.sel .ck{display:block}
 .ig .x{position:absolute;right:3px;top:3px;width:24px;height:24px;border-radius:50%;padding:0;background:rgba(0,0,0,.7);border:none;color:#fff;font-size:13px;line-height:24px}
+.lrow{display:flex;align-items:flex-end;justify-content:space-between;gap:8px}
+.lnk{padding:3px 11px;font-size:12px;border-radius:99px;margin-bottom:2px}
+#mFind{z-index:55}
+.frow{display:flex;gap:8px}
+.frow input{flex:1;min-width:0}
+.chips{margin-top:8px}
+.chips button{padding:6px 4px}
+.res{display:flex;gap:10px;align-items:center;padding:8px 6px;border-radius:9px;cursor:pointer}
+.res:hover{background:var(--panel2)}
+.res img{width:96px;height:54px;border-radius:6px;object-fit:cover;background:#000;flex:none}
+.res .in{flex:1;min-width:0}
+.res .t{font-size:13.5px;font-weight:600;line-height:1.35;max-height:2.7em;overflow:hidden}
+.res .s{font-size:12px;color:var(--sub);margin-top:2px}
+.res .s b{font-weight:600;color:var(--text)}
+.res .s .long{color:#ffb86b}
+.res button{padding:6px 10px;flex:none}
+#fList.ed .res button{display:none}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222a3d;border:1px solid var(--line);padding:9px 16px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:90vw;text-align:center}
 .toast.show{opacity:1}
 
@@ -150,6 +167,7 @@ body.fs .ctrl.show{transform:none}
   header{gap:6px;padding-left:10px;padding-right:10px}
   header button{padding:6px 9px;font-size:13px;white-space:nowrap}
   header .appicon{display:none}
+  header .lbl{display:none}
   main{flex-direction:column}
   .stage{flex:none;height:58dvh}
   .stage.pip{height:68dvh}
@@ -168,7 +186,8 @@ body.fs .ctrl.show{transform:none}
   <a class="back" href="index.html" aria-label="SIM Tools 런처로" title="런처로">‹</a>
   <h1><img class="appicon" alt="" src="orchestra-icon-192.png">SIM <span>Orchestra</span></h1>
   <div class="spacer"></div>
-  <button class="icon" id="btnImg" title="배경 이미지 보관함">🖼 이미지</button>
+  <button class="icon" id="btnFind" title="MR·반주 영상 찾기" aria-label="MR 찾기">🔎<span class="lbl"> MR 찾기</span></button>
+  <button class="icon" id="btnImg" title="배경 이미지 보관함" aria-label="이미지">🖼<span class="lbl"> 이미지</span></button>
   <button class="icon" id="btnSet" title="설정" aria-label="설정">⚙</button>
   <button class="icon" id="btnFs" title="전체 화면 (F)" aria-label="전체 화면">⛶</button>
 </header>
@@ -188,7 +207,7 @@ body.fs .ctrl.show{transform:none}
       </div>
       <div class="hello" id="hello">
         <div class="big">🎼</div>
-        <div class="msg">오른쪽 목록에서 곡을 선택하거나<br>+ 버튼으로 유튜브 곡을 추가하세요.</div>
+        <div class="msg">목록에서 곡을 선택하거나<br>🔎 MR 찾기 · + 버튼으로 곡을 추가하세요.</div>
       </div>
       <div class="err" id="err"></div>
       <button id="ctrlBtn" aria-label="컨트롤 보기">☰</button>
@@ -220,7 +239,7 @@ body.fs .ctrl.show{transform:none}
 <div class="modal" id="mSong">
   <div class="card">
     <h2 id="sTitle">곡 추가</h2>
-    <label for="eUrl">유튜브 주소</label>
+    <div class="lrow"><label for="eUrl">유튜브 주소</label><button type="button" class="lnk" id="eFind">🔎 MR 찾기</button></div>
     <input type="text" id="eUrl" placeholder="https://www.youtube.com/watch?v=… 또는 youtu.be/…" autocomplete="off" inputmode="url">
     <div class="vrow" id="eThumbRow" style="display:none"><img id="eThumb" alt=""><div class="hint" id="eVid"></div></div>
     <label for="eName">제목</label>
@@ -245,6 +264,19 @@ body.fs .ctrl.show{transform:none}
       <button id="eCancel">취소</button>
       <button id="eSave" class="primary">저장</button>
     </div>
+  </div>
+</div>
+
+<!-- MR 검색 -->
+<div class="modal" id="mFind">
+  <div class="card">
+    <h2>MR·반주 영상 찾기</h2>
+    <div class="frow"><input type="text" id="fQ" placeholder="곡명 가수 (예: 곡명 가수이름)" autocomplete="off" enterkeyhint="search"><button id="fGo" class="primary">검색</button></div>
+    <div class="seg chips" id="fKind"><button type="button" data-v="MR">MR</button><button type="button" data-v="반주">반주</button><button type="button" data-v="노래방">노래방</button><button type="button" data-v="">원곡</button></div>
+    <div class="hint" id="fUse"></div>
+    <div class="hint" id="fMsg"></div>
+    <div id="fList"></div>
+    <div class="row"><button id="fClose">닫기</button></div>
   </div>
 </div>
 
@@ -295,7 +327,7 @@ body.fs .ctrl.show{transform:none}
   const KEY = 'simorch.v1', SKEY = 'simorch.set.v1';
   let DB = { songs: [] };
   try { const j = JSON.parse(lsGet(KEY) || '{}'); if (j && Array.isArray(j.songs)) DB = j; } catch (e) {}
-  let S = { vol: 80, mute: false, fs: 1, fit: 'auto', slide: 8, autoNext: true, last: '' };
+  let S = { vol: 80, mute: false, fs: 1, fit: 'auto', slide: 8, autoNext: true, last: '', findKind: 'MR' };
   try { Object.assign(S, JSON.parse(lsGet(SKEY) || '{}')); } catch (e) {}
   const saveDB = () => lsSet(KEY, JSON.stringify(DB));
   const saveS = () => lsSet(SKEY, JSON.stringify(S));
@@ -528,7 +560,7 @@ body.fs .ctrl.show{transform:none}
   function renderList() {
     $('cnt').textContent = DB.songs.length ? DB.songs.length + '곡' : '';
     const L = $('list');
-    if (!DB.songs.length) { L.innerHTML = '<div class="empty">아직 곡이 없어요.<br>오른쪽 아래 <b>+</b> 버튼으로<br>유튜브 주소와 가사(LRC)를 추가해 보세요.</div>'; return; }
+    if (!DB.songs.length) { L.innerHTML = '<div class="empty">아직 곡이 없어요.<br>위쪽 <b>🔎 MR 찾기</b>로 영상을 검색하거나<br><b>+</b> 버튼으로 유튜브 주소와 가사(LRC)를 추가해 보세요.</div>'; return; }
     L.innerHTML = DB.songs.map(s => {
       const n = parseLRC(s.lrc).lines.filter(x => x.text).length;
       return '<div class="song' + (cur && cur.id === s.id ? ' active' : '') + '" data-id="' + esc(s.id) + '"><img src="' + esc(thumb(s.vid)) + '" alt="" loading="lazy">' +
@@ -630,6 +662,76 @@ body.fs .ctrl.show{transform:none}
     if (cur && cur.id === E.id) { cur = null; lines = []; if (player && player.stopVideo) player.stopVideo(); $('hello').classList.remove('hidden'); $('now').textContent = '곡을 선택하세요'; $('lCur').textContent = ''; $('lNext').textContent = ''; $('lPrev').textContent = ''; setDots(0); layoutYT(); stopSlides(); clearBg(); $('bPlay').textContent = '▶'; }
     $('mSong').classList.remove('show'); renderList(); renderQueue(); toast('삭제했어요');
   };
+
+  /* ── MR·반주 영상 검색 (서버 함수 yt-search → YouTube Data API) ── */
+  const FN_URL = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/yt-search', DAILY = 100, QKEY = 'simorch.q.v1';
+  const ptDay = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date());   // 유튜브 일일 한도는 미국 서부시간 자정에 초기화
+  const qGet = () => { try { const j = JSON.parse(lsGet(QKEY) || '{}'); return j.day === ptDay() ? (j.n || 0) : 0; } catch (e) { return 0; } };
+  const qAdd = () => lsSet(QKEY, JSON.stringify({ day: ptDay(), n: qGet() + 1 }));
+  const FERR = {
+    nophone: '등록된 사용자 번호가 없어요. 런처 상단 AI 아이콘에서 전화번호를 먼저 등록해 주세요.',
+    forbidden: '등록되지 않은 전화번호예요. 런처 상단 AI 아이콘에서 번호를 확인해 주세요.',
+    nokey: '서버에 YOUTUBE_API_KEY가 등록되어 있지 않아요. Supabase Secrets를 확인해 주세요.',
+    badkey: 'API 키가 올바르지 않아요. Supabase Secrets의 키 값을 다시 확인해 주세요.',
+    disabled: 'YouTube Data API v3가 아직 “사용”으로 켜져 있지 않아요. Google Cloud에서 사용을 눌러 주세요.',
+    restricted: '키 제한 때문에 서버에서 호출이 막혔어요. 키의 애플리케이션 제한은 “없음”, API 제한만 YouTube Data API v3로 두세요.',
+    quota: '검색 한도를 모두 썼어요. 하루 한도는 미국 서부시간 자정(한국시간 오후 5시경)에 초기화돼요.',
+    short: '검색어를 두 글자 이상 입력해 주세요.',
+    net: '네트워크 연결에 실패했어요.',
+    fail: '검색에 실패했어요.'
+  };
+  const fMsg = (t, cls) => { const m = $('fMsg'); m.textContent = t || ''; m.className = 'hint' + (cls ? ' ' + cls : ''); };
+  const paintUse = () => { $('fUse').textContent = '오늘 검색 ' + qGet() + '/' + DAILY + '회 (이 앱 기준 · 같은 검색어는 15분간 저장돼 횟수가 늘지 않아요)'; };
+  const paintKind = () => [...$('fKind').children].forEach(b => b.classList.toggle('on', b.dataset.v === S.findKind));
+  let found = [], findBusy = false;
+  function openFind(pre) {
+    if (pre != null && String(pre).trim()) $('fQ').value = String(pre).trim();
+    $('fList').classList.toggle('ed', $('mSong').classList.contains('show'));
+    paintKind(); paintUse(); $('mFind').classList.add('show'); setTimeout(() => $('fQ').focus(), 60);
+  }
+  const closeFind = () => $('mFind').classList.remove('show');
+  async function doFind() {
+    if (findBusy) return;
+    const raw = $('fQ').value.replace(/\s+/g, ' ').trim();
+    if (raw.length < 2) return fMsg(FERR.short, 'bad');
+    const phone = (lsGet('SIMAS_AI_PHONE') || '').replace(/\D/g, '');
+    if (phone.length < 9) return fMsg(FERR.nophone, 'bad');
+    const kind = S.findKind || '', q = kind && !raw.toLowerCase().includes(kind.toLowerCase()) ? raw + ' ' + kind : raw;
+    findBusy = true; $('fGo').disabled = true; fMsg('“' + q + '” 검색 중…'); $('fList').innerHTML = '';
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 20000);
+    try {
+      const r = await fetch(FN_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, q }), signal: ctl.signal });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { const c = j.error || (r.status === 403 ? 'forbidden' : 'fail'); fMsg((FERR[c] || FERR.fail) + (j.detail ? ' [' + j.detail + ']' : ''), 'bad'); if (c === 'quota') lsSet(QKEY, JSON.stringify({ day: ptDay(), n: DAILY })); paintUse(); return; }
+      if (!j.cached) qAdd();
+      paintUse(); found = Array.isArray(j.items) ? j.items : [];
+      if (!found.length) { fMsg('퍼가기가 가능한 결과가 없어요. 검색어를 바꾸거나 “원곡”으로 찾아 보세요.', 'bad'); return; }
+      fMsg(found.length + '개를 찾았어요. 영상을 누르면 곡 추가 창으로, ▶는 바로 재생해요.' + (j.cached ? ' (저장된 결과)' : ''), 'ok');
+      $('fList').innerHTML = found.map((it, i) => '<div class="res" data-i="' + i + '"><img src="' + esc(thumb(it.id)) + '" alt="" loading="lazy"><div class="in"><div class="t">' + esc(it.title) + '</div><div class="s">' + esc(it.ch) + ' · <b class="' + (it.sec > 600 ? 'long' : '') + '"' + (it.sec > 600 ? ' title="길이가 길어요. 여러 곡 모음일 수 있어요"' : '') + '>' + (it.sec ? fmt(it.sec) : '?') + '</b></div></div><button type="button" data-a="p" title="바로 재생">▶</button></div>').join('');
+    } catch (e) { fMsg(e && e.name === 'AbortError' ? '응답이 늦어요. 잠시 뒤 다시 시도해 주세요.' : FERR.net, 'bad'); }
+    finally { clearTimeout(to); findBusy = false; $('fGo').disabled = false; }
+  }
+  function useFound(it, play) {
+    closeFind();
+    if ($('mSong').classList.contains('show')) {   // 편집 중이면 주소(와 빈 제목)만 채운다
+      $('eUrl').value = 'https://youtu.be/' + it.id; E.titled = false; eVid();
+      if (!$('eName').value.trim()) $('eName').value = it.title;
+      return;
+    }
+    if (play) {
+      let s = DB.songs.find(x => x.vid === it.id);
+      if (!s) { s = { id: uid(), vid: it.id, title: it.title, lrc: '', offset: 0, bg: 'video', imgs: [], added: Date.now(), updated: Date.now() }; DB.songs.push(s); saveDB(); renderList(); toast('곡을 추가했어요 · 가사는 ✎ 편집에서 넣을 수 있어요'); }
+      playSong(s.id); return;
+    }
+    openEditor(null); $('eUrl').value = 'https://youtu.be/' + it.id; E.titled = false; eVid(); $('eName').value = it.title;
+  }
+  $('btnFind').onclick = () => openFind('');
+  $('eFind').onclick = () => openFind($('eName').value);
+  $('fClose').onclick = closeFind;
+  $('fGo').onclick = doFind;
+  $('fQ').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doFind(); } });
+  $('fKind').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.findKind = b.dataset.v; saveS(); paintKind(); });
+  $('fList').addEventListener('click', e => { const row = e.target.closest('.res'); if (!row) return; const it = found[+row.dataset.i]; if (it) useFound(it, !!e.target.closest('button[data-a="p"]')); });
 
   /* ── 이미지 보관함 ── */
   async function renderGallery() {

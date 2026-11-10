@@ -68,7 +68,8 @@ body.dragmode,body.dragmode *{cursor:grabbing!important;-webkit-user-select:none
 }
 
 .ais{display:flex;gap:6px;align-items:center}
-.ai{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;border:0;padding:0;overflow:hidden;background:#fff;box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--c);transition:filter .3s,opacity .3s}
+.ai{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;border:0;padding:0;overflow:visible;position:relative;background:#fff;box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--c);transition:filter .3s,opacity .3s}
+.ai.q::after{content:'!';position:absolute;right:-5px;bottom:-5px;width:15px;height:15px;border-radius:50%;background:#ff3b3b;color:#fff;font:800 11px/15px -apple-system,sans-serif;text-align:center;box-shadow:0 0 0 2px var(--panel)}
 .ai img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
 .ai.off{box-shadow:0 0 0 2px var(--panel),0 0 0 3px #3a3f4f;filter:grayscale(1) opacity(.55)}
 .ai.chk{opacity:.5;animation:aip 1s infinite alternate}
@@ -83,9 +84,12 @@ body.dragmode,body.dragmode *{cursor:grabbing!important;-webkit-user-select:none
 .aist{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 2px}
 .aist span{font-size:12px;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--sub)}
 .aist span.ok{color:var(--ok);border-color:#1f5c44}
+.aist span.warnq{color:#ffd0d0;border-color:#c0392b;background:#3a1a1a}
+.aist span.warnq::before{content:'! ';font-weight:800;color:#ff5b5b}
 .aist span.bad{color:#ff8a8a;border-color:#6b2b2b}
 .aist span.me{box-shadow:0 0 0 1px var(--accent) inset}
 .aimsg{min-height:20px;margin-top:10px;font-size:13px;line-height:1.55;color:var(--sub);word-break:break-all}
+.aimsg.quota{color:#ff8a8a;background:#3a1a1a;border:1px solid #6b2b2b;border-radius:10px;padding:8px 10px}
 .aimsg.ok{color:var(--ok)}.aimsg.bad{color:#ff8a8a}
 .modal .row.multi{gap:6px;flex-wrap:wrap;justify-content:flex-end}
 button.danger{color:#ff8a8a}
@@ -119,6 +123,7 @@ button.danger{color:#ff8a8a}
   <div class="box">
     <div class="aihead"><img id="aiImg" alt=""><h2 id="aiTitle">AI 연결 설정</h2></div>
     <div class="aist" id="aiSt"></div>
+    <div class="aimsg" id="aiNow"></div>
     <label for="aiPhone">등록된 사용자 전화번호</label>
     <input id="aiPhone" type="tel" placeholder="010-0000-0000" autocomplete="off">
     <div class="aimsg" id="aiMsg"></div>
@@ -199,10 +204,10 @@ button.danger{color:#ff8a8a}
   const AIS = [['gemini', 'Gemini', 'ai-gemini.png', '#4285f4'], ['claude', 'Claude', 'ai-claude.png', '#d97757'], ['groq', 'Groq', 'ai-groq.png', '#f55036']];
   const aiBox = $('ais');
   aiBox.innerHTML = AIS.map(a => '<button class="ai chk" data-k="' + a[0] + '" style="--c:' + a[3] + '" aria-label="' + a[1] + '" title="' + a[1] + ' 확인 중…"><img src="' + a[2] + '" alt=""></button>').join('');
-  const aiSet = (k, st, tip) => { const b = aiBox.querySelector('[data-k="' + k + '"]'); if (!b) return; b.classList.remove('chk'); b.classList.toggle('off', st !== 'ok'); b.title = tip; b.dataset.tip = tip; };
+  const aiSet = (k, st, tip) => { const b = aiBox.querySelector('[data-k="' + k + '"]'); if (!b) return; b.classList.remove('chk'); b.classList.toggle('off', st !== 'ok' && st !== 'quota'); b.classList.toggle('q', st === 'quota'); b.title = tip; b.dataset.tip = tip; };
   async function checkAI() {
     const phone = lsGet('SIMAS_AI_PHONE');
-    const label = { ok: '연결됨', fail: '연결 실패', nokey: '키 미등록' };
+    const label = { ok: '연결됨', quota: '연결됨 · 한도 초과', fail: '연결 실패', nokey: '키 미등록' };
     if (!phone) { AIS.forEach(a => { AI_STATE[a[0]] = 'fail'; }); AIS.forEach(a => aiSet(a[0], 'fail', a[1] + ': 등록된 번호가 없어 확인하지 못했어요 (아이콘을 눌러 번호 등록)')); return; }
     try {
       const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 15000);
@@ -217,12 +222,20 @@ button.danger{color:#ff8a8a}
   /* ── AI 설정 팝업: 아이콘을 누르면 해당 AI의 연결 상태·번호 등록·테스트를 한곳에서 ── */
   const AI_STATE = {}; let curAi = 'gemini';
   const AI_URL = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/';
-  const stLabel = { ok: '연결됨', fail: '연결 실패', nokey: '키 미등록' };
+  const stLabel = { ok: '연결됨', quota: '한도 초과', fail: '연결 실패', nokey: '키 미등록' };
+  const stHelp = { ok: '정상으로 사용할 수 있어요.', quota: '연결은 되지만 사용 한도(크레딧·요청 수)를 넘었어요. 충전하거나 한도가 풀릴 때까지 다른 AI가 대신 답하고, 모두 안 되면 기본 엔진으로 처리해요.', fail: '연결하지 못했어요. 번호나 네트워크를 확인해 주세요.', nokey: '서버에 이 AI의 키가 등록되어 있지 않아요.' };
   const maskPh = p => p.replace(/(\d{3})(\d+)(\d{4})/, '$1-****-$3');
   function aiPaint() {
     const a = AIS.find(x => x[0] === curAi) || AIS[0];
     $('aiImg').src = a[2]; $('aiTitle').textContent = a[1] + ' 연결 설정';
-    $('aiSt').innerHTML = AIS.map(x => '<span class="' + (AI_STATE[x[0]] === 'ok' ? 'ok' : AI_STATE[x[0]] ? 'bad' : '') + (x[0] === curAi ? ' me' : '') + '">' + esc(x[1]) + ' · ' + (stLabel[AI_STATE[x[0]]] || '확인 전') + '</span>').join('');
+    aiNow();
+    $('aiSt').innerHTML = AIS.map(x => '<span class="' + (AI_STATE[x[0]] === 'ok' ? 'ok' : AI_STATE[x[0]] === 'quota' ? 'warnq' : AI_STATE[x[0]] ? 'bad' : '') + (x[0] === curAi ? ' me' : '') + '">' + esc(x[1]) + ' · ' + (stLabel[AI_STATE[x[0]]] || '확인 전') + '</span>').join('');
+  }
+  function aiNow() {   // 설정 화면 맨 위: 선택한 AI의 현재 상태
+    const a = AIS.find(x => x[0] === curAi) || AIS[0], st = AI_STATE[curAi], n = $('aiNow');
+    if (!st) { n.className = 'aimsg'; n.textContent = lsGet('SIMAS_AI_PHONE') ? '현재 상태: 확인 중…' : '현재 상태: 번호 미등록'; return; }
+    n.className = 'aimsg' + (st === 'quota' ? ' quota' : st === 'ok' ? ' ok' : ' bad');
+    n.textContent = '현재 상태: ' + (st === 'quota' ? '⚠ 한도 초과' : stLabel[st] || st) + ' — ' + (stHelp[st] || '');
   }
   const aiNote = (t, cls) => { const m = $('aiMsg'); m.textContent = t || ''; m.className = 'aimsg' + (cls ? ' ' + cls : ''); };
   async function aiStatus(phone) {

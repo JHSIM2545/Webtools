@@ -338,6 +338,7 @@ const NLU = (() => {
       let c = t.replace(/^(메모|노트)\s*[:：]?\s*/, '');
       c = c.replace(/\s*(이?라고|라는\s*내용(을|이)?)?\s*(메모|노트에?\s*적|적어|기록)\s*(해|줘|둬|놔|주세요|줄래|해줘|좀|드려|할래)?[가-힣]*\s*$/g, '').trim();
       c = c.replace(/^(메모|노트)(해|좀|해줘)?\s*/, '').trim();
+      c = c.replace(/^(?:(?:에|로|에다가?|에다)\s*)?(?:기록|적어|저장)\s*(?:해|줘|둬|놔)?\s*(?:줘|둬|놔|주세요)?[\s,.:]+/, '').trim();   // "메모에 기록해 ○○" → ○○
       c = c.replace(/^(?:(?:해\s*줘|해\s*주세요|해\s*줄래|해\s*둬|해|좀|줘|적어\s*줘|적어|기록\s*해\s*줘|기록해)(?:요)?)(?=[\s,.:]|$)[\s,.:]*/, '').trim();
       if (c && !/^(메모|적어|기록|해줘|해|좀|줘|해주세요)[가-힣]*$/.test(c)) sl.content = c;
     } else if (intent === 'contact_add') {
@@ -999,7 +1000,7 @@ async function navFlow(sl) {
     const kp = kbPlace(sl.dest);
     if (kp) {
       let c = kp.lat != null ? kbPlaceCand(kp) : null;
-      if (!c) { try { const r = await searchPlaces(kp.q || kp.addr); if (r && r[0]) { kp.lat = r[0].lat; kp.lng = r[0].lng; kbSave(); c = kbPlaceCand(kp); } } catch (e) {} }
+      if (!c) { try { const r0 = await kbGeo(kp.q || kp.addr); if (r0) { kp.lat = r0.lat; kp.lng = r0.lng; kbSave(); c = kbPlaceCand(kp); } } catch (e) {} }
       if (c) { pending = newP('navigate', sl); return confirmNav(pending, c); }
       sys('기억한 주소를 지도에서 찾지 못해 검색해 볼게요.'); sl = Object.assign({}, sl, { dest: kp.q || kp.addr, noAlias: true });
     }
@@ -1522,6 +1523,12 @@ function kbSaveFact(key, value) {
   if (i >= 0) KB.facts[i] = Object.assign(o, { id: KB.facts[i].id }); else KB.facts.push(o);
   kbSave(); return o;
 }
+async function kbGeo(q) {   // 주소 표기가 붙어 있거나 동·호가 있어도 찾도록 여러 형태로 검색
+  const v = [q, String(q).replace(/^(서울|부산|대구|인천|광주|대전|울산|세종)(?=[가-힣])/, '$1 ').replace(/([가-힣]{1,3}[구군])(?=[가-힣])/, '$1 ').replace(/\s+/g, ' ').trim()];
+  v.push(v[1].replace(/\s*\d+\s*동(\s*\d+\s*호)?\s*$/, '').trim(), v[1].replace(/^(?:[가-힣]+(?:특별시|광역시|시|도)\s*)?[가-힣]+[구군]\s*/, '').replace(/\s*\d+\s*동(\s*\d+\s*호)?\s*$/, '').trim());
+  for (const x of v.filter((a, i, arr) => a && arr.indexOf(a) === i)) { try { const r = await searchPlaces(x); if (r && r[0]) return r[0]; } catch (e) {} }
+  return null;
+}
 const kbPlaceCand = p => ({ lat: p.lat, lng: p.lng, name: p.name, addr: p.addr || p.q, src: '기억한 장소', approx: false });
 const KB_STOP = new Set(['내가', '어디', '뭐', '뭐였', '뭐지', '뭐야', '알려', '알려줘', '기록', '기억', '찾아', '말해', '언제', '얼마', '몇', '누구', '번호', '그거', '그게', '나는', '내']);
 const kbTokens = t => String(t).split(/[^가-힣A-Za-z0-9]+/).map(w => w.replace(/(에서|으로|에게|한테|이랑|은|는|이|가|을|를|의|도|로|에|와|과|랑)$/, '')).filter(w => w.length >= 2 && !KB_STOP.has(w) && !/^(뭐|어디|언제|얼마|알려|기억|기록|말해|찾아|였지|했지|했더라|더라|있었|했어|했는지|뭐였지)/.test(w));
@@ -1545,8 +1552,8 @@ function memIntent(text) {
   }
   // 2) 기록·기억해 둬
   const isQ = /[?？]|뭐였|기억나|기억하(고|니|냐|지)|기억\s*못/.test(t);
-  if (!isQ && !/메모|노트/.test(t) && /(기억|기록|적어|외워)\s*(해|좀)?\s*(줘|둬|두|놔|주세요|줄래|해줘)|잊지\s*마|(기록|기억)해\s*(둬|놔)/.test(t)) {
-    let s = t.replace(/(이?라고|라는\s*(거|것|내용|걸)?|라며)?\s*(을|를)?\s*(좀\s*)?(음성\s*메모(로|에)?\s*)?(기억|기록|적어|외워)\s*(해|좀)?\s*(줘|둬|두|놔|주세요|줄래|해줘)\S*[\s.]*$/, '').replace(/잊지\s*마\S*/, '').trim();
+  if (!isQ && !/메모|노트/.test(t) && /(기억|기록|적어|외워)\s*(해|좀)?\s*(줘|둬|두|놔|주세요|줄래|해줘|요)?\s*[.!]*$|(기억|기록|적어|외워)\s*(해|좀)?\s*(줘|둬|두|놔|주세요|줄래|해줘)|잊지\s*마/.test(t)) {
+    let s = t.replace(/(이?라고|라는\s*(거|것|내용|걸)?|라며)?\s*(을|를)?\s*(좀\s*)?(음성\s*메모(로|에)?\s*)?(기억|기록|적어|외워)\s*(해|좀)?\s*(줘|둬|두|놔|주세요|줄래|해줘|요)?\S*[\s.!]*$/, '').replace(/잊지\s*마\S*/, '').trim();
     if (s.length < 2) s = t.replace(/^.*?(기억|기록|적어|외워)\S*[\s:,]*/, '').trim();
     s = s.replace(/^(음성\s*메모(로|에)?|메모로)\s*/, '').replace(/(을|를)$/, '').trim();
     if (s.length >= 2) return kbParse(s);
@@ -1593,7 +1600,7 @@ async function memHandle(m) {
   if (m.k === 'remember') {
     if (m.place) {
       sys('"' + m.key + '" 위치를 확인하는 중…');
-      let c = null; try { const r = await Promise.race([searchPlaces(m.val), sleep(6000).then(() => [])]); c = r && r[0]; } catch (e) {}
+      let c = null; try { c = await Promise.race([kbGeo(m.val), sleep(9000).then(() => null)]); } catch (e) {}
       const p = kbSavePlace(m.key.replace(/\s*(주소|위치)$/, ''), m.val, c);
       return bot('"' + p.name + '" 주소를 기억했어요. 이제 "' + p.name + '(으)로 가자"라고 하면 바로 안내해요.', { html: '<b>🧠 기억했어요</b>' + kvRows([['이름', p.name], ['주소', p.q], ['지도 확인', c ? '찾았어요 (' + (c.name || c.addr) + ')' : '아직 못 찾음 — 안내할 때 다시 찾아요']]) + '<span class="sub">이 기기 안에만 저장돼요</span>', btns: [{ label: '🧭 안내 시작', primary: true, fn: () => handleText(p.name + '으로 가자') }, { label: '🗑 지우기', fn: () => { kbDel({ t: 'place', id: p.id }); bot('지웠어요.'); } }] });
     }

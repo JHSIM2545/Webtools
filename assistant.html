@@ -52,9 +52,13 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 .chips::-webkit-scrollbar{display:none}
 .chips button{flex:none;border-radius:99px;font-size:13px;padding:6px 12px;color:var(--sub)}
 .composer{display:flex;align-items:center;gap:8px;padding:8px 12px calc(10px + env(safe-area-inset-bottom));background:var(--bg)}
-.composer input{flex:1}
+.composer{padding-left:10px;padding-right:10px}
+.inwrap{position:relative;flex:1;min-width:0}
+.inwrap input{padding-right:54px}
+.inwrap .send{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:36px;height:36px;font-size:15px;background:var(--accent2);border-color:var(--accent2);color:#031a2b}
+.msg.me{white-space:pre-wrap;word-break:break-word}
 .send{width:44px;height:44px;border-radius:50%;padding:0;font-size:18px;flex:none}
-.mic{position:fixed;right:16px;bottom:calc(112px + env(safe-area-inset-bottom));z-index:40;box-shadow:0 6px 18px rgba(0,0,0,.55);width:64px;height:64px;border-radius:50%;padding:0;flex:none;background:#d9eeff;border-color:#d9eeff;color:#111;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative}
+.mic{position:fixed;right:16px;bottom:calc(112px + env(safe-area-inset-bottom));z-index:40;box-shadow:0 6px 18px rgba(0,0,0,.55);width:64px;height:64px;border-radius:50%;padding:0;flex:none;background:var(--accent);border-color:var(--accent);color:#031a2b;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .mic svg{width:100%;height:100%;display:block}
 .mic.on{animation:micwave 1.6s ease-out infinite}
 @keyframes micwave{0%{box-shadow:0 0 0 0 rgba(76,201,240,.7),0 0 0 0 rgba(76,201,240,.45)}70%{box-shadow:0 0 0 22px rgba(76,201,240,0),0 0 0 40px rgba(76,201,240,0)}100%{box-shadow:0 0 0 0 rgba(76,201,240,0),0 0 0 0 rgba(76,201,240,0)}}
@@ -123,10 +127,10 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
   <div class="chips" id="chips"></div>
   <div class="listen" id="listen"><em id="interim">듣고 있어요…</em></div>
   <div class="composer">
-    <input id="txt" type="text" placeholder="말하거나 입력하세요" autocomplete="off" enterkeyhint="send">
-    <button class="send" id="btnSend" title="보내기">➤</button>
+    <div class="inwrap"><input id="txt" type="text" placeholder="말하거나 입력하세요 · 문자를 붙여넣으면 일정 등록" autocomplete="off" enterkeyhint="send">
+    <button class="send" id="btnSend" title="보내기">➤</button></div>
     <button class="mic" id="btnMic" title="대화 (실시간 음성 대화)">
-      <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="60" fill="#d9eeff"/><g stroke="#111" stroke-width="7" stroke-linecap="round"><path d="M42 44v32"/><path d="M60 32v56"/><path d="M78 52v16"/></g></svg>
+      <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="60" fill="#4cc9f0"/><g stroke="#031a2b" stroke-width="7" stroke-linecap="round"><path d="M42 44v32"/><path d="M60 32v56"/><path d="M78 52v16"/></g></svg>
     </button>
   </div>
 </div>
@@ -1025,10 +1029,10 @@ const GPHONE = 'SIMAS_AI_PHONE', GURL = 'https://gpqlximhoqdybcewdfde.supabase.c
 const gKey = () => ls.get(GPHONE, '').replace(/\D/g, '');
 let aiDownUntil = 0;   // AI가 실패하면 잠시 건너뛰고 기본(로컬) 엔진만 쓴다
 const aiUsable = () => !!gKey() && navigator.onLine !== false && Date.now() >= aiDownUntil;
-async function geminiCall(phone, text) {
-  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 9000);
+async function geminiCall(phone, text, mode) {
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), mode ? 16000 : 9000);
   try {
-    const r = await fetch(GURL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, text }) });
+    const r = await fetch(GURL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mode ? { phone, text, mode } : { phone, text }) });
     const j = await r.json().catch(() => ({}));
     if (r.ok && j.text) return String(j.text).trim();
     throw new Error(r.status === 403 ? '등록되지 않은 전화번호예요' : r.status === 429 ? '잠시 뒤 다시 말씀해 주세요' : '응답 실패 (' + r.status + ')');
@@ -1347,6 +1351,73 @@ $('liveMute').onclick = () => { LIVE.muted = !LIVE.muted; $('liveMute').textCont
 
 /* ───────── 입력 처리 ───────── */
 const HELP = ['"메모해줘"', '"홍길동 연락처 저장해줘"', '"홍길동 전화번호 찾아줘"', '"홍길동한테 전화해줘"', '"내일 오후 3시 미팅 일정 추가해줘"', '"내일 아침 7시에 알람 맞춰줘"', '"오늘 일정 알려줘"', '"강남역으로 가자"'];
+
+/* ───────── 문자·메시지 붙여넣기 → 일정 자동 등록 ───────── */
+const DATE_RE = /\d{4}\s?[.\-\/]\s?\d{1,2}\s?[.\-\/]\s?\d{1,2}|\d{1,2}\s?월\s?\d{1,2}\s?일|(?<![\d:])\d{1,2}\/\d{1,2}(?![\d\/])|내일|모레|다음\s?주|이번\s?주|[월화수목금토일]요일/;
+const TIME_RE = /\d{1,2}\s?시(\s?\d{1,2}\s?분|\s?반)?|\d{1,2}:\d{2}/;
+function looksLikeMessage(t) {
+  const x = String(t || '').trim(); if (x.length < 30 || !DATE_RE.test(x)) return false;
+  if (/\n/.test(x) || /^\[(Web발신|국제발신|발신)/.test(x) || x.length >= 70) return true;
+  return !/(해\s?줘|해\s?주세요|추가|등록|알려\s?줘|맞춰\s?줘|잡아\s?줘|저장)\s*[.!?]?$/.test(x);   // 짧은 명령문은 기존 대화 흐름으로
+}
+const pad2 = n => String(n).padStart(2, '0');
+const ymd = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+function localEvents(text) {   // AI를 못 쓸 때의 기본 분석 (날짜·시각 표현만 읽는다)
+  const now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate()), out = [], WD = '일월화수목금토';
+  const parts = String(text).split(/\n+|(?<=[.!?。])\s+/).map(x => x.trim()).filter(Boolean); let ctx = null;
+  for (const sn of parts) {
+    let d = null, m;
+    if ((m = /(\d{4})\s?[.\-\/]\s?(\d{1,2})\s?[.\-\/]\s?(\d{1,2})/.exec(sn))) d = new Date(+m[1], m[2] - 1, +m[3]);
+    else if ((m = /(\d{1,2})\s?월\s?(\d{1,2})\s?일/.exec(sn)) || (m = /(?<![\d:])(\d{1,2})\/(\d{1,2})(?![\d\/])/.exec(sn))) { d = new Date(today.getFullYear(), m[1] - 1, +m[2]); if (d < new Date(today.getTime() - 864e5)) d.setFullYear(d.getFullYear() + 1); }
+    else if (/모레/.test(sn)) d = new Date(today.getTime() + 2 * 864e5);
+    else if (/내일/.test(sn)) d = new Date(today.getTime() + 864e5);
+    else if ((m = /(다음\s?주|이번\s?주)?\s?([월화수목금토일])요일/.exec(sn))) { const k = WD.indexOf(m[2]); const diff = (m[1] && /다음/.test(m[1])) ? (7 - today.getDay()) + k : (k - today.getDay() + 7) % 7; d = new Date(today.getTime() + diff * 864e5); }
+    let h = null, mi = 0;
+    if ((m = /(오전|오후)?\s?(\d{1,2})\s?시\s?(?:(\d{1,2})\s?분|(반))?/.exec(sn))) { h = +m[2]; mi = m[3] ? +m[3] : m[4] ? 30 : 0; if (m[1] === '오후' && h < 12) h += 12; else if (m[1] === '오전' && h === 12) h = 0; else if (!m[1] && h >= 1 && h <= 6) h += 12; }
+    else if ((m = /(?<!\d)(\d{1,2}):(\d{2})(?!\d)/.exec(sn))) { h = +m[1]; mi = +m[2]; }
+    if (d) ctx = d; else if (h != null && ctx) d = ctx; else continue;
+    if (h != null && (h > 23 || mi > 59)) continue;
+    let title = sn.replace(/\[(Web발신|국제발신|발신)\]/g, '').replace(/\([월화수목금토일]\)/g, ' ').replace(new RegExp(DATE_RE.source, 'g'), ' ').replace(/(오전|오후)?\s?\d{1,2}\s?시(\s?\d{1,2}\s?분|\s?반)?|\d{1,2}:\d{2}/g, ' ').replace(/[()\[\]{}~\-]+/g, ' ').replace(/\s+/g, ' ').replace(/^[\s,.:;]+|[\s,.:;]+$/g, '').replace(/^(에|에서|은|는|도|까지|부터)\s+/, '').replace(/\s+(에|에서|까지|부터)$/, '').slice(0, 25);
+    out.push({ title: title || '문자 일정', date: ymd(d), time: h == null ? '' : pad2(h) + ':' + pad2(mi), all_day: h == null, place: '' });
+  }
+  return out.slice(0, 5);
+}
+function parseEv(raw) {
+  let t = String(raw || '').replace(/```(?:json)?/gi, ''); const a = t.indexOf('['), b = t.lastIndexOf(']'); if (a < 0 || b < a) throw new Error('해석 실패');
+  const arr = JSON.parse(t.slice(a, b + 1)); if (!Array.isArray(arr)) throw new Error('해석 실패');
+  return arr.map(x => ({ title: String(x.title || '').trim().slice(0, 40), date: String(x.date || '').trim(), time: /^\d{1,2}:\d{2}$/.test(String(x.time || '').trim()) ? String(x.time).trim() : '', all_day: !!x.all_day || !/^\d{1,2}:\d{2}$/.test(String(x.time || '').trim()), place: String(x.place || '').trim().slice(0, 40) })).filter(x => /^\d{4}-\d{1,2}-\d{1,2}$/.test(x.date)).slice(0, 5);
+}
+async function addFound(list, src) {
+  const now = Date.now(), added = []; let past = 0, dup = 0;
+  for (const a of list) {
+    const allDay = !!a.all_day || !a.time, d = L_DT(a.date, allDay ? '' : a.time); if (!d) continue;
+    if ((allDay ? new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59).getTime() : d.getTime()) < now) { past++; continue; }
+    let title = String(a.title || '일정').trim(); if (a.place && !title.includes(a.place)) title += ' · ' + a.place;
+    if (MEM.events.some(e => e.title === title && Math.abs(new Date(e.start) - d) < 60000)) { dup++; continue; }
+    const ev = { id: rid(), title, start: d.toISOString(), allDay, remind: allDay ? null : 10, notified: false };
+    await put('events', ev); added.push(ev);
+  }
+  renderAll(); if (added.length) askNotifPerm();
+  const extra = (past ? '지난 일정 ' + past + '개는 건너뛰었어요. ' : '') + (dup ? '이미 있는 일정 ' + dup + '개는 건너뛰었어요.' : '');
+  if (!added.length) return bot(extra || '등록할 일정이 없어요.', { html: '<b>새로 등록한 일정이 없어요</b>' + (extra ? '<span class="sub">' + esc(extra) + '</span>' : '') });
+  bot('일정 ' + added.length + '개를 등록했어요.', {
+    html: '<b>문자에서 일정 ' + added.length + '개를 등록했어요</b><span class="sub">' + (src === 'AI' ? 'AI가 분석했어요. ' : '기본 분석이에요. 내용을 확인해 주세요. ') + esc(extra) + '</span>' + added.map(e => kvRows([['제목', e.title], ['일시', fmtDT(new Date(e.start), e.allDay)]])).join(''),
+    say: '일정 ' + added.length + '개를 등록했어요.',
+    btns: [{ label: '일정 보기', primary: true, fn: () => setTab('event') }, { label: '되돌리기', fn: async () => { for (const e of added) await del('events', e.id); renderAll(); sys('방금 등록한 일정 ' + added.length + '개를 취소했어요'); } }]
+  });
+}
+async function importMessage(text) {   // true=처리함, false=일정으로 못 읽음 → 기존 흐름
+  let list = null, src = '';
+  if (aiUsable()) {
+    sys('문자에서 일정을 찾는 중…');
+    try { list = parseEv(await geminiCall(gKey(), text, 'events')); src = 'AI'; }
+    catch (e) { if (!/등록되지/.test(e.message || '')) aiDownUntil = Date.now() + 3 * 60 * 1000; sys('AI 연결이 불안정해 기본 분석으로 처리해요 (' + (e.message || e) + ')'); }
+  }
+  if (!list) { list = localEvents(text); src = '기본'; if (!list.length) return false; }
+  if (!list.length) { bot('이 메시지에서 일정으로 등록할 내용을 찾지 못했어요.'); return true; }
+  await addFound(list, src); return true;
+}
+
 async function handleText(raw, viaAI) {
   const text = String(raw || '').trim(); if (!text) return;
   if (!viaAI) addMsg('me', esc(text)); const n = NLU.normalize(text);
@@ -1357,6 +1428,7 @@ async function handleText(raw, viaAI) {
     if (!strong) return continueP(p, text, n);
     pending = null;   // 다른 요청이 들어오면 이전 것은 접는다
   }
+  if (!viaAI && looksLikeMessage(text) && await importMessage(text)) return;   // 문자 붙여넣기 → 일정 자동 등록
   if (!viaAI && aiUsable() && await askGemini(text)) return;   // 기본은 AI, 실패하면 아래 로컬 엔진
   const intent = NLU.detect(text);
   if (!intent) { lastVoice && (autoTried = true); return bot('잘 이해하지 못했어요. 이렇게 말해 보세요.', { html: '<b>이렇게 말해 보세요</b><span class="sub">' + HELP.map(esc).join('<br>') + '</span>', say: '잘 이해하지 못했어요. 메모, 연락처 저장, 전화번호 찾기, 전화 걸기, 일정, 알람을 말씀해 보세요.' }); }
@@ -1448,6 +1520,7 @@ async function continueP(p, text, n) {
 /* ───────── 입력창·시작 ───────── */
 function sendTyped() { const v = $('txt').value.trim(); if (!v) return; $('txt').value = ''; lastVoice = false; unlockAudio(); handleText(v); }
 $('btnSend').onclick = sendTyped;
+$('txt').addEventListener('paste', () => setTimeout(() => { if (looksLikeMessage($('txt').value)) sendTyped(); }, 30));
 $('txt').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); sendTyped(); } });
 /* 받아쓰기 자동 전송: 차량 등 마이크 권한 팝업이 안 뜨는 환경에서 키보드 🎤 받아쓰기를 쓰기 위한 옵션 */
 let autoSend = ls.get('SIMAS_AUTOSEND', '0') === '1', autoT = 0;
@@ -1458,6 +1531,7 @@ let autoSend = ls.get('SIMAS_AUTOSEND', '0') === '1', autoT = 0;
   paint(); $('chips').appendChild(b);
   $('txt').addEventListener('input', () => { clearTimeout(autoT); if (autoSend && $('txt').value.trim()) autoT = setTimeout(sendTyped, 1600); });
 })();
+(() => { const b = document.createElement('button'); b.textContent = '📩 문자로 일정 등록'; b.onclick = () => { $('txt').focus(); toast('받은 문자를 입력창에 붙여넣으면 일정으로 등록해요', 3600); }; $('chips').appendChild(b); })();
 ['메모해줘', '연락처 저장해줘', '전화번호 찾아줘', '전화 걸어줘', '길안내 해줘', '일정 추가해줘', '알람 맞춰줘', '오늘 일정 알려줘'].forEach(t => {
   const b = document.createElement('button'); b.textContent = t; b.onclick = () => { lastVoice = false; unlockAudio(); handleText(t); }; $('chips').appendChild(b);
 });

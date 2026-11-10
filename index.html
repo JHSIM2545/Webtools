@@ -66,6 +66,12 @@ body.dragmode,body.dragmode *{cursor:grabbing!important;-webkit-user-select:none
   .grid{grid-template-columns:repeat(2,1fr)}
   header button{padding:6px 10px;font-size:13px}
 }
+
+.ais{display:flex;gap:6px;align-items:center}
+.ai{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:800;color:#fff;border:0;padding:0;background:var(--c);box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--c);transition:filter .3s,opacity .3s}
+.ai.off{background:#3a3f4f;color:#8b92a8;box-shadow:0 0 0 2px var(--panel),0 0 0 3px #3a3f4f;filter:grayscale(1)}
+.ai.chk{opacity:.5;animation:aip 1s infinite alternate}
+@keyframes aip{to{opacity:.9}}
 </style>
 </head>
 <body>
@@ -73,6 +79,7 @@ body.dragmode,body.dragmode *{cursor:grabbing!important;-webkit-user-select:none
   <img class="logo" src="icon-192.png" alt="">
   <h1>SIM <span>Tools</span></h1>
   <div class="spacer"></div>
+  <div class="ais" id="ais"></div>
   <button id="btnInstall" title="앱으로 설치">앱 설치</button>
 </header>
 
@@ -157,6 +164,28 @@ body.dragmode,body.dragmode *{cursor:grabbing!important;-webkit-user-select:none
   }
   $('q').addEventListener('input', render);
   render();
+
+  /* AI 연결 확인: 런처가 열릴 때 Gemini·Claude·Groq가 실제로 응답하는지 서버에서 확인해
+     성공하면 컬러(활성), 실패·미등록이면 회색(비활성)으로 보여준다. 아이콘은 자체 제작한 이니셜 배지. */
+  const AIS = [['gemini', 'Gemini', 'G', '#4285f4'], ['claude', 'Claude', 'C', '#d97757'], ['groq', 'Groq', 'Q', '#f55036']];
+  const aiBox = $('ais');
+  aiBox.innerHTML = AIS.map(a => '<button class="ai chk" data-k="' + a[0] + '" style="--c:' + a[3] + '" aria-label="' + a[1] + '" title="' + a[1] + ' 확인 중…">' + a[2] + '</button>').join('');
+  const aiSet = (k, st, tip) => { const b = aiBox.querySelector('[data-k="' + k + '"]'); if (!b) return; b.classList.remove('chk'); b.classList.toggle('off', st !== 'ok'); b.title = tip; b.dataset.tip = tip; };
+  async function checkAI() {
+    const phone = lsGet('SIMAS_AI_PHONE');
+    const label = { ok: '연결됨', fail: '연결 실패', nokey: '키 미등록' };
+    if (!phone) { AIS.forEach(a => aiSet(a[0], 'fail', a[1] + ': 등록된 번호가 없어 확인하지 못했어요 (SIM Message·Assistant에서 번호 등록)')); return; }
+    try {
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 15000);
+      const r = await fetch('https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/ai-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }), signal: ctl.signal });
+      clearTimeout(t);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || r.status);
+      AIS.forEach(a => aiSet(a[0], j[a[0]], a[1] + ': ' + (label[j[a[0]]] || '알 수 없음')));
+    } catch (e) { AIS.forEach(a => aiSet(a[0], 'fail', a[1] + ': 확인하지 못했어요 (네트워크 또는 번호 확인)')); }
+  }
+  aiBox.onclick = e => { const b = e.target.closest('.ai'); if (b) toast(b.dataset.tip || b.title); };
+  checkAI();
 
   /* ── 카드 끌어서 순서 바꾸기 ──
      마우스: 6px 이상 끌면 시작. 터치: 0.4초 길게 누른 뒤 끌기(그 전에 움직이면 일반 스크롤).

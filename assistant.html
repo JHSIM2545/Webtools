@@ -895,6 +895,10 @@ function presentContact(intent, sl, c) {
   pending = null;
   const val = field === 'email' ? c.email : field === 'company' ? [c.company, c.title].filter(Boolean).join(' ') : field === 'address' ? c.address : (c.mobile || c.tel);
   const lab = { phone: '전화번호', email: '이메일', company: '회사', address: '주소' }[field];
+  if (field === 'phone' && val && dial(c)) {   // 번호를 알려 준 뒤 "전화를 걸까요?"
+    pending = newP('call', sl); pending.stage = 'callok'; pending.contact = c;
+    return bot((c.name || c.company) + '님의 전화번호는 ' + spokenNo(val) + '입니다. 전화를 걸까요?', { html: contactCard(c) + '<span class="sub">"응"이라고 하거나 아래 번호를 누르면 전화가 걸려요</span>', tok: pending.tok, btns: callBtns(c, true).filter(b => b.href && b.href.startsWith('tel')).concat([{ label: '📞 전화 걸기', primary: true, fn: () => handleText('응') }, { label: '아니요', fn: () => cancelP('알겠어요.') }]) });
+  }
   const say = val ? (c.name || c.company) + '님의 ' + lab + '는 ' + (field === 'phone' ? spokenNo(val) : val) + '입니다.' : (c.name || c.company) + '님은 ' + lab + ' 정보가 없어요.';
   bot(say, { html: contactCard(c), btns: callBtns(c, true) });
 }
@@ -1519,7 +1523,7 @@ function kbSaveFact(key, value) {
   kbSave(); return o;
 }
 const kbPlaceCand = p => ({ lat: p.lat, lng: p.lng, name: p.name, addr: p.addr || p.q, src: '기억한 장소', approx: false });
-const KB_STOP = new Set(['내가', '어디', '뭐', '뭐였', '뭐지', '뭐야', '알려', '알려줘', '기록', '기억', '찾아', '말해', '언제', '얼마', '몇', '누구', '그거', '그게', '나는', '내']);
+const KB_STOP = new Set(['내가', '어디', '뭐', '뭐였', '뭐지', '뭐야', '알려', '알려줘', '기록', '기억', '찾아', '말해', '언제', '얼마', '몇', '누구', '번호', '그거', '그게', '나는', '내']);
 const kbTokens = t => String(t).split(/[^가-힣A-Za-z0-9]+/).map(w => w.replace(/(에서|으로|에게|한테|이랑|은|는|이|가|을|를|의|도|로|에|와|과|랑)$/, '')).filter(w => w.length >= 2 && !KB_STOP.has(w) && !/^(뭐|어디|언제|얼마|알려|기억|기록|말해|찾아|였지|했지|했더라|더라|있었|했어|했는지|뭐였지)/.test(w));
 function kbSearch(t) {
   const toks = kbTokens(t), tn = String(t).replace(/\s+/g, '');
@@ -1529,7 +1533,7 @@ function kbSearch(t) {
     .concat(KB.places.map(p => ({ t: 'place', id: p.id, label: p.name, text: p.name + ': ' + (p.addr || p.q), hay: (p.name + p.addr + p.q).replace(/\s+/g, ''), at: p.at, place: p })))
     .concat((MEM.memos || []).map(m => ({ t: 'memo', id: m.id, label: '메모', text: m.content, hay: String(m.content).replace(/\s+/g, ''), at: m.created })));
   return items.map(it => ({ it, s: toks.reduce((a, w) => a + (it.hay.includes(w) ? 1 + (w.length >= 3 ? 0.5 : 0) : 0), 0) + (it.t === 'place' ? (keyHit(it.label, 1) ? 3 : 0) : it.t === 'fact' && it.label !== '기록' && keyHit(it.label, 2) ? 3 : 0) })).filter(x => x.s > 0)
-    .sort((a, b) => b.s - a.s || String(b.it.at).localeCompare(String(a.it.at))).slice(0, 4).map(x => x.it);
+    .sort((a, b) => b.s - a.s || String(b.it.at).localeCompare(String(a.it.at))).slice(0, 4).map(x => Object.assign({ s: x.s }, x.it));
 }
 const KB_PLACEWORD = /^(?:우리\s*)?(집|사무실|회사|직장|본가|친정(?:집)?|어머니\s*댁|어머님\s*댁|엄마\s*집|엄마네|아버지\s*댁|아빠\s*집|부모님\s*댁|처갓집|시댁)$/;
 function memIntent(text) {
@@ -1545,7 +1549,13 @@ function memIntent(text) {
     let s = t.replace(/(이?라고|라는\s*(거|것|내용|걸)?|라며)?\s*(을|를)?\s*(좀\s*)?(음성\s*메모(로|에)?\s*)?(기억|기록|적어|외워)\s*(해|좀)?\s*(줘|둬|두|놔|주세요|줄래|해줘)\S*[\s.]*$/, '').replace(/잊지\s*마\S*/, '').trim();
     if (s.length < 2) s = t.replace(/^.*?(기억|기록|적어|외워)\S*[\s:,]*/, '').trim();
     s = s.replace(/^(음성\s*메모(로|에)?|메모로)\s*/, '').replace(/(을|를)$/, '').trim();
-    if (s.length >= 2) {
+    if (s.length >= 2) return kbParse(s);
+    return { k: 'ask' };   // 내용이 없으면 무엇을 기록할지 물음
+  }
+  return kbMore(t);
+}
+function kbParse(s) {
+    {
       const m = s.match(/^(.{1,20}?)\s*(?:주소|위치)?\s*(?:은|는|:|=|(?:이|가)(?=\s))\s*(.+)$/);
       let key = '', val = s;
       if (m) { key = m[1].trim(); val = m[2].replace(/\s*(이야|야|이에요|예요|입니다|이다|임|이라고|라고)\.?$/, '').replace(/[.。]+$/, '').trim(); }
@@ -1554,15 +1564,16 @@ function memIntent(text) {
       const isPlace = key && (KB_PLACEWORD.test(key.replace(/\s*(주소|위치)$/, '')) || (/(집|댁|사무실|회사|학교|매장|가게|사업장|공장|농장|별장)$/.test(key.replace(/\s*(주소|위치)$/, '')) && addrLike));
       return { k: 'remember', key, val, place: !!isPlace, raw: s };
     }
-    return null;   // 내용이 없으면 기존 메모 흐름
-  }
+}
+function kbMore(t) {
   // 3) 목록
   if (/(기억|저장).{0,6}(한|해\s*둔|해둔|해\s*놓은|해놓은|된).{0,10}(보여|알려|목록|뭐|전부|모두|리스트)|기억\s*(목록|리스트|보여|뭐)|(내가|뭘|무엇을).{0,6}기억.{0,6}(했|하고)|자주\s*가는\s*(곳|장소).{0,6}(보여|알려|목록|뭐)/.test(t)) return { k: 'list' };
   // 4) 별명 장소로 내비
   if (NLU.detect(t) === 'navigate') { const d = NLU.extract('navigate', t, new Date()).dest; if (d && kbPlace(d)) return { k: 'nav', sl: { dest: d } }; return null; }
   // 5) 질문 → 기억에서 찾기
-  if (/(뭐|뭐였|뭐지|뭐야|어디|언제|얼마|몇|누구|알려|기억나|찾아|말해|였지|했지|더라|인지|보여)/.test(t) && !/(일정|알람|연락처|전화|메모\s*(보여|목록))/.test(t.replace(/(집|사무실|회사)\s*전화/, ''))) {
-    const r = kbSearch(t); if (r.length) return { k: 'find', items: r };
+  if (/(뭐|뭐였|뭐지|뭐야|어디|언제|얼마|몇|누구|알려|기억나|찾아|말해|였지|했지|더라|인지|보여)/.test(t) && !/(일정|알람|메모\s*(보여|목록))/.test(t)) {
+    const r = kbSearch(t), det = NLU.detect(t);
+    if (r.length && (det !== 'contact_find' && det !== 'call' || r[0].s >= 3)) return { k: 'find', items: r };   // 연락처 조회는 기억 키가 분명할 때만 가로챔
   }
   return null;
 }
@@ -1578,6 +1589,7 @@ function kbDel(it) {
 }
 async function memHandle(m) {
   if (m.k === 'nav') return navFlow(m.sl);
+  if (m.k === 'ask') { pending = newP('mem', {}); pending.ask = 'kbcontent'; return bot('무엇을 기억해 둘까요? 예: "2층 화장실 비밀번호는 1234야"', { tok: pending.tok, btns: [{ label: '취소', fn: () => cancelP('취소했어요.') }] }); }
   if (m.k === 'remember') {
     if (m.place) {
       sys('"' + m.key + '" 위치를 확인하는 중…');
@@ -1703,6 +1715,7 @@ async function continueP(p, text, n) {
     return bot('몇 번째인지 번호로 말씀해 주세요. 예: "2번"', { tok: p.tok });
   }
   if (p.ask === 'memname') return kbNameAnswer(p, text);
+  if (p.ask === 'kbcontent') { const s0 = text.replace(/(이?라고|을|를)?\s*(기억|기록|적어)\S*\s*$/, '').trim(); pending = null; return s0.length >= 2 ? memHandle(kbParse(s0)) : bot('내용을 알아듣지 못했어요. 다시 말씀해 주세요.'); }
   if (p.ask === 'navdest') {
     const d = NLU.extract('navigate', cleanAns(n) + ' 가자', new Date()).dest || cleanAns(n);
     pending = null; return navFlow({ dest: d });

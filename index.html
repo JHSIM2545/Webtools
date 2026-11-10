@@ -68,8 +68,9 @@ body.dragmode,body.dragmode *{cursor:grabbing!important;-webkit-user-select:none
 }
 
 .ais{display:flex;gap:6px;align-items:center}
-.ai{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:800;color:#fff;border:0;padding:0;background:var(--c);box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--c);transition:filter .3s,opacity .3s}
-.ai.off{background:#3a3f4f;color:#8b92a8;box-shadow:0 0 0 2px var(--panel),0 0 0 3px #3a3f4f;filter:grayscale(1)}
+.ai{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;border:0;padding:0;overflow:hidden;background:#fff;box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--c);transition:filter .3s,opacity .3s}
+.ai img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+.ai.off{box-shadow:0 0 0 2px var(--panel),0 0 0 3px #3a3f4f;filter:grayscale(1) opacity(.55)}
 .ai.chk{opacity:.5;animation:aip 1s infinite alternate}
 @keyframes aip{to{opacity:.9}}
 </style>
@@ -167,9 +168,9 @@ body.dragmode,body.dragmode *{cursor:grabbing!important;-webkit-user-select:none
 
   /* AI 연결 확인: 런처가 열릴 때 Gemini·Claude·Groq가 실제로 응답하는지 서버에서 확인해
      성공하면 컬러(활성), 실패·미등록이면 회색(비활성)으로 보여준다. 아이콘은 자체 제작한 이니셜 배지. */
-  const AIS = [['gemini', 'Gemini', 'G', '#4285f4'], ['claude', 'Claude', 'C', '#d97757'], ['groq', 'Groq', 'Q', '#f55036']];
+  const AIS = [['gemini', 'Gemini', 'ai-gemini.png', '#4285f4'], ['claude', 'Claude', 'ai-claude.png', '#d97757'], ['groq', 'Groq', 'ai-groq.png', '#f55036']];
   const aiBox = $('ais');
-  aiBox.innerHTML = AIS.map(a => '<button class="ai chk" data-k="' + a[0] + '" style="--c:' + a[3] + '" aria-label="' + a[1] + '" title="' + a[1] + ' 확인 중…">' + a[2] + '</button>').join('');
+  aiBox.innerHTML = AIS.map(a => '<button class="ai chk" data-k="' + a[0] + '" style="--c:' + a[3] + '" aria-label="' + a[1] + '" title="' + a[1] + ' 확인 중…"><img src="' + a[2] + '" alt=""></button>').join('');
   const aiSet = (k, st, tip) => { const b = aiBox.querySelector('[data-k="' + k + '"]'); if (!b) return; b.classList.remove('chk'); b.classList.toggle('off', st !== 'ok'); b.title = tip; b.dataset.tip = tip; };
   async function checkAI() {
     const phone = lsGet('SIMAS_AI_PHONE');

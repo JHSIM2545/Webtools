@@ -1673,12 +1673,12 @@ function relRange(t, now) {   // "지난주 금요일", "어제", "최근 일주
   return null;
 }
 function salesIntent(raw) {
-  const t = String(raw).replace(/\s+/g, ' ').trim();
+  const t = String(raw).replace(/계야처|계얀처|계약쳐|게약처|계약처럼/g, '계약처').replace(/\s+/g, ' ').trim();
   if (!/(수주|계약|개시|기산|해약|인상|인하|재개시|재개|중지|유증|유지증가|유감|유지감소|유지금액|유지건수|상품\s*일보|안전\s*상품|계약처|거래처|고객사|전망)/.test(t)) return null;
   if (/(전화|연락처|번호|일정|알람|메모|내비|가자|길안내)/.test(t.replace(/알람\s*\+\s*휴엔/, ''))) return null;
   const tk = t.replace(/계약처|계약\s*번호/g, ' ');
   const nameW = /(계약처|거래처|고객사)/.test(t);
-  const metric = /유증|유지\s*증가/.test(t) ? 'net' : /유감|유지\s*감소/.test(t) ? 'loss' : /해약/.test(t) ? 'cancel' : /인상/.test(t) ? 'up' : /인하/.test(t) ? 'down' : /재개시|재개/.test(t) ? 'restart' : /중지/.test(t) ? 'stop' : /유지\s*(금액|건수|단가)/.test(t) ? 'keep' : /상품\s*일보|안전\s*상품/.test(t) ? 'product' : /기산/.test(t) && !/개시/.test(t) && (!nameW || /기산\s*(한|된|예정|했|건|내역|현황)/.test(t)) ? 'billing' : /개시|기산/.test(t) && (!nameW || /개시\s*(한|된|예정|했|건|내역|현황)/.test(t)) && !/수주/.test(t) ? 'start' : /수주|계약/.test(tk) || nameW ? 'order' : '';
+  const metric = /유증|유지\s*증가/.test(t) ? 'net' : /유감|유지\s*감소/.test(t) ? 'loss' : /해약/.test(t) ? 'cancel' : /인상/.test(t) ? 'up' : /인하/.test(t) ? 'down' : /재개시|재개/.test(t) ? 'restart' : /중지/.test(t) ? 'stop' : /유지\s*(금액|건수|단가)/.test(t) ? 'keep' : /상품\s*일보|안전\s*상품/.test(t) ? 'product' : /기산/.test(t) && !/개시/.test(t) && (!nameW || /기산\s*(한|된|예정|했|건|내역|현황)/.test(t)) ? 'billing' : /개시|기산/.test(t) && (!nameW || /개시(?!일)|기산(?!일)/.test(t)) && !/수주/.test(t) ? 'start' : /수주|계약/.test(tk) || nameW ? 'order' : '';
   let br = SB_BRANCHES.find(b => t.includes(b)) || '';
   if (!br) { const m0 = t.match(/([가-힣]{2,4})\s*지사/); if (m0) br = m0[1]; }
   const nowD = new Date(); let month = 0, day = 0, m;
@@ -1701,14 +1701,14 @@ function salesIntent(raw) {
   const kind = { order: 'order', start: 'start', billing: 'billing', cancel: 'cancel', up: 'up', down: 'down', restart: 'restart', stop: 'restart', product: 'product' }[metric] || '';
   // 이름(계약처·담당자) 뽑기
   let q = '', mm;
-  const ts = t.replace(SB_REL, ' ').replace(/(수주|계약|해약|인상|인하|개시|재개시)\s*(한|된|했던|했는|했)\S*/g, ' ').replace(/\s+/g, ' ').trim();
+  const ts = t.replace(SB_REL, ' ').replace(/(수주|계약|해약|인상|인하|개시|재개시)\s*(한|된|했던|했는|했)\S*/g, ' ').replace(/(개시|기산|수주|계약|해약|인상|인하|재개시)\s*건\S*/g, ' ').replace(/(?:^|\s)건(?:은|이|을|들|들은)?(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim();
   if (nameW) {
     mm = ts.replace(/수주\s*건\s*(중에서|중에|중|에서)?/g, ' ').trim().match(/^((?:(?!계약처|거래처|고객사).)+?)\s*(?:이|가|라는|인)?\s*(?:계약처|거래처|고객사)/);
     if (mm) q = mm[1].trim();
     if (!q && (mm = ts.match(/(?:계약처|거래처|고객사)\s*명?\s*(?:이|은|는|가)?\s*(.+?)\s*(?:인\s|인$|이라는|라는|이라고|라고|인\s*(?:계약처|거래처)|(?:이|가)\s*있|있|조회|찾|알려|검색|언제|개시|기산)/))) q = mm[1];
     if (/^(무엇|뭐|어떤|이름)/.test(q)) q = '';
   }
-  if (!q) q = ts.split(' ').filter(w => { let b = w.replace(/(은|는|이|가|을|를|의|도|만|에서|에|요|야|인지|인가요|이야)$/, ''); w = w.replace(/[?？.!,]+$/g, ''); b = b.replace(/[?？.!,]+$/g, ''); return !(!w || SB_NOISE.test(w) || SB_NOISE.test(b) || SB_VERB.test(w) || /^[\d.,?!]+$/.test(w)); }).join(' ').replace(/[?？.!]/g, '').trim();
+  if (!q) q = ts.split(' ').filter(w => { let b = w.replace(/(은|는|이|가|을|를|의|도|만|에서|에|요|야|인지|인가요|이야)$/, '').replace(/건$/, ''); w = w.replace(/[?？.!,]+$/g, ''); b = b.replace(/[?？.!,]+$/g, ''); return !(!w || SB_NOISE.test(w) || SB_NOISE.test(b) || SB_VERB.test(w) || /^[\d.,?!]+$/.test(w)); }).join(' ').replace(/[?？.!]/g, '').trim();
   q = q.split(' ').filter(w => w && !SB_NOISE.test(w)).join(' ');
   q = q.replace(/\s*(?:인|이|가|은|는|을|를)$/, m2 => (q.length > 3 ? '' : m2)).trim();
   if (!kind && !q && !nameW) return null;

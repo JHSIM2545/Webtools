@@ -48,6 +48,9 @@ main{flex:1;display:flex;min-height:0}
 .stage.pip #ytbox{left:auto!important;top:12px!important;right:12px;width:356px!important;height:200px!important;max-width:calc(100% - 24px);border-radius:10px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.6);z-index:3}
 .shade{position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,.30),rgba(0,0,0,.50));pointer-events:none;z-index:2}
 .stage[data-bg="video"] .shade{background:linear-gradient(rgba(0,0,0,.18),rgba(0,0,0,.42))}
+body.nolyr .lyr{display:none}
+#bLyr[aria-pressed="false"]{text-decoration:line-through;opacity:.55}
+#bOff0:disabled{opacity:.4}
 .lyr{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vmin;padding:4vmin 5vw;text-align:center;pointer-events:none}
 .l{max-width:100%;overflow-wrap:break-word;word-break:keep-all;text-wrap:balance;text-shadow:0 .05em .14em rgba(0,0,0,.95),0 0 .35em rgba(0,0,0,.7)}
 .l.cur{font-size:clamp(26px,calc(8.4vmin * var(--fscale)),150px);font-weight:800;line-height:1.28;color:#fff;min-height:1.28em}
@@ -222,8 +225,8 @@ body.fs .ctrl.show{transform:none}
         </div>
         <div class="now" id="now">곡을 선택하세요</div>
         <div class="grp"><button id="bMute" title="음소거">🔊</button><input type="range" id="vol" min="0" max="100" step="1" value="80" aria-label="볼륨"></div>
-        <div class="grp"><button id="bOffM" title="가사를 더 빠르게 (-0.1초)">◀</button><span class="sm" id="offLbl">싱크 0.0s</span><button id="bOffP" title="가사를 더 늦게 (+0.1초)">▶</button></div>
-        <div class="grp"><button id="bFm" title="가사 작게">A−</button><button id="bFp" title="가사 크게">A+</button></div>
+        <div class="grp"><button id="bOffM" title="가사를 더 빠르게 (-0.1초)">◀</button><span class="sm" id="offLbl">싱크 0.0s</span><button id="bOffP" title="가사를 더 늦게 (+0.1초)">▶</button><button id="bOff0" title="싱크를 0으로 되돌리기" disabled>↺0</button></div>
+        <div class="grp"><button id="bFm" title="가사 작게">A−</button><button id="bFp" title="가사 크게">A+</button><button id="bLyr" title="가사 표시 켜기/끄기 (L)" aria-pressed="true">가사</button></div>
       </div>
     </div>
   </section>
@@ -339,7 +342,7 @@ body.fs .ctrl.show{transform:none}
   const KEY = 'simorch.v1', SKEY = 'simorch.set.v1';
   let DB = { songs: [] };
   try { const j = JSON.parse(lsGet(KEY) || '{}'); if (j && Array.isArray(j.songs)) DB = j; } catch (e) {}
-  let S = { vol: 80, mute: false, fs: 1, fit: 'auto', slide: 8, autoNext: true, last: '', findKind: 'MR' };
+  let S = { vol: 80, mute: false, fs: 1, fit: 'auto', slide: 8, autoNext: true, last: '', findKind: 'MR', showLyr: true };
   try { Object.assign(S, JSON.parse(lsGet(SKEY) || '{}')); } catch (e) {}
   const saveDB = () => lsSet(KEY, JSON.stringify(DB));
   const saveS = () => lsSet(SKEY, JSON.stringify(S));
@@ -464,7 +467,7 @@ body.fs .ctrl.show{transform:none}
     cur = s; S.last = id; saveS();
     lines = parseLRC(s.lrc).lines; idx = -99; lit = 0; spans = [];
     hideErr(); $('hello').classList.add('hidden');
-    $('now').textContent = s.title || '(제목 없음)'; $('offLbl').textContent = offTxt();
+    $('now').textContent = s.title || '(제목 없음)'; paintOff();
     $('stage').dataset.bg = s.bg;
     layoutYT(); startSlides(); renderList();
     loadVideo(s.vid);
@@ -665,13 +668,13 @@ body.fs .ctrl.show{transform:none}
     let s = E.id ? DB.songs.find(x => x.id === E.id) : null; const wasVid = s ? s.vid : '';
     if (s) Object.assign(s, rec); else { s = Object.assign({ id: uid(), added: Date.now() }, rec); DB.songs.push(s); }
     saveDB(); $('mSong').classList.remove('show'); renderList(); renderQueue();
-    if (cur && cur.id === s.id) { cur = s; if (wasVid !== s.vid) playSong(s.id); else { lines = parseLRC(s.lrc).lines; idx = -99; $('now').textContent = s.title; $('offLbl').textContent = offTxt(); $('stage').dataset.bg = s.bg; layoutYT(); startSlides(); } }
+    if (cur && cur.id === s.id) { cur = s; if (wasVid !== s.vid) playSong(s.id); else { lines = parseLRC(s.lrc).lines; idx = -99; $('now').textContent = s.title; paintOff(); $('stage').dataset.bg = s.bg; layoutYT(); startSlides(); } }
     toast(E.id ? '저장했어요' : '곡을 추가했어요');
   };
   $('eDel').onclick = () => {
     const b = $('eDel'); if (!b.dataset.ask) { b.dataset.ask = '1'; b.textContent = '정말 삭제?'; return; }
     DB.songs = DB.songs.filter(x => x.id !== E.id); queue = queue.filter(id => id !== E.id); saveDB();
-    if (cur && cur.id === E.id) { cur = null; lines = []; if (player && player.stopVideo) player.stopVideo(); $('hello').classList.remove('hidden'); $('now').textContent = '곡을 선택하세요'; $('lCur').textContent = ''; $('lNext').textContent = ''; $('lPrev').textContent = ''; setDots(0); layoutYT(); stopSlides(); clearBg(); $('bPlay').textContent = '▶'; }
+    if (cur && cur.id === E.id) { cur = null; lines = []; if (player && player.stopVideo) player.stopVideo(); $('hello').classList.remove('hidden'); $('now').textContent = '곡을 선택하세요'; $('lCur').textContent = ''; $('lNext').textContent = ''; $('lPrev').textContent = ''; setDots(0); layoutYT(); stopSlides(); clearBg(); $('bPlay').textContent = '▶'; paintOff(); }
     $('mSong').classList.remove('show'); renderList(); renderQueue(); toast('삭제했어요');
   };
 
@@ -839,7 +842,12 @@ body.fs .ctrl.show{transform:none}
   $('vol').value = S.vol; paintMute();
   $('vol').oninput = () => { S.vol = +$('vol').value; if (S.vol > 0) S.mute = false; saveS(); if (player && player.setVolume) { player.setVolume(S.vol); S.mute ? player.mute() : player.unMute(); } paintMute(); };
   $('bMute').onclick = () => { S.mute = !S.mute; saveS(); if (player && player.mute) S.mute ? player.mute() : player.unMute(); paintMute(); };
-  const bumpOff = d => { if (!cur) return; cur.offset = Math.round(((cur.offset || 0) + d) * 10) / 10; $('offLbl').textContent = offTxt(); saveDB(); };
+  function paintOff() { $('offLbl').textContent = offTxt(); $('bOff0').disabled = !cur || !cur.offset; }
+  const bumpOff = d => { if (!cur) return; cur.offset = Math.round(((cur.offset || 0) + d) * 10) / 10; paintOff(); saveDB(); };
+  $('bOff0').onclick = () => { if (!cur) return; cur.offset = 0; paintOff(); saveDB(); toast('싱크를 0으로 되돌렸어요'); };
+  const paintLyr = () => { document.body.classList.toggle('nolyr', !S.showLyr); $('bLyr').setAttribute('aria-pressed', S.showLyr ? 'true' : 'false'); };
+  const toggleLyr = () => { S.showLyr = !S.showLyr; saveS(); paintLyr(); toast(S.showLyr ? '가사 표시' : '가사 숨김'); };
+  $('bLyr').onclick = toggleLyr; paintLyr();
   $('bOffM').onclick = () => bumpOff(-0.1); $('bOffP').onclick = () => bumpOff(0.1);
 
   /* ── 전체 화면 ── */
@@ -866,6 +874,7 @@ body.fs .ctrl.show{transform:none}
     else if (e.key === 'ArrowLeft' && player && player.seekTo) player.seekTo(Math.max(0, player.getCurrentTime() - 5), true);
     else if (e.key === 'f' || e.key === 'F') setFs(!inFs());
     else if (e.key === 'n' || e.key === 'N') nextSong(false);
+    else if (e.key === 'l' || e.key === 'L') toggleLyr();
     else if (e.key === 'Escape' && inFs()) setFs(false);
   });
   document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m && m.id !== 'mSong') m.classList.remove('show'); }));

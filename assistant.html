@@ -1717,6 +1717,31 @@ function salesIntent(raw) {
   if (kind && !q && !month && !day && !rng && !upcoming) month = nowD.getMonth() + 1;   // 기간·이름이 없으면 이번 달
   return { k: 'lookup', kind: kind || (nameW ? 'order' : ''), q, month, day, from: rng ? rng.from : '', to: rng ? rng.to : '', label: rng ? rng.label : '', upcoming };
 }
+const SAURL = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-sales-ai';
+const SB_GATE = /(수주|계약|개시|기산|해약|인상|인하|재개시|재개|중지|유증|유지증가|유감|유지감소|유지금액|유지건수|상품\s*일보|안전\s*상품|계약처|계야처|거래처|고객사|전망)/;
+async function salesAI(text) {   // AI가 말을 조회 조건으로 해석 → salesIntent 와 같은 모양. null = AI 못 씀(규칙으로), {none:true} = 일보 질문 아님
+  const t = String(text);
+  if (!SB_GATE.test(t) || /(전화|연락처|번호|일정|알람|메모|내비|가자|길안내)/.test(t.replace(/알람\s*\+\s*휴엔/, ''))) return null;
+  const phone = gKey(); if (!phone || !aiUsable()) return null;
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 14000);
+  try {
+    const r = await fetch(SAURL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, text: t }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.q) { if (r.status !== 403 && r.status !== 429) aiDownUntil = Date.now() + 3 * 60 * 1000; return null; }
+    const a = j.q, nowD = new Date(), ym0 = nowD.getFullYear() + '-' + String(nowD.getMonth() + 1).padStart(2, '0');
+    if (a.intent === 'none') return { none: true };
+    if (a.intent === 'forecast') { const ym = a.ym || ym0; return { k: 'forecast', metric: a.metric || 'net', ym, filter: a.filter || '', month: +ym.slice(5, 7) }; }
+    const m = a.from ? +a.from.slice(5, 7) : 0, d = a.from && a.from === a.to ? +a.from.slice(8, 10) : 0;
+    if (a.intent === 'branch' && a.branch) return { k: 'branch', branch: a.branch, month: m, day: d, metric: a.metric || 'start' };
+    if (a.intent === 'lookup') {
+      const kind = a.kind === 'any' ? '' : a.kind;
+      let month = d || !a.from ? (d ? m : 0) : 0;
+      if (kind && !a.q && !a.from && !a.upcoming) month = nowD.getMonth() + 1;
+      return { k: 'lookup', kind, q: a.q || '', month, day: d, from: a.from || '', to: a.to || '', label: a.label || '', upcoming: !!a.upcoming && !a.from };
+    }
+    return null;
+  } catch (e) { return null; } finally { clearTimeout(to); }
+}
 const fdK = d => { if (!d) return '미정'; const s0 = String(d), y = s0.slice(0, 4), cy = String(new Date().getFullYear()); return (y !== cy ? y + '년 ' : '') + (+s0.slice(5, 7)) + '월 ' + (+s0.slice(8, 10)) + '일'; };
 async function salesAsk(m) {
   const phone = gKey();
@@ -1754,7 +1779,7 @@ async function handleText(raw, viaAI) {
     pending = null;   // 다른 요청이 들어오면 이전 것은 접는다
   }
   if (!viaAI) { const mi = memIntent(text); if (mi) return memHandle(mi); }
-  if (!viaAI) { const si = salesIntent(text); if (si) return salesAsk(si); }   // 영업일보 조회   // 기억 저장·조회·삭제 (기기 안에서만 처리)
+  if (!viaAI) { const ai = await salesAI(text); if (ai && ai.none) { /* AI: 일보 질문 아님 → 아래 일반 처리 */ } else { const si = ai || salesIntent(text); if (si) return salesAsk(si); } }   // 영업일보 조회   // 기억 저장·조회·삭제 (기기 안에서만 처리)
   if (!viaAI && looksLikeMessage(text) && await importMessage(text)) return;   // 문자 붙여넣기 → 일정 자동 등록
   if (!viaAI && aiUsable() && await askGemini(text)) return;   // 기본은 AI, 실패하면 아래 로컬 엔진
   const intent = NLU.detect(text);

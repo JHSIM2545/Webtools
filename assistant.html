@@ -1640,8 +1640,38 @@ function kbNameAnswer(p, text) {
 /* ───────── 영업일보 조회 (북서울지사 일보 DB를 서버 함수 assistant-sales로 읽기 전용 조회) ───────── */
 const SURL = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-sales';
 const SB_BRANCHES = ['강남광역', '강북광역', '서울동부', '남양주', '영등포', '동서울', '서서울', '북서울', '서초', '구로', '강서', '송파', '제주', '강동', '서강', '성북'];
-const SB_NOISE = /^(?:\d{1,2}월|\d{1,2}일|이번|지난|이번달|지난달|달|오늘|어제|올해|전체|총|누계|현재|북서울|북서울지사|지사|건수|건|건중|건중에|중|얼마|몇|조회|조회해|알려|보여|줘|해줘|주세요|있어|있어요|있나|있나요|있는지|있는|있습니까|내역|목록|리스트|합계|금액|월정료|상품일보|안전상품|상품|수주|계약|계약처|계약처명|거래처|고객사|해약|인상|인하|재개시|재개|중지|개시|개시일|기산일|기산|현황|정보|내용|언제|뭐야|뭐|무엇|어떻게|어떤|좀|이름|일보|데이터|확인|검색|찾아|찾아줘|사유|이유|상태|구분|문의|궁금해|궁금)$/;
+const SB_NOISE = /^(?:\d{1,2}월|\d{1,2}일|이번|지난|이번달|지난달|달|오늘|어제|올해|전체|총|누계|현재|북서울|북서울지사|지사|건수|건|건중|건중에|중|얼마|몇|조회|조회해|알려|보여|줘|해줘|주세요|있어|있어요|있나|있나요|있는지|있는|있습니까|내역|목록|리스트|합계|금액|월정료|상품일보|안전상품|상품|수주|계약|계약처|계약처명|거래처|고객사|해약|인상|인하|재개시|재개|중지|개시|개시일|기산일|기산|현황|정보|내용|언제|뭐야|뭐|무엇|어떻게|어떤|좀|이름|일보|데이터|확인|검색|찾아|찾아줘|사유|이유|상태|구분|문의|궁금해|궁금|어디|누구|어느|어떤|어떻게|뭔지|이었|였어|지난|이번|저번|최근|곳|거|것|분|수주한|계약한)$/;
 const SB_VERB = /^(?:알려|보여|조회|찾아|검색|확인|말해|궁금|있|없|해줘|줘)\S*$/;
+const SB_WD = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
+const SB_REL = /(?:지지난|지난|저번|전|이번|다음|담)\s*주\s*(?:[월화수목금토일]요일)?|(?:지난|이번|저번)\s*[월화수목금토일]요일|[월화수목금토일]요일|오늘|어제|그저께|그제|엊그제|모레|내일|\d+\s*일\s*(?:전|후)|최근\s*(?:\d+\s*)?(?:일주일|주일|일|주)|\d{1,2}\s*월\s*(?:\d{1,2}\s*일)?|이번\s*달|지난\s*달|금월|당월|전월/g;
+function relRange(t, now) {   // "지난주 금요일", "어제", "최근 일주일" 같은 상대 날짜 → {from,to,label}
+  const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const md = d => (d.getMonth() + 1) + '월 ' + d.getDate() + '일';
+  const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const add = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+  const monday = d => add(d, -((d.getDay() + 6) % 7));
+  const out = (a, b, label) => ({ from: iso(a), to: iso(b), label: label + (iso(a) === iso(b) ? '(' + md(a) + ')' : '(' + md(a) + '~' + md(b) + ')') });
+  let m;
+  if ((m = t.match(/(지지난|지난|저번|전|이번|다음|담)\s*주\s*(?:([월화수목금토일])요일)?/))) {
+    const off = { 지지난: -2, 지난: -1, 저번: -1, 전: -1, 이번: 0, 다음: 1, 담: 1 }[m[1]], mon = add(monday(base), 7 * off), nm = m[1] + '주';
+    if (m[2]) { const wd = SB_WD[m[2]], d = add(mon, wd === 0 ? 6 : wd - 1); return out(d, d, nm + ' ' + m[2] + '요일'); }
+    return out(mon, add(mon, 6), nm);
+  }
+  if ((m = t.match(/(지난|저번|이번)\s*([월화수목금토일])요일/))) {
+    const wd = SB_WD[m[2]];
+    if (m[1] === '이번') { const d = add(monday(base), wd === 0 ? 6 : wd - 1); return out(d, d, '이번 ' + m[2] + '요일'); }
+    let d = add(base, -1); while (d.getDay() !== wd) d = add(d, -1); return out(d, d, '지난 ' + m[2] + '요일');
+  }
+  if ((m = t.match(/([월화수목금토일])요일/))) { const wd = SB_WD[m[1]]; let d = new Date(base); while (d.getDay() !== wd) d = add(d, -1); return out(d, d, m[1] + '요일'); }
+  if (/그저께|그제|엊그제/.test(t)) return out(add(base, -2), add(base, -2), '그저께');
+  if (/어제/.test(t)) return out(add(base, -1), add(base, -1), '어제');
+  if (/모레/.test(t)) return out(add(base, 2), add(base, 2), '모레');
+  if (/내일/.test(t)) return out(add(base, 1), add(base, 1), '내일');
+  if (/오늘/.test(t)) return out(base, base, '오늘');
+  if ((m = t.match(/(\d+)\s*일\s*(전|후)/))) { const d = add(base, (m[2] === '전' ? -1 : 1) * +m[1]); return out(d, d, m[0].replace(/\s+/g, '')); }
+  if ((m = t.match(/최근\s*(\d+)?\s*(일주일|주일|일|주)/))) { const n = m[2] === '일주일' ? 7 : m[2] === '일' ? +m[1] || 1 : (+m[1] || 1) * 7; return out(add(base, -(n - 1)), base, '최근 ' + n + '일'); }
+  return null;
+}
 function salesIntent(raw) {
   const t = String(raw).replace(/\s+/g, ' ').trim();
   if (!/(수주|계약|개시|기산|해약|인상|인하|재개시|재개|중지|유증|유지증가|유감|유지감소|유지금액|유지건수|상품\s*일보|안전\s*상품|계약처|거래처|고객사|전망)/.test(t)) return null;
@@ -1652,7 +1682,9 @@ function salesIntent(raw) {
   let br = SB_BRANCHES.find(b => t.includes(b)) || '';
   if (!br) { const m0 = t.match(/([가-힣]{2,4})\s*지사/); if (m0) br = m0[1]; }
   const nowD = new Date(); let month = 0, day = 0, m;
-  if ((m = t.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/))) { month = +m[1]; day = +m[2]; }
+  const rng = (/(\d{1,2})\s*월/.test(t) || /이번\s*달|지난\s*달|금월|당월|전월/.test(t)) ? null : relRange(t, nowD);
+  if (rng) { if (rng.from === rng.to) { month = +rng.from.slice(5, 7); day = +rng.from.slice(8, 10); } }
+  else if ((m = t.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/))) { month = +m[1]; day = +m[2]; }
   else if ((m = t.match(/(\d{1,2})\s*월/))) month = +m[1];
   else if (/이번\s*달|금월|당월/.test(t)) month = nowD.getMonth() + 1;
   else if (/지난\s*달|전월/.test(t)) month = nowD.getMonth() === 0 ? 12 : nowD.getMonth();
@@ -1669,18 +1701,20 @@ function salesIntent(raw) {
   const kind = { order: 'order', start: 'start', cancel: 'cancel', up: 'up', down: 'down', restart: 'restart', stop: 'restart', product: 'product' }[metric] || '';
   // 이름(계약처·담당자) 뽑기
   let q = '', mm;
+  const ts = t.replace(SB_REL, ' ').replace(/(수주|계약|해약|인상|인하|개시|재개시)\s*(한|된|했던|했는|했)\S*/g, ' ').replace(/\s+/g, ' ').trim();
   if (nameW) {
-    mm = t.replace(/수주\s*건\s*(중에서|중에|중|에서)?/g, ' ').trim().match(/^((?:(?!계약처|거래처|고객사).)+?)\s*(?:이|가|라는|인)?\s*(?:계약처|거래처|고객사)/);
+    mm = ts.replace(/수주\s*건\s*(중에서|중에|중|에서)?/g, ' ').trim().match(/^((?:(?!계약처|거래처|고객사).)+?)\s*(?:이|가|라는|인)?\s*(?:계약처|거래처|고객사)/);
     if (mm) q = mm[1].trim();
-    if (!q && (mm = t.match(/(?:계약처|거래처|고객사)\s*명?\s*(?:이|은|는|가)?\s*(.+?)\s*(?:인\s|인$|이라는|라는|이라고|라고|인\s*(?:계약처|거래처)|(?:이|가)\s*있|있|조회|찾|알려|검색|언제|개시|기산)/))) q = mm[1];
+    if (!q && (mm = ts.match(/(?:계약처|거래처|고객사)\s*명?\s*(?:이|은|는|가)?\s*(.+?)\s*(?:인\s|인$|이라는|라는|이라고|라고|인\s*(?:계약처|거래처)|(?:이|가)\s*있|있|조회|찾|알려|검색|언제|개시|기산)/))) q = mm[1];
     if (/^(무엇|뭐|어떤|이름)/.test(q)) q = '';
   }
-  if (!q) q = t.split(' ').filter(w => { let b = w.replace(/(은|는|이|가|을|를|의|도|만|에서|에|요|야|인지|인가요|이야)$/, ''); w = w.replace(/[?？.!,]+$/g, ''); b = b.replace(/[?？.!,]+$/g, ''); return !(!w || SB_NOISE.test(w) || SB_NOISE.test(b) || SB_VERB.test(w) || /^[\d.,?!]+$/.test(w)); }).join(' ').replace(/[?？.!]/g, '').trim();
+  if (!q) q = ts.split(' ').filter(w => { let b = w.replace(/(은|는|이|가|을|를|의|도|만|에서|에|요|야|인지|인가요|이야)$/, ''); w = w.replace(/[?？.!,]+$/g, ''); b = b.replace(/[?？.!,]+$/g, ''); return !(!w || SB_NOISE.test(w) || SB_NOISE.test(b) || SB_VERB.test(w) || /^[\d.,?!]+$/.test(w)); }).join(' ').replace(/[?？.!]/g, '').trim();
+  q = q.split(' ').filter(w => w && !SB_NOISE.test(w)).join(' ');
   q = q.replace(/\s*(?:인|이|가|은|는|을|를)$/, m2 => (q.length > 3 ? '' : m2)).trim();
   if (!kind && !q && !nameW) return null;
-  if (nameW && !q && !month && !day) return { k: 'lookup', kind: '', q: '' };
-  if (kind && !q && !month && !day) month = nowD.getMonth() + 1;   // 기간·이름이 없으면 이번 달
-  return { k: 'lookup', kind, q, month, day };
+  if (nameW && !q && !month && !day && !rng) return { k: 'lookup', kind: '', q: '' };
+  if (kind && !q && !month && !day && !rng) month = nowD.getMonth() + 1;   // 기간·이름이 없으면 이번 달
+  return { k: 'lookup', kind: kind || (nameW ? 'order' : ''), q, month, day, from: rng ? rng.from : '', to: rng ? rng.to : '', label: rng ? rng.label : '' };
 }
 const fdK = d => { if (!d) return '미정'; const s0 = String(d), y = s0.slice(0, 4), cy = String(new Date().getFullYear()); return (y !== cy ? y + '년 ' : '') + (+s0.slice(5, 7)) + '월 ' + (+s0.slice(8, 10)) + '일'; };
 async function salesAsk(m) {
@@ -1689,7 +1723,7 @@ async function salesAsk(m) {
   if (m.k === 'lookup' && !m.q && !m.kind) { pending = newP('sales', {}); pending.ask = 'salescust'; return bot('어떤 계약처를 조회할까요? 이름의 일부만 말씀하셔도 돼요.', { tok: pending.tok, btns: [{ label: '취소', fn: () => cancelP('취소했어요.') }] }); }
   sys('영업일보를 조회하는 중…');
   const body = { phone, op: m.k };
-  if (m.k === 'lookup') Object.assign(body, { q: m.q, kind: m.kind || 'any', month: m.month || undefined, day: m.day || undefined });
+  if (m.k === 'lookup') Object.assign(body, { q: m.q, kind: m.kind || 'any', month: m.month || undefined, day: m.day || undefined, from: m.from || undefined, to: m.to || undefined, label: m.label || undefined });
   else if (m.k === 'branch') Object.assign(body, { branch: m.branch, month: m.month || undefined, day: m.day || undefined, metric: m.metric });
   else Object.assign(body, { ym: m.ym, metric: m.metric, filter: m.filter || undefined });
   let j, err = '';

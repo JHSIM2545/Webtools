@@ -137,7 +137,7 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
 .ig .x{position:absolute;right:3px;top:3px;width:24px;height:24px;border-radius:50%;padding:0;background:rgba(0,0,0,.7);border:none;color:#fff;font-size:13px;line-height:24px}
 .lrow{display:flex;align-items:flex-end;justify-content:space-between;gap:8px}
 .lnk{padding:3px 11px;font-size:12px;border-radius:99px;margin-bottom:2px}
-#mFind{z-index:55}
+#mFind,#mLrc{z-index:55}
 .frow{display:flex;gap:8px}
 .frow input{flex:1;min-width:0}
 .chips{margin-top:8px}
@@ -244,7 +244,7 @@ body.fs .ctrl.show{transform:none}
     <div class="vrow" id="eThumbRow" style="display:none"><img id="eThumb" alt=""><div class="hint" id="eVid"></div></div>
     <label for="eName">제목</label>
     <input type="text" id="eName" placeholder="곡 제목" autocomplete="off">
-    <label for="eLrc">가사 (LRC)</label>
+    <div class="lrow"><label for="eLrc">가사 (LRC)</label><button type="button" class="lnk" id="eLrcFind">🔎 가사 찾기</button></div>
     <textarea id="eLrc" placeholder="[00:12.30]첫 줄 가사&#10;[00:16.80]둘째 줄 가사&#10;…" spellcheck="false"></textarea>
     <div class="row" style="margin-top:8px;justify-content:space-between;align-items:center">
       <span class="hint" id="eLrcInfo" style="margin:0">LRC 파일을 불러오거나 붙여넣으세요.</span>
@@ -277,6 +277,18 @@ body.fs .ctrl.show{transform:none}
     <div class="hint" id="fMsg"></div>
     <div id="fList"></div>
     <div class="row"><button id="fClose">닫기</button></div>
+  </div>
+</div>
+
+<!-- 가사(LRC) 검색 -->
+<div class="modal" id="mLrc">
+  <div class="card">
+    <h2>가사(LRC) 찾기</h2>
+    <div class="frow"><input type="text" id="lQ" placeholder="곡명 (가수는 빼고 곡명만 넣어도 돼요)" autocomplete="off" enterkeyhint="search"><button id="lGo" class="primary">검색</button></div>
+    <div class="hint" id="lMsg"></div>
+    <div id="lList"></div>
+    <div class="hint">공개 커뮤니티 DB(LRCLIB)를 서버가 대신 조회해요. 곡에 따라 없을 수 있고, 시간 정보가 있는 가사만 보여줘요. 가사는 저작권이 있는 자료이니 개인 감상·연습용으로만 쓰세요.</div>
+    <div class="row"><button id="lClose">닫기</button></div>
   </div>
 </div>
 
@@ -589,7 +601,7 @@ body.fs .ctrl.show{transform:none}
   });
 
   /* ── 곡 추가·편집 ── */
-  const E = { id: null, vid: '', bg: 'video', imgs: new Set(), titled: false };
+  const E = { id: null, vid: '', bg: 'video', imgs: new Set(), titled: false, vidSec: 0 };
   const eInfo = () => {
     const t = $('eLrc').value, r = parseLRC(t), n = r.lines.filter(x => x.text).length, i = $('eLrcInfo');
     if (!t.trim()) { i.textContent = '가사 없이 저장하면 연주·반주만 재생돼요.'; i.className = 'hint'; }
@@ -626,7 +638,7 @@ body.fs .ctrl.show{transform:none}
   }
   function setBg(v) { E.bg = v; [...$('eBg').children].forEach(b => b.classList.toggle('on', b.dataset.v === v)); eRenderImgs(); }
   function openEditor(id) {
-    const s = id ? DB.songs.find(x => x.id === id) : null; E.id = s ? s.id : null; E.titled = false; $('eDel').dataset.ask = '';
+    const s = id ? DB.songs.find(x => x.id === id) : null; E.id = s ? s.id : null; E.titled = false; E.vidSec = s ? (s.sec || 0) : 0; $('eDel').dataset.ask = '';
     $('sTitle').textContent = s ? '곡 편집' : '곡 추가';
     $('eUrl').value = s ? 'https://youtu.be/' + s.vid : ''; $('eName').value = s ? s.title : ''; $('eLrc').value = s ? s.lrc || '' : ''; $('eOff').value = s ? (s.offset || 0) : 0;
     E.imgs = new Set(s ? s.imgs || [] : []); eVid(); eInfo(); setBg(s ? s.bg : 'video');
@@ -634,7 +646,7 @@ body.fs .ctrl.show{transform:none}
     $('mSong').classList.add('show');
   }
   $('btnAdd').onclick = () => openEditor(null);
-  $('eUrl').addEventListener('input', () => { const v = eVid(); if (v) eTitleFetch(v); });
+  $('eUrl').addEventListener('input', () => { E.vidSec = 0; const v = eVid(); if (v) eTitleFetch(v); });
   $('eLrc').addEventListener('input', eInfo);
   $('eBg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setBg(b.dataset.v); });
   $('bLrcFile').onclick = () => $('fLrc').click();
@@ -649,7 +661,7 @@ body.fs .ctrl.show{transform:none}
   $('eCancel').onclick = () => $('mSong').classList.remove('show');
   $('eSave').onclick = () => {
     const v = eVid(); if (!v) { toast('유튜브 주소를 확인해 주세요'); return; }
-    const rec = { vid: v, title: $('eName').value.trim() || '제목 없음', lrc: $('eLrc').value, offset: Math.round((parseFloat($('eOff').value) || 0) * 10) / 10, bg: E.bg, imgs: [...E.imgs], updated: Date.now() };
+    const rec = { vid: v, title: $('eName').value.trim() || '제목 없음', lrc: $('eLrc').value, offset: Math.round((parseFloat($('eOff').value) || 0) * 10) / 10, bg: E.bg, imgs: [...E.imgs], sec: E.vidSec || 0, updated: Date.now() };
     let s = E.id ? DB.songs.find(x => x.id === E.id) : null; const wasVid = s ? s.vid : '';
     if (s) Object.assign(s, rec); else { s = Object.assign({ id: uid(), added: Date.now() }, rec); DB.songs.push(s); }
     saveDB(); $('mSong').classList.remove('show'); renderList(); renderQueue();
@@ -677,6 +689,7 @@ body.fs .ctrl.show{transform:none}
     restricted: '키 제한 때문에 서버에서 호출이 막혔어요. 키의 애플리케이션 제한은 “없음”, API 제한만 YouTube Data API v3로 두세요.',
     quota: '검색 한도를 모두 썼어요. 하루 한도는 미국 서부시간 자정(한국시간 오후 5시경)에 초기화돼요.',
     short: '검색어를 두 글자 이상 입력해 주세요.',
+    rate: '요청이 너무 많아요. 잠시 뒤 다시 시도해 주세요.',
     net: '네트워크 연결에 실패했어요.',
     fail: '검색에 실패했어요.'
   };
@@ -714,16 +727,16 @@ body.fs .ctrl.show{transform:none}
   function useFound(it, play) {
     closeFind();
     if ($('mSong').classList.contains('show')) {   // 편집 중이면 주소(와 빈 제목)만 채운다
-      $('eUrl').value = 'https://youtu.be/' + it.id; E.titled = false; eVid();
+      $('eUrl').value = 'https://youtu.be/' + it.id; E.titled = false; eVid(); E.vidSec = it.sec || 0;
       if (!$('eName').value.trim()) $('eName').value = it.title;
       return;
     }
     if (play) {
       let s = DB.songs.find(x => x.vid === it.id);
-      if (!s) { s = { id: uid(), vid: it.id, title: it.title, lrc: '', offset: 0, bg: 'video', imgs: [], added: Date.now(), updated: Date.now() }; DB.songs.push(s); saveDB(); renderList(); toast('곡을 추가했어요 · 가사는 ✎ 편집에서 넣을 수 있어요'); }
+      if (!s) { s = { id: uid(), vid: it.id, title: it.title, lrc: '', offset: 0, bg: 'video', imgs: [], sec: it.sec || 0, added: Date.now(), updated: Date.now() }; DB.songs.push(s); saveDB(); renderList(); toast('곡을 추가했어요 · 가사는 ✎ 편집에서 넣을 수 있어요'); }
       playSong(s.id); return;
     }
-    openEditor(null); $('eUrl').value = 'https://youtu.be/' + it.id; E.titled = false; eVid(); $('eName').value = it.title;
+    openEditor(null); $('eUrl').value = 'https://youtu.be/' + it.id; E.titled = false; eVid(); E.vidSec = it.sec || 0; $('eName').value = it.title;
   }
   $('btnFind').onclick = () => openFind('');
   $('eFind').onclick = () => openFind($('eName').value);
@@ -732,6 +745,51 @@ body.fs .ctrl.show{transform:none}
   $('fQ').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doFind(); } });
   $('fKind').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.findKind = b.dataset.v; saveS(); paintKind(); });
   $('fList').addEventListener('click', e => { const row = e.target.closest('.res'); if (!row) return; const it = found[+row.dataset.i]; if (it) useFound(it, !!e.target.closest('button[data-a="p"]')); });
+
+  /* ── 가사(LRC) 검색 (서버 함수 lrc-search → LRCLIB) ── */
+  const LRC_URL = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/lrc-search';
+  const cleanTitle = t => String(t || '').replace(/[\[\(【（][^\]\)】）]*[\]\)】）]/g, ' ').replace(/\b(?:MR|M\/R)\b/g, ' ').replace(/(Instrumental|Karaoke|Off Vocal|노래방|반주|가라오케|Lyrics|Official|Audio)/gi, ' ').replace(/[-–—|·•_]/g, ' ').replace(/\s+/g, ' ').trim();
+  const lMsg = (t, cls) => { const m = $('lMsg'); m.textContent = t || ''; m.className = 'hint' + (cls ? ' ' + cls : ''); };
+  let lfound = [], lrcBusy = false, lastLq = '';
+  function openLrcFind() {
+    const q = cleanTitle($('eName').value);
+    if (q) $('lQ').value = q;
+    $('mLrc').classList.add('show'); setTimeout(() => $('lQ').focus(), 60);
+    const cur = $('lQ').value.trim(); if (cur.length >= 2 && cur !== lastLq) doLrc();
+  }
+  const closeLrc = () => $('mLrc').classList.remove('show');
+  async function doLrc() {
+    if (lrcBusy) return;
+    const q = $('lQ').value.replace(/\s+/g, ' ').trim();
+    if (q.length < 2) return lMsg(FERR.short, 'bad');
+    const phone = (lsGet('SIMAS_AI_PHONE') || '').replace(/\D/g, '');
+    if (phone.length < 9) return lMsg(FERR.nophone, 'bad');
+    lrcBusy = true; lastLq = q; $('lGo').disabled = true; lMsg('“' + q + '” 가사 검색 중…'); $('lList').innerHTML = '';
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 20000);
+    try {
+      const r = await fetch(LRC_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, q }), signal: ctl.signal });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { const c = j.error || (r.status === 403 ? 'forbidden' : 'fail'); lMsg((FERR[c] || FERR.fail) + (j.detail ? ' [' + j.detail + ']' : ''), 'bad'); lastLq = ''; return; }
+      lfound = Array.isArray(j.items) ? j.items : [];
+      if (!lfound.length) { lMsg('시간 정보가 있는 가사를 찾지 못했어요' + (j.total ? ' (전체 ' + j.total + '건 중 싱크 가사 0건)' : '') + '. 가수 이름을 빼고 곡명만 검색해 보세요.', 'bad'); return; }
+      lMsg(lfound.length + '개를 찾았어요. 영상 길이와 비슷한 것을 고르면 싱크가 잘 맞아요.' + (j.cached ? ' (저장된 결과)' : ''), 'ok');
+      $('lList').innerHTML = lfound.map((it, i) => {
+        const n = parseLRC(it.lrc).lines.filter(x => x.text).length, d = E.vidSec && it.dur ? E.vidSec - it.dur : 0;
+        const diff = Math.abs(d) >= 3 ? ' · <b class="long" title="영상 길이와 차이가 나요. 도입부가 다를 수 있어요">영상 ' + (d > 0 ? '+' : '−') + fmt(Math.abs(d)) + '</b>' : '';
+        return '<div class="res" data-i="' + i + '"><div class="in"><div class="t">' + esc(it.title || '(제목 없음)') + '</div><div class="s">' + esc([it.artist, it.album].filter(Boolean).join(' · ')) + (it.artist || it.album ? ' · ' : '') + '<b>' + (it.dur ? fmt(it.dur) : '?') + '</b> · ' + n + '줄' + diff + '</div></div><button type="button">' + ($('eLrc').value.trim() ? '바꾸기' : '넣기') + '</button></div>';
+      }).join('');
+    } catch (e) { lMsg(e && e.name === 'AbortError' ? '응답이 늦어요. 잠시 뒤 다시 시도해 주세요.' : FERR.net, 'bad'); lastLq = ''; }
+    finally { clearTimeout(to); lrcBusy = false; $('lGo').disabled = false; }
+  }
+  function useLrc(it) {
+    $('eLrc').value = it.lrc; eInfo(); closeLrc();
+    toast('가사를 넣었어요 · 재생해 보고 어긋나면 싱크를 보정하세요');
+  }
+  $('eLrcFind').onclick = openLrcFind;
+  $('lGo').onclick = doLrc;
+  $('lClose').onclick = closeLrc;
+  $('lQ').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doLrc(); } });
+  $('lList').addEventListener('click', e => { const row = e.target.closest('.res'); if (!row) return; const it = lfound[+row.dataset.i]; if (it) useLrc(it); });
 
   /* ── 이미지 보관함 ── */
   async function renderGallery() {

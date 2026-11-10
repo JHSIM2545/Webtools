@@ -1499,6 +1499,7 @@ const KB = (() => {
   d = d && typeof d === 'object' ? d : {};
   d.places = Array.isArray(d.places) ? d.places : []; d.facts = Array.isArray(d.facts) ? d.facts : [];
   d.counts = d.counts && typeof d.counts === 'object' ? d.counts : {};
+  d.del = d.del && typeof d.del === 'object' ? d.del : {};   // 삭제 표시(id→시각) — 기기 간 동기화에서 지운 항목이 되살아나지 않게
   return d;
 })();
 const kbSave = () => ls.set(KB_KEY, JSON.stringify(KB));
@@ -1590,9 +1591,114 @@ function kbItemBtns(items) {
   return b;
 }
 function kbDel(it) {
+  KB.del[it.id] = new Date().toISOString();
   if (it.t === 'place') { const p = KB.places.find(x => x.id === it.id); if (p) { delete KB.counts[destKey(p.q)]; KB.places = KB.places.filter(x => x.id !== it.id); } }
   else if (it.t === 'fact') KB.facts = KB.facts.filter(x => x.id !== it.id);
   kbSave();
+}
+/* ───────── 기기 간 동기화 (모바일 ↔ PC) ─────────
+   한쪽이 QR을 보여주고 다른 쪽이 찍으면, QR 안의 일회용 키(주소의 # 뒤)로 기억 데이터를 암호화해 임시 우편함(assistant-sync, 5분 뒤 삭제)을 통해 주고받는다.
+   서버는 키를 모르므로 내용을 읽을 수 없다. 양쪽이 합친 결과가 같아지도록 항목별 최신 수정 시각을 기준으로 합치고, 삭제는 삭제 표시(del)로 남긴다. */
+const SYURL = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-sync';
+const syB64 = { enc: u => b64(u).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''), dec: s => new Uint8Array(unb64(String(s).replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - String(s).length % 4) % 4))) };
+const syKey = raw => crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+async function syEnc(raw, obj) { const iv = crypto.getRandomValues(new Uint8Array(12)), ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await syKey(raw), new TextEncoder().encode(JSON.stringify(obj))), o = new Uint8Array(12 + ct.byteLength); o.set(iv); o.set(new Uint8Array(ct), 12); return syB64.enc(o); }
+async function syDec(raw, s) { const u = syB64.dec(s), pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.slice(0, 12) }, await syKey(raw), u.slice(12)); return JSON.parse(new TextDecoder().decode(pt)); }
+async function syCall(op, sid, who, blob) {
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 15000);
+  try { const r = await fetch(SYURL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op, sid, who, blob }) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || ('http ' + r.status)); return j; }
+  catch (e) { throw e && e.name === 'AbortError' ? new Error('응답이 늦어요') : e; } finally { clearTimeout(to); }
+}
+const syPayload = () => ({ v: 1, kb: { places: KB.places, facts: KB.facts, counts: KB.counts, del: KB.del || {} }, ai: gKey() });
+function kbMerge(r) {   // r: 상대 기기의 kb. 합친 뒤 저장하고 바뀐 건수를 돌려준다
+  if (!r || typeof r !== 'object') return 0;
+  const cut = new Date(Date.now() - 90 * 864e5).toISOString(), del = {};
+  for (const src of [KB.del || {}, r.del || {}]) for (const k in src) if (String(src[k]) > cut && (!del[k] || src[k] > del[k])) del[k] = src[k];
+  const key = { places: p => kbCanon(p.name), facts: f => (f.key ? kbCanon(f.key) : '') };
+  const out = {}, local = {};
+  for (const t of ['places', 'facts']) {
+    local[t] = new Map(KB[t].map(x => [x.id, x.at]));
+    const byId = new Map();
+    for (const it of [...KB[t], ...(Array.isArray(r[t]) ? r[t] : [])]) { if (!it || !it.id) continue; const o = byId.get(it.id); if (!o || String(it.at) > String(o.at)) byId.set(it.id, it); }
+    const byKey = new Map();
+    for (const it of byId.values()) {
+      if (del[it.id] && del[it.id] > String(it.at)) continue;
+      const k = key[t](it) || 'id:' + it.id, o = byKey.get(k);
+      if (!o || String(it.at) > String(o.at) || (it.at === o.at && it.id > o.id)) byKey.set(k, it);
+    }
+    out[t] = [...byKey.values()].sort((a, b) => String(a.at).localeCompare(String(b.at)) || String(a.id).localeCompare(String(b.id)));
+  }
+  const counts = {}; for (const src of [KB.counts || {}, r.counts || {}]) for (const k in src) { const c = src[k] || {}, o = counts[k] || { n: 0, no: 0 }; counts[k] = { n: Math.max(o.n || 0, c.n || 0), no: Math.max(o.no || 0, c.no || 0) }; }
+  let ch = 0; for (const t of ['places', 'facts']) { out[t].forEach(x => { if (local[t].get(x.id) !== x.at) ch++; }); const ids = new Set(out[t].map(x => x.id)); [...local[t].keys()].forEach(i => { if (!ids.has(i)) ch++; }); }
+  Object.assign(KB, { places: out.places, facts: out.facts, counts, del }); kbSave(); return ch;
+}
+function syApply(p) {   // 상대가 보낸 데이터를 합친다. AI 전화번호는 이 기기에 없을 때만 받는다
+  let ch = kbMerge(p && p.kb);
+  if (p && p.ai && /^\d{9,}$/.test(p.ai) && !gKey()) { ls.set(GPHONE, p.ai); ch++; }
+  return ch;
+}
+const syNew = () => { const a = crypto.getRandomValues(new Uint8Array(16)), k = crypto.getRandomValues(new Uint8Array(32)); return { sid: [...a].map(x => x.toString(16).padStart(2, '0')).join(''), key: k }; };
+const syParse = s => { const m = String(s || '').match(/([0-9a-f]{32})\.([A-Za-z0-9_-]{43})/); return m ? { sid: m[1], key: syB64.dec(m[2]) } : null; };
+let syOv = null, syAbort = null;
+function syClose() { if (syAbort) { syAbort(); syAbort = null; } if (syOv) { syOv.remove(); syOv = null; } }
+function syModal(title, html) {
+  if (syAbort) { syAbort(); syAbort = null; } if (!syOv) { syOv = document.createElement('div'); syOv.style.cssText = 'position:fixed;inset:0;z-index:60;background:#000a;display:flex;align-items:center;justify-content:center;padding:16px'; document.body.appendChild(syOv); }
+  syOv.innerHTML = '<div style="background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;max-width:380px;width:100%;max-height:92dvh;overflow:auto"><b style="font-size:16px">' + esc(title) + '</b><div id="syBody" style="margin-top:10px;font-size:14px;line-height:1.6">' + html + '</div></div>';
+  return syOv.querySelector('#syBody');
+}
+function syDone(ch) { const b = syModal('동기화 완료', '<p>' + (ch ? ch + '건을 반영했어요.' : '두 기기의 데이터가 이미 같아요.') + '</p><p class="sub" style="color:var(--sub);font-size:12.5px;margin-top:6px">기억 공간(장소·기억한 내용)이 합쳐졌어요.</p><div style="margin-top:12px;text-align:right"><button class="primary" id="syOk">확인</button></div>'); b.querySelector('#syOk').onclick = syClose; }
+function syFail(msg) { const b = syModal('동기화 실패', '<p>' + esc(msg) + '</p><div style="margin-top:12px;text-align:right"><button id="syOk">닫기</button></div>'); b.querySelector('#syOk').onclick = syClose; }
+const syLoadQR = () => window.qrcode ? Promise.resolve() : new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'qr.min.js'; s.onload = ok; s.onerror = () => no(new Error('QR 모듈을 불러오지 못했어요')); document.head.appendChild(s); });
+async function syShow() {   // 이 기기가 QR을 보여주고 상대가 찍기를 기다린다
+  try {
+    await syLoadQR(); const { sid, key } = syNew();
+    await syCall('put', sid, 'a', await syEnc(key, syPayload()));
+    const url = location.origin + location.pathname.replace(/[^/]*$/, 'assistant.html') + '#sync=' + sid + '.' + syB64.enc(key);
+    const q = qrcode(0, 'M'); q.addData(url); q.make();
+    const b = syModal('다른 기기로 QR 찍기', '<p>동기화할 다른 기기의 <b>카메라</b>(또는 이 앱의 QR 스캔)로 아래 QR을 찍어 주세요. 5분 안에 찍어야 해요.</p><div style="background:#fff;padding:10px;border-radius:10px;margin:10px auto;width:max-content;max-width:100%">' + q.createSvgTag({ cellSize: 5, margin: 0, scalable: true }) + '</div><p id="syMsg" style="color:var(--sub);font-size:12.5px;text-align:center">상대 기기를 기다리는 중…</p><div style="margin-top:10px;text-align:right"><button id="syX">취소</button></div>');
+    const svg = b.querySelector('svg'); if (svg) { svg.style.width = '240px'; svg.style.height = '240px'; }
+    b.querySelector('#syX').onclick = syClose;
+    let stop = false; syAbort = () => { stop = true; };
+    const end = Date.now() + 5 * 60e3;
+    while (!stop && Date.now() < end) {
+      await new Promise(r => setTimeout(r, 2000)); if (stop) return;
+      let j; try { j = await syCall('get', sid, 'b'); } catch (e) { if (e.message === 'gone') break; continue; }
+      if (j.blob) { let p; try { p = await syDec(key, j.blob); } catch (e) { return syFail('데이터를 풀지 못했어요. 처음부터 다시 해 주세요.'); } syAbort = null; return syDone(syApply(p)); }
+    }
+    if (!stop) syFail('시간이 지나 연결이 끊겼어요. 다시 시도해 주세요.');
+  } catch (e) { syFail('동기화를 시작하지 못했어요 (' + (e.message || e) + ')'); }
+}
+async function syJoin(code) {   // QR에서 읽은 코드로 상대 데이터를 받고, 합친 결과를 돌려보낸다
+  const c = syParse(code); if (!c) return syFail('QR 코드를 읽지 못했어요. 다시 찍어 주세요.');
+  syModal('동기화 중…', '<p>상대 기기와 데이터를 맞추고 있어요.</p>');
+  try {
+    const j = await syCall('get', c.sid, 'a'); if (!j.blob) throw new Error('gone');
+    let p; try { p = await syDec(c.key, j.blob); } catch (e) { throw new Error('QR 키가 맞지 않아요'); }
+    const ch = syApply(p);
+    await syCall('put', c.sid, 'b', await syEnc(c.key, syPayload()));
+    syDone(ch);
+  } catch (e) { syFail(e.message === 'gone' ? 'QR 유효시간(5분)이 지났거나 이미 사용됐어요. 상대 기기에서 QR을 다시 만들어 주세요.' : '동기화하지 못했어요 (' + (e.message || e) + ')'); }
+}
+async function syScan() {   // 앱 안에서 카메라로 QR 읽기 (지원하는 브라우저만)
+  if (!('BarcodeDetector' in window) || !navigator.mediaDevices) return syFail('이 브라우저는 앱 안 스캔을 지원하지 않아요. 기기의 기본 카메라 앱으로 QR을 찍으면 이 앱이 열려요.');
+  let st = null, stop = false;
+  try {
+    st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const b = syModal('QR 스캔', '<video id="syV" playsinline muted style="width:100%;border-radius:10px;background:#000"></video><p style="color:var(--sub);font-size:12.5px;margin-top:6px">상대 기기 화면의 QR을 비춰 주세요.</p><div style="margin-top:10px;text-align:right"><button id="syX">취소</button></div>');
+    const v = b.querySelector('#syV'); v.srcObject = st; await v.play();
+    const stopAll = () => { stop = true; st.getTracks().forEach(t => t.stop()); }; syAbort = stopAll; b.querySelector('#syX').onclick = syClose;
+    const det = new BarcodeDetector({ formats: ['qr_code'] });
+    while (!stop) { await new Promise(r => setTimeout(r, 300)); if (stop) return; let r = []; try { r = await det.detect(v); } catch (e) {} const hit = r.find(x => syParse(x.rawValue)); if (hit) { stopAll(); syAbort = null; return syJoin(hit.rawValue); } }
+  } catch (e) { if (st) st.getTracks().forEach(t => t.stop()); syFail('카메라를 사용할 수 없어요 (' + (e.name === 'NotAllowedError' ? '권한 거부' : e.message || e) + ')'); }
+}
+function syMenu() {
+  const b = syModal('기기 동기화', '<p>모바일과 PC의 기억 데이터를 서로 맞춰요. 한쪽에서 QR을 보여주고 다른 쪽에서 찍으면 같은 사용자의 기기로 확인돼요. 내용은 QR 안의 키로 암호화돼서 서버도 읽을 수 없어요.</p><div style="display:flex;flex-direction:column;gap:8px;margin-top:12px"><button class="primary" id="syA">QR 보여주기 (이 기기에서 시작)</button><button id="syB">QR 스캔하기 (다른 기기 QR 찍기)</button></div><div style="margin-top:12px"><input id="syC" placeholder="또는 QR 주소/코드를 붙여넣기" style="font-size:13px"><button id="syD" style="margin-top:6px;width:100%">붙여넣은 코드로 연결</button></div><div style="margin-top:10px;text-align:right"><button id="syX">닫기</button></div>');
+  b.querySelector('#syA').onclick = syShow; b.querySelector('#syB').onclick = syScan; b.querySelector('#syX').onclick = syClose;
+  b.querySelector('#syD').onclick = () => syJoin(b.querySelector('#syC').value);
+}
+function syBoot() {   // 상대 기기의 QR을 기본 카메라로 찍어 열린 경우 (주소에 #sync=…)
+  const m = /#sync=([0-9a-f]{32}\.[A-Za-z0-9_-]{43})/.exec(location.hash || ''); if (!m) return;
+  history.replaceState(null, '', location.pathname + location.search); syJoin(m[1]);
 }
 async function memHandle(m) {
   if (m.k === 'nav') return navFlow(m.sl);
@@ -1778,6 +1884,7 @@ async function handleText(raw, viaAI) {
     if (!strong) return continueP(p, text, n);
     pending = null;   // 다른 요청이 들어오면 이전 것은 접는다
   }
+  if (!viaAI && /(기기|폰|핸드폰|모바일|PC|피씨|컴퓨터).{0,6}동기화|동기화\s*(하자|해줘|해|시작|할래)|^동기화$/i.test(text)) return syMenu();
   if (!viaAI) { const mi = memIntent(text); if (mi) return memHandle(mi); }
   if (!viaAI) { const ai = await salesAI(text); if (ai && ai.none) { /* AI: 일보 질문 아님 → 아래 일반 처리 */ } else { const si = ai || salesIntent(text); if (si) return salesAsk(si); } }   // 영업일보 조회   // 기억 저장·조회·삭제 (기기 안에서만 처리)
   if (!viaAI && looksLikeMessage(text) && await importMessage(text)) return;   // 문자 붙여넣기 → 일정 자동 등록
@@ -1886,11 +1993,13 @@ let autoSend = ls.get('SIMAS_AUTOSEND', '0') === '1', autoT = 0;
   paint(); $('chips').appendChild(b);
   $('txt').addEventListener('input', () => { clearTimeout(autoT); if (autoSend && $('txt').value.trim()) autoT = setTimeout(sendTyped, 1600); });
 })();
+(() => { const b = document.createElement('button'); b.textContent = '🔄 기기 동기화'; b.onclick = syMenu; $('chips').appendChild(b); })();
 (() => { const b = document.createElement('button'); b.textContent = '📩 문자로 일정 등록'; b.onclick = () => { $('txt').focus(); toast('받은 문자를 입력창에 붙여넣으면 일정으로 등록해요', 3600); }; $('chips').appendChild(b); })();
 ['기억한 거 보여줘', '11월 말 유증 전망은?', '메모해줘', '연락처 저장해줘', '전화번호 찾아줘', '전화 걸어줘', '길안내 해줘', '일정 추가해줘', '알람 맞춰줘', '오늘 일정 알려줘'].forEach(t => {
   const b = document.createElement('button'); b.textContent = t; b.onclick = () => { lastVoice = false; unlockAudio(); handleText(t); }; $('chips').appendChild(b);
 });
 
+setTimeout(syBoot, 400); window.addEventListener('hashchange', syBoot);
 (async () => {
   setTtsBtn();
   try { adb = await idbOpen('simassistant', ['memos', 'events', 'alarms']); for (const k of ['memos', 'events', 'alarms']) MEM[k] = await idbAll(adb, k); }

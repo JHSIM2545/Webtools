@@ -1111,7 +1111,7 @@ function renderSend() {
   const media = hasMedia();
   $('sendList').innerHTML = L.map(r => {
     const id = r ? r.id : '_none', done = S.sent[id], ov = r && S.over[r.id] != null;
-    return '<div class="srow' + (done ? ' done' : '') + '"><div class="grow"><div class="nm">' + esc(r ? honorific(r) : '받는 사람은 문자앱에서 직접 선택') + (ov ? '<span class="badge dev">개별 수정</span>' : '') + '</div><div class="ph">' + esc(r ? fmtPhone(r.phone) : '') + '</div>' + (done ? '<div class="st">✓ ' + esc(done) + '</div>' : '') + '</div><div class="btns">' +
+    return '<div class="srow' + (done ? ' done' : '') + '"><div class="grow"><div class="nm">' + esc(r ? honorific(r) : '') + (ov ? '<span class="badge dev">개별 수정</span>' : '') + '</div><div class="ph">' + esc(r ? fmtPhone(r.phone) : '') + '</div>' + (done ? '<div class="st">✓ ' + esc(done) + '</div>' : '') + '</div><div class="btns">' +
       (media ? '' : '<button class="primary sm" data-a="sms" data-id="' + id + '">문자앱</button>') +
       '<button class="sm" data-a="share" data-id="' + id + '">' + (media ? '공유하기' : '공유') + '</button>' +
       (r ? '<button class="sm" data-a="edit" data-id="' + id + '">수정</button>' : '') +

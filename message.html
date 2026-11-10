@@ -105,13 +105,14 @@ audio{width:100%;margin-top:10px;height:40px}
 .hide{display:none!important}
 .empty{padding:16px 6px;text-align:center;color:var(--sub);font-size:13px}
 </style>
+<script src="ui-guard.js" defer></script>
 </head>
 <body>
 <header>
   <a class="back" href="index.html" aria-label="런처로">‹</a>
   <h1>SIM <span>Message</span></h1>
   <div class="spacer"></div>
-  <button class="sm" id="btnSet">설정</button>
+  <button class="sm" id="btnSet">AI 설정</button>
 </header>
 
 <main>
@@ -280,16 +281,6 @@ audio{width:100%;margin-top:10px;height:40px}
   <div class="row" style="margin-top:8px"><button class="sm" id="pAll">보이는 사람 모두 선택</button><span class="hint" id="pInfo" style="margin:0"></span></div>
   <div class="scroll"><div class="list" id="pList" style="max-height:none"></div></div>
   <div class="row"><button class="grow" id="pCancel">닫기</button><button class="primary grow" id="pOk">선택 완료</button></div>
-</div></div>
-
-<!-- 설정 -->
-<div class="modal" id="mSet"><div class="box">
-  <h3>AI 연결 설정</h3>
-  <div class="lbl">등록된 사용자 전화번호</div>
-  <input type="tel" id="setPhone" placeholder="010-0000-0000">
-  <div class="hint" id="setState"></div>
-  <div class="hint">SIM Assistant에서 이미 등록했다면 같은 번호가 자동으로 쓰입니다. AI 키는 서버에만 있고 이 앱에는 없습니다.</div>
-  <div class="row" style="margin-top:12px"><button class="grow" id="setClose">닫기</button><button class="primary grow" id="setSave">저장·테스트</button></div>
 </div></div>
 
 <!-- 받는 사람 수정 -->
@@ -1188,17 +1179,8 @@ $('btnCopy').onclick = async () => { if (!$('body').value.trim()) return toast('
 $('btnKakao').onclick = async () => { if (!$('body').value.trim()) return toast('보낼 문구가 비어 있어요'); await shareFor(S.recips[0] || null, 'kakao'); };
 
 /* ════════ 설정 ════════ */
-function openSet() { $('setPhone').value = ''; setState(); $('mSet').classList.add('show'); }
-const setState = m => { $('setState').textContent = m || (aiPhone() ? '✓ 등록됨: ' + aiPhone().replace(/(\d{3})(\d+)(\d{4})/, '$1-****-$3') : '저장된 번호가 없어요'); };
-$('btnSet').onclick = openSet; $('setClose').onclick = () => $('mSet').classList.remove('show');
-$('setSave').onclick = async () => {
-  const ph = digits($('setPhone').value || aiPhone()); if (ph.length < 9) return setState('전화번호를 입력해 주세요');
-  setState('테스트 중…');
-  const old = ls.get(KEY_PHONE, ''); ls.set(KEY_PHONE, ph);
-  try { await aiCall({ action: 'ping' }, 15000); $('setPhone').value = ''; setState('✓ 연결됐어요'); refreshBadge(); }
-  catch (e) { ls.set(KEY_PHONE, old); setState('✗ 실패: ' + (e.message || e)); }
-};
-$('mSet').addEventListener('click', e => { if (e.target === $('mSet')) $('mSet').classList.remove('show'); });
+function openSet() { location.href = 'index.html?ai=gemini'; }   // AI 연결 설정·테스트는 런처의 AI 아이콘 팝업에서
+$('btnSet').onclick = openSet;
 $('mPick').addEventListener('click', e => { if (e.target === $('mPick')) $('mPick').classList.remove('show'); });
 ['mChip', 'mEdit'].forEach(id => $(id).addEventListener('click', e => { if (e.target === $(id)) $(id).classList.remove('show'); }));
 

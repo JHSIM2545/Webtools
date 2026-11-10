@@ -1140,7 +1140,7 @@ function renderSend() {
       (r ? '<button class="sm" data-a="edit" data-id="' + id + '">수정</button>' : '') +
       (r && media ? '<button class="sm" data-a="num" data-id="' + id + '">번호복사</button>' : '') + '</div></div>';
   }).join('');
-  $('sendHint').textContent = S.opts.ch === 'kakao' ? '카카오톡은 외부에서 대화방을 지정해 보낼 수 없어, 공유창에서 받는 사람을 고르는 방식이에요.' : '"문자앱"을 누르면 번호와 문구가 채워진 문자앱이 열립니다. 전송 버튼만 누르고 돌아와서 다음 사람을 보내세요. "수정"으로 그 사람에게만 문구를 따로 고칠 수 있어요.';
+  $('sendHint').textContent = S.opts.ch === 'kakao' ? '카카오톡은 외부에서 대화방을 지정해 보낼 수 없어, 공유창에서 받는 사람을 고르는 방식이에요. 이미지·소리를 함께 보내면 카톡이 글을 빼고 파일만 받는 경우가 있어, 문구를 자동 복사해 둬요(대화창에 붙여넣기).' : '"문자앱"을 누르면 번호와 문구가 채워진 문자앱이 열립니다. 전송 버튼만 누르고 돌아와서 다음 사람을 보내세요. "수정"으로 그 사람에게만 문구를 따로 고칠 수 있어요.';
 }
 const recipById = id => S.recips.find(r => r.id === id) || null;
 async function copyText(t) {
@@ -1160,8 +1160,14 @@ async function shareFor(r, via) {
     if (S.aud !== 'none') { busy(true, S.aud === 'melody' ? '멜로디 준비 중…' : 'AI 음성을 만드는 중…'); const a = await audioFor(r); busy(false); if (a) files.push(a); }
   } catch (e) { busy(false); toast('소리 준비 실패: ' + (e.message || e), 4200); return; }
   const data = { text }; if (files.length) data.files = files;
+  // 카카오톡 등 일부 앱은 이미지·파일과 함께 공유하면 글을 버리고 파일만 받는다 → 먼저 문구를 복사해 두고 붙여넣게 안내
+  const pasted = files.length ? await copyText(text) : false;
   if (navigator.share && (!files.length || (navigator.canShare && navigator.canShare({ files })))) {
-    try { await navigator.share(data); markSent(r ? r.id : '_none', via === 'kakao' ? '공유(카카오톡)' : '공유창 열림'); return; }
+    try {
+      await navigator.share(data); markSent(r ? r.id : '_none', via === 'kakao' ? '공유(카카오톡)' : '공유창 열림');
+      if (pasted) toast('문구도 복사해 뒀어요. 앱에서 글이 빠졌다면 대화창에 붙여넣기(길게 누르기) 하세요', 6000);
+      return;
+    }
     catch (e) { if (e && e.name === 'AbortError') return; }
   }
   const ok = await copyText(text);

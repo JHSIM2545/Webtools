@@ -1030,12 +1030,12 @@ const gKey = () => ls.get(GPHONE, '').replace(/\D/g, '');
 let aiDownUntil = 0;   // AI가 실패하면 잠시 건너뛰고 기본(로컬) 엔진만 쓴다
 const aiUsable = () => !!gKey() && navigator.onLine !== false && Date.now() >= aiDownUntil;
 async function geminiCall(phone, text, mode) {
-  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), mode ? 16000 : 9000);
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), mode ? 20000 : 13000);
   try {
     const r = await fetch(GURL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mode ? { phone, text, mode } : { phone, text }) });
     const j = await r.json().catch(() => ({}));
     if (r.ok && j.text) return String(j.text).trim();
-    throw new Error(r.status === 403 ? '등록되지 않은 전화번호예요' : r.status === 429 ? '잠시 뒤 다시 말씀해 주세요' : '응답 실패 (' + r.status + ')');
+    throw new Error(r.status === 403 ? '등록되지 않은 전화번호예요' : r.status === 429 ? '잠시 뒤 다시 말씀해 주세요' : '응답 실패 (' + r.status + (j.detail ? ' · ' + j.detail : '') + ')');
   } catch (e) { throw e && e.name === 'AbortError' ? new Error('응답이 늦어요') : (e instanceof TypeError ? new Error('연결 실패') : e); }
   finally { clearTimeout(to); }
 }

@@ -1356,7 +1356,7 @@ $('liveSpk').onclick = async () => { LIVE.speaker = !LIVE.speaker; ls.set('SIMAS
 $('liveMute').onclick = () => { LIVE.muted = !LIVE.muted; $('liveMute').textContent = LIVE.muted ? '🔇 음소거 해제' : '🎤 음소거'; };
 
 /* ───────── 입력 처리 ───────── */
-const HELP = ['"우리집은 OO시 OO구 …야, 기억해줘"', '"주차는 지하 2층 37번에 했어, 기록해둬"', '"주차 어디에 했지?"', '"메모해줘"', '"홍길동 연락처 저장해줘"', '"홍길동 전화번호 찾아줘"', '"홍길동한테 전화해줘"', '"내일 오후 3시 미팅 일정 추가해줘"', '"내일 아침 7시에 알람 맞춰줘"', '"오늘 일정 알려줘"', '"강남역으로 가자"'];
+const HELP = ['"11월 말 유증 전망은 얼마야?"', '"계약처명이 OO인 수주 건 있어?"', '"11월 9일 동서울지사 수주는 얼마야?"', '"우리집은 OO시 OO구 …야, 기억해줘"', '"주차는 지하 2층 37번에 했어, 기록해둬"', '"주차 어디에 했지?"', '"메모해줘"', '"홍길동 연락처 저장해줘"', '"홍길동 전화번호 찾아줘"', '"홍길동한테 전화해줘"', '"내일 오후 3시 미팅 일정 추가해줘"', '"내일 아침 7시에 알람 맞춰줘"', '"오늘 일정 알려줘"', '"강남역으로 가자"'];
 
 /* ───────── 문자·메시지 붙여넣기 → 일정 자동 등록 ───────── */
 const DATE_RE = /(?<!\d)\d{2,4}\s?[.\-\/]\s?\d{1,2}\s?[.\-\/]\s?\d{1,2}(?!\d)|(?<![\d.])\d{1,2}\.\d{1,2}\s?\([월화수목금토일]\)|(?<![\d.])\d{1,2}\s?일(?!\s?(간|동안))|\d{1,2}\s?월\s?\d{1,2}\s?일|(?<![\d:])\d{1,2}\/\d{1,2}(?![\d\/])|내일|모레|다음\s?주|이번\s?주|[월화수목금토일]요일/;
@@ -1630,17 +1630,69 @@ function kbNameAnswer(p, text) {
   pending = null; return navFlow(Object.assign({}, p.sl, { asked: true, saveAs: nm }));
 }
 
+/* ───────── 영업일보 조회 (북서울지사 일보 DB를 서버 함수 assistant-sales로 읽기 전용 조회) ───────── */
+const SURL = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-sales';
+const SB_BRANCHES = ['강남광역', '강북광역', '서울동부', '남양주', '영등포', '동서울', '서서울', '북서울', '서초', '구로', '강서', '송파', '제주', '강동', '서강', '성북'];
+function salesIntent(raw) {
+  const t = String(raw).replace(/\s+/g, ' ').trim();
+  if (!/(수주|계약|개시|유증|유지증가|유감|유지감소|계약처|거래처|고객사|전망)/.test(t)) return null;
+  if (/(전화|연락처|번호|일정|알람|메모|내비|가자|길안내)/.test(t.replace(/알람\s*\+\s*휴엔/, ''))) return null;
+  const metric = /유증|유지\s*증가/.test(t) ? 'net' : /유감|유지\s*감소/.test(t) ? 'loss' : /개시/.test(t) && !/계약처|거래처|고객사/.test(t) ? 'start' : /수주|계약/.test(t) && !/계약처/.test(t) ? 'order' : '';
+  let br = SB_BRANCHES.find(b => t.includes(b)) || '';
+  if (!br) { const m = t.match(/([가-힣]{2,4})\s*지사/); if (m) br = m[1]; }
+  const nowD = new Date(); let month = 0, day = 0, m;
+  if ((m = t.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/))) { month = +m[1]; day = +m[2]; }
+  else if ((m = t.match(/(\d{1,2})\s*월/))) month = +m[1];
+  else if (/오늘/.test(t)) { month = nowD.getMonth() + 1; day = nowD.getDate(); }
+  else if (/어제/.test(t)) { const y = new Date(nowD.getTime() - 864e5); month = y.getMonth() + 1; day = y.getDate(); }
+  const filter = /알람\s*\+\s*휴엔|알람.*휴엔/.test(t) ? '알람+휴엔' : /휴엔/.test(t) ? '휴엔' : /정보보안|디지털/.test(t) ? '정보보안' : '';
+  if (/전망|예상/.test(t) && metric && metric !== 'loss' && (!br || br === '북서울')) return { k: 'forecast', metric, ym: new Date().getFullYear() + '-' + String(month || nowD.getMonth() + 1).padStart(2, '0'), filter, month: month || nowD.getMonth() + 1 };
+  if (br && metric) return { k: 'branch', branch: br, month, day, metric };
+  if (/(계약처|거래처|고객사)/.test(t) || (/수주\s*건/.test(t) && /(있|조회|찾|검색)/.test(t))) {
+    let q = '', mm = t.replace(/수주\s*건\s*(중에서|중에|중|에서)?/g, ' ').trim().match(/^((?:(?!계약처|거래처|고객사).)+?)\s*(?:이|가|라는|인)?\s*(?:계약처|거래처|고객사)/);
+    if (mm) q = mm[1].trim();
+    if (!q && (mm = t.match(/(?:계약처|거래처|고객사)\s*명?\s*(?:이|은|는|가)?\s*(.+?)\s*(?:인\s|인$|이라는|라는|이라고|라고|인\s*(?:계약처|거래처)|(?:이|가)\s*있|있|조회|찾|알려|검색|언제|개시|기산)/))) q = mm[1];
+    if (!q || /^(무엇|뭐|어떤|이름)/.test(q)) q = t.replace(/수주\s*건\s*(중에서|중에|에서|중|에)?|계약처\s*명?|거래처|고객사|이름|있어요\??|있나요\??|있습니까\??|있는지|있는|조회해?\s*줘?|찾아\s*줘?|찾아|알려\s*줘?|알려|검색해?\s*줘?|언제|개시일?|기산일?|계약일?|했어|했나|인지|무엇|뭐|[?？.]|줘|해줘/g, ' ').replace(/\s+/g, ' ').trim();
+    q = q.replace(/\s*(?:인|이|가|은|는|을|를)$/, '').trim();
+    return { k: 'customer', q };
+  }
+  return null;
+}
+const fdK = d => { if (!d) return '미정'; const s = String(d), y = s.slice(0, 4), cy = String(new Date().getFullYear()); return (y !== cy ? y + '년 ' : '') + (+s.slice(5, 7)) + '월 ' + (+s.slice(8, 10)) + '일'; };
+async function salesAsk(m) {
+  const phone = gKey();
+  if (!phone) return bot('일보를 조회하려면 등록된 전화번호가 필요해요. 런처의 AI 설정에서 전화번호를 등록해 주세요.', { btns: [{ label: 'AI 설정 열기', primary: true, fn: openAi }] });
+  if (m.k === 'customer' && !m.q) { pending = newP('sales', {}); pending.ask = 'salescust'; return bot('어떤 계약처를 조회할까요? 이름의 일부만 말씀하셔도 돼요.', { tok: pending.tok, btns: [{ label: '취소', fn: () => cancelP('취소했어요.') }] }); }
+  sys('영업일보를 조회하는 중…');
+  const body = { phone, op: m.k === 'customer' ? 'customer' : m.k === 'branch' ? 'branch' : 'forecast' };
+  if (m.k === 'customer') body.q = m.q; else if (m.k === 'branch') Object.assign(body, { branch: m.branch, month: m.month || undefined, day: m.day || undefined, metric: m.metric }); else Object.assign(body, { ym: m.ym, metric: m.metric, filter: m.filter || undefined });
+  let j, err = '';
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 18000);
+  try {
+    const r = await fetch(SURL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    j = await r.json().catch(() => ({}));
+    if (!r.ok) err = r.status === 403 ? '등록되지 않은 전화번호예요' : '응답 실패 (' + r.status + (j.detail ? ' · ' + j.detail : '') + ')';
+  } catch (e) { err = e && e.name === 'AbortError' ? '응답이 늦어요' : '연결 실패'; } finally { clearTimeout(to); }
+  if (err || !j || !j.text) return bot('일보를 조회하지 못했어요' + (err ? ' (' + err + ')' : '') + '. 잠시 뒤 다시 시도해 주세요.');
+  let html = '';
+  if (m.k === 'customer' && Array.isArray(j.rows)) html = '<b>수주 계약처 조회 · ' + esc(m.q) + '</b>' + j.rows.map(r => '<div style="margin-top:8px"><b>' + esc(r.name) + '</b>' + kvRows([['계약일', fdK(r.contract)], ['개시일', fdK(r.start)], ['기산일', fdK(r.billing)], ['월정료', r.fee ? r.fee.toLocaleString('ko-KR') + '원' : ''], ['상품', r.product], ['담당', r.rep], ['개시상태', r.status]]) + '</div>').join('');
+  else if (Array.isArray(j.rows) && j.rows.length) html = '<b>' + (m.k === 'forecast' ? '월말 전망 (북서울)' : '사업팀 일보 · ' + esc(m.branch) + (j.date ? ' · ' + fdK(j.date) : '')) + '</b>' + kvRows(j.rows.map(r => [r.label, r.value])) + '<span class="sub">금액 단위: 천원 · 영업일보 DB 기준</span>';
+  return bot(j.text, html ? { html } : undefined);
+}
+
 async function handleText(raw, viaAI) {
   const text = String(raw || '').trim(); if (!text) return;
   if (!viaAI) addMsg('me', esc(text)); const n = NLU.normalize(text);
   if (pending && /^(취소|그만|중지|됐어|아니야?\s*그만|그만해)/.test(n)) return cancelP('취소했어요.');
   if (pending) {
     const p = pending, di = NLU.detect(text);
+    if (p.ask === 'salescust' && salesIntent(text)) { pending = null; return handleText(text, viaAI); }
     const strong = di && (p.stage === 'pick' || p.stage === 'callok' || p.stage === 'dok' || p.stage === 'dpick' || p.ask === 'findname' || p.ask === 'navdest' ? true : (di !== p.intent && !(p.ask === 'content' || p.ask === 'title')));
     if (!strong) return continueP(p, text, n);
     pending = null;   // 다른 요청이 들어오면 이전 것은 접는다
   }
-  if (!viaAI) { const mi = memIntent(text); if (mi) return memHandle(mi); }   // 기억 저장·조회·삭제 (기기 안에서만 처리)
+  if (!viaAI) { const mi = memIntent(text); if (mi) return memHandle(mi); }
+  if (!viaAI) { const si = salesIntent(text); if (si) return salesAsk(si); }   // 영업일보 조회   // 기억 저장·조회·삭제 (기기 안에서만 처리)
   if (!viaAI && looksLikeMessage(text) && await importMessage(text)) return;   // 문자 붙여넣기 → 일정 자동 등록
   if (!viaAI && aiUsable() && await askGemini(text)) return;   // 기본은 AI, 실패하면 아래 로컬 엔진
   const intent = NLU.detect(text);
@@ -1715,6 +1767,7 @@ async function continueP(p, text, n) {
     return bot('몇 번째인지 번호로 말씀해 주세요. 예: "2번"', { tok: p.tok });
   }
   if (p.ask === 'memname') return kbNameAnswer(p, text);
+  if (p.ask === 'salescust') { pending = null; const q = text.replace(/\s*(계약처|거래처)?\s*(조회|찾아|알려|검색)?\s*(해\s*)?줘?\.?$/, '').replace(/\s*(인|이|가|을|를)$/, '').trim(); return salesAsk({ k: 'customer', q }); }
   if (p.ask === 'kbcontent') { const s0 = text.replace(/(이?라고|을|를)?\s*(기억|기록|적어)\S*\s*$/, '').trim(); pending = null; return s0.length >= 2 ? memHandle(kbParse(s0)) : bot('내용을 알아듣지 못했어요. 다시 말씀해 주세요.'); }
   if (p.ask === 'navdest') {
     const d = NLU.extract('navigate', cleanAns(n) + ' 가자', new Date()).dest || cleanAns(n);
@@ -1747,7 +1800,7 @@ let autoSend = ls.get('SIMAS_AUTOSEND', '0') === '1', autoT = 0;
   $('txt').addEventListener('input', () => { clearTimeout(autoT); if (autoSend && $('txt').value.trim()) autoT = setTimeout(sendTyped, 1600); });
 })();
 (() => { const b = document.createElement('button'); b.textContent = '📩 문자로 일정 등록'; b.onclick = () => { $('txt').focus(); toast('받은 문자를 입력창에 붙여넣으면 일정으로 등록해요', 3600); }; $('chips').appendChild(b); })();
-['기억한 거 보여줘', '메모해줘', '연락처 저장해줘', '전화번호 찾아줘', '전화 걸어줘', '길안내 해줘', '일정 추가해줘', '알람 맞춰줘', '오늘 일정 알려줘'].forEach(t => {
+['기억한 거 보여줘', '11월 말 유증 전망은?', '메모해줘', '연락처 저장해줘', '전화번호 찾아줘', '전화 걸어줘', '길안내 해줘', '일정 추가해줘', '알람 맞춰줘', '오늘 일정 알려줘'].forEach(t => {
   const b = document.createElement('button'); b.textContent = t; b.onclick = () => { lastVoice = false; unlockAudio(); handleText(t); }; $('chips').appendChild(b);
 });
 

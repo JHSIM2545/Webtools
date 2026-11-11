@@ -573,7 +573,21 @@ main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-ove
       press(b.dataset.cls, b.dataset.act);
     });
   }
+  /* 키 누르는 소리 (WebAudio로 짧은 "톡" 소리 합성, 파일 없음) */
+  let AC = null;
+  function click(kind) {
+    try {
+      AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+      if (AC.state === 'suspended') AC.resume();
+      const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
+      const f = kind === 'eq' ? 1500 : kind === 'clr' ? 720 : kind === 'op' ? 1050 : 1250;
+      o.type = 'square'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * .55, t + .035);
+      g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.16, t + .003); g.gain.exponentialRampToValueAtTime(.0001, t + .05);
+      o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + .06);
+    } catch (e) {}
+  }
   function press(cls, act) {
+    click(cls);
     try { if (navigator.vibrate) navigator.vibrate(6); } catch (e) {}
     if (cls === 'num') digit(act);
     else if (cls === 'op') opKey(act);
@@ -736,6 +750,7 @@ main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-ove
   buildDec(); buildSelects(); buildKeys();
   $('ckTts').checked = S.tts;
   $('ckTts').addEventListener('change', e => { S.tts = e.target.checked; persist(); if (!S.tts) try { speechSynthesis.cancel(); } catch (x) {} });
+  document.querySelectorAll('.pill:not(.mic), .swap, #decTrack').forEach(el => el.addEventListener('pointerdown', () => click('fn')));
   $('bCalc').addEventListener('click', () => setMode('calc'));
   $('bFx').addEventListener('click', () => { setMode('fx'); if (!R.rates || Date.now() - R.at > 6e5) loadRates(); });
   $('bBs').addEventListener('click', () => { bsKey(); persist(); render(); });

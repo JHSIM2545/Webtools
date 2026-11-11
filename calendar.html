@@ -50,6 +50,9 @@ textarea{resize:vertical}
 .chips{margin-top:1px}
 .chip{font-size:10.5px;height:13px;line-height:13px;margin-top:1px;border-radius:3px;padding:0 3px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border-left:2px solid var(--c);background:rgba(255,255,255,.12);background:color-mix(in srgb,var(--c) 28%,transparent)}
 .more{font-size:10px;height:13px;line-height:13px;margin-top:1px;color:var(--sub);text-align:center}
+.mgrip{flex:none;height:22px;display:flex;align-items:center;justify-content:center;cursor:row-resize;touch-action:none;background:var(--panel);border-top:1px solid var(--line);-webkit-user-select:none;user-select:none}
+.mgrip i{width:42px;height:4px;border-radius:2px;background:var(--sub);opacity:.6}
+.mgrip.drag i{background:var(--accent);opacity:1}
 .agenda{flex:5 1 0;min-height:0;overflow-y:auto;border-top:1px solid var(--line);background:var(--panel);padding:10px 12px 90px;-webkit-overflow-scrolling:touch}
 .ahead{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .ahead b{font-size:15px}.ahead .hol{font-size:12px;color:var(--sun)}.ahead .cnt{font-size:12px;color:var(--sub)}
@@ -427,9 +430,32 @@ function renderMonth() {
     const d = addDays(gs, i), h = holName(d), wd = d.getDay();
     cells += '<div class="cell' + (d.getMonth() !== m ? ' out' : '') + (sameDay(d, today) ? ' today' : '') + (sameDay(d, cur) ? ' sel' : '') + '" data-d="' + ymd(d) + '"><div class="dn' + (h || wd === 0 ? ' sun' : wd === 6 ? ' sat' : '') + '">' + d.getDate() + '</div>' + (h ? '<div class="hn">' + esc(h) + '</div>' : '') + '<div class="chips"></div></div>';
   }
-  view.innerHTML = '<div class="mv"><div class="dow">' + WD.map(w => '<span>' + w + '</span>').join('') + '</div><div class="mgrid" style="grid-template-rows:repeat(' + rows + ',minmax(0,1fr))">' + cells + '</div><div class="agenda" id="agenda"></div></div>';
-  fitMonth(); renderAgenda();
+  view.innerHTML = '<div class="mv"><div class="dow">' + WD.map(w => '<span>' + w + '</span>').join('') + '</div><div class="mgrid" style="grid-template-rows:repeat(' + rows + ',minmax(0,1fr))">' + cells + '</div><div class="mgrip" id="mgrip" title="아래로 끌면 달력이 커져요 (두 번 누르면 원래대로)"><i></i></div><div class="agenda" id="agenda"></div></div>';
+  applyMH(); fitMonth(); renderAgenda();
 }
+/* 달력 높이 조절: 손잡이를 아래로 끌면 달력(칸)이 위아래로 커지고 일정 목록은 줄어든다. 비율은 기억해 둠 */
+const MH_MIN = 250, AG_MIN = 96;
+let mhFrac = (() => { try { const v = parseFloat(localStorage.getItem('simcal_mh')); return v > 0 && v < 1 ? v : null; } catch (e) { return null; } })();
+function mhBounds() { const mv = view.querySelector('.mv'), dow = view.querySelector('.dow'); if (!mv) return null; const avail = mv.clientHeight - dow.offsetHeight - 22; return { avail, min: Math.min(MH_MIN, avail - AG_MIN), max: Math.max(MH_MIN, avail - AG_MIN) }; }
+function applyMH(px) {
+  const g = view.querySelector('.mgrid'), B = mhBounds(); if (!g || !B) return;
+  if (px == null && mhFrac == null) { g.style.flex = ''; return; }
+  const h = Math.round(Math.max(B.min, Math.min(B.max, px != null ? px : mhFrac * B.avail)));
+  g.style.flex = '0 0 ' + h + 'px'; g.style.minHeight = '0';
+}
+view.addEventListener('pointerdown', e => {
+  const gp = e.target.closest('#mgrip'); if (!gp || mode !== 'month') return;
+  const g = view.querySelector('.mgrid'), B = mhBounds(); if (!g || !B) return;
+  e.preventDefault(); try { gp.setPointerCapture(e.pointerId); } catch (x) {}
+  const y0 = e.clientY, h0 = g.getBoundingClientRect().height; gp.classList.add('drag'); let moved = false;
+  const mv = ev => { moved = true; applyMH(h0 + ev.clientY - y0); fitMonth(); };
+  const up = () => {
+    gp.removeEventListener('pointermove', mv); gp.removeEventListener('pointerup', up); gp.removeEventListener('pointercancel', up); gp.classList.remove('drag');
+    if (moved) { const h = g.getBoundingClientRect().height; mhFrac = h / B.avail; try { localStorage.setItem('simcal_mh', String(mhFrac)); } catch (x) {} }
+  };
+  gp.addEventListener('pointermove', mv); gp.addEventListener('pointerup', up); gp.addEventListener('pointercancel', up);
+});
+view.addEventListener('dblclick', e => { if (!e.target.closest('#mgrip')) return; mhFrac = null; try { localStorage.removeItem('simcal_mh'); } catch (x) {} applyMH(); fitMonth(); });
 function fitMonth() {
   view.querySelectorAll('.cell').forEach(c => {
     const list = MB.get(c.dataset.d) || [], box = c.querySelector('.chips'); box.innerHTML = '';
@@ -550,7 +576,7 @@ view.addEventListener('touchend', e => {
   const t = e.changedTouches[0], dx = t.clientX - tx0, dy = t.clientY - ty0; tx0 = null;
   if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) step(dx < 0 ? 1 : -1);
 }, { passive: true });
-window.addEventListener('resize', () => { if (mode === 'month') fitMonth(); });
+window.addEventListener('resize', () => { if (mode === 'month') { applyMH(); fitMonth(); } });
 
 /* ───────── 일정 편집 ───────── */
 const ED = { ev: null, dur: 3600e3, color: COLORS[0], type: '', lat: null, lng: null, geoFor: '', geoName: '', cands: [] };

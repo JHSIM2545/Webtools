@@ -243,7 +243,9 @@
     } finally { cBusy = false; }
   }
   const getBase_ = () => { try { return JSON.parse(lget(C_BASE) || '{}') || {}; } catch (e) { return {}; } };
-  function acctBtn() { const b = $('btnAcct'); if (b) b.textContent = cUser ? '👤 ' + who(cUser) : '👤 로그인'; }
+  const photo = u => { const m = (u && u.user_metadata) || {}, p = m.avatar_url || m.picture || ''; return /^https:\/\//.test(p) ? p : ''; };
+  const avatar = (u, px) => photo(u) ? '<img src="' + esc(photo(u)) + '" alt="" referrerpolicy="no-referrer" style="width:' + px + 'px;height:' + px + 'px;border-radius:50%;object-fit:cover;vertical-align:middle;flex:none" onerror="this.replaceWith(document.createTextNode(\'👤\'))">' : '👤';
+  function acctBtn() { const b = $('btnAcct'); if (!b) return; if (cUser) { b.innerHTML = avatar(cUser, 20) + ' <span style="vertical-align:middle">' + esc(who(cUser)) + '</span>'; } else b.textContent = '👤 로그인'; }
   function schedule() { clearInterval(cTimer); if (cUser) cTimer = setInterval(() => { if (!document.hidden) cloudSync().catch(() => {}); }, 5 * 60e3); }
   async function setUser(u, first) {
     cUser = u || null; acctBtn(); schedule();
@@ -278,7 +280,7 @@
   function acctMenu() {
     if (!cUser) return authView();
     const last = +lget(C_LAST) || 0;
-    const b = modal('내 계정', '<p><b>' + esc(who(cUser)) + '</b><br><span style="' + sub + '">' + esc(cUser.email || '') + '</span></p><label style="' + sub + ';display:block;margin-top:8px">표시 이름</label><div style="display:flex;gap:6px;margin-top:4px"><input id="acNm" maxlength="12" value="' + esc(who(cUser)) + '" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit"><button id="acNmSave">변경</button></div><p id="acMsg" style="' + sub + ';margin-top:6px">' + (last ? '마지막 백업: ' + new Date(last).toLocaleString('ko-KR') : '아직 백업 전이에요.') + '<br>데이터는 이 계정으로 자동 백업·복원돼요.</p>' +
+    const b = modal('내 계정', '<div style="display:flex;align-items:center;gap:12px">' + avatar(cUser, 52) + '<div><b>' + esc(who(cUser)) + '</b><br><span style="' + sub + '">' + esc(cUser.email || '') + '</span></div></div><label style="' + sub + ';display:block;margin-top:8px">표시 이름</label><div style="display:flex;gap:6px;margin-top:4px"><input id="acNm" maxlength="12" value="' + esc(who(cUser)) + '" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit"><button id="acNmSave">변경</button></div><p id="acMsg" style="' + sub + ';margin-top:6px">' + (last ? '마지막 백업: ' + new Date(last).toLocaleString('ko-KR') : '아직 백업 전이에요.') + '<br>데이터는 이 계정으로 자동 백업·복원돼요.</p>' +
       '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button id="acNow" class="primary" style="flex:1">지금 동기화</button><button id="acOut">로그아웃</button></div><div style="' + okBtn + '"><button id="acX">닫기</button></div>');
     b.querySelector('#acX').onclick = close;
     b.querySelector('#acNmSave').onclick = async () => { const v = b.querySelector('#acNm').value.trim().slice(0, 12), e = b.querySelector('#acMsg'); if (!v) { e.textContent = '이름을 입력해 주세요.'; return; } try { const c = await client(), r = await c.auth.updateUser({ data: { display_name: v } }); if (r.error) throw r.error; cUser = r.data.user; acctBtn(); e.textContent = '이름을 "' + v + '"(으)로 바꿨어요.'; } catch (x) { e.textContent = '변경하지 못했어요: ' + (x.message || x); } };

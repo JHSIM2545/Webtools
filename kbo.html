@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1117">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SIM KBO">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>SIM KBO</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root{
+  --bg:#0f1117; --panel:#171a23; --panel2:#1f2330; --line:#2a2f3f;
+  --text:#e8eaf0; --sub:#8b92a8; --accent:#6fd64b; --accent2:#5cc43a; --ink:#0d2400; --ok:#3ecf8e; --warn:#ffb86b; --bad:#ff6b6b;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;font-size:15px;line-height:1.5}
+header{display:flex;align-items:center;gap:10px;padding:12px 14px;padding-top:calc(12px + env(safe-area-inset-top));background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+header a.back{color:var(--text);text-decoration:none;font-size:26px;line-height:1;padding:0 6px 3px 0}
+header h1{font-size:18px;font-weight:700;letter-spacing:-.3px}
+header h1 span{color:var(--accent)}
+.spacer{flex:1}
+button,select,input{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 13px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--accent2);border-color:var(--accent2);color:var(--ink);font-weight:700}
+button.sm{padding:6px 10px;font-size:13px;border-radius:8px}
+input[type=text],input[type=search]{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);outline:none}
+input:focus{border-color:var(--accent)}
+.teambtn{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:99px;font-size:13px;font-weight:700;background:rgba(111,214,75,.14);border-color:var(--accent);color:var(--accent)}
+.tabs{display:flex;gap:4px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:calc(53px + env(safe-area-inset-top));z-index:19;overflow-x:auto}
+.tabs button{flex:1;min-width:64px;border:0;background:transparent;padding:9px 6px;border-radius:9px;font-size:14px;color:var(--sub);white-space:nowrap}
+.tabs button.on{background:var(--accent2);color:var(--ink);font-weight:700}
+main{max-width:760px;margin:0 auto;padding:12px 12px calc(40px + env(safe-area-inset-bottom))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+.hint{font-size:12px;color:var(--sub);margin-top:8px;line-height:1.5}
+.hint.warn{color:var(--warn)}
+.hint.bad{color:var(--bad)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+.seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px;margin-bottom:10px;overflow-x:auto}
+.seg button{flex:1;border:0;background:transparent;border-radius:8px;padding:7px 8px;font-size:13px;white-space:nowrap}
+.seg button.on{background:var(--accent2);color:var(--ink);font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+.chip{padding:5px 11px;border-radius:99px;font-size:13px;background:var(--panel2);border:1px solid var(--line);cursor:pointer;user-select:none}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--ink);font-weight:700}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px;border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;white-space:nowrap}
+th,td{padding:8px 9px;text-align:right;border-bottom:1px solid var(--line)}
+th{background:var(--panel2);color:var(--sub);font-weight:600;font-size:12px;position:sticky;top:0}
+td.l,th.l{text-align:left}
+tr.my td{background:rgba(111,214,75,.10)}
+tr:last-child td{border-bottom:0}
+td.hi,th.hi{color:var(--accent);font-weight:700}
+td a.pl{color:var(--text);text-decoration:none;font-weight:600;border-bottom:1px dotted var(--sub);cursor:pointer}
+.stk td:nth-child(2),.stk th:nth-child(2){position:sticky;left:0;background:var(--panel);z-index:1}
+.stk th:nth-child(2){background:var(--panel2);z-index:2}
+.empty{padding:26px 10px;text-align:center;color:var(--sub);font-size:14px}
+.item{display:block;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);margin-bottom:8px;color:var(--text);text-decoration:none}
+.item:hover{border-color:var(--accent)}
+.item .t{font-size:14.5px;line-height:1.45}
+.item .s{font-size:12px;color:var(--sub);margin-top:4px}
+.vid{display:flex;gap:10px;align-items:flex-start}
+.vid img{width:128px;height:72px;object-fit:cover;border-radius:8px;background:var(--panel);flex:none}
+.vid .ch{width:56px;height:56px;border-radius:50%}
+.pres{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);margin-bottom:8px;cursor:pointer}
+.pres:hover{border-color:var(--accent)}
+.pres b{font-size:15px}
+.pres small{color:var(--sub);display:block;font-size:12px}
+.pres .no{width:34px;text-align:center;font-weight:800;color:var(--accent)}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:flex-end;justify-content:center;z-index:50}
+.ov.show{display:flex}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:20px 20px 0 0;width:100%;max-width:760px;max-height:92vh;overflow-y:auto;padding:16px 14px calc(22px + env(safe-area-inset-bottom));overscroll-behavior:contain}
+@media(min-width:800px){.ov{align-items:center}.sheet{border-radius:20px}}
+.sh-h{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.sh-h h2{font-size:17px;flex:1}
+.tgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.tgrid button{padding:14px 8px;font-size:15px;font-weight:700;border-radius:12px}
+.tgrid button.on{background:var(--accent);border-color:var(--accent);color:var(--ink)}
+.ph{display:flex;gap:14px;align-items:flex-start;margin-bottom:12px}
+.ph img.photo{width:104px;height:130px;object-fit:cover;border-radius:12px;background:var(--panel2);flex:none;border:1px solid var(--line)}
+.ph .nm{font-size:20px;font-weight:800}
+.ph .tm{display:flex;align-items:center;gap:6px;color:var(--sub);font-size:13px;margin-top:2px}
+.ph .tm img{width:20px;height:20px;object-fit:contain}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:14px;margin:10px 0}
+.kv dt{color:var(--sub)}
+.kv dd{word-break:keep-all}
+.sec{font-size:13px;color:var(--accent);font-weight:700;margin:16px 0 6px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+<script src="ui-guard.js" defer></script>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html" aria-label="런처로">‹</a>
+  <h1>SIM <span>KBO</span></h1>
+  <div class="spacer"></div>
+  <button class="teambtn" id="teamBtn">응원팀 선택</button>
+</header>
+<nav class="tabs" id="tabs">
+  <button data-t="rank" class="on">순위</button>
+  <button data-t="stat">지표</button>
+  <button data-t="player">선수</button>
+  <button data-t="news">뉴스</button>
+  <button data-t="video">영상</button>
+</nav>
+<main id="main"></main>
+
+<div class="ov" id="ovTeam"><div class="sheet">
+  <div class="sh-h"><h2>응원팀 선택</h2><button class="sm" id="teamClose">닫기</button></div>
+  <div class="tgrid" id="teamGrid"></div>
+  <button style="width:100%;margin-top:10px" id="teamNone">응원팀 없이 보기</button>
+  <div class="hint">선택한 팀은 이 기기에만 저장돼요. 순위 강조, 팀 뉴스·영상, 지표 팀 필터에 쓰입니다.</div>
+</div></div>
+
+<div class="ov" id="ovPlayer"><div class="sheet" id="plBody"></div></div>
+
+<script>
+'use strict';
+const FN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/kbo-data';
+const TEAMS = ['삼성', 'KT', 'KIA', 'LG', '두산', 'SSG', '롯데', 'NC', '한화', '키움'];
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+
+const S = { tab: 'rank', team: lsGet('simkbo.team') || '', kind: 'hit1', sort: '', order: 'DESC', onlyMy: false, newsMode: 'my', vidMode: 'vid' };
+const ERR = {
+  nophone: '등록된 사용자 번호가 없어요. 런처 상단 AI 아이콘에서 전화번호를 먼저 등록해 주세요.',
+  forbidden: '등록되지 않은 전화번호예요. 런처 상단 AI 아이콘에서 번호를 확인해 주세요.',
+  quota: '유튜브 검색 한도를 모두 썼어요. 하루 한도는 한국시간 오후 5시경 초기화돼요.',
+  nokey: '서버에 YOUTUBE_API_KEY가 등록되어 있지 않아요.',
+  noplayer: '선수 정보를 찾지 못했어요.',
+  net: '네트워크 연결에 실패했어요.',
+  fail: 'KBO 사이트에서 데이터를 가져오지 못했어요. 잠시 뒤 다시 시도해 주세요.'
+};
+
+/* ── 서버 호출 + 기기 캐시 (실패하면 마지막으로 받은 값을 "저장된 결과"로 보여준다) ── */
+const TTL = { standings: 10, players: 30, search: 30, profile: 360, news: 10, youtube: 360 };   // 분
+async function api(action, p) {
+  const phone = (lsGet('SIMAS_AI_PHONE') || '').replace(/\D/g, '');
+  if (phone.length < 9) throw { code: 'nophone' };
+  const key = 'simkbo.c.' + action + '|' + JSON.stringify(p || {});
+  let hit = null; try { hit = JSON.parse(lsGet(key) || 'null'); } catch (e) {}
+  if (hit && Date.now() - hit.at < (TTL[action] || 10) * 60000) return Object.assign({ _cache: 'fresh', _at: hit.at }, hit.v);
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 30000);
+  try {
+    const r = await fetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ phone, action }, p || {})), signal: ctl.signal });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw { code: j.error || (r.status === 403 ? 'forbidden' : 'fail'), detail: j.detail };
+    lsSet(key, JSON.stringify({ at: Date.now(), v: j }));
+    return j;
+  } catch (e) {
+    if (hit) return Object.assign({ _cache: 'stale', _at: hit.at }, hit.v);
+    throw e && e.code ? e : { code: e && e.name === 'AbortError' ? 'fail' : 'net' };
+  } finally { clearTimeout(to); }
+}
+const errMsg = e => (ERR[e && e.code] || ERR.fail) + (e && e.detail ? ' [' + e.detail + ']' : '');
+const stale = j => j._cache === 'stale' ? '<div class="hint warn">⚠ 서버에서 새로 받지 못해 ' + esc(fmtAt(j._at)) + '에 저장된 결과를 보여드려요.</div>' : '';
+const fmtAt = t => { const d = new Date(t); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+const loading = t => '<div class="empty"><span class="spin"></span>' + esc(t || '불러오는 중…') + '</div>';
+const failBox = (e, retry) => '<div class="card"><div class="hint bad" style="margin:0">' + esc(errMsg(e)) + '</div>' + (retry ? '<button class="sm" style="margin-top:10px" data-act="' + retry + '">다시 시도</button>' : '') + '</div>';
+
+/* ── 값 가공 (원본에 있는 값만 계산: 나이·연봉 단위) ── */
+function ageOf(birth) {
+  const m = /(\d{4})\D+(\d{1,2})\D+(\d{1,2})/.exec(birth || ''); if (!m) return '';
+  const n = new Date(); let a = n.getFullYear() - +m[1];
+  if (n.getMonth() + 1 < +m[2] || (n.getMonth() + 1 === +m[2] && n.getDate() < +m[3])) a--;
+  return '만 ' + a + '세';
+}
+function won(s) {   // "50000만원" → "5억원"
+  const m = /([\d,]+)\s*만원/.exec(s || ''); if (!m) return s || '';
+  const n = parseInt(m[1].replace(/,/g, ''), 10); if (!isFinite(n)) return s;
+  const eok = Math.floor(n / 10000), rest = n % 10000;
+  return (eok ? eok + '억' + (rest ? ' ' + rest.toLocaleString() + '만' : '') : rest.toLocaleString() + '만') + '원';
+}
+const myRow = t => S.team && t === S.team;
+
+/* ── 응원팀 ── */
+function paintTeam() { $('teamBtn').textContent = S.team ? '⚾ ' + S.team : '응원팀 선택'; }
+function openTeam() {
+  $('teamGrid').innerHTML = TEAMS.map(t => '<button data-team="' + esc(t) + '"' + (t === S.team ? ' class="on"' : '') + '>' + esc(t) + '</button>').join('');
+  $('ovTeam').classList.add('show');
+}
+function setTeam(t) { S.team = t; lsSet('simkbo.team', t); lsSet('simkbo.asked', '1'); paintTeam(); $('ovTeam').classList.remove('show'); render(); }
+$('teamBtn').onclick = openTeam;
+$('teamClose').onclick = () => { lsSet('simkbo.asked', '1'); $('ovTeam').classList.remove('show'); };
+$('teamNone').onclick = () => setTeam('');
+$('teamGrid').onclick = e => { const b = e.target.closest('[data-team]'); if (b) setTeam(b.dataset.team); };
+$('ovTeam').onclick = e => { if (e.target === $('ovTeam')) $('teamClose').onclick(); };
+
+/* ── 탭 ── */
+$('tabs').onclick = e => { const b = e.target.closest('[data-t]'); if (!b) return; S.tab = b.dataset.t; [...$('tabs').children].forEach(x => x.classList.toggle('on', x === b)); render(); window.scrollTo(0, 0); };
+function render() { ({ rank: vRank, stat: vStat, player: vPlayer, news: vNews, video: vVideo })[S.tab](); }
+const main = $('main');
+let seq = 0;   // 늦게 도착한 응답이 다른 탭 화면을 덮지 않게
+const guard = () => { const n = ++seq; return () => n === seq; };
+
+/* ── 1. 팀 순위 ── */
+async function vRank() {
+  const ok = guard(); main.innerHTML = loading('팀 순위 불러오는 중…');
+  try {
+    const j = await api('standings'); if (!ok()) return;
+    const rows = j.rows.slice().sort((a, b) => a.rank - b.rank);
+    main.innerHTML = '<div class="card"><div class="row" style="margin-bottom:8px"><b>KBO 팀 순위</b><span class="hint grow" style="margin:0;text-align:right">기준일 ' + esc(j.asof || '확인 안 됨') + '</span></div>'
+      + '<div class="tw"><table><thead><tr><th>순위</th><th class="l">팀</th><th>경기</th><th>승</th><th>패</th><th>무</th><th class="hi">승률</th><th>게임차</th><th>최근10</th><th>연속</th><th>홈</th><th>방문</th></tr></thead><tbody>'
+      + rows.map(r => '<tr' + (myRow(r.team) ? ' class="my"' : '') + '><td>' + r.rank + '</td><td class="l"><b>' + esc(r.team) + '</b></td><td>' + r.g + '</td><td>' + r.w + '</td><td>' + r.l + '</td><td>' + r.d + '</td><td class="hi">' + r.pct.toFixed(3) + '</td><td>' + esc(r.gb) + '</td><td>' + esc(r.last10) + '</td><td>' + esc(r.streak) + '</td><td>' + esc(r.home) + '</td><td>' + esc(r.away) + '</td></tr>').join('')
+      + '</tbody></table></div>'
+      + (j.mismatch ? '<div class="hint warn">⚠ KBO 원본 표의 순위 순서가 승률 순서와 일치하지 않아요. 앱은 원본 표기를 그대로 보여주며 임의로 고치지 않았어요. KBO 사이트에서 확인해 보세요.</div>' : '')
+      + stale(j) + '<div class="hint">출처: ' + esc(j.src) + (j.cached ? ' · 서버 캐시' : '') + '</div></div>';
+  } catch (e) { if (ok()) main.innerHTML = failBox(e, 'rank'); }
+}
+
+/* ── 2. 지표 순위 (선수) ── */
+const KINDS = [['hit1', '타자 ①'], ['hit2', '타자 ②'], ['run', '주루'], ['pit1', '투수 ①'], ['pit2', '투수 ②']];
+const LOW_BETTER = ['ERA_RT', 'WHIP_RT'];
+async function vStat() {
+  const ok = guard();
+  main.innerHTML = '<div class="seg" id="kseg">' + KINDS.map(k => '<button data-k="' + k[0] + '"' + (S.kind === k[0] ? ' class="on"' : '') + '>' + k[1] + '</button>').join('') + '</div><div id="stBody">' + loading('지표 순위 불러오는 중…') + '</div>';
+  const body = $('stBody');
+  const def = S.kind === 'hit1' ? 'HRA_RT' : S.kind === 'pit1' ? 'ERA_RT' : '';
+  const sort = S.sort || def, order = S.sort ? S.order : (LOW_BETTER.includes(def) ? 'ASC' : 'DESC');
+  try {
+    const p = { kind: S.kind, order }; if (sort) p.sort = sort; if (S.onlyMy && S.team) p.team = S.team;
+    const j = await api('players', p); if (!ok()) return;
+    const chips = j.th.map((h, i) => ({ h, c: j.sort[i], i })).filter(x => x.c);
+    const activeIdx = sort ? j.sort.indexOf(sort) : -1;
+    body.innerHTML = '<div class="chips" id="mchips">' + chips.map(x => '<span class="chip' + (x.c === sort ? ' on' : '') + '" data-c="' + esc(x.c) + '">' + esc(x.h) + '</span>').join('') + '</div>'
+      + '<div class="row" style="margin-bottom:10px"><button class="sm" id="ordBtn">' + (order === 'ASC' ? '▲ 낮은 순' : '▼ 높은 순') + '</button>'
+      + (S.team ? '<label class="chip' + (S.onlyMy ? ' on' : '') + '" id="myChk">' + esc(S.team) + '만 보기</label>' : '<span class="hint" style="margin:0">응원팀을 고르면 팀별로 볼 수 있어요</span>') + '</div>'
+      + '<div class="tw"><table class="stk"><thead><tr>' + j.th.map((h, i) => '<th class="' + (i === 1 || i === 2 ? 'l' : '') + (i === activeIdx ? ' hi' : '') + '">' + esc(h) + '</th>').join('') + '</tr></thead><tbody>'
+      + j.rows.map(r => '<tr' + (myRow(r.c[2]) ? ' class="my"' : '') + '>' + r.c.map((v, i) => i === 1 ? '<td class="l"><a class="pl" data-id="' + esc(r.id || '') + '">' + esc(v) + '</a></td>' : '<td class="' + (i === 2 ? 'l' : '') + (i === activeIdx ? ' hi' : '') + '">' + esc(v) + '</td>').join('') + '</tr>').join('')
+      + '</tbody></table></div>'
+      + (S.onlyMy ? '<div class="hint warn">구단별 보기에는 규정 타석·이닝에 못 미친 선수도 함께 나올 수 있어요(KBO 원본 기준).</div>' : '<div class="hint">전체 보기는 KBO 원본 기준 순위표(규정 충족 선수 위주)입니다.</div>')
+      + (sort ? '' : '<div class="hint">정렬 기준 미선택 — KBO 기본 순서로 보여주고 있어요. 위 지표를 눌러 정렬해 보세요.</div>')
+      + stale(j) + '<div class="hint">' + esc(j.season || '') + ' 시즌 · 출처: ' + esc(j.src) + ' · 이름을 누르면 선수 정보가 열려요.</div>';
+  } catch (e) { if (ok()) body.innerHTML = failBox(e, 'stat'); }
+}
+main.addEventListener('click', e => {
+  const k = e.target.closest('#kseg [data-k]');
+  if (k) { S.kind = k.dataset.k; S.sort = ''; S.order = 'DESC'; return vStat(); }
+  const c = e.target.closest('#mchips [data-c]');
+  if (c) { S.sort = c.dataset.c; S.order = LOW_BETTER.includes(S.sort) ? 'ASC' : 'DESC'; return vStat(); }
+  if (e.target.closest('#ordBtn')) { if (!S.sort) S.sort = S.kind === 'hit1' ? 'HRA_RT' : S.kind === 'pit1' ? 'ERA_RT' : ''; if (!S.sort) return; S.order = S.order === 'ASC' ? 'DESC' : 'ASC'; return vStat(); }
+  if (e.target.closest('#myChk')) { S.onlyMy = !S.onlyMy; return vStat(); }
+  const p = e.target.closest('[data-id]'); if (p && p.dataset.id) return openPlayer(p.dataset.id);
+  const a = e.target.closest('[data-act]'); if (a) render();
+});
+
+/* ── 3. 선수 검색 ── */
+let lastQ = '';
+function vPlayer() {
+  main.innerHTML = '<div class="card"><div class="row"><input type="search" id="q" class="grow" placeholder="선수 이름 (예: 구자욱)" autocomplete="off" value="' + esc(lastQ) + '"><button class="primary" id="qGo">검색</button></div>'
+    + '<div class="row" style="margin-top:8px">' + (S.team ? '<button class="sm" id="qMy">' + esc(S.team) + ' 선수 전체</button>' : '') + '</div>'
+    + '<div class="hint">KBO 선수 조회 기준이에요. 사진·나이·출신교·연봉은 선수를 누르면 보여요.</div></div><div id="qOut"></div>';
+  const go = async (name, team) => {
+    const ok = guard(); $('qOut').innerHTML = loading('선수 찾는 중…'); lastQ = name || '';
+    try {
+      const j = await api('search', { name: name || '', team: team || '' }); if (!ok()) return;
+      if (!j.rows.length) { $('qOut').innerHTML = '<div class="card empty">검색 결과가 없어요. 이름을 확인해 주세요.</div>'; return; }
+      $('qOut').innerHTML = '<div class="card">' + j.rows.map(r => '<div class="pres" data-id="' + esc(r.id || '') + '"><span class="no">' + esc(r.c[0] || '-') + '</span><div class="grow"><b>' + esc(r.c[1]) + '</b> <small style="display:inline">' + esc(r.c[2]) + ' · ' + esc(r.c[3]) + '</small><small>' + esc(r.c[4]) + ' · ' + esc(r.c[5]) + ' · ' + esc(r.c[6]) + '</small></div><span style="color:var(--sub)">›</span></div>').join('')
+        + stale(j) + '<div class="hint">' + j.rows.length + '명 · 출처: ' + esc(j.src) + '</div></div>';
+    } catch (e) { if (ok()) $('qOut').innerHTML = failBox(e); }
+  };
+  $('qGo').onclick = () => { const v = $('q').value.trim(); if (!v) return $('q').focus(); go(v); };
+  $('q').onkeydown = e => { if (e.key === 'Enter') $('qGo').onclick(); };
+  const my = $('qMy'); if (my) my.onclick = () => go('', S.team);
+  if (lastQ) go(lastQ);
+}
+
+/* ── 선수 정보 시트 ── */
+function tbl(th, rows, cls) {
+  return '<div class="tw"><table class="' + (cls || '') + '"><thead><tr>' + th.map((h, i) => '<th class="' + (i < 2 ? 'l' : '') + '">' + esc(h) + '</th>').join('') + '</tr></thead><tbody>'
+    + rows.map(r => '<tr>' + r.map((v, i) => '<td class="' + (i < 2 ? 'l' : '') + '">' + esc(v) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
+}
+async function openPlayer(id) {
+  const body = $('plBody'); $('ovPlayer').classList.add('show');
+  body.innerHTML = '<div class="sh-h"><h2>선수 정보</h2><button class="sm" id="plClose">닫기</button></div>' + loading('선수 정보 불러오는 중…');
+  try {
+    const j = await api('profile', { id }), p = j.profile;
+    const kv = [['생년월일', p.birth ? p.birth + (ageOf(p.birth) ? ' (' + ageOf(p.birth) + ')' : '') : ''], ['포지션', p.pos], ['신장/체중', p.body], ['출신교·경력', p.career], ['입단 계약금', p.signing ? won(p.signing) : ''], ['연봉 (KBO 프로필 표기)', p.salary ? won(p.salary) + (/만원/.test(p.salary) ? ' (' + p.salary + ')' : '') : ''], ['지명 순위', p.draft], ['입단 연도', p.joined]];
+    body.innerHTML = '<div class="sh-h"><h2>선수 정보</h2><button class="sm" id="plClose">닫기</button></div>'
+      + '<div class="ph">' + (p.photo ? '<img class="photo" src="' + esc(p.photo) + '" alt="' + esc(p.name) + '" referrerpolicy="no-referrer">' : '<div class="photo" style="width:104px;height:130px"></div>')
+      + '<div><div class="nm">' + esc(p.name) + (p.no ? ' <span style="color:var(--accent);font-size:15px">No.' + esc(p.no) + '</span>' : '') + '</div>'
+      + '<div class="tm">' + (p.emblem ? '<img src="' + esc(p.emblem) + '" alt="" referrerpolicy="no-referrer">' : '') + esc(p.team) + '</div></div></div>'
+      + '<dl class="kv">' + kv.map(x => '<dt>' + esc(x[0]) + '</dt><dd>' + (x[1] ? esc(x[1]) : '<span style="color:var(--sub)">KBO에 정보 없음</span>') + '</dd>').join('') + '</dl>'
+      + '<div class="hint" style="margin-top:0">연봉·계약금은 KBO 공식 프로필에 표시된 값이며, 단위는 원본(만원)을 억 단위로 풀어 쓴 것입니다.</div>'
+      + '<div class="sec">시즌 성적' + (j.kind === 'pit' ? ' (투수)' : ' (타자)') + '</div>'
+      + (j.season && j.season.rows.length ? tbl(j.season.th, j.season.rows) : '<div class="hint">시즌 기록을 찾지 못했어요.</div>')
+      + '<div class="sec">팀 이적 내역</div>'
+      + (j.moves && j.moves.length ? '<div class="chips">' + j.moves.map(m => '<span class="chip">' + esc(m.year) + ' · ' + esc(m.team) + '</span>').join('') + '</div>' : '<div class="hint" style="margin-top:0">연도별 기록상 소속팀이 바뀐 시즌이 확인되지 않았어요.</div>')
+      + '<div class="hint warn" style="margin-top:6px">KBO 연도별 기록의 소속팀 변화만으로 계산한 값이에요. 기록 표에 없는 시즌·트레이드/FA 사유는 확인되지 않아 보여드리지 못해요.</div>'
+      + '<div class="sec">연도별 기록</div>'
+      + (j.total && j.total.rows.length ? tbl(j.total.th, j.total.rows, 'stk') : '<div class="hint">연도별 기록을 찾지 못했어요.</div>')
+      + stale(j) + '<div class="hint">출처: ' + esc(j.src) + '</div>';
+  } catch (e) { body.innerHTML = '<div class="sh-h"><h2>선수 정보</h2><button class="sm" id="plClose">닫기</button></div>' + failBox(e); }
+}
+$('plBody').onclick = e => { if (e.target.closest('#plClose')) $('ovPlayer').classList.remove('show'); };
+$('ovPlayer').onclick = e => { if (e.target === $('ovPlayer')) $('ovPlayer').classList.remove('show'); };
+
+/* ── 4. 뉴스 ── */
+async function vNews() {
+  const my = S.team && S.newsMode === 'my';
+  main.innerHTML = '<div class="seg" id="nseg">' + (S.team ? '<button data-m="my"' + (S.newsMode === 'my' ? ' class="on"' : '') + '>' + esc(S.team) + ' 뉴스</button>' : '') + '<button data-m="all"' + (!my ? ' class="on"' : '') + '>KBO 전체 뉴스</button></div><div id="nBody">' + loading('뉴스 불러오는 중…') + '</div>';
+  const ok = guard();
+  try {
+    const j = await api('news', my ? { team: S.team } : {}); if (!ok()) return;
+    $('nBody').innerHTML = j.items.length ? j.items.map(n => '<a class="item" href="' + esc(n.link) + '" target="_blank" rel="noopener noreferrer"><div class="t">' + esc(n.title) + '</div><div class="s">' + esc(n.src || '출처 미표기') + (n.at ? ' · ' + esc(ago(n.at)) : '') + '</div></a>').join('') + stale(j) + '<div class="hint">검색어 “' + esc(j.q) + '” · 출처: ' + esc(j.src) + ' · 기사를 누르면 새 탭에서 열려요.</div>' : '<div class="card empty">최근 뉴스가 없어요.</div>';
+  } catch (e) { if (ok()) $('nBody').innerHTML = failBox(e, 'news'); }
+}
+function ago(s) { const t = Date.parse(s); if (!isFinite(t)) return ''; const m = Math.floor((Date.now() - t) / 60000); if (m < 60) return Math.max(m, 1) + '분 전'; if (m < 1440) return Math.floor(m / 60) + '시간 전'; if (m < 43200) return Math.floor(m / 1440) + '일 전'; return new Date(t).toLocaleDateString('ko-KR'); }
+main.addEventListener('click', e => { const m = e.target.closest('#nseg [data-m]'); if (m) { S.newsMode = m.dataset.m; vNews(); } const v = e.target.closest('#vseg [data-v]'); if (v) { S.vidMode = v.dataset.v; vVideo(); } });
+
+/* ── 5. 영상·채널 ── */
+async function vVideo() {
+  const modes = (S.team ? [['vid', S.team + ' 영상'], ['ch', S.team + ' 채널']] : []).concat([['kch', 'KBO 채널']]);
+  if (!modes.some(m => m[0] === S.vidMode)) S.vidMode = modes[0][0];
+  main.innerHTML = '<div class="seg" id="vseg">' + modes.map(m => '<button data-v="' + m[0] + '"' + (S.vidMode === m[0] ? ' class="on"' : '') + '>' + esc(m[1]) + '</button>').join('') + '</div><div id="vBody">' + loading('유튜브 검색 중…') + '</div>';
+  const ok = guard();
+  try {
+    const p = S.vidMode === 'vid' ? { team: S.team, kind: 'video' } : S.vidMode === 'ch' ? { team: S.team, kind: 'channel' } : { kind: 'channel' };
+    const j = await api('youtube', p); if (!ok()) return;
+    $('vBody').innerHTML = j.items.length ? j.items.map(v => j.kind === 'channel'
+      ? '<a class="item vid" href="https://www.youtube.com/channel/' + esc(v.id) + '" target="_blank" rel="noopener noreferrer">' + (v.thumb ? '<img class="ch" src="' + esc(v.thumb) + '" alt="" loading="lazy">' : '') + '<div class="grow"><div class="t"><b>' + esc(v.title) + '</b></div><div class="s">' + esc(v.desc) + '</div></div></a>'
+      : '<a class="item vid" href="https://www.youtube.com/watch?v=' + esc(v.id) + '" target="_blank" rel="noopener noreferrer">' + (v.thumb ? '<img src="' + esc(v.thumb) + '" alt="" loading="lazy">' : '') + '<div class="grow"><div class="t">' + esc(v.title) + '</div><div class="s">' + esc(v.ch) + (v.at ? ' · ' + esc(ago(v.at)) : '') + '</div></div></a>').join('')
+      + stale(j) + '<div class="hint warn">“' + esc(j.q) + '” 검색 결과예요. 구단 공식 채널인지는 유튜브에서 확인해 주세요. 같은 검색은 6시간 동안 저장돼 하루 검색 한도를 아껴요.</div><div class="hint">출처: ' + esc(j.src) + '</div>'
+      : '<div class="card empty">검색 결과가 없어요.</div>';
+  } catch (e) { if (ok()) $('vBody').innerHTML = failBox(e, 'video'); }
+}
+
+/* ── 시작 ── */
+paintTeam(); render();
+if (!lsGet('simkbo.asked') && !S.team) setTimeout(openTeam, 300);
+</script>
+</body>
+</html>

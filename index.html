@@ -176,12 +176,9 @@ button.danger{color:#ff8a8a}
     const rank = new Map(loadOrder().map((id, i) => [id, i]));
     return TOOLS.filter(t => rank.has(t.id)).sort((a, b) => rank.get(a.id) - rank.get(b.id)).concat(TOOLS.filter(t => !rank.has(t.id)));
   }
-  function updateHint() {
-    const el = $('reorder');
-    if ($('q').value.trim() || !loadOrder().length) { el.innerHTML = ''; return; }
-    el.innerHTML = '<button id="orderReset">순서 초기화</button>';
-    const b = $('orderReset'); if (b) b.onclick = () => { lsDel(KEY_ORDER); render(); toast('기본 순서로 되돌렸어요'); };
-  }
+  const KEY_MOVE = 'simtools_move';   // 카드 이동 스위치 (기본 꺼짐, 이 기기에만 저장)
+  const moveOn = () => lsGet(KEY_MOVE) === '1';
+  function updateHint() { const el = $('reorder'); if (el) el.innerHTML = ''; }
 
   function render() {
     const q = $('q').value.trim().toLowerCase();
@@ -292,7 +289,7 @@ button.danger{color:#ff8a8a}
   grid.addEventListener('dragstart', e => e.preventDefault());
   grid.addEventListener('contextmenu', e => { if (D) e.preventDefault(); });
   grid.addEventListener('pointerdown', e => {
-    if (D || $('q').value.trim()) return;
+    if (D || $('q').value.trim() || !moveOn()) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const el = e.target.closest && e.target.closest('a.card'); if (!el) return;
     D = { el, pid: e.pointerId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, gx: 0, gy: 0, active: false, type: e.pointerType, timer: 0, raf: 0 };
@@ -370,6 +367,13 @@ button.danger{color:#ff8a8a}
     lsSet(KEY_ORDER, JSON.stringify([].slice.call(grid.querySelectorAll('a.card')).map(c => c.dataset.id)));
     updateHint();
   }
+
+  window.simLauncher = {
+    openAi: () => openAiModal('gemini'),
+    resetOrder: () => { lsDel(KEY_ORDER); render(); toast('카드 순서를 기본으로 되돌렸어요'); },
+    moveOn,
+    setMove: on => { lsSet(KEY_MOVE, on ? '1' : '0'); toast(on ? '카드 이동 켜짐 — 카드를 길게(PC는 끌어서) 옮겨요' : '카드 이동 꺼짐'); }
+  };
 
   /* ── 앱 설치 (PWA) ── */
   let deferredPrompt = null;

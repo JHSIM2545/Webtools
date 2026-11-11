@@ -1747,6 +1747,7 @@ async function salesAI(text) {   // AI가 말을 조회 조건으로 해석 → 
 }
 const fdK = d => { if (!d) return '미정'; const s0 = String(d), y = s0.slice(0, 4), cy = String(new Date().getFullYear()); return (y !== cy ? y + '년 ' : '') + (+s0.slice(5, 7)) + '월 ' + (+s0.slice(8, 10)) + '일'; };
 async function salesAsk(m) {
+  if (!(window.simAuth && window.simAuth.isOwner())) return bot('영업일보 조회는 심정환 계정으로 로그인했을 때만 쓸 수 있어요.');
   const phone = gKey();
   if (!phone) return bot('일보를 조회하려면 등록된 전화번호가 필요해요. 런처의 AI 설정에서 전화번호를 등록해 주세요.', { btns: [{ label: 'AI 설정 열기', primary: true, fn: openAi }] });
   if (m.k === 'lookup' && !m.q && !m.kind) { pending = newP('sales', {}); pending.ask = 'salescust'; return bot('어떤 계약처를 조회할까요? 이름의 일부만 말씀하셔도 돼요.', { tok: pending.tok, btns: [{ label: '취소', fn: () => cancelP('취소했어요.') }] }); }
@@ -1783,7 +1784,7 @@ async function handleText(raw, viaAI) {
   }
   if (!viaAI && /(기기|폰|핸드폰|모바일|PC|피씨|컴퓨터).{0,6}동기화|동기화\s*(하자|해줘|해|시작|할래)|^동기화$/i.test(text)) return void (location.href = 'index.html?sync=1');
   if (!viaAI) { const mi = memIntent(text); if (mi) return memHandle(mi); }
-  if (!viaAI) { const ai = await salesAI(text); if (ai && ai.none) { /* AI: 일보 질문 아님 → 아래 일반 처리 */ } else { const si = ai || salesIntent(text); if (si) return salesAsk(si); } }   // 영업일보 조회   // 기억 저장·조회·삭제 (기기 안에서만 처리)
+  if (!viaAI && window.simAuth && window.simAuth.isOwner()) { const ai = await salesAI(text); if (ai && ai.none) { /* AI: 일보 질문 아님 → 아래 일반 처리 */ } else { const si = ai || salesIntent(text); if (si) return salesAsk(si); } }   // 영업일보 조회   // 기억 저장·조회·삭제 (기기 안에서만 처리)
   if (!viaAI && looksLikeMessage(text) && await importMessage(text)) return;   // 문자 붙여넣기 → 일정 자동 등록
   if (!viaAI && aiUsable() && await askGemini(text)) return;   // 기본은 AI, 실패하면 아래 로컬 엔진
   const intent = NLU.detect(text);

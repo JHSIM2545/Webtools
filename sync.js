@@ -329,6 +329,7 @@
     cUser = null; clearInterval(cTimer);
     try { const c = await client(); await c.auth.signOut(); } catch (e) {}
     await wipeLocal();
+    try { localStorage.setItem('SIM_LOGGED_OUT', '1'); } catch (e) {}
     location.replace(location.pathname.replace(/[^/]*$/, 'index.html'));
   }
   async function logoutFlow() {
@@ -367,11 +368,31 @@
   /* 도구 화면(bg=1): 로그인돼 있으면 열 때 서버 데이터를 받아 오고, 닫거나 숨길 때·1분마다 서버에 올린다. 받은 내용이 있으면 한 번만 새로고침한다. */
   const notify = st => { if (st && (st.put || st.del)) { try { window.dispatchEvent(new CustomEvent('simsync', { detail: st })); } catch (e) {} } return st; };   // 도구 화면이 듣고 새로 그림
   let bgOn = false;
+  const OWNER = 'simyou0928@gmail.com';   // 영업일보 조회 허용 계정(심정환)
+  const GATED = /\/(message|assistant)\.html$/i.test(location.pathname);   // 로그인해야 쓰는 화면
+  const hasTok = () => { try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^sb-.*-auth-token$/.test(k) && localStorage.getItem(k)) return true; } } catch (e) {} return false; };
+  function gate(on) {
+    let g = document.getElementById('simGate');
+    if (!on) { if (g) g.remove(); return; }
+    if (g) return;
+    g = document.createElement('div'); g.id = 'simGate';
+    g.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:var(--bg,#0f1115);color:var(--text,#fff);display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;touch-action:none';
+    g.innerHTML = '<div style="max-width:320px"><div style="font-size:42px">🔒</div><h2 style="margin:10px 0 6px;font-size:18px">로그인 후 사용할 수 있어요</h2><p style="margin:0 0 16px;color:var(--sub,#9aa);font-size:14px;line-height:1.5">SIM 툴즈 첫 화면에서 로그인하면 이 기능을 쓸 수 있어요.</p><a href="index.html" style="display:inline-block;padding:11px 20px;border-radius:10px;background:var(--accent,#4c8dff);color:#fff;text-decoration:none;font-weight:600">로그인하러 가기</a></div>';
+    (document.body || document.documentElement).appendChild(g);
+    ['keydown', 'keyup', 'keypress'].forEach(e => document.addEventListener(e, ev => { if (document.getElementById('simGate')) { ev.stopImmediatePropagation(); ev.preventDefault(); } }, true));
+  }
+  window.simAuth = { user: () => cUser, email: () => (cUser && cUser.email) || '', isOwner: () => !!(cUser && String(cUser.email || '').toLowerCase() === OWNER) };
   async function bgBoot() {
     if (bgOn) return; bgOn = true;
+    if (GATED && !hasTok()) gate(true);   // 로그인 흔적이 없으면 확인 전에 먼저 막는다
     try {
-      const c = await client(), { data } = await c.auth.getSession(); if (!data.session) return;
-      cUser = data.session.user;
+      const c = await client(), { data } = await c.auth.getSession();
+      if (!data.session) {
+        if (GATED) gate(true);
+        else if (lget('SIM_LOGGED_OUT') === '1' && !sessionStorage.getItem('SIM_BG_WIPE')) { await wipeLocal(); try { localStorage.setItem('SIM_LOGGED_OUT', '1'); sessionStorage.setItem('SIM_BG_WIPE', '1'); } catch (e) {} location.reload(); }   // 로그아웃 상태인데 남은 데이터가 있으면 지운다
+        return;
+      }
+      cUser = data.session.user; gate(false); try { localStorage.removeItem('SIM_LOGGED_OUT'); } catch (e) {}
       const st = await cloudSync();
       if (st && (st.put || st.del) && !sessionStorage.getItem('SIM_BG_RELOAD')) { sessionStorage.setItem('SIM_BG_RELOAD', '1'); location.reload(); return; }
       sessionStorage.removeItem('SIM_BG_RELOAD');
@@ -379,7 +400,7 @@
       document.addEventListener('visibilitychange', () => up());   // 숨길 때는 올리고, 다시 볼 때는 최신을 받는다
       window.addEventListener('pagehide', up);
       setInterval(() => { if (!document.hidden) up(); }, 60e3);
-    } catch (e) {}
+    } catch (e) { if (GATED && !hasTok()) gate(true); else gate(false); }
   }
   window.simSync = { menu, collect, merge, hash, pick, sync: () => (cUser ? cloudSync().then(notify) : Promise.resolve(null)) };   // sync(): 지금 바로 서버와 맞추기(도구 화면에서 저장 직후 호출)
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

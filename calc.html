@@ -237,30 +237,30 @@ main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-ove
   /* ─────────── 통화 목록 ───────────
      c: 코드, n: 목록 이름, s: 음성 안내용 짧은 이름, d: 표시 소수점, al: 음성 인식 별칭(소문자) */
   const CUR = [
-    { c: 'KRW', n: '대한민국 원', s: '원', d: 0, al: ['원화', '한국 원', '한화', '원', 'won', 'krw'] },
-    { c: 'USD', n: '미국 달러', s: '달러', d: 2, al: ['미국 달러', '미 달러', '달러', '딸라', '불', 'dollar', 'dollars', 'usd'] },
-    { c: 'JPY', n: '일본 엔', s: '엔', d: 0, al: ['일본 엔', '엔화', '엔', 'yen', 'jpy'] },
-    { c: 'EUR', n: '유로', s: '유로', d: 2, al: ['유로화', '유로', 'euro', 'euros', 'eur'] },
-    { c: 'CNY', n: '중국 위안', s: '위안', d: 2, al: ['중국 위안', '위안화', '위안', 'yuan', 'rmb', 'cny'] },
-    { c: 'GBP', n: '영국 파운드', s: '파운드', d: 2, al: ['영국 파운드', '파운드', 'pound', 'pounds', 'gbp'] },
-    { c: 'AUD', n: '호주 달러', s: '호주 달러', d: 2, al: ['호주 달러', 'aud'] },
-    { c: 'CAD', n: '캐나다 달러', s: '캐나다 달러', d: 2, al: ['캐나다 달러', 'cad'] },
-    { c: 'CHF', n: '스위스 프랑', s: '스위스 프랑', d: 2, al: ['스위스 프랑', '프랑', 'franc', 'chf'] },
-    { c: 'HKD', n: '홍콩 달러', s: '홍콩 달러', d: 2, al: ['홍콩 달러', 'hkd'] },
-    { c: 'SGD', n: '싱가포르 달러', s: '싱가포르 달러', d: 2, al: ['싱가포르 달러', '싱가폴 달러', 'sgd'] },
-    { c: 'NZD', n: '뉴질랜드 달러', s: '뉴질랜드 달러', d: 2, al: ['뉴질랜드 달러', 'nzd'] },
-    { c: 'TWD', n: '대만 달러', s: '대만 달러', d: 2, al: ['대만 달러', '타이완 달러', 'twd'] },
-    { c: 'THB', n: '태국 바트', s: '바트', d: 2, al: ['태국 바트', '바트', 'baht', 'thb'] },
-    { c: 'VND', n: '베트남 동', s: '베트남 동', d: 0, al: ['베트남 동', 'vnd'] },
-    { c: 'PHP', n: '필리핀 페소', s: '필리핀 페소', d: 2, al: ['필리핀 페소', '페소', 'php'] },
-    { c: 'IDR', n: '인도네시아 루피아', s: '루피아', d: 0, al: ['인도네시아 루피아', '루피아', 'idr'] },
-    { c: 'MYR', n: '말레이시아 링깃', s: '링깃', d: 2, al: ['말레이시아 링깃', '링깃', 'ringgit', 'myr'] },
-    { c: 'INR', n: '인도 루피', s: '루피', d: 2, al: ['인도 루피', '루피', 'rupee', 'rupees', 'inr'] },
-    { c: 'AED', n: '아랍에미리트 디르함', s: '디르함', d: 2, al: ['아랍에미리트 디르함', '디르함', 'aed'] },
-    { c: 'SAR', n: '사우디 리얄', s: '리얄', d: 2, al: ['사우디 리얄', '리얄', 'sar'] },
-    { c: 'MXN', n: '멕시코 페소', s: '멕시코 페소', d: 2, al: ['멕시코 페소', 'mxn'] },
-    { c: 'TRY', n: '튀르키예 리라', s: '리라', d: 2, al: ['튀르키예 리라', '터키 리라', '리라', 'try'] },
-    { c: 'BRL', n: '브라질 헤알', s: '헤알', d: 2, al: ['브라질 헤알', '헤알', 'brl'] }
+    { c: 'KRW', f: '🇰🇷', n: '대한민국 원', s: '원', d: 0, al: ['원화', '한국 원', '한화', '원', 'won', 'krw'] },
+    { c: 'USD', f: '🇺🇸', n: '미국 달러', s: '달러', d: 2, al: ['미국 달러', '미 달러', '달러', '딸라', '불', 'dollar', 'dollars', 'usd'] },
+    { c: 'JPY', f: '🇯🇵', n: '일본 엔', s: '엔', d: 0, al: ['일본 엔', '엔화', '엔', 'yen', 'jpy'] },
+    { c: 'EUR', f: '🇪🇺', n: '유로', s: '유로', d: 2, al: ['유로화', '유로', 'euro', 'euros', 'eur'] },
+    { c: 'CNY', f: '🇨🇳', n: '중국 위안', s: '위안', d: 2, al: ['중국 위안', '위안화', '위안', 'yuan', 'rmb', 'cny'] },
+    { c: 'GBP', f: '🇬🇧', n: '영국 파운드', s: '파운드', d: 2, al: ['영국 파운드', '파운드', 'pound', 'pounds', 'gbp'] },
+    { c: 'AUD', f: '🇦🇺', n: '호주 달러', s: '호주 달러', d: 2, al: ['호주 달러', 'aud'] },
+    { c: 'CAD', f: '🇨🇦', n: '캐나다 달러', s: '캐나다 달러', d: 2, al: ['캐나다 달러', 'cad'] },
+    { c: 'CHF', f: '🇨🇭', n: '스위스 프랑', s: '스위스 프랑', d: 2, al: ['스위스 프랑', '프랑', 'franc', 'chf'] },
+    { c: 'HKD', f: '🇭🇰', n: '홍콩 달러', s: '홍콩 달러', d: 2, al: ['홍콩 달러', 'hkd'] },
+    { c: 'SGD', f: '🇸🇬', n: '싱가포르 달러', s: '싱가포르 달러', d: 2, al: ['싱가포르 달러', '싱가폴 달러', 'sgd'] },
+    { c: 'NZD', f: '🇳🇿', n: '뉴질랜드 달러', s: '뉴질랜드 달러', d: 2, al: ['뉴질랜드 달러', 'nzd'] },
+    { c: 'TWD', f: '🇹🇼', n: '대만 달러', s: '대만 달러', d: 2, al: ['대만 달러', '타이완 달러', 'twd'] },
+    { c: 'THB', f: '🇹🇭', n: '태국 바트', s: '바트', d: 2, al: ['태국 바트', '바트', 'baht', 'thb'] },
+    { c: 'VND', f: '🇻🇳', n: '베트남 동', s: '베트남 동', d: 0, al: ['베트남 동', 'vnd'] },
+    { c: 'PHP', f: '🇵🇭', n: '필리핀 페소', s: '필리핀 페소', d: 2, al: ['필리핀 페소', '페소', 'php'] },
+    { c: 'IDR', f: '🇮🇩', n: '인도네시아 루피아', s: '루피아', d: 0, al: ['인도네시아 루피아', '루피아', 'idr'] },
+    { c: 'MYR', f: '🇲🇾', n: '말레이시아 링깃', s: '링깃', d: 2, al: ['말레이시아 링깃', '링깃', 'ringgit', 'myr'] },
+    { c: 'INR', f: '🇮🇳', n: '인도 루피', s: '루피', d: 2, al: ['인도 루피', '루피', 'rupee', 'rupees', 'inr'] },
+    { c: 'AED', f: '🇦🇪', n: '아랍에미리트 디르함', s: '디르함', d: 2, al: ['아랍에미리트 디르함', '디르함', 'aed'] },
+    { c: 'SAR', f: '🇸🇦', n: '사우디 리얄', s: '리얄', d: 2, al: ['사우디 리얄', '리얄', 'sar'] },
+    { c: 'MXN', f: '🇲🇽', n: '멕시코 페소', s: '멕시코 페소', d: 2, al: ['멕시코 페소', 'mxn'] },
+    { c: 'TRY', f: '🇹🇷', n: '튀르키예 리라', s: '리라', d: 2, al: ['튀르키예 리라', '터키 리라', '리라', 'try'] },
+    { c: 'BRL', f: '🇧🇷', n: '브라질 헤알', s: '헤알', d: 2, al: ['브라질 헤알', '헤알', 'brl'] }
   ];
   const BYC = {}; CUR.forEach(x => BYC[x.c] = x);
 
@@ -447,9 +447,9 @@ main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-ove
     $('calc').dataset.mode = S.mode;
     $('bCalc').classList.toggle('on', S.mode === 'calc');
     $('bFx').classList.toggle('on', S.mode === 'fx');
-    $('iFrom').textContent = S.mode === 'fx' ? S.from : '';
+    $('iFrom').textContent = S.mode === 'fx' ? BYC[S.from].f + ' ' + S.from : '';
     if (S.mode === 'fx') {
-      $('iTo').textContent = S.to;
+      $('iTo').textContent = BYC[S.to].f + ' ' + S.to;
       const out = convert(S.err ? 0 : val(), S.from, S.to);
       let t = '';
       if (out == null) t = '  ';
@@ -540,7 +540,7 @@ main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-ove
 
   /* ─────────── 통화 선택 ─────────── */
   function buildSelects() {
-    const opts = CUR.map(x => '<option value="' + x.c + '">' + x.c + ' · ' + x.s + '</option>').join('');
+    const opts = CUR.map(x => '<option value="' + x.c + '">' + x.f + ' ' + x.c + ' · ' + x.s + '</option>').join('');
     $('selFrom').innerHTML = opts; $('selTo').innerHTML = opts;
     $('selFrom').value = S.from; $('selTo').value = S.to;
     $('selFrom').addEventListener('change', e => { S.from = e.target.value; persist(); render(); });

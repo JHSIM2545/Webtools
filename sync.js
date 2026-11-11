@@ -252,8 +252,8 @@
   function authView(msg) {
     const inp = 'width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;margin-top:6px';
     const b = modal('로그인', '<p style="' + sub + '">로그인하면 데이터가 내 계정에 자동 백업돼요. 앱을 지우고 다시 깔아도 같은 계정으로 로그인하면 그대로 돌아와요.</p>' +
-      '<label style="' + sub + ';display:block;margin-top:10px">휴대폰 번호</label><input id="acPh" type="tel" inputmode="tel" placeholder="010-0000-0000" autocomplete="tel" style="' + inp + '">' +
-      '<div id="acOtpBox" style="display:none"><label style="' + sub + ';display:block;margin-top:10px">인증번호 6자리</label><input id="acOtp" inputmode="numeric" maxlength="8" placeholder="______" autocomplete="one-time-code" style="' + inp + ';letter-spacing:6px;text-align:center"></div>' +
+      '<label style="' + sub + ';display:block;margin-top:10px">이메일</label><input id="acPh" type="email" inputmode="email" placeholder="name@example.com" autocomplete="email" style="' + inp + '">' +
+      '<div id="acOtpBox" style="display:none"><label style="' + sub + ';display:block;margin-top:10px">메일로 온 인증번호</label><input id="acOtp" inputmode="numeric" maxlength="8" placeholder="______" autocomplete="one-time-code" style="' + inp + ';letter-spacing:6px;text-align:center"></div>' +
       '<p id="acMsg" style="margin-top:8px;font-size:13px;color:' + (msg ? '#ff8a8a' : 'var(--sub)') + '">' + esc(msg || '') + '</p>' +
       '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button id="acSend" class="primary" style="flex:1">인증번호 받기</button><button id="acVer" class="primary" style="flex:1;display:none">확인</button></div>' +
       '<div style="margin:12px 0 4px;text-align:center;color:var(--sub);font-size:12px">또는</div><button id="acGoogle" style="width:100%">Google로 계속하기</button>' +
@@ -261,19 +261,19 @@
     const say = (t, bad) => { const e = b.querySelector('#acMsg'); e.textContent = t; e.style.color = bad ? '#ff8a8a' : 'var(--sub)'; };
     b.querySelector('#acX').onclick = close;
     b.querySelector('#acSend').onclick = async () => {
-      const phone = normPhone(b.querySelector('#acPh').value); if (phone.length < 11) return say('휴대폰 번호를 정확히 입력해 주세요.', 1);
-      say('문자를 보내는 중…');
+      const email = b.querySelector('#acPh').value.trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('이메일을 정확히 입력해 주세요.', 1);
+      say('메일을 보내는 중…');
       try {
-        const c = await client(), r = await c.auth.signInWithOtp({ phone });
+        const c = await client(), r = await c.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
         if (r.error) throw r.error;
         b.querySelector('#acOtpBox').style.display = 'block'; b.querySelector('#acVer').style.display = 'block'; b.querySelector('#acSend').textContent = '다시 받기'; b.querySelector('#acOtp').focus();
-        say('문자로 온 인증번호를 입력해 주세요.');
-      } catch (e) { say(/provider|sms|not enabled|unsupported/i.test(e.message || '') ? '문자 인증이 아직 서버에서 켜지지 않았어요 (관리자 설정 필요).' : /rate|seconds|too many/i.test(e.message || '') ? '잠시 후(1분) 다시 시도해 주세요.' : '인증번호를 보내지 못했어요: ' + (e.message || e), 1); }
+        say('메일(스팸함 포함)로 온 인증번호를 입력해 주세요.');
+      } catch (e) { say(/rate|seconds|too many/i.test(e.message || '') ? '메일을 너무 자주 요청했어요. 잠시 후 다시 시도해 주세요.' : '인증번호를 보내지 못했어요: ' + (e.message || e), 1); }
     };
     const verify = async () => {
-      const phone = normPhone(b.querySelector('#acPh').value), token = b.querySelector('#acOtp').value.replace(/\D/g, ''); if (token.length < 6) return say('인증번호를 입력해 주세요.', 1);
+      const email = b.querySelector('#acPh').value.trim().toLowerCase(), token = b.querySelector('#acOtp').value.replace(/\D/g, ''); if (token.length < 6) return say('인증번호를 입력해 주세요.', 1);
       say('확인 중…');
-      try { const c = await client(), r = await c.auth.verifyOtp({ phone, token, type: 'sms' }); if (r.error) throw r.error; close(); await setUser(r.data.user, true); }
+      try { const c = await client(), r = await c.auth.verifyOtp({ email, token, type: 'email' }); if (r.error) throw r.error; close(); await setUser(r.data.user, true); }
       catch (e) { say(/expired|invalid/i.test(e.message || '') ? '인증번호가 맞지 않거나 만료됐어요.' : '확인하지 못했어요: ' + (e.message || e), 1); }
     };
     b.querySelector('#acVer').onclick = verify; b.querySelector('#acOtp').addEventListener('keydown', e => { if (e.key === 'Enter') verify(); });

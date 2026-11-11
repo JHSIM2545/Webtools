@@ -146,6 +146,7 @@ textarea{resize:vertical}
   <a class="back" href="index.html" title="SIM Tools">‹</a>
   <h1>SIM <span>Calendar</span></h1>
   <button class="txtbtn" id="btnToday" title="오늘로 이동">오늘</button>
+  <button class="iconbtn" id="btnIcs" title="ICS 파일 가져오기 (삼성 캘린더 등)">📥</button><input type="file" id="icsFile" accept=".ics,.ical,.ifb,text/calendar,application/ics,text/x-vcalendar" multiple hidden>
   <button class="iconbtn" id="btnTypes" title="일정 종류 관리">🏷️</button>
   <a class="iconbtn" href="assistant.html" title="음성 비서로 일정 추가">🎤</a>
 </div>
@@ -882,7 +883,106 @@ try { const bc = new BroadcastChannel('simcal'); bc.onmessage = () => refreshAss
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshAsst(); });
 window.addEventListener('pageshow', e => { if (e.persisted) refreshAsst(); });
 
-loadAll().then(render);
+/* ───── ICS 가져오기: 삼성 캘린더 등에서 '공유'한 .ics → SIM Calendar에 등록 (공유 수신은 manifest의 share_target + sw.js) ───── */
+const icsUnesc = v => v.replace(/\\[nN]/g, '\n').replace(/\\([,;\\])/g, '$1');
+function icsProp(line) {
+  let i = -1, q = false;
+  for (let k = 0; k < line.length; k++) { const c = line[k]; if (c === '"') q = !q; else if (c === ':' && !q) { i = k; break; } }
+  if (i < 0) return null;
+  const parts = line.slice(0, i).split(';'), name = parts.shift().toUpperCase(), params = {};
+  parts.forEach(x => { const j = x.indexOf('='); if (j > 0) params[x.slice(0, j).toUpperCase()] = x.slice(j + 1).replace(/^"|"$/g, ''); });
+  return { name, params, val: line.slice(i + 1) };
+}
+function tzDate(Y, M, D, h, mi, sec, tz) {   // tz(예: Asia/Seoul) 기준 벽시계 시각 → 실제 시각
+  const guess = Date.UTC(Y, M - 1, D, h, mi, sec);
+  try {
+    const f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
+    const off = t => { const o = {}; f.formatToParts(new Date(t)).forEach(x => { o[x.type] = x.value; }); return Date.UTC(+o.year, +o.month - 1, +o.day, +o.hour % 24, +o.minute, +o.second) - t; };
+    let t = guess - off(guess); t = guess - off(t); return new Date(t);
+  } catch (e) { return new Date(Y, M - 1, D, h, mi, sec); }
+}
+function icsDate(p) {
+  const m = /^(\d{4})(\d\d)(\d\d)(?:T(\d\d)(\d\d)(\d\d)?(Z)?)?$/.exec(p.val.trim()); if (!m) return null;
+  const Y = +m[1], M = +m[2], D = +m[3];
+  if (p.params.VALUE === 'DATE' || m[4] === undefined) return { d: new Date(Y, M - 1, D), allDay: true };
+  const h = +m[4], mi = +m[5], sec = +(m[6] || 0);
+  if (m[7]) return { d: new Date(Date.UTC(Y, M - 1, D, h, mi, sec)), allDay: false };
+  if (p.params.TZID) return { d: tzDate(Y, M, D, h, mi, sec, p.params.TZID), allDay: false };
+  return { d: new Date(Y, M - 1, D, h, mi, sec), allDay: false };
+}
+function icsDur(v) { const m = /^([+-])?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(v.trim()); if (!m) return 0; const ms = ((+m[2] || 0) * 7 + (+m[3] || 0)) * DAY + ((+m[4] || 0) * 3600 + (+m[5] || 0) * 60 + (+m[6] || 0)) * 1000; return m[1] === '-' ? -ms : ms; }
+function parseIcs(text) {
+  const lines = String(text).replace(/^﻿/, '').replace(/\r\n|\r/g, '\n').replace(/\n[ \t]/g, '').split('\n');
+  const out = [], skip = { cancelled: 0, override: 0, bad: 0, rrule: 0 }; let cur = null, sub = 0;
+  for (const ln of lines) {
+    const u = ln.trim().toUpperCase();
+    if (u === 'BEGIN:VEVENT') { cur = {}; sub = 0; continue; }
+    if (u === 'END:VEVENT') {
+      const c = cur; cur = null; if (!c) continue;
+      if ((c.STATUS || {}).val && /CANCEL/i.test(c.STATUS.val)) { skip.cancelled++; continue; }
+      if (c['RECURRENCE-ID']) { skip.override++; continue; }
+      const st = c.DTSTART && icsDate(c.DTSTART); if (!st) { skip.bad++; continue; }
+      let start = st.d, end = start, allDay = st.allDay;
+      const en = c.DTEND && icsDate(c.DTEND);
+      if (en) end = en.d; else if (c.DURATION) end = new Date(start.getTime() + icsDur(c.DURATION.val)); else if (allDay) end = addDays(start, 1);
+      if (allDay) { end = addDays(end, -1); if (end < start) end = start; }   // 종일 일정의 DTEND는 '다음날 0시'(미포함)라서 하루 뺌
+      let rep = '';
+      if (c.RRULE) {
+        const r = {}; c.RRULE.val.split(';').forEach(x => { const j = x.indexOf('='); if (j > 0) r[x.slice(0, j).toUpperCase()] = x.slice(j + 1); });
+        rep = ({ DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly', YEARLY: 'yearly' })[r.FREQ] || '';
+        if (!rep || (r.INTERVAL && r.INTERVAL !== '1') || r.COUNT || r.UNTIL || (r.BYDAY && r.FREQ === 'WEEKLY' && r.BYDAY.includes(','))) skip.rrule++;   // 이 앱은 단순 반복(매일/매주/매월/매년, 끝 없음)만 지원
+      }
+      const v = k => c[k] ? icsUnesc(c[k].val).trim() : '';
+      const loc = v('LOCATION');
+      out.push({ uid: v('UID'), title: v('SUMMARY') || '(제목 없음)', start, end, allDay, rep, loc, memo: v('DESCRIPTION') });
+      continue;
+    }
+    if (!cur) continue;
+    if (u.startsWith('BEGIN:')) { sub++; continue; }   // VALARM 등 하위 블록의 DESCRIPTION·SUMMARY가 일정 값을 덮어쓰지 않게 건너뜀
+    if (u.startsWith('END:')) { sub = Math.max(0, sub - 1); continue; }
+    if (sub) continue;
+    const pr = icsProp(ln); if (!pr) continue;
+    if (!(pr.name in cur)) cur[pr.name] = pr;
+  }
+  return { events: out, skip };
+}
+async function importIcsTexts(texts, label) {
+  const all = []; const skip = { cancelled: 0, override: 0, bad: 0, rrule: 0 };
+  for (const t of texts) { if (!/BEGIN:VCALENDAR|BEGIN:VEVENT/i.test(t)) continue; const r = parseIcs(t); all.push(...r.events); for (const k in skip) skip[k] += r.skip[k]; }
+  if (!all.length) { toast('가져올 일정을 찾지 못했어요. .ics 파일인지 확인해 주세요', 3600); return; }
+  if (all.length > 1000) { toast('일정이 너무 많아요(' + all.length + '개). 1000개 이하로 나눠서 가져와 주세요', 4200); return; }
+  let added = 0, updated = 0, first = null;
+  for (const e of all) {
+    const old = e.uid ? own.find(x => x.uid === e.uid) : null;
+    const base = { title: e.title, start: e.start.toISOString(), end: e.end.toISOString(), allDay: e.allDay, rep: e.rep, memo: e.memo, loc: e.loc, addr: e.loc, updated: new Date().toISOString() };
+    let rec;
+    if (old) { rec = Object.assign({}, old, base); if (old.addr !== e.loc) { rec.lat = null; rec.lng = null; rec.geoFor = ''; rec.geoName = ''; } updated++; }
+    else { rec = Object.assign({ id: rid(), uid: e.uid, type: '', color: COLORS[0], src2: 'ics' }, base); added++; }
+    try { await saveOwn(rec); } catch (err) { toast('저장하지 못했어요: ' + (err && err.message || err)); return; }
+    if (!first || e.start < first) first = e.start;
+  }
+  buildEvents(); if (first) cur = sod(first); render();
+  const note = [skip.rrule ? '반복 조건 ' + skip.rrule + '건은 단순 반복으로 바뀜' : '', skip.override ? '반복 예외 ' + skip.override + '건 제외' : '', skip.cancelled ? '취소된 일정 ' + skip.cancelled + '건 제외' : '', skip.bad ? '읽지 못한 일정 ' + skip.bad + '건' : ''].filter(Boolean).join(' · ');
+  toast('📅 ' + (label || 'ICS') + ': ' + (added ? added + '개 등록' : '') + (added && updated ? ', ' : '') + (updated ? updated + '개 갱신' : '') + (note ? ' (' + note + ')' : '') + (memOnly ? ' · 이 브라우저는 저장소를 쓸 수 없어 앱을 닫으면 사라져요' : ''), 5200);
+}
+$('btnIcs').onclick = () => $('icsFile').click();
+$('icsFile').onchange = async e => {
+  const fs = [...e.target.files]; e.target.value = ''; if (!fs.length) return;
+  const texts = []; for (const f of fs) texts.push(await f.text());
+  await importIcsTexts(texts, fs.length === 1 ? fs[0].name : fs.length + '개 파일');
+};
+async function checkShared() {   // 다른 앱(삼성 캘린더)에서 '공유'로 넘어온 내용 받기 — sw.js가 임시로 보관해 둔 것
+  if (!/[?&]import=1\b/.test(location.search)) return;
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  try {
+    const c = await caches.open('simcal-share'), r = await c.match('./share-pending');
+    if (!r) { toast('공유받은 일정이 없어요', 3000); return; }
+    const d = await r.json(); await c.delete('./share-pending');
+    await importIcsTexts((d.items || []).map(x => x.text || ''), '삼성 캘린더');
+  } catch (e) { toast('공유받은 일정을 읽지 못했어요', 3200); }
+}
+
+loadAll().then(render).then(checkShared);
 })();
 </script>
 </body>

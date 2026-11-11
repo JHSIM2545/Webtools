@@ -76,23 +76,33 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;p
 .stat.err{color:#ff9a9a}
 
 /* 조작부 */
-.ctrl{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding:0 2px}
+.ctrl{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:14px;padding:0}
+.ctrl>*{min-width:0}
 .knobbox{display:flex;flex-direction:column;align-items:center;gap:6px;color:#2a2f3a;font-size:10px;font-weight:800;letter-spacing:1.5px}
-.knob{position:relative;width:82px;height:82px;border-radius:50%;touch-action:none;cursor:grab;
+.knob{position:relative;width:clamp(60px,19vw,82px);height:clamp(60px,19vw,82px);border-radius:50%;touch-action:none;cursor:grab;
   background:conic-gradient(from 0deg,#d9dce2,#8d929c,#e6e8ec,#7c828d,#d9dce2);
   box-shadow:0 6px 12px rgba(0,0,0,.55),inset 0 0 0 4px #2a2e36,inset 0 0 0 6px #5a606c}
 .knob:active{cursor:grabbing}
-.knob .rot{position:absolute;inset:8px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#4a505c,#1b1e25 70%);box-shadow:inset 0 2px 4px rgba(255,255,255,.18),0 1px 3px #000}
+.knob .rot{position:absolute;inset:7px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#4a505c,#1b1e25 70%);box-shadow:inset 0 2px 4px rgba(255,255,255,.18),0 1px 3px #000}
 .knob .rot::before{content:"";position:absolute;left:50%;top:5px;width:5px;height:16px;margin-left:-2.5px;border-radius:3px;background:#ffd277;box-shadow:0 0 6px rgba(255,210,119,.8)}
-.knob.big{width:104px;height:104px}
-.knob.big .rot{inset:10px}
+.knob.big{width:clamp(76px,24vw,104px);height:clamp(76px,24vw,104px)}
+.knob.big .rot{inset:9px}
 .mid{display:flex;flex-direction:column;align-items:center;gap:10px}
-.fine{display:flex;gap:8px}
-.fine button{width:46px;height:40px;font-size:18px;font-weight:800;background:linear-gradient(#4a505c,#2a2e36);border:1px solid #14161b;color:#ffe3a6;border-radius:9px;box-shadow:0 3px 0 #101216}
+.fine{display:flex;gap:6px}
+.fine button{width:40px;height:38px;font-size:18px;font-weight:800;background:linear-gradient(#4a505c,#2a2e36);border:1px solid #14161b;color:#ffe3a6;border-radius:9px;box-shadow:0 3px 0 #101216}
 .fine button:active{transform:translateY(2px);box-shadow:0 1px 0 #101216}
-.pwr{width:62px;height:62px;border-radius:50%;border:none;font-size:24px;font-weight:800;color:#ffe3a6;background:linear-gradient(#4a505c,#23262d);box-shadow:0 4px 0 #101216,0 0 0 3px #2a2e36,inset 0 1px 0 rgba(255,255,255,.2)}
-.pwr:active{transform:translateY(2px)}
-.on .pwr{color:#6bff9b;text-shadow:0 0 8px #6bff9b}
+.rocker{position:relative;width:56px;height:84px;padding:0;border:none;border-radius:12px;background:#15171c;box-shadow:0 0 0 3px #2a2e36,0 4px 0 #101216,inset 0 2px 6px rgba(0,0,0,.8);perspective:260px;overflow:hidden}
+.rocker .rk{position:absolute;left:3px;right:3px;height:calc(50% - 3px);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;color:#8d93a0;pointer-events:none;
+  background:linear-gradient(#5a606c,#353a44);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 2px 3px rgba(0,0,0,.6);transition:transform .14s,filter .14s,color .14s,background .14s}
+.rocker .rk.t{top:3px;border-radius:9px 9px 3px 3px;transform-origin:50% 100%}
+.rocker .rk.b{bottom:3px;border-radius:3px 3px 9px 9px;transform-origin:50% 0}
+/* 꺼짐: 아래(O)가 눌려 있음 */
+.rocker .rk.b{transform:rotateX(-14deg);filter:brightness(.7);background:linear-gradient(#2c3039,#3d424d)}
+.rocker .rk.t{transform:rotateX(0)}
+/* 켜짐: 위(I)가 눌려 초록 점등 */
+.on .rocker .rk.t{transform:rotateX(14deg);filter:none;color:#6bff9b;text-shadow:0 0 8px #6bff9b;background:linear-gradient(#2c3039,#3d424d)}
+.on .rocker .rk.b{transform:rotateX(0);filter:none;color:#8d93a0;background:linear-gradient(#5a606c,#353a44)}
+.rocker:active .rk{filter:brightness(.85)}
 .grille{margin-top:14px;height:34px;border-radius:8px;background:repeating-linear-gradient(90deg,#1b1d23 0 5px,#4b505b 5px 7px);box-shadow:inset 0 2px 6px rgba(0,0,0,.8);opacity:.95}
 
 /* 프리셋 */
@@ -140,7 +150,7 @@ audio{display:none}
       <div class="ctrl">
         <div class="knobbox"><div class="knob" id="volKnob" title="볼륨"><div class="rot" id="volRot"></div></div>VOLUME</div>
         <div class="mid">
-          <button class="pwr" id="pwr" aria-label="전원">⏻</button>
+          <button class="rocker" id="pwr" role="switch" aria-checked="false" aria-label="전원 (위: 켬, 아래: 끔)"><span class="rk t">I</span><span class="rk b">O</span></button>
           <div class="fine"><button id="dn" aria-label="주파수 내리기">−</button><button id="up" aria-label="주파수 올리기">+</button></div>
         </div>
         <div class="knobbox"><div class="knob big" id="tunKnob" title="튜닝"><div class="rot" id="tunRot"></div></div>TUNING</div>
@@ -390,7 +400,7 @@ audio{display:none}
   }
 
   function setPower(on) {
-    power = on; $('radio').classList.toggle('on', on);
+    power = on; $('radio').classList.toggle('on', on); $('pwr').setAttribute('aria-checked', on ? 'true' : 'false');
     if (on) {
       initNoise(); setName('수신 대기'); setStat('');
       paintFreq(); onFreq(true);
@@ -399,7 +409,7 @@ audio{display:none}
       setName('전원을 켜세요'); setStat(''); paintFreq();
     }
   }
-  $('pwr').addEventListener('click', () => setPower(!power));
+  $('pwr').addEventListener('click', e => { const r = $('pwr').getBoundingClientRect(); const hasPos = e.clientY > 0 || e.clientX > 0; setPower(hasPos ? (e.clientY - r.top) < r.height / 2 : !power); });   // 위쪽을 누르면 켜짐, 아래쪽을 누르면 꺼짐
   $('dn').addEventListener('click', () => { if (!power) setPower(true); step(-1); });
   $('up').addEventListener('click', () => { if (!power) setPower(true); step(1); });
 

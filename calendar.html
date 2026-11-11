@@ -276,7 +276,7 @@ function loadTypes() {
   return DEF_TYPES.map(t => Object.assign({}, t));
 }
 let TYPES = loadTypes();
-const saveTypes = () => ls.set('simcal_types', JSON.stringify(TYPES));
+const saveTypes = () => { ls.set('simcal_types', JSON.stringify(TYPES)); syncSoon(); };
 const typeById = id => id ? TYPES.find(t => t.id === id) : null;
 const evTitle = ev => (ev.emoji ? ev.emoji + ' ' : '') + ev.title;
 
@@ -327,8 +327,12 @@ const openDB = (name, stores, ver) => new Promise((res, rej) => {
 });
 const tx = (db, s, m) => db.transaction(s, m).objectStore(s);
 const idbAll = (db, s) => new Promise((res, rej) => { const q = tx(db, s, 'readonly').getAll(); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
-const idbPut = (db, s, v) => new Promise((res, rej) => { const q = tx(db, s, 'readwrite').put(v); q.onsuccess = () => res(); q.onerror = () => rej(q.error); });
-const idbDel = (db, s, id) => new Promise((res, rej) => { const q = tx(db, s, 'readwrite').delete(id); q.onsuccess = () => res(); q.onerror = () => rej(q.error); });
+/* 계정 동기화(sync.js): 저장·삭제하면 잠깐 뒤 서버에 올리고, 다른 기기에서 바뀐 게 들어오면 화면을 새로 그린다 */
+let syncT = 0;
+function syncSoon() { clearTimeout(syncT); syncT = setTimeout(() => { try { if (window.simSync && simSync.sync) simSync.sync().catch(() => {}); } catch (e) {} }, 2500); }
+window.addEventListener('simsync', () => { if (!document.querySelector('.ov.on')) location.reload(); });   // 편집 중에는 건드리지 않음
+const idbPut = (db, s, v) => new Promise((res, rej) => { const q = tx(db, s, 'readwrite').put(v); q.onsuccess = () => { res(); syncSoon(); }; q.onerror = () => rej(q.error); });
+const idbDel = (db, s, id) => new Promise((res, rej) => { const q = tx(db, s, 'readwrite').delete(id); q.onsuccess = () => { res(); syncSoon(); }; q.onerror = () => rej(q.error); });
 async function loadAsst() {
   try { if (!adb) adb = await openDB('simassistant', ['memos', 'events', 'alarms']); asst = await idbAll(adb, 'events'); }
   catch (e) { adb = null; asst = []; }

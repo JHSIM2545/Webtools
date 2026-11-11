@@ -319,6 +319,7 @@
     } catch (e) {}
   }
   /* 도구 화면(bg=1): 로그인돼 있으면 열 때 서버 데이터를 받아 오고, 닫거나 숨길 때·1분마다 서버에 올린다. 받은 내용이 있으면 한 번만 새로고침한다. */
+  const notify = st => { if (st && (st.put || st.del)) { try { window.dispatchEvent(new CustomEvent('simsync', { detail: st })); } catch (e) {} } return st; };   // 도구 화면이 듣고 새로 그림
   let bgOn = false;
   async function bgBoot() {
     if (bgOn) return; bgOn = true;
@@ -328,13 +329,13 @@
       const st = await cloudSync();
       if (st && (st.put || st.del) && !sessionStorage.getItem('SIM_BG_RELOAD')) { sessionStorage.setItem('SIM_BG_RELOAD', '1'); location.reload(); return; }
       sessionStorage.removeItem('SIM_BG_RELOAD');
-      const up = () => { if (cUser) cloudSync().catch(() => {}); };
-      document.addEventListener('visibilitychange', () => { if (document.hidden) up(); });
+      const up = () => { if (cUser) cloudSync().then(notify).catch(() => {}); };   // 올리기 + 다른 기기에서 바뀐 것 받기(받은 게 있으면 화면에 알림)
+      document.addEventListener('visibilitychange', () => up());   // 숨길 때는 올리고, 다시 볼 때는 최신을 받는다
       window.addEventListener('pagehide', up);
       setInterval(() => { if (!document.hidden) up(); }, 60e3);
     } catch (e) {}
   }
-  window.simSync = { menu, collect, merge, hash, pick };
+  window.simSync = { menu, collect, merge, hash, pick, sync: () => (cUser ? cloudSync().then(notify) : Promise.resolve(null)) };   // sync(): 지금 바로 서버와 맞추기(도구 화면에서 저장 직후 호출)
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
   window.addEventListener('hashchange', boot);
 })();

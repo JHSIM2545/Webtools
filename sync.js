@@ -251,32 +251,28 @@
   }
   function authView(msg) {
     const inp = 'width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;margin-top:6px';
-    const b = modal('로그인', '<p style="' + sub + '">로그인하면 데이터가 내 계정에 자동 백업돼요. 앱을 지우고 다시 깔아도 같은 계정으로 로그인하면 그대로 돌아와요.</p>' +
-      '<label style="' + sub + ';display:block;margin-top:10px">이메일</label><input id="acPh" type="email" inputmode="email" placeholder="name@example.com" autocomplete="email" style="' + inp + '">' +
-      '<div id="acOtpBox" style="display:none"><label style="' + sub + ';display:block;margin-top:10px">메일로 온 인증번호</label><input id="acOtp" inputmode="numeric" maxlength="8" placeholder="______" autocomplete="one-time-code" style="' + inp + ';letter-spacing:6px;text-align:center"></div>' +
+    const b = modal('로그인', '<p style="' + sub + '">로그인하면 데이터가 내 계정에 자동 백업돼요. 앱을 지우고 다시 깔아도 같은 계정으로 로그인하면 그대로 돌아와요. (SIM Folder와 같은 계정이에요)</p>' +
+      '<label style="' + sub + ';display:block;margin-top:10px">이메일</label><input id="acEm" type="email" inputmode="email" placeholder="name@example.com" autocomplete="email" style="' + inp + '">' +
+      '<label style="' + sub + ';display:block;margin-top:10px">비밀번호 (6자 이상)</label><input id="acPw" type="password" autocomplete="current-password" style="' + inp + '">' +
       '<p id="acMsg" style="margin-top:8px;font-size:13px;color:' + (msg ? '#ff8a8a' : 'var(--sub)') + '">' + esc(msg || '') + '</p>' +
-      '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button id="acSend" class="primary" style="flex:1">인증번호 받기</button><button id="acVer" class="primary" style="flex:1;display:none">확인</button></div>' +
+      '<div style="margin-top:8px;display:flex;gap:8px"><button id="acIn" class="primary" style="flex:1">로그인</button><button id="acUp" style="flex:1">처음이면 가입</button></div>' +
       '<div style="margin:12px 0 4px;text-align:center;color:var(--sub);font-size:12px">또는</div><button id="acGoogle" style="width:100%">Google로 계속하기</button>' +
       '<div style="' + okBtn + '"><button id="acX">닫기</button></div>');
     const say = (t, bad) => { const e = b.querySelector('#acMsg'); e.textContent = t; e.style.color = bad ? '#ff8a8a' : 'var(--sub)'; };
     b.querySelector('#acX').onclick = close;
-    b.querySelector('#acSend').onclick = async () => {
-      const email = b.querySelector('#acPh').value.trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say('이메일을 정확히 입력해 주세요.', 1);
-      say('메일을 보내는 중…');
+    const go = async signup => {
+      const email = b.querySelector('#acEm').value.trim().toLowerCase(), password = b.querySelector('#acPw').value;
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || password.length < 6) return say('이메일과 6자 이상의 비밀번호를 입력해 주세요.', 1);
+      say(signup ? '가입하는 중…' : '로그인하는 중…');
       try {
-        const c = await client(), r = await c.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+        const c = await client(), r = signup ? await c.auth.signUp({ email, password }) : await c.auth.signInWithPassword({ email, password });
         if (r.error) throw r.error;
-        b.querySelector('#acOtpBox').style.display = 'block'; b.querySelector('#acVer').style.display = 'block'; b.querySelector('#acSend').textContent = '다시 받기'; b.querySelector('#acOtp').focus();
-        say('메일(스팸함 포함)로 온 인증번호를 입력해 주세요.');
-      } catch (e) { say(/rate|seconds|too many/i.test(e.message || '') ? '메일을 너무 자주 요청했어요. 잠시 후 다시 시도해 주세요.' : '인증번호를 보내지 못했어요: ' + (e.message || e), 1); }
+        if (r.data.session) { close(); await setUser(r.data.session.user, true); }
+        else say('가입했어요. 받은 편지함(스팸함 포함)의 확인 메일 링크를 누른 뒤 로그인해 주세요.');
+      } catch (e) { const m = (e.message || '').toLowerCase(); say(m.includes('not confirmed') ? '이메일 인증이 필요해요. 확인 메일의 링크를 누른 뒤 로그인해 주세요.' : m.includes('invalid login') ? '이메일 또는 비밀번호가 맞지 않아요. 처음이면 "처음이면 가입"을 눌러 주세요.' : m.includes('already') ? '이미 가입된 이메일이에요. 로그인을 눌러 주세요.' : m.includes('rate') || m.includes('seconds') ? '요청이 너무 잦아요. 잠시 후 다시 시도해 주세요.' : '실패했어요: ' + (e.message || e), 1); }
     };
-    const verify = async () => {
-      const email = b.querySelector('#acPh').value.trim().toLowerCase(), token = b.querySelector('#acOtp').value.replace(/\D/g, ''); if (token.length < 6) return say('인증번호를 입력해 주세요.', 1);
-      say('확인 중…');
-      try { const c = await client(), r = await c.auth.verifyOtp({ email, token, type: 'email' }); if (r.error) throw r.error; close(); await setUser(r.data.user, true); }
-      catch (e) { say(/expired|invalid/i.test(e.message || '') ? '인증번호가 맞지 않거나 만료됐어요.' : '확인하지 못했어요: ' + (e.message || e), 1); }
-    };
-    b.querySelector('#acVer').onclick = verify; b.querySelector('#acOtp').addEventListener('keydown', e => { if (e.key === 'Enter') verify(); });
+    b.querySelector('#acIn').onclick = () => go(false); b.querySelector('#acUp').onclick = () => go(true);
+    b.querySelector('#acPw').addEventListener('keydown', e => { if (e.key === 'Enter') go(false); });
     b.querySelector('#acGoogle').onclick = async () => { try { const c = await client(), r = await c.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname.replace(/[^/]*$/, 'index.html') } }); if (r.error) throw r.error; } catch (e) { say('구글 로그인을 시작하지 못했어요: ' + (e.message || e), 1); } };
   }
   function acctMenu() {

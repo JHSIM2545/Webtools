@@ -270,7 +270,7 @@ body.fs .grab{top:7px;bottom:auto}
   <button class="icon" id="btnSet" title="설정" aria-label="설정">⚙</button>
   <button class="icon" id="btnFs" title="전체 화면 (F)" aria-label="전체 화면">⛶</button>
 </header>
-<button class="fab" id="btnAdd" aria-label="곡 추가" title="곡 추가">+</button>
+<button class="fab" id="btnAdd" aria-label="곡 추가" title="곡 추가 (MR 찾기)">+</button>
 
 <main>
   <section class="stage" id="stage" data-bg="video">
@@ -358,12 +358,12 @@ body.fs .grab{top:7px;bottom:auto}
 <div class="modal" id="mFind">
   <div class="card">
     <h2>MR·반주 영상 찾기</h2>
-    <div class="frow"><input type="text" id="fQ" placeholder="곡명 가수 (예: 곡명 가수이름)" autocomplete="off" enterkeyhint="search"><button id="fMic" class="mic" type="button" aria-label="음성으로 검색" title="음성으로 검색">🎤</button><button id="fGo" class="primary">검색</button></div>
+    <div class="frow"><input type="text" id="fQ" placeholder="곡명 가수 (유튜브 주소를 붙여넣어도 돼요)" autocomplete="off" enterkeyhint="search"><button id="fMic" class="mic" type="button" aria-label="음성으로 검색" title="음성으로 검색">🎤</button><button id="fGo" class="primary">검색</button></div>
     <div class="seg chips" id="fKind"><button type="button" data-v="MR">MR</button><button type="button" data-v="반주">반주</button><button type="button" data-v="노래방">노래방</button><button type="button" data-v="">원곡</button></div>
     <div class="hint" id="fUse"></div>
     <div class="hint" id="fMsg"></div>
     <div id="fList"></div>
-    <div class="row"><button id="fClose">닫기</button></div>
+    <div class="row"><button id="fManual" style="margin-right:auto" title="유튜브 주소를 알고 있을 때">주소로 직접 추가</button><button id="fClose">닫기</button></div>
   </div>
 </div>
 
@@ -756,7 +756,7 @@ body.fs .grab{top:7px;bottom:auto}
     $('eDel').style.display = s ? '' : 'none'; $('eDel').textContent = '삭제';
     $('mSong').classList.add('show');
   }
-  $('btnAdd').onclick = () => openEditor(null);
+  $('btnAdd').onclick = () => openFind('');   // 상단 🔎과 같은 동작: 검색으로 곡 추가
   $('eUrl').addEventListener('input', () => { E.vidSec = 0; const v = eVid(); if (v) eTitleFetch(v); });
   $('eLrc').addEventListener('input', eInfo);
   $('eAltUrl').addEventListener('input', eAlt);
@@ -812,13 +812,14 @@ body.fs .grab{top:7px;bottom:auto}
   let found = [], findBusy = false;
   function openFind(pre) {
     if (pre != null && String(pre).trim()) $('fQ').value = String(pre).trim();
-    $('fList').classList.toggle('ed', $('mSong').classList.contains('show'));
+    const inEd = $('mSong').classList.contains('show'); $('fList').classList.toggle('ed', inEd); $('fManual').style.display = inEd ? 'none' : '';
     paintKind(); paintUse(); $('mFind').classList.add('show'); setTimeout(() => $('fQ').focus(), 60);
   }
   const closeFind = () => $('mFind').classList.remove('show');
   async function doFind() {
     if (findBusy) return;
     const raw = $('fQ').value.replace(/\s+/g, ' ').trim();
+    if (/youtu/i.test(raw) && ytId(raw)) { closeFind(); if (!$('mSong').classList.contains('show')) openEditor(null); $('eUrl').value = raw; $('eUrl').dispatchEvent(new Event('input')); return; }   // 주소를 붙여넣으면 바로 곡 편집으로
     if (raw.length < 2) return fMsg(FERR.short, 'bad');
     const phone = (lsGet('SIMAS_AI_PHONE') || '').replace(/\D/g, '');
     if (phone.length < 9) return fMsg(FERR.nophone, 'bad');
@@ -852,6 +853,7 @@ body.fs .grab{top:7px;bottom:auto}
     openEditor(null); $('eUrl').value = 'https://youtu.be/' + it.id; E.titled = false; eVid(); E.vidSec = it.sec || 0; $('eName').value = it.title;
   }
   $('btnFind').onclick = () => openFind('');
+  $('fManual').onclick = () => { closeFind(); openEditor(null); };
   $('eFind').onclick = () => openFind($('eName').value);
   $('fClose').onclick = closeFind;
   $('fGo').onclick = doFind;

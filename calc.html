@@ -276,7 +276,8 @@ main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-ove
     to: BYC[saved.to] ? saved.to : 'KRW',
     tts: saved.tts === true
   };
-  const persist = () => lsSet('simcalc.v1', JSON.stringify({ mem: S.mem, dec: S.dec, mode: S.mode, from: S.from, to: S.to, tts: S.tts }));
+  let pT = 0;
+  const persist = () => { clearTimeout(pT); pT = setTimeout(() => lsSet('simcalc.v1', JSON.stringify({ mem: S.mem, dec: S.dec, mode: S.mode, from: S.from, to: S.to, tts: S.tts })), 400); };
 
   /* ─────────── 7세그먼트 LCD ─────────── */
   const POLY = {
@@ -456,8 +457,7 @@ main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-ove
       else { t = fmtMoney(out, BYC[S.to].d); if (t.replace(/[-,.]/g, '').length > 13) t = 'E'; }
       renderSeg($('seg2'), t, 13);
     }
-    renderDec();
-    renderRate();
+    if (S.mode === 'fx') renderRate();
   }
 
   /* ─────────── 소수점 스위치 ─────────── */
@@ -465,7 +465,7 @@ main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-ove
     const tr = $('decTrack');
     DECS.forEach((d, i) => {
       const b = document.createElement('button'); b.textContent = d; b.dataset.d = d; b.setAttribute('aria-label', '소수점 ' + (d === 'F' ? '자동' : d + '자리'));
-      b.addEventListener('click', () => { S.dec = d; persist(); render(); });
+      b.addEventListener('click', () => { S.dec = d; persist(); renderDec(); render(); });
       tr.appendChild(b);
     });
   }
@@ -568,10 +568,16 @@ main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-ove
       b.setAttribute('aria-label', { '÷': '나누기', '×': '곱하기', '−': '빼기', '+': '더하기', '=': '결과', 'AC': '지우기', '±': '부호 바꾸기', '√': '제곱근', '%': '퍼센트', 'MC': '메모리 지우기', 'MR': '메모리 불러오기', 'M−': '메모리 빼기', 'M+': '메모리 더하기' }[label] || label);
       box.appendChild(b);
     });
-    box.addEventListener('click', e => {
+    box.addEventListener('pointerdown', e => {
       const b = e.target.closest('.k'); if (!b) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
+      b.classList.add('dn');
       press(b.dataset.cls, b.dataset.act);
     });
+    const up = e => { box.querySelectorAll('.dn').forEach(x => x.classList.remove('dn')); };
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => box.addEventListener(ev, up));
+    window.addEventListener('pointerup', up);
   }
   /* 키 누르는 소리: 가볍고 짧은 "틱" (WebAudio 합성) */
   let AC = null, NB = null;
@@ -589,7 +595,6 @@ main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-ove
   }
   function press(cls, act) {
     click(cls);
-    try { if (navigator.vibrate) navigator.vibrate(6); } catch (e) {}
     if (cls === 'num') digit(act);
     else if (cls === 'op') opKey(act);
     else if (cls === 'eq') eqKey();
@@ -763,7 +768,9 @@ main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-ove
   });
   setInterval(() => { if (!document.hidden && Date.now() - R.at > 6e5) loadRates(); }, 6e4);
 
-  loadCached(); render(); loadRates();
+  const warm = () => { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); AC.resume && AC.resume(); } catch (e) {} };
+  window.addEventListener('pointerdown', warm, { once: true, capture: true });
+  loadCached(); renderDec(); render(); renderRate(); loadRates();
 
   window.simcalc = { parseVoice, koNum, S };   // 점검용
 })();

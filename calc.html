@@ -573,31 +573,18 @@ main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-ove
       press(b.dataset.cls, b.dataset.act);
     });
   }
-  /* 키 누르는 소리: 플라스틱 키가 "달그락" 하는 소리 (WebAudio 합성: 짧은 잡음 딸깍 + 낮은 울림) */
+  /* 키 누르는 소리: 가볍고 짧은 "틱" (WebAudio 합성) */
   let AC = null, NB = null;
   function click(kind) {
     try {
       AC = AC || new (window.AudioContext || window.webkitAudioContext)();
       if (AC.state === 'suspended') AC.resume();
-      if (!NB) { NB = AC.createBuffer(1, Math.floor(AC.sampleRate * .08), AC.sampleRate); const d = NB.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
-      const t = AC.currentTime, big = kind === 'eq' || kind === 'clr';
-      const tick = (at, freq, vol, dur) => {     // 대역 필터를 거친 잡음 = 딸깍
-        const n = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
-        n.buffer = NB; f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = 1.4;
-        g.gain.setValueAtTime(vol, at); g.gain.exponentialRampToValueAtTime(.0001, at + dur);
-        n.connect(f); f.connect(g); g.connect(AC.destination); n.start(at); n.stop(at + dur + .01);
-      };
-      const thump = (at, freq, vol) => {         // 본체에 닿는 낮은 "탁"
-        const o = AC.createOscillator(), g = AC.createGain();
-        o.type = 'sine'; o.frequency.setValueAtTime(freq, at); o.frequency.exponentialRampToValueAtTime(freq * .5, at + .05);
-        g.gain.setValueAtTime(vol, at); g.gain.exponentialRampToValueAtTime(.0001, at + .06);
-        o.connect(g); g.connect(AC.destination); o.start(at); o.stop(at + .07);
-      };
-      const j = 1 + (Math.random() - .5) * .12;  // 매번 조금씩 다르게
-      tick(t, 3200 * j, .55, .018);              // 딸
-      thump(t + .004, (big ? 150 : 190) * j, .5);
-      tick(t + .045, 1700 * j, .4, .03);         // 각 (복귀음)
-      thump(t + .047, 120 * j, .22);
+      if (!NB) { NB = AC.createBuffer(1, Math.floor(AC.sampleRate * .03), AC.sampleRate); const d = NB.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+      const t = AC.currentTime, j = 1 + (Math.random() - .5) * .08;
+      const n = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
+      n.buffer = NB; f.type = 'bandpass'; f.frequency.value = (kind === 'eq' ? 4200 : 5000) * j; f.Q.value = 2.2;
+      g.gain.setValueAtTime(.9, t); g.gain.exponentialRampToValueAtTime(.0001, t + .014);
+      n.connect(f); f.connect(g); g.connect(AC.destination); n.start(t); n.stop(t + .03);
     } catch (e) {}
   }
   function press(cls, act) {

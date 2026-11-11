@@ -1,10 +1,10 @@
 /* SIM Tools 기기 간 동기화 (런처 전용)
-   같은 주소(origin)의 모든 도구 데이터 — IndexedDB(simmemo·simphone·simaitel·simcalendar·simassistant)와 설정(localStorage)을 모바일↔PC로 맞춘다.
+   같은 주소(origin)의 모든 도구 데이터 — IndexedDB(simmemo·simphone·simaitel·simcalendar·simassistant·simmap)와 설정(localStorage)을 모바일↔PC로 맞춘다.
    한쪽이 QR을 보여주고 다른 쪽이 찍으면, QR 안의 일회용 키로 데이터를 압축·암호화해 임시 우편함(assistant-sync, 10분 뒤 삭제)으로 주고받는다. 서버는 키를 몰라 내용을 읽을 수 없다.
    합치기: 마지막 동기화 이후의 변화를 기준(base)으로 3-way 병합 — 한쪽만 지운 항목은 지우고, 양쪽이 고친 항목은 더 최근 수정본을 남기며, 지운 쪽과 고친 쪽이 갈리면 고친 쪽을 남긴다. */
 (() => {
   const URL_ = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-sync';
-  const DBS = ['simmemo', 'simphone', 'simaitel', 'simcalendar', 'simassistant', 'simorch-img'];
+  const DBS = ['simmemo', 'simphone', 'simaitel', 'simcalendar', 'simassistant', 'simorch-img', 'simmap'];
   const BG = /[?&]bg=1/.test((document.currentScript && document.currentScript.src) || '');   // 도구 화면에서 불러오면 화면 없이 계정 동기화만 한다
   const LS_JSON = ['onlineTv.v1', 'simcal_types', 'simmsg_opts', 'simmsg_sender', 'simorch.v1', 'simorch.q.v1', 'simorch.set.v1', 'simkbo.team', 'simkbo.asked', 'simradio.v1', 'simcalc.v1', 'SIMPH_CARDOPT', 'SIMAS_AUTOSEND', 'SIMAS_TTS', 'SIMAS_WAKE', 'simtools_order'], LS_FILL = ['SIMAS_AI_PHONE', 'S1_KAKAO_MAP_KEY'], LS_KB = 'simas_memory', BASE_KEY = 'SIM_SYNC_BASE', CHUNK = 380000;
   const $ = id => document.getElementById(id);

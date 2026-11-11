@@ -169,6 +169,73 @@ body.fs #ctrlBtn{display:block}
 body.fs .ctrl{position:absolute;left:0;right:0;bottom:0;background:rgba(15,17,23,.92);transform:translateY(105%);transition:transform .25s}
 body.fs .ctrl.show{transform:none}
 
+/* ── 노래방 반주기 테마: 짙은 남색 패널 · LED 표시 · 네온 · 굵은 외곽선 가사 ── */
+:root{--bg:#04060f;--panel:#0b1030;--panel2:#141b4a;--line:#2b3a8f;--text:#eef2ff;--sub:#8fa0e0;--accent:#00e5ff;--accent2:#d6177f;--hl:#ffe14d;--led:#ffb020}
+body{background:#03050f}
+header{background:linear-gradient(#1c2678,#0b1030 65%,#070a20);border-bottom:2px solid rgba(0,229,255,.45);box-shadow:0 2px 16px rgba(0,229,255,.22);position:relative;z-index:6}
+header h1{font-weight:900;letter-spacing:.5px}
+header h1 span{color:var(--hl);text-shadow:0 0 10px rgba(255,225,77,.7)}
+header button:not(.back),.ctrl button,.card button{background:linear-gradient(#34459f,#18215c);border:1px solid #5468d8;border-radius:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 2px 0 #050826}
+header button:not(.back):active,.ctrl button:active,.card button:active{transform:translateY(1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 1px 0 #050826}
+header button:not(.back):hover,.ctrl button:hover,.card button:hover{border-color:var(--accent)}
+button.primary,.btnrow button.play,.card button.primary,.seg button.on{background:linear-gradient(#ff5db0,#b0105f)!important;border-color:#ff8cc8!important;color:#fff}
+.card button.danger{color:#ff8a8a}
+.btnrow button.play{box-shadow:0 0 14px rgba(255,60,160,.55),inset 0 1px 0 rgba(255,255,255,.4)}
+.fab{background:linear-gradient(#ff5db0,#b0105f);border-color:#ff8cc8;box-shadow:0 0 18px rgba(255,60,160,.6),0 6px 18px rgba(0,0,0,.5)}
+.screen{background:radial-gradient(130% 90% at 50% 0%,#233aa8 0%,#0c1347 48%,#03050f 100%)}
+.screen::before{content:"";position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(circle,rgba(255,255,255,.55) 0 1px,transparent 1.5px),radial-gradient(circle,rgba(120,200,255,.45) 0 1px,transparent 1.5px);background-size:90px 90px,140px 140px;background-position:0 0,45px 60px;opacity:.35}
+/* 가사: 흰 글씨 + 짙은 남색 외곽선, 부르는 만큼 노랗게 */
+.l{text-shadow:none;-webkit-text-stroke:0;paint-order:stroke fill}
+.l.cur{font-weight:900;color:#fff;-webkit-text-stroke:.13em #0b1b72;text-shadow:0 .07em .1em rgba(0,0,0,.75);letter-spacing:-.01em}
+.l.cur .c.on{color:var(--hl);-webkit-text-stroke-color:#5a1a00}
+.l.next{color:#dfe6ff;-webkit-text-stroke:.12em #0b1b72;text-shadow:0 .06em .08em rgba(0,0,0,.7)}
+.l.prev{color:rgba(223,230,255,.55);-webkit-text-stroke:.1em rgba(11,27,114,.8)}
+.dots i{background:var(--hl);box-shadow:0 0 1.2vmin rgba(255,225,77,.8)}
+/* 상단 곡명 표시판 */
+.ktitle{position:absolute;left:12px;top:12px;z-index:4;display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);padding:5px 14px 5px 10px;border-radius:9px;background:rgba(4,8,44,.78);border:1px solid rgba(0,229,255,.55);box-shadow:0 0 14px rgba(0,229,255,.3);pointer-events:none}
+.stage.pip .ktitle{max-width:calc(100% - 400px)}
+body.fs .ktitle{left:58px}
+.ktitle #kT{font-weight:800;font-size:clamp(13px,2.4vmin,26px);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 8px rgba(0,229,255,.6)}
+.hello:not(.hidden)~.ktitle{display:none}
+.eq{display:flex;align-items:flex-end;gap:2px;height:16px;flex:none}
+.eq i{width:3px;height:4px;background:linear-gradient(#ffe14d,#ff3fa0);border-radius:1px}
+.stage.playing .eq i{animation:eq .9s ease-in-out infinite}
+.eq i:nth-child(2){animation-delay:-.3s!important}.eq i:nth-child(3){animation-delay:-.6s!important}.eq i:nth-child(4){animation-delay:-.15s!important}
+@keyframes eq{0%,100%{height:4px}50%{height:16px}}
+/* 대기 화면 네온 간판 */
+.hello .neon{font-size:clamp(34px,9vmin,84px);font-weight:900;letter-spacing:2px;color:#fff;text-shadow:0 0 6px #fff,0 0 16px #ff2fa0,0 0 34px #ff2fa0,0 0 70px #ff2fa0;animation:flick 5s infinite}
+.hello .neon2{font-size:clamp(13px,3vmin,24px);font-weight:800;letter-spacing:6px;color:#aef3ff;text-shadow:0 0 8px #00e5ff,0 0 22px #00e5ff}
+.hello .msg{color:#a9b6ff}
+@keyframes flick{0%,18%,22%,62%,64%,100%{opacity:1}20%,63%{opacity:.78}}
+/* 하단 조작판 */
+.ctrl{background:linear-gradient(#18215f,#0a0f33);border-top:2px solid rgba(0,229,255,.5);box-shadow:0 -6px 20px rgba(0,229,255,.14)}
+input[type=range]{accent-color:var(--accent)}
+.seekrow{color:var(--led)}
+.seekrow span,.btnrow .sm{font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;font-weight:700;color:var(--led);background:#050505;border:1px solid #4a3300;border-radius:5px;padding:2px 7px;text-shadow:0 0 7px rgba(255,176,32,.75);letter-spacing:1px}
+.btnrow .now{background:#050505;border:1px solid #4a3300;border-radius:6px;padding:7px 10px;color:var(--led);text-shadow:0 0 7px rgba(255,176,32,.7);font-weight:700}
+/* 곡 목록: 번호판 */
+aside{background:linear-gradient(#0b1030,#060820);border-left:2px solid rgba(0,229,255,.35)}
+.list{counter-reset:n}
+.song{counter-increment:n}
+.song::before{content:counter(n,decimal-leading-zero);flex:none;min-width:30px;text-align:center;font:700 13px ui-monospace,Menlo,Consolas,monospace;color:var(--led);background:#050505;border:1px solid #4a3300;border-radius:5px;padding:3px 0;text-shadow:0 0 6px rgba(255,176,32,.75)}
+.song:hover{background:rgba(0,229,255,.08)}
+.song.active{background:linear-gradient(90deg,rgba(214,23,127,.35),rgba(214,23,127,.12));outline:1px solid #ff6ec7}
+.song.active .name{color:var(--hl)}
+.qsec{border-color:rgba(0,229,255,.4)}
+.qi .n{color:var(--led)}
+/* 팝업 */
+.modal{background:rgba(2,3,14,.78)}
+.card{background:linear-gradient(#111a5e,#080c30);border:1px solid rgba(0,229,255,.5);box-shadow:0 0 34px rgba(0,229,255,.18)}
+.card .row.stick{background:#0a0f38}
+.card input[type=text],.card input[type=number],.card textarea,.card select{background:#050820;border-color:#2b3a8f}
+.card h2{color:var(--hl);text-shadow:0 0 8px rgba(255,225,77,.45)}
+.toast{background:#101a5a;border-color:rgba(0,229,255,.6);box-shadow:0 0 14px rgba(0,229,255,.3)}
+body.fs .ctrl{background:rgba(8,12,44,.94)}
+/* 음성 검색 버튼 */
+.mic{width:46px;flex:none;padding:0!important;font-size:19px}
+.card button.mic.rec{background:linear-gradient(#ff5a5a,#b01212)!important;border-color:#ff9a9a!important;animation:micp 1s ease-in-out infinite}
+@keyframes micp{0%,100%{box-shadow:0 0 0 0 rgba(255,80,80,.7)}50%{box-shadow:0 0 0 9px rgba(255,80,80,0)}}
+
 @media (max-width:760px){
   header{gap:6px;padding-left:10px;padding-right:10px}
   header button{padding:6px 9px;font-size:13px;white-space:nowrap}
@@ -183,6 +250,7 @@ body.fs .ctrl.show{transform:none}
   .btnrow{gap:6px}
   .btnrow .now{flex:1 1 100px}
   #vol{display:none}
+  .stage.pip .ktitle{display:none}
 }
 </style>
 <script src="ui-guard.js" defer></script>
@@ -214,9 +282,11 @@ body.fs .ctrl.show{transform:none}
         <div class="l next" id="lNext"></div>
       </div>
       <div class="hello" id="hello">
-        <div class="big">🎼</div>
+        <div class="neon">SIM 노래방</div>
+        <div class="neon2">♪ ORCHESTRA ♪</div>
         <div class="msg">목록에서 곡을 선택하거나<br>🔎 MR 찾기 · + 버튼으로 곡을 추가하세요.</div>
       </div>
+      <div class="ktitle" id="kTitle"><span class="eq"><i></i><i></i><i></i><i></i></span><span id="kT"></span></div>
       <div class="err" id="err"></div>
       <button id="ctrlBtn" aria-label="컨트롤 보기">☰</button>
     </div>
@@ -283,7 +353,7 @@ body.fs .ctrl.show{transform:none}
 <div class="modal" id="mFind">
   <div class="card">
     <h2>MR·반주 영상 찾기</h2>
-    <div class="frow"><input type="text" id="fQ" placeholder="곡명 가수 (예: 곡명 가수이름)" autocomplete="off" enterkeyhint="search"><button id="fGo" class="primary">검색</button></div>
+    <div class="frow"><input type="text" id="fQ" placeholder="곡명 가수 (예: 곡명 가수이름)" autocomplete="off" enterkeyhint="search"><button id="fMic" class="mic" type="button" aria-label="음성으로 검색" title="음성으로 검색">🎤</button><button id="fGo" class="primary">검색</button></div>
     <div class="seg chips" id="fKind"><button type="button" data-v="MR">MR</button><button type="button" data-v="반주">반주</button><button type="button" data-v="노래방">노래방</button><button type="button" data-v="">원곡</button></div>
     <div class="hint" id="fUse"></div>
     <div class="hint" id="fMsg"></div>
@@ -296,7 +366,7 @@ body.fs .ctrl.show{transform:none}
 <div class="modal" id="mLrc">
   <div class="card">
     <h2>가사(LRC) 찾기</h2>
-    <div class="frow"><input type="text" id="lQ" placeholder="곡명 (가수는 빼고 곡명만 넣어도 돼요)" autocomplete="off" enterkeyhint="search"><button id="lGo" class="primary">검색</button></div>
+    <div class="frow"><input type="text" id="lQ" placeholder="곡명 (가수는 빼고 곡명만 넣어도 돼요)" autocomplete="off" enterkeyhint="search"><button id="lMic" class="mic" type="button" aria-label="음성으로 검색" title="음성으로 검색">🎤</button><button id="lGo" class="primary">검색</button></div>
     <div class="hint" id="lMsg"></div>
     <div id="lList"></div>
     <div class="hint">공개 커뮤니티 DB(LRCLIB)를 서버가 대신 조회해요. 곡에 따라 없을 수 있고, 시간 정보가 있는 가사만 보여줘요. 가사는 저작권이 있는 자료이니 개인 감상·연습용으로만 쓰세요.</div>
@@ -469,7 +539,7 @@ body.fs .ctrl.show{transform:none}
     else if (bgPlayer && bgPlayer.stopVideo) { try { bgPlayer.stopVideo(); } catch (e) {} bgVid = ''; }
   }
   function onState(e) {
-    const st = e.data; syncBg();
+    const st = e.data; syncBg(); $('stage').classList.toggle('playing', st === 1);
     $('bPlay').textContent = st === 1 || st === 3 ? '⏸' : '▶';
     if (st === 1) { hideErr(); wake(true); } else if (st === 2 || st === 0) wake(false);
     if (st === 0) nextSong(true);
@@ -508,6 +578,7 @@ body.fs .ctrl.show{transform:none}
     const i = DB.songs.findIndex(s => cur && s.id === cur.id), n = DB.songs[i + 1] || (auto ? null : DB.songs[0]);
     if (n) playSong(n.id);
   }
+  new MutationObserver(() => { $('kT').textContent = $('now').textContent; }).observe($('now'), { childList: true, characterData: true, subtree: true });
   const offTxt = () => '싱크 ' + ((cur && cur.offset) > 0 ? '+' : '') + (cur ? (cur.offset || 0) : 0).toFixed(1) + 's';
 
   /* ── 화면 배치·배경 ── */
@@ -825,6 +896,25 @@ body.fs .ctrl.show{transform:none}
   $('eLrcFind').onclick = openLrcFind;
   $('lGo').onclick = doLrc;
   $('lClose').onclick = closeLrc;
+  /* ── 음성으로 검색 (브라우저 음성 인식: 크롬은 구글 서버로 음성을 보내 글자로 바꿔요) ── */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null;
+  const VERR = { 'not-allowed': '마이크 권한이 필요해요. 주소창/설정에서 마이크를 허용해 주세요.', 'service-not-allowed': '이 브라우저(앱)에서는 음성 인식을 쓸 수 없어요. 크롬에서 열어 보세요.', 'no-speech': '목소리가 들리지 않았어요. 다시 눌러서 말씀해 주세요.', 'audio-capture': '마이크를 찾지 못했어요.', network: '음성 인식 서버에 연결하지 못했어요.', 'language-not-supported': '한국어 음성 인식을 지원하지 않는 기기예요.' };
+  function voiceSearch(btn, input, msg, go) {
+    if (rec) { try { rec.stop(); } catch (e) {} return; }
+    if (!SR) { msg('이 브라우저는 음성 인식을 지원하지 않아요. 안드로이드 크롬·아이폰 사파리에서 써 보세요.', 'bad'); return; }
+    const r = new SR(); r.lang = 'ko-KR'; r.interimResults = true; r.maxAlternatives = 1; r.continuous = false;
+    let fin = false, err = '';
+    r.onstart = () => { btn.classList.add('rec'); msg('🎤 듣는 중… 곡명(과 가수)을 말씀하세요'); };
+    r.onresult = e => { const rs = Array.from(e.results); input.value = rs.map(x => x[0].transcript).join(' ').replace(/[.?!。]+$/, '').trim(); fin = rs.length > 0 && rs[rs.length - 1].isFinal; };
+    r.onerror = e => { err = e.error || 'fail'; if (err !== 'aborted') msg(VERR[err] || '음성 인식에 실패했어요 (' + err + ')', 'bad'); };
+    r.onend = () => { rec = null; btn.classList.remove('rec'); if (err) return; if (input.value.trim().length >= 2 && (fin || input.value.trim())) { if (fin) go(); else msg('“' + input.value.trim() + '” — 맞으면 검색을 눌러 주세요.'); } else msg(VERR['no-speech'], 'bad'); };
+    rec = r;
+    try { r.start(); } catch (e) { rec = null; msg('음성 인식을 시작하지 못했어요.', 'bad'); }
+  }
+  $('fMic').onclick = () => voiceSearch($('fMic'), $('fQ'), fMsg, doFind);
+  $('lMic').onclick = () => voiceSearch($('lMic'), $('lQ'), lMsg, doLrc);
+  ['fClose', 'lClose'].forEach(id => $(id).addEventListener('click', () => { if (rec) { try { rec.abort(); } catch (e) {} } }));
   $('lQ').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doLrc(); } });
   $('lList').addEventListener('click', e => { const row = e.target.closest('.res'); if (!row) return; const it = lfound[+row.dataset.i]; if (it) useLrc(it); });
 

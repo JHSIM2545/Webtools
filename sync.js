@@ -213,6 +213,7 @@
   function boot() {
     if (BG) return bgBoot();
     const hd = document.querySelector('header'), ins = $('btnInstall');
+    if (!$('simHdStyle')) { const st = document.createElement('style'); st.id = 'simHdStyle'; st.textContent = 'header button{white-space:nowrap}#btnAcct{flex:none;max-width:132px;overflow:hidden;text-overflow:ellipsis}@media(max-width:480px){#btnInstall{display:none!important}#btnAcct{max-width:104px}}'; document.head.appendChild(st); }
     if (hd && !$('btnAcct')) { const a = document.createElement('button'); a.id = 'btnAcct'; a.title = '계정 로그인·자동 백업'; a.textContent = '👤 로그인'; a.onclick = acctMenu; hd.insertBefore(a, ins || null); cloudBoot(); }
     if (hd && !$('btnMore')) {   // ⋯ 더보기 메뉴 (기기 동기화)
       const w = document.createElement('div'); w.style.cssText = 'position:relative;flex:none';
@@ -228,6 +229,9 @@
       const paintMv = () => { const on = !!(L().moveOn && L().moveOn()); mv.setAttribute('aria-checked', on ? 'true' : 'false'); mv.innerHTML = '<span>↕ 카드 이동</span>' + sw(on); };
       mv.onclick = e => { e.stopPropagation(); if (L().setMove) L().setMove(!(L().moveOn && L().moveOn())); paintMv(); };
       mb.addEventListener('click', paintMv);
+      const inst = mk('btnInstallMenu', '<span>📲 앱 설치</span>', () => { pop.style.display = 'none'; const bi = $('btnInstall'); if (bi) bi.click(); });
+      const paintInst = () => { const bi = $('btnInstall'); inst.style.display = bi && bi.style.display !== 'none' ? 'flex' : 'none'; };
+      mb.addEventListener('click', paintInst); paintInst();
       const hr = document.createElement('div'); hr.style.cssText = 'height:1px;background:var(--line);margin:4px 6px'; pop.appendChild(hr);
       const it = mk('btnSync', '<span>🔄 기기 동기화</span>', () => { pop.style.display = 'none'; menu(); });
       paintMv();

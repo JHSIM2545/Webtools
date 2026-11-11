@@ -225,7 +225,7 @@
   const loadSB = () => window.supabase ? Promise.resolve() : new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; s.onload = ok; s.onerror = () => no(new Error('로그인 모듈을 불러오지 못했어요 (인터넷 확인)')); document.head.appendChild(s); });
   async function client() { if (sb) return sb; await loadSB(); sb = supabase.createClient(C_URL, C_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }); return sb; }
   const normPhone = v => { let d = String(v || '').replace(/[^\d+]/g, ''); if (d.startsWith('+')) return d; if (d.startsWith('00')) return '+' + d.slice(2); if (d.startsWith('0')) return '+82' + d.slice(1); return d ? '+82' + d : ''; };
-  const who = u => u ? (u.phone ? '0' + String(u.phone).replace(/^\+?82/, '') : (u.email || '로그인됨')) : '';
+  const who = u => { if (!u) return ''; const m = u.user_metadata || {}; return String(m.display_name || m.full_name || m.name || (u.email ? u.email.split('@')[0] : '') || '로그인됨').trim().slice(0, 12); };
   const gz = async o => { let u = new TextEncoder().encode(JSON.stringify(o)); if (typeof CompressionStream !== 'undefined') u = await pipe(u, CompressionStream); return u; };
   const ungz = async blob => { let u = new Uint8Array(await blob.arrayBuffer()); if (u[0] === 0x1f && u[1] === 0x8b) u = await pipe(u, DecompressionStream); return JSON.parse(new TextDecoder().decode(u)); };
   async function cloudSync(opt) {   // 서버 스냅샷 받기 → 병합 → 이 기기에 반영 → 변화가 있으면 다시 올리기
@@ -278,9 +278,10 @@
   function acctMenu() {
     if (!cUser) return authView();
     const last = +lget(C_LAST) || 0;
-    const b = modal('내 계정', '<p><b>' + esc(who(cUser)) + '</b></p><p id="acMsg" style="' + sub + ';margin-top:6px">' + (last ? '마지막 백업: ' + new Date(last).toLocaleString('ko-KR') : '아직 백업 전이에요.') + '<br>데이터는 이 계정으로 자동 백업·복원돼요.</p>' +
+    const b = modal('내 계정', '<p><b>' + esc(who(cUser)) + '</b><br><span style="' + sub + '">' + esc(cUser.email || '') + '</span></p><label style="' + sub + ';display:block;margin-top:8px">표시 이름</label><div style="display:flex;gap:6px;margin-top:4px"><input id="acNm" maxlength="12" value="' + esc(who(cUser)) + '" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit"><button id="acNmSave">변경</button></div><p id="acMsg" style="' + sub + ';margin-top:6px">' + (last ? '마지막 백업: ' + new Date(last).toLocaleString('ko-KR') : '아직 백업 전이에요.') + '<br>데이터는 이 계정으로 자동 백업·복원돼요.</p>' +
       '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button id="acNow" class="primary" style="flex:1">지금 동기화</button><button id="acOut">로그아웃</button></div><div style="' + okBtn + '"><button id="acX">닫기</button></div>');
     b.querySelector('#acX').onclick = close;
+    b.querySelector('#acNmSave').onclick = async () => { const v = b.querySelector('#acNm').value.trim().slice(0, 12), e = b.querySelector('#acMsg'); if (!v) { e.textContent = '이름을 입력해 주세요.'; return; } try { const c = await client(), r = await c.auth.updateUser({ data: { display_name: v } }); if (r.error) throw r.error; cUser = r.data.user; acctBtn(); e.textContent = '이름을 "' + v + '"(으)로 바꿨어요.'; } catch (x) { e.textContent = '변경하지 못했어요: ' + (x.message || x); } };
     b.querySelector('#acNow').onclick = async () => { const e = b.querySelector('#acMsg'); e.textContent = '동기화 중…'; try { const st = await cloudSync(); e.textContent = '완료 — ' + (st && (st.put || st.del) ? '서버에서 ' + st.put + '건 반영' : '변경 없음/서버에 저장') + '. (' + new Date().toLocaleTimeString('ko-KR') + ')'; } catch (x) { e.textContent = '실패: ' + (x.message || x); } };
     b.querySelector('#acOut').onclick = async () => { try { await cloudSync(); } catch (e) {} try { const c = await client(); await c.auth.signOut(); } catch (e) {} close(); await setUser(null); toast_('로그아웃했어요 (이 기기 데이터는 그대로예요)'); };
   }

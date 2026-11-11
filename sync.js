@@ -4,8 +4,9 @@
    합치기: 마지막 동기화 이후의 변화를 기준(base)으로 3-way 병합 — 한쪽만 지운 항목은 지우고, 양쪽이 고친 항목은 더 최근 수정본을 남기며, 지운 쪽과 고친 쪽이 갈리면 고친 쪽을 남긴다. */
 (() => {
   const URL_ = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-sync';
-  const DBS = ['simmemo', 'simphone', 'simaitel', 'simcalendar', 'simassistant'];
-  const LS_JSON = ['onlineTv.v1'], LS_FILL = ['SIMAS_AI_PHONE', 'S1_KAKAO_MAP_KEY'], LS_KB = 'simas_memory', BASE_KEY = 'SIM_SYNC_BASE', CHUNK = 380000;
+  const DBS = ['simmemo', 'simphone', 'simaitel', 'simcalendar', 'simassistant', 'simorch-img'];
+  const BG = /[?&]bg=1/.test((document.currentScript && document.currentScript.src) || '');   // 도구 화면에서 불러오면 화면 없이 계정 동기화만 한다
+  const LS_JSON = ['onlineTv.v1', 'simcal_types', 'simmsg_opts', 'simmsg_sender', 'simorch.v1', 'simorch.q.v1', 'simorch.set.v1', 'simkbo.team', 'simkbo.asked', 'SIMPH_CARDOPT', 'SIMAS_AUTOSEND', 'SIMAS_TTS', 'SIMAS_WAKE', 'simtools_order'], LS_FILL = ['SIMAS_AI_PHONE', 'S1_KAKAO_MAP_KEY'], LS_KB = 'simas_memory', BASE_KEY = 'SIM_SYNC_BASE', CHUNK = 380000;
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const lget = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -210,6 +211,7 @@
     b.querySelector('#syA').onclick = show; b.querySelector('#syB').onclick = scan; b.querySelector('#syX').onclick = close; b.querySelector('#syD').onclick = () => join(b.querySelector('#syC').value);
   }
   function boot() {
+    if (BG) return bgBoot();
     const hd = document.querySelector('header'), ins = $('btnInstall');
     if (hd && !$('btnAcct')) { const a = document.createElement('button'); a.id = 'btnAcct'; a.title = '계정 로그인·자동 백업'; a.textContent = '👤 로그인'; a.onclick = acctMenu; hd.insertBefore(a, ins || null); cloudBoot(); }
     if (hd && !$('btnMore')) {   // ⋯ 더보기 메뉴 (기기 동기화)
@@ -313,6 +315,22 @@
       c.auth.onAuthStateChange((ev, s) => { if (ev === 'SIGNED_IN' && s && !cUser) setUser(s.user, true); else if (ev === 'SIGNED_OUT') setUser(null); });
       document.addEventListener('visibilitychange', () => { if (document.hidden && cUser) cloudSync().catch(() => {}); });
       window.addEventListener('pagehide', () => { if (cUser) cloudSync().catch(() => {}); });
+    } catch (e) {}
+  }
+  /* 도구 화면(bg=1): 로그인돼 있으면 열 때 서버 데이터를 받아 오고, 닫거나 숨길 때·1분마다 서버에 올린다. 받은 내용이 있으면 한 번만 새로고침한다. */
+  let bgOn = false;
+  async function bgBoot() {
+    if (bgOn) return; bgOn = true;
+    try {
+      const c = await client(), { data } = await c.auth.getSession(); if (!data.session) return;
+      cUser = data.session.user;
+      const st = await cloudSync();
+      if (st && (st.put || st.del) && !sessionStorage.getItem('SIM_BG_RELOAD')) { sessionStorage.setItem('SIM_BG_RELOAD', '1'); location.reload(); return; }
+      sessionStorage.removeItem('SIM_BG_RELOAD');
+      const up = () => { if (cUser) cloudSync().catch(() => {}); };
+      document.addEventListener('visibilitychange', () => { if (document.hidden) up(); });
+      window.addEventListener('pagehide', up);
+      setInterval(() => { if (!document.hidden) up(); }, 60e3);
     } catch (e) {}
   }
   window.simSync = { menu, collect, merge, hash, pick };

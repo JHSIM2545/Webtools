@@ -1089,10 +1089,29 @@ $('vCard').addEventListener('click', e => {
   if (A[b.dataset.a]) A[b.dataset.a]();
 });
 
+/* ───────── 공유로 받은 연락처 (휴대폰 연락처 앱 → 공유 → SIM Tools) ───────── */
+async function consumeShared() {
+  if (!/[?&]shared=1/.test(location.search)) return;
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  try {
+    const ch = await caches.open('simphone-share'), key = new URL('./share-inbox', location.href).href, hit = await ch.match(key);
+    if (!hit) { toast('공유받은 연락처를 찾지 못했어요', 3500); return; }
+    const items = await hit.json(); await ch.delete(key);
+    const list = []; items.forEach(t => parseVcf(t).forEach(c => list.push(c)));
+    if (!list.length) { toast('공유받은 내용에서 연락처를 읽지 못했어요 (.vcf 형식이 아닐 수 있어요)', 4200); return; }
+    let add = 0, skip = 0, last = null;
+    for (const c of list) { const d = findDup(c, ''); if (d) { skip++; last = d; continue; } last = await saveContact(c); add++; }
+    renderList();
+    toast(list.length === 1 ? (add ? (last.name || '연락처') + ' 님을 등록했습니다' : '이미 등록된 연락처예요 (' + (last.name || last.mobile || '') + ')') : add + '명 등록' + (skip ? ' · 중복 ' + skip + '명 건너뜀' : ''), 3800);
+    if (list.length === 1 && last) openDetail(last.id);
+  } catch (e) { toast('공유받은 연락처를 저장하지 못했습니다', 3800); }
+}
+
 /* ───────── 시작 ───────── */
 (async () => {
   try { db = await openDB(); contacts = await dbAll(); } catch (e) { db = null; toast('이 브라우저는 저장소를 쓸 수 없어 임시로만 동작합니다.', 4000); }
   renderList();
+  await consumeShared();
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 })();

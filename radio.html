@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1117">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SIM Radio">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" sizes="192x192" href="radio-icon-192.png">
+<title>SIM Radio</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
+<style>
+:root{
+  --bg:#0f1117; --panel:#171a23; --panel2:#1f2330; --line:#2a2f3f;
+  --text:#e8eaf0; --sub:#8b92a8; --accent:#4f8cff; --accent2:#2f62d8; --danger:#ff5d5d; --ok:#3ecf8e;
+  --lamp:#ffc46b;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{min-height:100dvh;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;display:flex;flex-direction:column;overflow-x:hidden}
+header{display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header h1{font-size:17px;font-weight:700;letter-spacing:-.3px;display:flex;align-items:center;gap:8px}
+header h1 span{color:var(--accent);margin-left:-5px}
+.appicon{width:30px;height:30px;border-radius:8px;display:block}
+.back{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:20px;line-height:1}
+.back:hover{border-color:var(--accent)}
+.spacer{flex:1}
+button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+
+main{flex:1;display:flex;flex-direction:column;align-items:center;padding:14px 12px calc(24px + env(safe-area-inset-bottom));gap:14px}
+
+/* ── 라디오 본체 ── */
+.radio{width:min(100%,560px);border-radius:26px;padding:14px 14px 18px;position:relative;
+  background:linear-gradient(145deg,#6b4429 0%,#4a2c18 45%,#35200f 100%);
+  box-shadow:0 18px 40px rgba(0,0,0,.65),inset 0 2px 0 rgba(255,255,255,.14),inset 0 -3px 8px rgba(0,0,0,.5);
+  border:1px solid #1d1209}
+.radio::before{content:"";position:absolute;inset:0;border-radius:26px;pointer-events:none;opacity:.22;
+  background:repeating-linear-gradient(92deg,rgba(0,0,0,.55) 0 1px,transparent 1px 7px,rgba(255,255,255,.08) 7px 8px,transparent 8px 15px)}
+.face{position:relative;border-radius:18px;padding:12px;background:linear-gradient(180deg,#c9ccd2,#9ea3ad 55%,#8a909b);
+  box-shadow:inset 0 2px 3px rgba(255,255,255,.7),inset 0 -2px 4px rgba(0,0,0,.35),0 1px 0 #000}
+.brand{display:flex;align-items:center;justify-content:space-between;color:#2a2f3a;font-weight:800;letter-spacing:2px;font-size:12px;padding:0 4px 8px}
+.brand b{color:var(--accent2)}
+.leds{display:flex;gap:10px;align-items:center;font-size:10px;letter-spacing:1px;color:#3a404c}
+.led{display:inline-flex;align-items:center;gap:5px}
+.led i{width:9px;height:9px;border-radius:50%;background:#5b2020;box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
+.led.on i{background:#ff4d4d;box-shadow:0 0 8px #ff4d4d,inset 0 1px 2px rgba(255,255,255,.5)}
+.led.st.on i{background:#6bff9b;box-shadow:0 0 8px #6bff9b}
+
+/* 다이얼 유리창 */
+.glass{position:relative;border-radius:12px;overflow:hidden;border:3px solid #2b2f38;
+  background:linear-gradient(180deg,#1a1308,#0d0a05);box-shadow:inset 0 0 16px rgba(0,0,0,.9)}
+.dial{position:relative;height:150px;background:linear-gradient(180deg,#2a2112,#171108);transition:filter .5s,opacity .5s;filter:brightness(.35) saturate(.5)}
+.on .dial{filter:none;background:radial-gradient(120% 140% at 50% 55%,#ffd98f 0%,#e9a73f 45%,#8d5a14 100%)}
+.dial svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.dial text{font-family:ui-monospace,Menlo,Consolas,monospace;fill:#3b2406}
+.dial .stn text{font-size:8px;font-weight:700;fill:#3b2406}
+.dial .hit{cursor:pointer}
+.needle{position:absolute;top:0;bottom:0;width:0;pointer-events:none;will-change:transform}
+.needle::before{content:"";position:absolute;left:-1.5px;top:4px;bottom:4px;width:3px;border-radius:2px;background:#ff3d2e;box-shadow:0 0 6px rgba(255,61,46,.9)}
+.glass::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(160deg,rgba(255,255,255,.22) 0%,rgba(255,255,255,0) 38%)}
+
+/* 디지털 표시 */
+.disp{margin-top:10px;display:flex;align-items:center;gap:12px;background:#0b1410;border:2px solid #20262e;border-radius:10px;padding:8px 12px;box-shadow:inset 0 0 12px rgba(0,0,0,.9)}
+.freq{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:38px;font-weight:700;color:#58ffa4;text-shadow:0 0 10px rgba(88,255,164,.6);letter-spacing:1px;min-width:120px;line-height:1;opacity:.18;transition:opacity .3s}
+.freq small{font-size:14px;margin-left:4px;opacity:.85}
+.on .freq{opacity:1}
+.info{min-width:0;flex:1}
+.name{font-size:17px;font-weight:700;color:#d5ffe6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.2;transition:opacity .3s}
+.on .name{opacity:1}
+.stat{font-size:12px;color:#7fcfa0;margin-top:3px;min-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.2}
+.on .stat{opacity:1}
+.stat.err{color:#ff9a9a}
+
+/* 조작부 */
+.ctrl{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding:0 2px}
+.knobbox{display:flex;flex-direction:column;align-items:center;gap:6px;color:#2a2f3a;font-size:10px;font-weight:800;letter-spacing:1.5px}
+.knob{position:relative;width:82px;height:82px;border-radius:50%;touch-action:none;cursor:grab;
+  background:conic-gradient(from 0deg,#d9dce2,#8d929c,#e6e8ec,#7c828d,#d9dce2);
+  box-shadow:0 6px 12px rgba(0,0,0,.55),inset 0 0 0 4px #2a2e36,inset 0 0 0 6px #5a606c}
+.knob:active{cursor:grabbing}
+.knob .rot{position:absolute;inset:8px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#4a505c,#1b1e25 70%);box-shadow:inset 0 2px 4px rgba(255,255,255,.18),0 1px 3px #000}
+.knob .rot::before{content:"";position:absolute;left:50%;top:5px;width:5px;height:16px;margin-left:-2.5px;border-radius:3px;background:#ffd277;box-shadow:0 0 6px rgba(255,210,119,.8)}
+.knob.big{width:104px;height:104px}
+.knob.big .rot{inset:10px}
+.mid{display:flex;flex-direction:column;align-items:center;gap:10px}
+.fine{display:flex;gap:8px}
+.fine button{width:46px;height:40px;font-size:18px;font-weight:800;background:linear-gradient(#4a505c,#2a2e36);border:1px solid #14161b;color:#ffe3a6;border-radius:9px;box-shadow:0 3px 0 #101216}
+.fine button:active{transform:translateY(2px);box-shadow:0 1px 0 #101216}
+.pwr{width:62px;height:62px;border-radius:50%;border:none;font-size:24px;font-weight:800;color:#ffe3a6;background:linear-gradient(#4a505c,#23262d);box-shadow:0 4px 0 #101216,0 0 0 3px #2a2e36,inset 0 1px 0 rgba(255,255,255,.2)}
+.pwr:active{transform:translateY(2px)}
+.on .pwr{color:#6bff9b;text-shadow:0 0 8px #6bff9b}
+.grille{margin-top:14px;height:34px;border-radius:8px;background:repeating-linear-gradient(90deg,#1b1d23 0 5px,#4b505b 5px 7px);box-shadow:inset 0 2px 6px rgba(0,0,0,.8);opacity:.95}
+
+/* 프리셋 */
+.presets{width:min(100%,560px)}
+.presets h2{font-size:13px;color:var(--sub);font-weight:600;margin:0 4px 8px;letter-spacing:.3px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
+.ps{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 10px;border-radius:10px;text-align:left;background:var(--panel);border:1px solid var(--line)}
+.ps b{font-size:15px;font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--accent)}
+.ps span{font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.ps.cur{border-color:var(--accent);background:#17243f}
+.ps.hot{outline:1px dashed #ffb04a}
+.note{width:min(100%,560px);font-size:11.5px;color:var(--sub);line-height:1.55;padding:0 4px}
+.note b{color:#c4c9d8}
+audio{display:none}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html" aria-label="런처로">‹</a>
+  <h1><img class="appicon" src="radio-icon-192.png" alt="">SIM <span>Radio</span></h1>
+  <div class="spacer"></div>
+</header>
+
+<main>
+  <div class="radio" id="radio">
+    <div class="face">
+      <div class="brand">
+        <div>SIM <b>RADIO</b> · FM</div>
+        <div class="leds"><span class="led" id="ledAir"><i></i>ON AIR</span><span class="led st" id="ledSt"><i></i>STEREO</span></div>
+      </div>
+
+      <div class="glass">
+        <div class="dial" id="dial">
+          <svg id="scale" viewBox="0 0 560 150" preserveAspectRatio="none"></svg>
+          <div class="needle" id="needle"></div>
+        </div>
+      </div>
+
+      <div class="disp">
+        <div class="freq" id="freq">--.-<small>MHz</small></div>
+        <div class="info"><div class="name" id="name">전원을 켜세요</div><div class="stat" id="stat"></div></div>
+      </div>
+
+      <div class="ctrl">
+        <div class="knobbox"><div class="knob" id="volKnob" title="볼륨"><div class="rot" id="volRot"></div></div>VOLUME</div>
+        <div class="mid">
+          <button class="pwr" id="pwr" aria-label="전원">⏻</button>
+          <div class="fine"><button id="dn" aria-label="주파수 내리기">−</button><button id="up" aria-label="주파수 올리기">+</button></div>
+        </div>
+        <div class="knobbox"><div class="knob big" id="tunKnob" title="튜닝"><div class="rot" id="tunRot"></div></div>TUNING</div>
+      </div>
+      <div class="grille"></div>
+    </div>
+  </div>
+
+  <section class="presets">
+    <h2>방송국 바로 맞추기 (서울·수도권 FM)</h2>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <p class="note">
+    <b>주파수 다이얼을 돌리거나 방송국 버튼을 누르면</b> 해당 방송국의 인터넷 라이브 스트림을 재생합니다. 실제 전파(FM 수신)가 아니라 방송사가 공개한 웹 스트림이라, 스트림 주소가 바뀌거나 방송사가 접속을 막으면 “수신 실패”가 뜰 수 있어요.
+    주파수는 서울·수도권 기준이며, 확인되지 않은 스트림은 목록에서 <b>점선 표시</b>됩니다.
+  </p>
+</main>
+
+<audio id="au" preload="none" playsinline></audio>
+
+<script src="ui-guard.js" defer></script>
+<script src="sync.js?bg=1" defer></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const MIN = 87.5, MAX = 108.0, STEP = 0.1;
+
+  /* ─────────────────────────────────────────────
+     방송국 목록 (서울·수도권 FM 주파수)
+       kind 'static'  : 고정 HLS 주소
+       kind 'dyn'     : 방송사 API에서 매번 (유효기간 있는) 스트림 주소를 받아옴
+       sure false     : 스트림 주소 출처가 1곳뿐이거나 서로 어긋나 확인이 덜 된 항목
+     주소 출처: radio.bsod.kr(GitHub BSofDeath/radio.bsod.kr) 및 개발노트 blog.bsod.kr/137
+     ───────────────────────────────────────────── */
+  const KBS = c => 'https://cfpwwwapi.kbs.co.kr/api/v1/landing/live/channel_code/' + c;
+  const MBC = c => 'https://sminiplay.imbc.com/aacplay.ashx?agent=webapp&channel=' + c;
+  const SBS = (a, b) => 'https://apis.sbs.co.kr/play-api/1.0/livestream/' + a + '/' + b + '?protocol=hls&ssl=Y';
+  const ST = [
+    { f: 89.1,  n: 'KBS 쿨FM',        id: 'kbs2fm', s: '쿨FM',  k: 'dyn', p: 'kbs',  u: KBS(25) },
+    { f: 91.9,  n: 'MBC FM4U',        id: 'mfm', s: 'FM4U',     k: 'dyn', p: 'mbc',  u: MBC('mfm') },
+    { f: 93.1,  n: 'KBS 클래식FM',     id: 'kbs1fm', s: '클래식',  k: 'dyn', p: 'kbs',  u: KBS(24) },
+    { f: 93.9,  n: 'CBS 음악FM',       id: 'cbsfm', s: 'CBS음악',   k: 'static', u: 'https://aac.cbs.co.kr/cbs939/_definst_/cbs939.stream/playlist.m3u8', sure: false },
+    { f: 94.5,  n: 'YTN 라디오',       id: 'ytn', s: 'YTN',     k: 'static', u: 'https://radiolive.ytn.co.kr/radio/_definst_/20211118_fmlive/playlist.m3u8' },
+    { f: 95.1,  n: 'TBS FM 교통방송',   id: 'tbsfm', s: 'TBS',   k: 'static', u: 'https://cdnfm.tbs.seoul.kr/tbs/_definst_/tbs_fm_web_360.smil/playlist.m3u8', sure: false },
+    { f: 95.9,  n: 'MBC 표준FM',       id: 'sfm', s: 'MBC표준',     k: 'dyn', p: 'mbc',  u: MBC('sfm') },
+    { f: 96.7,  n: '국방FM',           id: 'kfn', s: '국방',     k: 'static', u: 'https://mediaworks.dema.mil.kr/live_edge/audio.sdp/playlist.m3u8' },
+    { f: 97.3,  n: 'KBS 1라디오',      id: 'kbs1r', s: 'KBS1',   k: 'dyn', p: 'kbs',  u: KBS(21) },
+    { f: 98.1,  n: 'CBS 표준FM',       id: 'cbsam', s: 'CBS표준',   k: 'static', u: 'https://aac.cbs.co.kr/cbs981/_definst_/cbs981.stream/playlist.m3u8' },
+    { f: 99.1,  n: '국악방송',          id: 'gugak', s: '국악',   k: 'static', u: 'https://mgugaklive.nowcdn.co.kr/gugakradio/gugakradio.stream/playlist.m3u8' },
+    { f: 101.3, n: 'tbs eFM',         id: 'tbsefm', s: 'eFM',  k: 'static', u: 'https://cdnfm.tbs.seoul.kr/tbs/_definst_/tbs_efm_web_360.smil/playlist.m3u8', sure: false },
+    { f: 101.9, n: 'BBS 불교방송',      id: 'bbs', s: 'BBS',     k: 'static', u: 'https://bbslive.clouducs.com/bbsradio-live/livestream/playlist.m3u8' },
+    { f: 103.5, n: 'SBS 러브FM',       id: 'lovefm', s: '러브FM',  k: 'dyn', p: 'sbs',  u: SBS('lovepc', 'lovefm'), sure: false },
+    { f: 104.5, n: 'EBS FM',          id: 'ebsfm', s: 'EBS',   k: 'static', u: 'https://ebsonair.ebs.co.kr/fmradiofamilypc/familypc1m/playlist.m3u8' },
+    { f: 104.9, n: 'KBS 3라디오',      id: 'kbs3r', s: 'KBS3',   k: 'dyn', p: 'kbs',  u: KBS(23), sure: false },
+    { f: 105.3, n: 'CPBC 평화방송',     id: 'cpbc', s: 'CPBC',    k: 'dyn', p: 'cpbc', u: 'https://apis.cpbc.co.kr/play-api/2.0/onair/channel/radio' },
+    { f: 106.1, n: 'KBS 행복FM',       id: 'kbs2r', s: '행복FM',   k: 'dyn', p: 'kbs',  u: KBS(22) },
+    { f: 107.7, n: 'SBS 파워FM',       id: 'powerfm', s: '파워FM', k: 'dyn', p: 'sbs',  u: SBS('powerpc', 'powerfm'), sure: false }
+  ].sort((a, b) => a.f - b.f);
+
+  /* 방송사 API가 브라우저(CORS)에서 막혀 있을 때 대신 주소를 받아주는 서버 함수 (배포되어 있을 때만 사용) */
+  const RESOLVER = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/radio-resolve';
+
+  /* ── 저장 (마지막 주파수·볼륨) ── */
+  const KEY = 'simradio.v1';
+  const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  let saved = {}; try { saved = JSON.parse(lsGet(KEY) || '{}') || {}; } catch (e) {}
+  const persist = () => lsSet(KEY, JSON.stringify({ f: +freq.toFixed(1), v: +vol.toFixed(2) }));
+
+  let freq = typeof saved.f === 'number' && saved.f >= MIN && saved.f <= MAX ? saved.f : 91.9;
+  let vol = typeof saved.v === 'number' ? Math.min(1, Math.max(0, saved.v)) : 0.8;
+  let power = false, curSt = null, token = 0, hls = null, tuneTimer = 0;
+
+  const au = $('au');
+  const r1 = x => Math.round(x * 10) / 10;
+  const clampF = f => r1(Math.min(MAX, Math.max(MIN, f)));
+  const near = f => ST.find(s => Math.abs(s.f - f) < 0.05) || null;
+  const nearest = f => ST.reduce((b, s) => Math.abs(s.f - f) < Math.abs(b.f - f) ? s : b, ST[0]);
+
+  /* ── 다이얼 그리기 ── */
+  let W = 340; const H = 150, PADX = 20, xOf = f => PADX + (f - MIN) / (MAX - MIN) * (W - PADX * 2);
+  function drawScale() {
+    W = Math.max(280, $('dial').clientWidth || 340);
+    const svg = $('scale'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); let s = '';
+    for (let i = 0, f = MIN; f <= MAX + 1e-6; i++, f = MIN + i * 0.1) {
+      const x = xOf(f), whole = Math.abs(f - Math.round(f)) < 0.01, half = Math.abs(f * 2 - Math.round(f * 2)) < 0.01;
+      const len = whole ? 22 : half ? 15 : 8;
+      s += '<line x1="' + x.toFixed(1) + '" y1="124" x2="' + x.toFixed(1) + '" y2="' + (124 - len) + '" stroke="#3b2406" stroke-width="' + (whole ? 1.4 : .8) + '" opacity="' + (whole ? .95 : .55) + '"/>';
+      if (whole && Math.round(f) % 2 === 0 && f >= 88 && f <= 108) s += '<text x="' + x.toFixed(1) + '" y="142" font-size="10" text-anchor="middle" font-weight="700">' + Math.round(f) + '</text>';
+    }
+    s += '<text x="6" y="12" font-size="9" font-weight="700">FM</text><text x="' + (W - 6) + '" y="12" font-size="9" text-anchor="end" font-weight="700">MHz</text>';
+    ST.forEach((st, i) => {   // 방송국 이름은 4단으로 엇갈려 배치
+      const x = xOf(st.f), y = 32 + (i % 4) * 19;
+      s += '<g class="stn hit" data-f="' + st.f + '"><line x1="' + x.toFixed(1) + '" y1="' + (y + 3) + '" x2="' + x.toFixed(1) + '" y2="106" stroke="#7a4a0e" stroke-width="1.1" stroke-dasharray="2 2" opacity=".75"/>' +
+           '<circle cx="' + x.toFixed(1) + '" cy="' + (y - 4) + '" r="2.6" fill="#8a1d12"/>' +
+           '<text x="' + x.toFixed(1) + '" y="' + (y - 9) + '" text-anchor="middle">' + st.s + '</text>' +
+           '<rect x="' + (x - 12).toFixed(1) + '" y="' + (y - 16) + '" width="24" height="24" fill="transparent"/></g>';
+    });
+    svg.innerHTML = s;
+  }
+  $('scale').addEventListener('click', e => { const g = e.target.closest('.stn'); if (g) { if (!power) setPower(true); tuneTo(+g.dataset.f, true); } });
+
+  /* ── 화면 갱신 ── */
+  function paintFreq() {
+    $('freq').innerHTML = freq.toFixed(1) + '<small>MHz</small>';
+    const nx = xOf(freq);
+    $('needle').style.transform = 'translateX(' + nx + 'px)';
+    $('tunRot').style.transform = 'rotate(' + ((freq - MIN) / (MAX - MIN) * 1080) + 'deg)';
+    document.querySelectorAll('.ps').forEach(b => b.classList.toggle('cur', power && Math.abs(+b.dataset.f - freq) < 0.05));
+  }
+  function paintVol() { $('volRot').style.transform = 'rotate(' + (-135 + vol * 270) + 'deg)'; au.volume = vol; }
+  const setStat = (t, err) => { const s = $('stat'); s.textContent = t || ''; s.className = 'stat' + (err ? ' err' : ''); };
+  const setName = t => { $('name').textContent = t; };
+  const leds = (air, st) => { $('ledAir').classList.toggle('on', !!air); $('ledSt').classList.toggle('on', !!st); };
+
+  /* 프리셋 버튼 */
+  $('grid').innerHTML = ST.map(s => '<button class="ps' + (s.sure === false ? ' hot' : '') + '" data-f="' + s.f + '" title="' + (s.sure === false ? '스트림 주소 확인이 덜 된 방송국' : '') + '"><b>' + s.f.toFixed(1) + '</b><span>' + s.n + '</span></button>').join('');
+  $('grid').addEventListener('click', e => { const b = e.target.closest('.ps'); if (!b) return; if (!power) setPower(true); tuneTo(+b.dataset.f, true); });
+
+  /* ── 잡음 (방송국 사이를 지날 때 치직거림) ── */
+  let ac = null, noiseG = null;
+  function initNoise() {
+    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      const len = ac.sampleRate * 2, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+      const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2400; bp.Q.value = .5;
+      noiseG = ac.createGain(); noiseG.gain.value = 0;
+      src.connect(bp); bp.connect(noiseG); noiseG.connect(ac.destination); src.start();
+    } catch (e) { ac = null; }
+  }
+  function noise(level) { if (!noiseG) return; try { noiseG.gain.setTargetAtTime(power ? level * vol * .35 : 0, ac.currentTime, .05); } catch (e) {} }
+
+  /* ── 재생 ── */
+  function killHls() { if (hls) { try { hls.destroy(); } catch (e) {} hls = null; } }
+  function stopAudio() { token++; killHls(); try { au.pause(); au.removeAttribute('src'); au.load(); } catch (e) {} leds(false, false); }
+
+  async function fetchT(url, ms) {
+    const c = new AbortController(), t = setTimeout(() => c.abort(), ms || 8000);
+    try { return await fetch(url, { signal: c.signal, cache: 'no-store' }); } finally { clearTimeout(t); }
+  }
+  const pickUrl = (p, txt) => {
+    if (p === 'kbs') { const j = JSON.parse(txt); return (j.channel && j.channel.item && j.channel.item[0] && j.channel.item[0].service_url) || (j.channel_item && j.channel_item[0] && j.channel_item[0].service_url) || ''; }
+    if (p === 'cpbc') { const j = JSON.parse(txt); return (j.onair && j.onair.source && j.onair.source.mediasource && j.onair.source.mediasource.mediaurl) || ''; }
+    return String(txt).trim();   // mbc·sbs: 응답 본문이 곧 주소
+  };
+  /* 방송사 API → 스트림 주소. 먼저 브라우저에서 바로, 안 되면(CORS 등) 서버 함수로 */
+  async function resolve(st) {
+    if (st.k === 'static') return st.u;
+    let direct = '', why = '';
+    try { const r = await fetchT(st.u, 7000); if (!r.ok) throw new Error('HTTP ' + r.status); direct = pickUrl(st.p, await r.text()); } catch (e) { why = e && e.message || 'fail'; }
+    if (/^https?:\/\//.test(direct)) return direct.replace(/^http:/, 'https:');
+    try {
+      const r = await fetchT(RESOLVER + '?id=' + encodeURIComponent(st.id), 9000); const j = await r.json();
+      if (j && /^https?:\/\//.test(j.url || '')) return j.url.replace(/^http:/, 'https:');
+      why = (j && j.error) || why;
+    } catch (e) { why = why || (e && e.message) || 'fail'; }
+    throw new Error('주소 확인 실패 (' + why + ')');
+  }
+
+  function playUrl(url, my) {
+    return new Promise((resolveP, rejectP) => {
+      killHls(); au.removeAttribute('src');
+      const done = ok => { au.removeEventListener('playing', onPlay); au.removeEventListener('error', onErr); ok ? resolveP() : rejectP(new Error('재생 실패')); };
+      const onPlay = () => { if (my === token) done(true); };
+      const onErr = () => { if (my === token) done(false); };
+      au.addEventListener('playing', onPlay); au.addEventListener('error', onErr);
+      const native = au.canPlayType('application/vnd.apple.mpegurl');
+      if (window.Hls && Hls.isSupported()) {
+        hls = new Hls({ lowLatencyMode: false, enableWorker: true });
+        hls.loadSource(url); hls.attachMedia(au);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => { au.play().catch(() => {}); });
+        hls.on(Hls.Events.ERROR, (_, d) => {
+          if (!d.fatal || my !== token) return;
+          if (d.type === Hls.ErrorTypes.MEDIA_ERROR) { try { hls.recoverMediaError(); return; } catch (e) {} }
+          done(false);
+        });
+      } else if (native) { au.src = url; au.play().catch(() => {}); }
+      else { au.src = url; au.play().catch(() => {}); }
+      setTimeout(() => { if (my === token) { au.removeEventListener('playing', onPlay); au.removeEventListener('error', onErr); rejectP(new Error('응답 없음(시간 초과)')); } }, 15000);
+    });
+  }
+
+  async function startStation(st) {
+    const my = ++token; stopAudioSoft();
+    curSt = st; setName(st.n); setStat('수신 중…'); leds(false, false); noise(.25);
+    try {
+      let url = await resolve(st); if (my !== token) return;
+      try { await playUrl(url, my); }
+      catch (e1) {
+        if (my !== token) return;
+        if (st.k === 'dyn') { setStat('주소 갱신 중…'); url = await resolve(st); if (my !== token) return; await playUrl(url, my); }   // 유효기간이 지난 주소일 수 있어 한 번 더
+        else throw e1;
+      }
+      if (my !== token) return;
+      noise(0); leds(true, true); setStat(st.f.toFixed(1) + ' MHz · 수신 중');
+      mediaSession(st);
+    } catch (e) {
+      if (my !== token) return;
+      noise(.1); leds(false, false);
+      setStat('수신 실패: ' + (e && e.message || '알 수 없음'), true);
+    }
+  }
+  function stopAudioSoft() { killHls(); try { au.pause(); au.removeAttribute('src'); au.load(); } catch (e) {} }
+
+  function mediaSession(st) {
+    if (!('mediaSession' in navigator)) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({ title: st.n, artist: 'SIM Radio · FM ' + st.f.toFixed(1), album: 'SIM Tools', artwork: [{ src: 'radio-icon-192.png', sizes: '192x192', type: 'image/png' }] });
+      navigator.mediaSession.setActionHandler('play', () => { if (!power) setPower(true); else au.play().catch(() => {}); });
+      navigator.mediaSession.setActionHandler('pause', () => setPower(false));
+      navigator.mediaSession.setActionHandler('previoustrack', () => step(-1, true));
+      navigator.mediaSession.setActionHandler('nexttrack', () => step(1, true));
+    } catch (e) {}
+  }
+
+  /* ── 튜닝 ── */
+  function onFreq(immediate) {
+    paintFreq(); persist();
+    clearTimeout(tuneTimer);
+    if (!power) return;
+    const st = near(freq);
+    if (!st) {
+      if (curSt) { stopAudioSoft(); token++; curSt = null; }
+      leds(false, false); setName('— 수신 없음 —'); setStat('방송국 사이 (치직…)');
+      const d = Math.abs(nearest(freq).f - freq); noise(Math.min(1, .45 + d * .3));
+      return;
+    }
+    if (curSt === st && au.src !== '' && !au.paused) return;
+    noise(.3); setName(st.n); setStat('주파수 고정 중…');
+    tuneTimer = setTimeout(() => startStation(st), immediate ? 0 : 450);   // 다이얼을 돌리는 중에는 바로 접속하지 않고 잠깐 멈추면 접속
+  }
+  let anim = 0;
+  function tuneTo(f, animate) {
+    f = clampF(f); cancelAnimationFrame(anim);
+    if (!animate) { freq = f; onFreq(); return; }
+    const from = freq, to = f, t0 = performance.now(), dur = Math.min(700, 120 + Math.abs(to - from) * 60);
+    const tick = t => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); freq = r1(from + (to - from) * e); paintFreq(); if (k < 1) anim = requestAnimationFrame(tick); else { freq = to; onFreq(true); } };
+    anim = requestAnimationFrame(tick);
+  }
+  function step(dir, jump) {   // jump: 다음/이전 방송국으로
+    if (jump) { const c = ST.filter(s => dir > 0 ? s.f > freq + .04 : s.f < freq - .04); const t = dir > 0 ? c[0] : c[c.length - 1]; if (t) tuneTo(t.f, true); else tuneTo(dir > 0 ? ST[0].f : ST[ST.length - 1].f, true); }
+    else tuneTo(freq + dir * STEP, false);
+  }
+
+  function setPower(on) {
+    power = on; $('radio').classList.toggle('on', on);
+    if (on) {
+      initNoise(); setName('수신 대기'); setStat('');
+      paintFreq(); onFreq(true);
+    } else {
+      clearTimeout(tuneTimer); stopAudio(); curSt = null; noise(0);
+      setName('전원을 켜세요'); setStat(''); paintFreq();
+    }
+  }
+  $('pwr').addEventListener('click', () => setPower(!power));
+  $('dn').addEventListener('click', () => { if (!power) setPower(true); step(-1); });
+  $('up').addEventListener('click', () => { if (!power) setPower(true); step(1); });
+
+  /* 다이얼 직접 드래그 */
+  (function dialDrag() {
+    const el = $('dial'); let down = false;
+    const at = e => { const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W; return clampF(MIN + (x - PADX) / (W - PADX * 2) * (MAX - MIN)); };
+    el.addEventListener('pointerdown', e => { if (e.target.closest('.stn')) return; down = true; el.setPointerCapture(e.pointerId); if (!power) setPower(true); cancelAnimationFrame(anim); freq = at(e); onFreq(); });
+    el.addEventListener('pointermove', e => { if (down) { freq = at(e); onFreq(); } });
+    el.addEventListener('pointerup', () => { down = false; });
+    el.addEventListener('pointercancel', () => { down = false; });
+  })();
+
+  /* 노브 회전 */
+  function knob(el, get, set, perTurn) {
+    let a0 = 0, v0 = 0, down = false;
+    const ang = e => { const r = el.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI; };
+    el.addEventListener('pointerdown', e => { down = true; el.setPointerCapture(e.pointerId); a0 = ang(e); v0 = get(); cancelAnimationFrame(anim); });
+    el.addEventListener('pointermove', e => { if (!down) return; let d = ang(e) - a0; if (d > 180) d -= 360; if (d < -180) d += 360; a0 = ang(e); v0 += d / 360 * perTurn; set(v0); });
+    const up = () => { down = false; }; el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+    el.addEventListener('wheel', e => { e.preventDefault(); set(get() + (e.deltaY < 0 ? 1 : -1) * perTurn / 60); }, { passive: false });
+  }
+  knob($('tunKnob'), () => freq, v => { if (!power) setPower(true); freq = clampF(v); onFreq(); }, 10);
+  knob($('volKnob'), () => vol, v => { vol = Math.min(1, Math.max(0, v)); paintVol(); persist(); }, 1.2);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1);
+    else if (e.key === 'ArrowUp') { vol = Math.min(1, vol + .05); paintVol(); persist(); }
+    else if (e.key === 'ArrowDown') { vol = Math.max(0, vol - .05); paintVol(); persist(); }
+    else if (e.key === ' ') { e.preventDefault(); setPower(!power); }
+  });
+  window.addEventListener('resize', () => { drawScale(); paintFreq(); });
+  au.addEventListener('waiting', () => { if (power && curSt) setStat('버퍼링…'); });
+  au.addEventListener('playing', () => { if (power && curSt) setStat(curSt.f.toFixed(1) + ' MHz · 수신 중'); });
+
+  drawScale(); paintVol(); paintFreq(); setTimeout(() => { drawScale(); paintFreq(); }, 80);
+})();
+</script>
+</body>
+</html>

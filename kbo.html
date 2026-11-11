@@ -80,8 +80,11 @@ td a.pl{color:var(--text);text-decoration:none;font-weight:600;border-bottom:1px
 .sh-h{display:flex;align-items:center;gap:8px;margin-bottom:12px}
 .sh-h h2{font-size:17px;flex:1}
 .tgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.tgrid button{padding:14px 8px;font-size:15px;font-weight:700;border-radius:12px}
-.tgrid button.on{background:var(--accent);border-color:var(--accent);color:var(--ink)}
+.tgrid button{padding:12px 8px;font-size:15px;font-weight:700;border-radius:12px;display:flex;align-items:center;justify-content:center;min-height:76px;background:#fff}
+.tgrid button img{max-width:100%;height:52px;object-fit:contain;display:block}
+.tgrid button.on{border:3px solid var(--accent);box-shadow:0 0 0 2px rgba(111,214,75,.35)}
+.tgrid button:not(.on){border-color:var(--line)}
+.tgrid button .nm{color:#222}
 .ph{display:flex;gap:14px;align-items:flex-start;margin-bottom:12px}
 .ph img.photo{width:104px;height:130px;object-fit:cover;border-radius:12px;background:var(--panel2);flex:none;border:1px solid var(--line)}
 .ph .nm{font-size:20px;font-weight:800}
@@ -125,6 +128,8 @@ td a.pl{color:var(--text);text-decoration:none;font-weight:600;border-bottom:1px
 'use strict';
 const FN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/kbo-data';
 const TEAMS = ['삼성', 'KT', 'KIA', 'LG', '두산', 'SSG', '롯데', 'NC', '한화', '키움'];
+const TCODE = { '삼성': 'SS', 'KT': 'KT', 'KIA': 'HT', 'LG': 'LG', '두산': 'OB', 'SSG': 'SK', '롯데': 'LT', 'NC': 'NC', '한화': 'HH', '키움': 'WO' };   // KBO 공식 엠블럼 코드
+const emblem = t => 'https://6ptotvmi5753.edge.naverncp.com/KBO_IMAGE/emblem/regular/2026/emblem_' + TCODE[t] + '.png';
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -185,13 +190,14 @@ const myRow = t => S.team && t === S.team;
 /* ── 응원팀 ── */
 function paintTeam() { $('teamBtn').textContent = S.team ? '⚾ ' + S.team : '응원팀 선택'; }
 function openTeam() {
-  $('teamGrid').innerHTML = TEAMS.map(t => '<button data-team="' + esc(t) + '"' + (t === S.team ? ' class="on"' : '') + '>' + esc(t) + '</button>').join('');
+  $('teamGrid').innerHTML = TEAMS.map(t => '<button data-team="' + esc(t) + '" aria-label="' + esc(t) + '" title="' + esc(t) + '"' + (t === S.team ? ' class="on"' : '') + '><img src="' + esc(emblem(t)) + '" alt="' + esc(t) + '" referrerpolicy="no-referrer"></button>').join('');
   $('ovTeam').classList.add('show');
 }
 function setTeam(t) { S.team = t; lsSet('simkbo.team', t); lsSet('simkbo.asked', '1'); paintTeam(); $('ovTeam').classList.remove('show'); render(); }
 $('teamBtn').onclick = openTeam;
 $('teamClose').onclick = () => { lsSet('simkbo.asked', '1'); $('ovTeam').classList.remove('show'); };
 $('teamNone').onclick = () => setTeam('');
+$('teamGrid').addEventListener('error', e => { const i = e.target; if (i.tagName === 'IMG') i.replaceWith(Object.assign(document.createElement('span'), { className: 'nm', textContent: i.alt })); }, true);
 $('teamGrid').onclick = e => { const b = e.target.closest('[data-team]'); if (b) setTeam(b.dataset.team); };
 $('ovTeam').onclick = e => { if (e.target === $('ovTeam')) $('teamClose').onclick(); };
 

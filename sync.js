@@ -211,10 +211,90 @@
   }
   function boot() {
     const hd = document.querySelector('header'), ins = $('btnInstall');
+    if (hd && !$('btnAcct')) { const a = document.createElement('button'); a.id = 'btnAcct'; a.title = '계정 로그인·자동 백업'; a.textContent = '👤 로그인'; a.onclick = acctMenu; hd.insertBefore(a, ins || null); cloudBoot(); }
     if (hd && !$('btnSync')) { const b = document.createElement('button'); b.id = 'btnSync'; b.title = '기기 간 동기화'; b.textContent = '🔄 동기화'; b.onclick = menu; hd.insertBefore(b, ins || null); }
     const m = /#sync=([0-9a-f]{32}\.[A-Za-z0-9_-]{43})/.exec(location.hash || '');
     if (m) { history.replaceState(null, '', location.pathname + location.search); join(m[1]); }
     else if (/[?&]sync=1/.test(location.search)) { history.replaceState(null, '', location.pathname); menu(); }
+  }
+  /* ══ 계정 로그인 + 서버 자동 백업/복원 (Supabase Auth: 휴대폰 OTP · 구글) ══
+     데이터는 계정별 비공개 저장소(sim-sync/<user_id>/snapshot.gz, RLS로 본인만 접근)에 압축해 보관한다.
+     앱을 지우고 다시 설치해도 같은 계정으로 로그인하면 3-way 병합으로 되살아난다. */
+  const C_URL = 'https://rgamgjdnhunzzwzsbnbs.supabase.co', C_KEY = 'sb_publishable_hnBcVEuMXFRdFRqJhOM0OQ_rp72JywU', C_BUCKET = 'sim-sync', C_BASE = 'SIM_CLOUD_BASE', C_LAST = 'SIM_CLOUD_LAST';
+  let sb = null, cUser = null, cBusy = false, cTimer = null;
+  const loadSB = () => window.supabase ? Promise.resolve() : new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; s.onload = ok; s.onerror = () => no(new Error('로그인 모듈을 불러오지 못했어요 (인터넷 확인)')); document.head.appendChild(s); });
+  async function client() { if (sb) return sb; await loadSB(); sb = supabase.createClient(C_URL, C_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }); return sb; }
+  const normPhone = v => { let d = String(v || '').replace(/[^\d+]/g, ''); if (d.startsWith('+')) return d; if (d.startsWith('00')) return '+' + d.slice(2); if (d.startsWith('0')) return '+82' + d.slice(1); return d ? '+82' + d : ''; };
+  const who = u => u ? (u.phone ? '0' + String(u.phone).replace(/^\+?82/, '') : (u.email || '로그인됨')) : '';
+  const gz = async o => { let u = new TextEncoder().encode(JSON.stringify(o)); if (typeof CompressionStream !== 'undefined') u = await pipe(u, CompressionStream); return u; };
+  const ungz = async blob => { let u = new Uint8Array(await blob.arrayBuffer()); if (u[0] === 0x1f && u[1] === 0x8b) u = await pipe(u, DecompressionStream); return JSON.parse(new TextDecoder().decode(u)); };
+  async function cloudSync(opt) {   // 서버 스냅샷 받기 → 병합 → 이 기기에 반영 → 변화가 있으면 다시 올리기
+    if (cBusy || !cUser) return null; cBusy = true;
+    try {
+      const c = await client(), path = cUser.id + '/snapshot.gz', L = await collect();
+      let P = null; const dl = await c.storage.from(C_BUCKET).download(path);
+      if (dl.data) P = await ungz(dl.data); else if (dl.error && !/not.?found|404|Object/i.test(dl.error.message || '') && dl.error.statusCode !== '404') throw dl.error;
+      let F = L, st = { put: 0, del: 0 };
+      if (P && P.v === 2) { F = merge(L, P, getBase_(), getBase_()); st = await apply(F, L); }
+      const hF = hashes(F), cloudSame = P && JSON.stringify(hashes({ idb: P.idb || {}, ls: P.ls || {} })) === JSON.stringify(hF);
+      if (!cloudSame) { const body = await gz({ v: 2, t: Date.now(), idb: F.idb, ls: F.ls }); const up = await c.storage.from(C_BUCKET).upload(path, new Blob([body], { type: 'application/octet-stream' }), { upsert: true, contentType: 'application/octet-stream' }); if (up.error) throw up.error; }
+      lset(C_BASE, JSON.stringify(hF)); lset(C_LAST, String(Date.now()));
+      return st;
+    } finally { cBusy = false; }
+  }
+  const getBase_ = () => { try { return JSON.parse(lget(C_BASE) || '{}') || {}; } catch (e) { return {}; } };
+  function acctBtn() { const b = $('btnAcct'); if (b) b.textContent = cUser ? '👤 ' + who(cUser) : '👤 로그인'; }
+  function schedule() { clearInterval(cTimer); if (cUser) cTimer = setInterval(() => { if (!document.hidden) cloudSync().catch(() => {}); }, 5 * 60e3); }
+  async function setUser(u, first) {
+    cUser = u || null; acctBtn(); schedule();
+    if (cUser && first) { try { const st = await cloudSync(); if (st && (st.put || st.del)) { const b = modal('내 데이터 복원 완료', '<p>서버에 저장된 데이터 ' + st.put + '건을 이 기기에 복원했어요.</p><p style="' + sub + ';margin-top:6px">열려 있는 다른 도구는 새로고침해야 보여요.</p><div style="' + okBtn + '"><button id="syOk">확인</button></div>'); b.querySelector('#syOk').onclick = close; } } catch (e) {} }
+  }
+  function authView(msg) {
+    const inp = 'width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;margin-top:6px';
+    const b = modal('로그인', '<p style="' + sub + '">로그인하면 데이터가 내 계정에 자동 백업돼요. 앱을 지우고 다시 깔아도 같은 계정으로 로그인하면 그대로 돌아와요.</p>' +
+      '<label style="' + sub + ';display:block;margin-top:10px">휴대폰 번호</label><input id="acPh" type="tel" inputmode="tel" placeholder="010-0000-0000" autocomplete="tel" style="' + inp + '">' +
+      '<div id="acOtpBox" style="display:none"><label style="' + sub + ';display:block;margin-top:10px">인증번호 6자리</label><input id="acOtp" inputmode="numeric" maxlength="8" placeholder="______" autocomplete="one-time-code" style="' + inp + ';letter-spacing:6px;text-align:center"></div>' +
+      '<p id="acMsg" style="margin-top:8px;font-size:13px;color:' + (msg ? '#ff8a8a' : 'var(--sub)') + '">' + esc(msg || '') + '</p>' +
+      '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button id="acSend" class="primary" style="flex:1">인증번호 받기</button><button id="acVer" class="primary" style="flex:1;display:none">확인</button></div>' +
+      '<div style="margin:12px 0 4px;text-align:center;color:var(--sub);font-size:12px">또는</div><button id="acGoogle" style="width:100%">Google로 계속하기</button>' +
+      '<div style="' + okBtn + '"><button id="acX">닫기</button></div>');
+    const say = (t, bad) => { const e = b.querySelector('#acMsg'); e.textContent = t; e.style.color = bad ? '#ff8a8a' : 'var(--sub)'; };
+    b.querySelector('#acX').onclick = close;
+    b.querySelector('#acSend').onclick = async () => {
+      const phone = normPhone(b.querySelector('#acPh').value); if (phone.length < 11) return say('휴대폰 번호를 정확히 입력해 주세요.', 1);
+      say('문자를 보내는 중…');
+      try {
+        const c = await client(), r = await c.auth.signInWithOtp({ phone });
+        if (r.error) throw r.error;
+        b.querySelector('#acOtpBox').style.display = 'block'; b.querySelector('#acVer').style.display = 'block'; b.querySelector('#acSend').textContent = '다시 받기'; b.querySelector('#acOtp').focus();
+        say('문자로 온 인증번호를 입력해 주세요.');
+      } catch (e) { say(/provider|sms|not enabled|unsupported/i.test(e.message || '') ? '문자 인증이 아직 서버에서 켜지지 않았어요 (관리자 설정 필요).' : /rate|seconds|too many/i.test(e.message || '') ? '잠시 후(1분) 다시 시도해 주세요.' : '인증번호를 보내지 못했어요: ' + (e.message || e), 1); }
+    };
+    const verify = async () => {
+      const phone = normPhone(b.querySelector('#acPh').value), token = b.querySelector('#acOtp').value.replace(/\D/g, ''); if (token.length < 6) return say('인증번호를 입력해 주세요.', 1);
+      say('확인 중…');
+      try { const c = await client(), r = await c.auth.verifyOtp({ phone, token, type: 'sms' }); if (r.error) throw r.error; close(); await setUser(r.data.user, true); }
+      catch (e) { say(/expired|invalid/i.test(e.message || '') ? '인증번호가 맞지 않거나 만료됐어요.' : '확인하지 못했어요: ' + (e.message || e), 1); }
+    };
+    b.querySelector('#acVer').onclick = verify; b.querySelector('#acOtp').addEventListener('keydown', e => { if (e.key === 'Enter') verify(); });
+    b.querySelector('#acGoogle').onclick = async () => { try { const c = await client(), r = await c.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname.replace(/[^/]*$/, 'index.html') } }); if (r.error) throw r.error; } catch (e) { say('구글 로그인을 시작하지 못했어요: ' + (e.message || e), 1); } };
+  }
+  function acctMenu() {
+    if (!cUser) return authView();
+    const last = +lget(C_LAST) || 0;
+    const b = modal('내 계정', '<p><b>' + esc(who(cUser)) + '</b></p><p id="acMsg" style="' + sub + ';margin-top:6px">' + (last ? '마지막 백업: ' + new Date(last).toLocaleString('ko-KR') : '아직 백업 전이에요.') + '<br>데이터는 이 계정으로 자동 백업·복원돼요.</p>' +
+      '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button id="acNow" class="primary" style="flex:1">지금 동기화</button><button id="acOut">로그아웃</button></div><div style="' + okBtn + '"><button id="acX">닫기</button></div>');
+    b.querySelector('#acX').onclick = close;
+    b.querySelector('#acNow').onclick = async () => { const e = b.querySelector('#acMsg'); e.textContent = '동기화 중…'; try { const st = await cloudSync(); e.textContent = '완료 — ' + (st && (st.put || st.del) ? '서버에서 ' + st.put + '건 반영' : '변경 없음/서버에 저장') + '. (' + new Date().toLocaleTimeString('ko-KR') + ')'; } catch (x) { e.textContent = '실패: ' + (x.message || x); } };
+    b.querySelector('#acOut').onclick = async () => { try { await cloudSync(); } catch (e) {} try { const c = await client(); await c.auth.signOut(); } catch (e) {} close(); await setUser(null); toast_('로그아웃했어요 (이 기기 데이터는 그대로예요)'); };
+  }
+  const toast_ = t => { const e = $('toast'); if (e) { e.textContent = t; e.classList.add('show'); setTimeout(() => e.classList.remove('show'), 2200); } };
+  async function cloudBoot() {
+    try { const c = await client(), { data } = await c.auth.getSession(); if (data.session) await setUser(data.session.user, false), cloudSync().catch(() => {});
+      c.auth.onAuthStateChange((ev, s) => { if (ev === 'SIGNED_IN' && s && !cUser) setUser(s.user, true); else if (ev === 'SIGNED_OUT') setUser(null); });
+      document.addEventListener('visibilitychange', () => { if (document.hidden && cUser) cloudSync().catch(() => {}); });
+      window.addEventListener('pagehide', () => { if (cUser) cloudSync().catch(() => {}); });
+    } catch (e) {}
   }
   window.simSync = { menu, collect, merge, hash, pick };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

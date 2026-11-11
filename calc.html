@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1117">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SIM Calculator">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" sizes="192x192" href="calc-icon-192.png">
+<title>SIM Calculator</title>
+<style>
+:root{
+  --bg:#0f1117; --panel:#171a23; --panel2:#1f2330; --line:#2a2f3f;
+  --text:#e8eaf0; --sub:#8b92a8; --accent:#22d3c5; --accent2:#14a79b; --danger:#ff5d5d; --ok:#3ecf8e; --warn:#ffb04a;
+  --kh:clamp(40px,calc((100dvh - 470px) / 5.2),54px);
+  --lcd-bg:#b4bf9d; --lcd-bg2:#a2ae8a; --lcd-on:#1c2418; --lcd-off:rgba(28,36,24,.075);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex:none}
+header h1{font-size:17px;font-weight:700;letter-spacing:-.3px;display:flex;align-items:center;gap:8px}
+header h1 span{color:var(--accent);margin-left:-5px}
+.appicon{width:30px;height:30px;border-radius:8px;display:block}
+.back{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:20px;line-height:1}
+.back:hover{border-color:var(--accent)}
+.spacer{flex:1}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;touch-action:manipulation}
+
+main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;display:flex;justify-content:center;align-items:flex-start;padding:12px 12px calc(16px + env(safe-area-inset-bottom))}
+.calc{width:min(100%,430px);margin:auto 0}
+
+/* ── 본체 ── */
+.body{position:relative;border-radius:24px;padding:12px 14px 16px;
+  background:linear-gradient(158deg,#40434b 0%,#2a2c32 42%,#1a1b1f 100%);
+  box-shadow:0 24px 44px rgba(0,0,0,.65),0 0 0 1px #08090b,inset 0 1px 0 rgba(255,255,255,.2),inset 0 -4px 8px rgba(0,0,0,.65)}
+.left{display:flex;flex-direction:column;gap:10px;min-width:0}
+
+/* 상단 은색 띠: 로고 · 소수점 스위치 · 태양전지 */
+.top{display:flex;align-items:center;gap:10px;border-radius:12px;padding:7px 10px;
+  background:linear-gradient(180deg,#e3e6ea 0%,#b9bec7 55%,#9aa0aa 100%);
+  box-shadow:inset 0 1px 0 #fff,inset 0 -2px 3px rgba(0,0,0,.3),0 1px 0 #000}
+.logo{font-weight:900;font-size:15px;letter-spacing:2px;color:#23272f;line-height:1}
+.logo b{color:#0e8f85}
+.logo small{display:block;font-size:8px;letter-spacing:1px;font-weight:700;color:#4a505c;margin-top:2px}
+.decsw{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px}
+.decsw .lbl{font-size:8px;font-weight:800;letter-spacing:1px;color:#3b414d}
+.track{position:relative;display:flex;width:100%;max-width:150px;height:20px;border-radius:10px;background:#272a31;box-shadow:inset 0 2px 4px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.55)}
+.track button{position:relative;z-index:1;flex:1;font-size:10px;font-weight:800;color:#8e95a3;letter-spacing:0}
+.track button.on{color:#fff}
+.track .thumb{position:absolute;top:2px;bottom:2px;border-radius:8px;background:linear-gradient(#8e95a2,#5a606c);box-shadow:0 1px 2px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.4);transition:left .15s}
+.solar{flex:none;width:30%;max-width:116px;height:26px;border-radius:5px;border:2px solid #1b2030;
+  background:linear-gradient(115deg,rgba(255,255,255,.22) 0%,rgba(255,255,255,0) 40%),
+  repeating-linear-gradient(90deg,#2a3556 0 11px,#10162b 11px 13px);box-shadow:inset 0 1px 3px rgba(0,0,0,.7)}
+
+/* LCD */
+.lcdwrap{border-radius:12px;padding:7px;background:#0c0d10;box-shadow:inset 0 2px 6px rgba(0,0,0,.9),0 1px 0 rgba(255,255,255,.1)}
+.lcd{position:relative;border-radius:7px;padding:5px 8px 6px;overflow:hidden;
+  background:linear-gradient(180deg,var(--lcd-bg) 0%,var(--lcd-bg2) 100%);box-shadow:inset 0 0 14px rgba(0,0,0,.35),inset 0 2px 3px rgba(0,0,0,.25)}
+.lcd::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(165deg,rgba(255,255,255,.28) 0%,rgba(255,255,255,0) 36%)}
+.ind{display:flex;align-items:center;gap:7px;height:13px;font:800 9.5px/1 ui-monospace,Menlo,Consolas,monospace;color:var(--lcd-on);letter-spacing:.5px}
+.ind span{opacity:.09;transition:opacity .08s}
+.ind span.on{opacity:.9}
+.ind .cc{opacity:.85;margin-left:auto;font-size:11px}
+.ind .cc:empty{display:none}
+.seg{display:flex;align-items:stretch;justify-content:flex-end;width:100%}
+.seg .c{position:relative;flex:1 1 0;aspect-ratio:.58;min-width:0}
+.seg .c svg{position:absolute;inset:0;width:100%;height:100%;transform:skewX(-5deg);overflow:visible}
+.seg .s{fill:var(--lcd-off)}
+.seg .s.on{fill:var(--lcd-on)}
+.seg .dp,.seg .cm{position:absolute;background:var(--lcd-on);border-radius:50%;display:none}
+.seg .dp{width:17%;aspect-ratio:1;right:-11%;bottom:0}
+.seg .cm{width:14%;aspect-ratio:1;right:-9%;bottom:0;box-shadow:-2px 5px 0 -1px var(--lcd-on)}
+.seg .c.hasdp .dp,.seg .c.hascm .cm{display:block}
+.seg .sg{flex:0 0 5.5%;margin-right:1%}
+.seg.big .c{font-size:0}
+.sub{display:none;margin-top:4px;padding-top:5px;border-top:1px dashed rgba(28,36,24,.3)}
+[data-mode="fx"] .sub{display:block}
+.sub .ind{height:12px}
+.sub .seg .c{aspect-ratio:.6}
+.sub .seg{width:100%}
+.sub .subseg{width:76%;margin-left:auto}
+.msg{margin-top:4px;min-height:13px;font:700 10.5px/1.3 ui-monospace,Menlo,Consolas,monospace;color:var(--lcd-on);opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:none}
+[data-mode="fx"] .msg,.msg.show{display:block}
+
+/* 모드 줄 */
+.modes{display:flex;gap:8px;align-items:center}
+.pill{position:relative;flex:1;height:32px;border-radius:9px;font-size:12px;font-weight:800;letter-spacing:.3px;color:#cfd3dc;display:flex;align-items:center;justify-content:center;gap:6px;
+  background:linear-gradient(#4d5058,#31343a);box-shadow:0 3px 0 #0e0f12,0 4px 5px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.22)}
+.pill:active{transform:translateY(2px);box-shadow:0 1px 0 #0e0f12,inset 0 1px 0 rgba(255,255,255,.2)}
+.pill i{width:7px;height:7px;border-radius:50%;background:#3b2323;box-shadow:inset 0 1px 1px rgba(0,0,0,.6)}
+.pill.on i{background:var(--accent);box-shadow:0 0 7px var(--accent)}
+.pill.on{color:#fff}
+.pill.mic{flex:1.15}
+.pill.mic.live{background:linear-gradient(#ff6a5c,#c0392b);color:#fff;animation:pulse 1.1s infinite}
+.pill.mic.live i{background:#fff;box-shadow:0 0 8px #fff}
+@keyframes pulse{0%,100%{box-shadow:0 3px 0 #0e0f12,0 0 0 0 rgba(255,93,80,.55)}50%{box-shadow:0 3px 0 #0e0f12,0 0 0 9px rgba(255,93,80,0)}}
+.pill.bs{flex:.55;font-size:16px}
+
+/* 환율 패널 */
+.fx{display:none;border-radius:12px;padding:9px 10px 8px;background:linear-gradient(#1c1f27,#14161c);box-shadow:inset 0 2px 5px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.08)}
+[data-mode="fx"] .fx{display:block}
+.pair{display:flex;align-items:flex-end;gap:7px}
+.sel{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;font-size:9px;font-weight:800;letter-spacing:1px;color:var(--sub)}
+.sel select{width:100%;height:34px;border-radius:8px;border:1px solid #343a4b;background:#232733;color:var(--text);font:600 13px inherit;padding:0 6px;outline:none;appearance:auto}
+.sel select:focus{border-color:var(--accent)}
+.swap{flex:none;width:38px;height:34px;border-radius:9px;font-size:18px;color:#0b2f2b;font-weight:900;background:linear-gradient(#3fe0d1,#15a99d);box-shadow:0 3px 0 #0a5f58,0 4px 5px rgba(0,0,0,.5)}
+.swap:active{transform:translateY(2px);box-shadow:0 1px 0 #0a5f58}
+.rate{margin-top:8px;font:700 12.5px ui-monospace,Menlo,Consolas,monospace;color:#c9fff9;text-align:center}
+.rstat{margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:10.5px;color:var(--sub);flex-wrap:wrap}
+.rstat .dot{width:7px;height:7px;border-radius:50%;background:var(--warn)}
+.rstat .dot.ok{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.rstat .dot.bad{background:var(--danger)}
+.rstat button{width:24px;height:24px;border-radius:7px;background:#272b38;border:1px solid #343a4b;font-size:13px;line-height:1;color:var(--text)}
+.rstat button.spin{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hint{margin-top:5px;font-size:10px;line-height:1.5;color:#6f7790;text-align:center}
+.hint b{color:#9aa3bd;font-weight:600}
+.hint a{color:#6f7790}
+.tts{display:inline-flex;align-items:center;gap:4px;margin-left:4px;font-size:10.5px;color:var(--sub);cursor:pointer;user-select:none}
+.tts input{accent-color:var(--accent)}
+
+/* 키패드 */
+.keys{display:grid;grid-template-columns:repeat(5,1fr);gap:9px 8px;margin-top:12px}
+.k{position:relative;height:var(--kh);border-radius:11px;font-size:clamp(18px,calc(var(--kh)*.42),26px);font-weight:700;color:#23262d;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(#f6f6f7 0%,#d6d7da 60%,#c4c5c9 100%);
+  box-shadow:0 4px 0 #6d7077,0 6px 7px rgba(0,0,0,.55),inset 0 1px 0 #fff;user-select:none;-webkit-user-select:none}
+.k:active,.k.dn{transform:translateY(3px);box-shadow:0 1px 0 #6d7077,0 2px 3px rgba(0,0,0,.5),inset 0 1px 0 #fff}
+.k.op{color:#fff;background:linear-gradient(#62666f 0%,#41444c 60%,#35383f 100%);box-shadow:0 4px 0 #14151a,0 6px 7px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.28)}
+.k.op:active,.k.op.dn{box-shadow:0 1px 0 #14151a,0 2px 3px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.2)}
+.k.fn{color:#fff;font-size:clamp(16px,calc(var(--kh)*.36),22px);background:linear-gradient(#555962 0%,#383b42 60%,#2d3036 100%);box-shadow:0 4px 0 #101114,0 6px 7px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.25)}
+.k.short{height:calc(var(--kh)*.7)}
+.k.mem{height:calc(var(--kh)*.7);font-size:clamp(11px,calc(var(--kh)*.26),14px);letter-spacing:.2px;color:#e6e8ee;background:linear-gradient(#4b4e56 0%,#2f3238 100%);box-shadow:0 3px 0 #0d0e11,0 5px 6px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.2)}
+.k.mem:active,.k.mem.dn{box-shadow:0 1px 0 #0d0e11,0 2px 3px rgba(0,0,0,.5)}
+.k.clr{color:#fff;background:linear-gradient(#ee6657 0%,#c4392b 60%,#a82e22 100%);box-shadow:0 4px 0 #6a1b13,0 6px 7px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.35)}
+.k.clr:active,.k.clr.dn{box-shadow:0 1px 0 #6a1b13,0 2px 3px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3)}
+.k.eq{color:#052e2a;background:linear-gradient(#45e6d6 0%,#1fbfb1 60%,#14a79b 100%);box-shadow:0 4px 0 #0a5f58,0 6px 7px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.55)}
+.k.eq:active,.k.eq.dn{box-shadow:0 1px 0 #0a5f58,0 2px 3px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.45)}
+.k.sel{outline:2px solid var(--accent);outline-offset:2px}
+.sq{font-size:.95em}
+
+.foot{margin-top:12px;font-size:10px;color:#6f7790;text-align:center;line-height:1.5}
+.foot a{color:#6f7790}
+
+/* ── 가로로 길고 세로가 짧은 화면(차량 디스플레이·가로 모드 폰): 좌우 배치 ──
+   왼쪽: 로고·LCD·환율 / 오른쪽: 키패드 */
+@media (min-aspect-ratio:3/2) and (max-height:640px){
+  :root{--kh:clamp(32px,calc((100dvh - 150px) / 5.4),52px)}
+  header{padding:5px 12px;padding-top:calc(5px + env(safe-area-inset-top));padding-left:calc(12px + env(safe-area-inset-left))}
+  .back{width:30px;height:30px}.appicon{width:26px;height:26px}
+  main{padding:8px calc(12px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}
+  .calc{width:min(100%,900px)}
+  .body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;padding:10px 12px 12px;align-items:start}
+  .keys{margin-top:0;gap:8px 7px}
+  .foot{display:none}
+}
+@media (min-aspect-ratio:3/2) and (max-height:430px){
+  .logo small,.hint{display:none}
+  .left{gap:6px}
+  .top{padding:4px 8px}
+  .pill{height:26px}
+  .sel select{height:28px}
+  .swap{height:28px}
+  .rate{margin-top:5px;font-size:11px}
+}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html" aria-label="런처로">‹</a>
+  <h1><img class="appicon" src="calc-icon-192.png" alt="">SIM <span>Calculator</span></h1>
+  <div class="spacer"></div>
+</header>
+
+<main>
+  <div class="calc" id="calc" data-mode="calc">
+    <div class="body">
+      <div class="left">
+        <div class="top">
+          <div class="logo">SIM <b>CALC</b><small>12 DIGITS</small></div>
+          <div class="decsw" title="소수점 자리 (F: 자동)">
+            <div class="lbl">DECIMAL</div>
+            <div class="track" id="decTrack"><div class="thumb" id="decThumb"></div></div>
+          </div>
+          <div class="solar" aria-hidden="true"></div>
+        </div>
+
+        <div class="lcdwrap">
+          <div class="lcd">
+            <div class="ind"><span id="iM">M</span><span id="iE">E</span><span id="iOp"></span><span class="cc" id="iFrom"></span></div>
+            <div class="seg big" id="seg1"></div>
+            <div class="sub">
+              <div class="ind"><span class="on">≈</span><span class="cc" id="iTo" style="opacity:.85"></span></div>
+              <div class="seg subseg" id="seg2"></div>
+            </div>
+            <div class="msg" id="msg"></div>
+          </div>
+        </div>
+
+        <div class="modes">
+          <button class="pill on" id="bCalc"><i></i>계산</button>
+          <button class="pill" id="bFx"><i></i>환율</button>
+          <button class="pill mic" id="bMic" aria-label="음성으로 환율 계산"><i></i>🎤 음성</button>
+          <button class="pill bs" id="bBs" aria-label="한 글자 지우기">⌫</button>
+        </div>
+
+        <div class="fx" id="fx">
+          <div class="pair">
+            <label class="sel">FROM<select id="selFrom" aria-label="바꿀 통화"></select></label>
+            <button class="swap" id="bSwap" aria-label="통화 바꾸기">⇄</button>
+            <label class="sel">TO<select id="selTo" aria-label="받을 통화"></select></label>
+          </div>
+          <div class="rate" id="rate">환율 불러오는 중…</div>
+          <div class="rstat"><i class="dot" id="rdot"></i><span id="rtime"></span><button id="bRef" aria-label="환율 새로고침">⟳</button>
+            <label class="tts"><input type="checkbox" id="ckTts">음성 안내</label></div>
+          <div class="hint"><b>🎤</b> “100달러 원으로”, “5만원 엔화로”, “1000유로 얼마”</div>
+        </div>
+      </div>
+
+      <div class="keys" id="keys"></div>
+    </div>
+    <div class="foot">환율은 인터넷 공개 시세(참고용)이며 은행 매매기준율·수수료와 다를 수 있어요 · <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener">Rates By Exchange Rate API</a></div>
+  </div>
+</main>
+
+<script src="ui-guard.js" defer></script>
+<script src="sync.js?bg=1" defer></script>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+
+  /* ─────────── 통화 목록 ───────────
+     c: 코드, n: 목록 이름, s: 음성 안내용 짧은 이름, d: 표시 소수점, al: 음성 인식 별칭(소문자) */
+  const CUR = [
+    { c: 'KRW', n: '대한민국 원', s: '원', d: 0, al: ['원화', '한국 원', '한화', '원', 'won', 'krw'] },
+    { c: 'USD', n: '미국 달러', s: '달러', d: 2, al: ['미국 달러', '미 달러', '달러', '딸라', '불', 'dollar', 'dollars', 'usd'] },
+    { c: 'JPY', n: '일본 엔', s: '엔', d: 0, al: ['일본 엔', '엔화', '엔', 'yen', 'jpy'] },
+    { c: 'EUR', n: '유로', s: '유로', d: 2, al: ['유로화', '유로', 'euro', 'euros', 'eur'] },
+    { c: 'CNY', n: '중국 위안', s: '위안', d: 2, al: ['중국 위안', '위안화', '위안', 'yuan', 'rmb', 'cny'] },
+    { c: 'GBP', n: '영국 파운드', s: '파운드', d: 2, al: ['영국 파운드', '파운드', 'pound', 'pounds', 'gbp'] },
+    { c: 'AUD', n: '호주 달러', s: '호주 달러', d: 2, al: ['호주 달러', 'aud'] },
+    { c: 'CAD', n: '캐나다 달러', s: '캐나다 달러', d: 2, al: ['캐나다 달러', 'cad'] },
+    { c: 'CHF', n: '스위스 프랑', s: '스위스 프랑', d: 2, al: ['스위스 프랑', '프랑', 'franc', 'chf'] },
+    { c: 'HKD', n: '홍콩 달러', s: '홍콩 달러', d: 2, al: ['홍콩 달러', 'hkd'] },
+    { c: 'SGD', n: '싱가포르 달러', s: '싱가포르 달러', d: 2, al: ['싱가포르 달러', '싱가폴 달러', 'sgd'] },
+    { c: 'NZD', n: '뉴질랜드 달러', s: '뉴질랜드 달러', d: 2, al: ['뉴질랜드 달러', 'nzd'] },
+    { c: 'TWD', n: '대만 달러', s: '대만 달러', d: 2, al: ['대만 달러', '타이완 달러', 'twd'] },
+    { c: 'THB', n: '태국 바트', s: '바트', d: 2, al: ['태국 바트', '바트', 'baht', 'thb'] },
+    { c: 'VND', n: '베트남 동', s: '베트남 동', d: 0, al: ['베트남 동', 'vnd'] },
+    { c: 'PHP', n: '필리핀 페소', s: '필리핀 페소', d: 2, al: ['필리핀 페소', '페소', 'php'] },
+    { c: 'IDR', n: '인도네시아 루피아', s: '루피아', d: 0, al: ['인도네시아 루피아', '루피아', 'idr'] },
+    { c: 'MYR', n: '말레이시아 링깃', s: '링깃', d: 2, al: ['말레이시아 링깃', '링깃', 'ringgit', 'myr'] },
+    { c: 'INR', n: '인도 루피', s: '루피', d: 2, al: ['인도 루피', '루피', 'rupee', 'rupees', 'inr'] },
+    { c: 'AED', n: '아랍에미리트 디르함', s: '디르함', d: 2, al: ['아랍에미리트 디르함', '디르함', 'aed'] },
+    { c: 'SAR', n: '사우디 리얄', s: '리얄', d: 2, al: ['사우디 리얄', '리얄', 'sar'] },
+    { c: 'MXN', n: '멕시코 페소', s: '멕시코 페소', d: 2, al: ['멕시코 페소', 'mxn'] },
+    { c: 'TRY', n: '튀르키예 리라', s: '리라', d: 2, al: ['튀르키예 리라', '터키 리라', '리라', 'try'] },
+    { c: 'BRL', n: '브라질 헤알', s: '헤알', d: 2, al: ['브라질 헤알', '헤알', 'brl'] }
+  ];
+  const BYC = {}; CUR.forEach(x => BYC[x.c] = x);
+
+  /* ─────────── 상태 ─────────── */
+  const DECS = ['F', '4', '3', '2', '0'];
+  const saved = (() => { try { return JSON.parse(lsGet('simcalc.v1') || '{}') || {}; } catch (e) { return {}; } })();
+  const S = {
+    cur: '0', acc: null, op: null, fresh: true, typed: true, justEq: false, last: null, err: false,
+    mem: Number.isFinite(saved.mem) ? saved.mem : 0,
+    dec: DECS.includes(saved.dec) ? saved.dec : 'F',
+    mode: saved.mode === 'fx' ? 'fx' : 'calc',
+    from: BYC[saved.from] ? saved.from : 'USD',
+    to: BYC[saved.to] ? saved.to : 'KRW',
+    tts: saved.tts === true
+  };
+  const persist = () => lsSet('simcalc.v1', JSON.stringify({ mem: S.mem, dec: S.dec, mode: S.mode, from: S.from, to: S.to, tts: S.tts }));
+
+  /* ─────────── 7세그먼트 LCD ─────────── */
+  const POLY = {
+    a: '9,3 51,3 45,10 15,10', b: '54,6 54,47 50,51 46,47 46,12', c: '46,53 50,49 54,53 54,94 46,88',
+    d: '15,90 45,90 51,97 9,97', e: '6,53 10,49 14,53 14,88 6,94', f: '6,6 14,12 14,47 10,51 6,47',
+    g: '11,50 15,46 45,46 49,50 45,54 15,54'
+  };
+  const GLYPH = { '0': 'abcdef', '1': 'bc', '2': 'abdeg', '3': 'abcdg', '4': 'bcfg', '5': 'acdfg', '6': 'acdefg', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg', '-': 'g', 'E': 'adefg', ' ': '' };
+  const cell = (ch, dp, cm) => {
+    const on = GLYPH[ch] || '';
+    let h = '<span class="c' + (dp ? ' hasdp' : '') + (cm ? ' hascm' : '') + '"><svg viewBox="0 0 60 100" aria-hidden="true">';
+    for (const k in POLY) h += '<polygon class="s' + (on.indexOf(k) >= 0 ? ' on' : '') + '" points="' + POLY[k] + '"/>';
+    return h + '</svg><i class="dp"></i><i class="cm"></i></span>';
+  };
+  /* text: "-1,234.50" 형태. n: 자릿수 칸 수. 부호 칸이 맨 앞에 하나 더 있다. */
+  function renderSeg(el, text, n) {
+    let neg = false, t = String(text);
+    if (t[0] === '-') { neg = true; t = t.slice(1); }
+    const cs = [];
+    for (const ch of t) {
+      if (ch === '.') { if (cs.length) cs[cs.length - 1].dp = true; }
+      else if (ch === ',') { if (cs.length) cs[cs.length - 1].cm = true; }
+      else cs.push({ ch, dp: false, cm: false });
+    }
+    while (cs.length < n) cs.unshift({ ch: ' ', dp: false, cm: false });
+    const view = cs.slice(cs.length - n);
+    let h = '<span class="c sg">' + '<svg viewBox="0 0 60 100" aria-hidden="true"><polygon class="s' + (neg ? ' on' : '') + '" points="' + POLY.g + '"/></svg></span>';
+    view.forEach(x => h += cell(x.ch, x.dp, x.cm));
+    el.innerHTML = h;
+  }
+
+  /* ─────────── 계산 엔진 ─────────── */
+  const val = () => { const v = parseFloat(S.cur); return Number.isFinite(v) ? v : 0; };
+  const plain = r => {
+    const ia = Math.floor(Math.abs(r)); const il = ia === 0 ? 1 : String(ia).length;
+    let s = r.toFixed(Math.max(0, Math.min(20, 12 - il)));
+    if (s.indexOf('.') >= 0) s = s.replace(/0+$/, '').replace(/\.$/, '');
+    return s === '-0' ? '0' : s;
+  };
+  function fmtR(r) {            // 결과값 → 문자열. 넘치면 예외(E)
+    if (!Number.isFinite(r)) throw new Error('E');
+    r = +r.toPrecision(12);
+    if (Math.abs(r) >= 1e12) throw new Error('E');
+    if (S.dec === 'F') return plain(r);
+    const d = +S.dec, p = Math.pow(10, d), sg = r < 0 ? -1 : 1;
+    const q = sg * Math.round(+(Math.abs(r) * p).toPrecision(12)) / p;
+    const s = q.toFixed(d);
+    return s.replace(/^-(0(\.0+)?)$/, '$1');
+  }
+  function setErr() { S.err = true; S.cur = '0'; S.acc = null; S.op = null; S.fresh = true; S.typed = true; S.justEq = false; }
+  function calc(a, op, b) {
+    let r;
+    switch (op) {
+      case '+': r = a + b; break;
+      case '-': r = a - b; break;
+      case '*': r = a * b; break;
+      case '/': if (b === 0) { setErr(); return null; } r = a / b; break;
+    }
+    return r;
+  }
+  const guard = fn => { try { fn(); } catch (e) { setErr(); } };
+
+  function digit(d) {
+    if (S.err) return;
+    if (S.justEq) { S.cur = '0'; S.acc = null; S.op = null; S.justEq = false; S.fresh = true; }
+    if (S.fresh) { S.cur = '0'; S.fresh = false; }
+    S.typed = true;
+    if (d === '.') { if (S.cur.indexOf('.') < 0) S.cur += '.'; return; }
+    const room = 12 - S.cur.replace(/[-.]/g, '').length;
+    if (S.cur === '0' || S.cur === '-0') { S.cur = (S.cur[0] === '-' ? '-' : '') + (d === '00' ? '0' : d); return; }
+    if (room <= 0) return;
+    S.cur += d.slice(0, room);
+  }
+  function opKey(o) {
+    if (S.err) return;
+    guard(() => {
+      if (S.op && S.typed) {
+        const r = calc(S.acc, S.op, val()); if (r == null) return;
+        S.acc = +r.toPrecision(12); S.cur = fmtR(S.acc);
+      } else if (!S.op) S.acc = val();
+      S.op = o; S.fresh = true; S.typed = false; S.justEq = false;
+    });
+  }
+  function eqKey() {
+    if (S.err) return;
+    guard(() => {
+      let r;
+      if (S.op) {
+        const b = S.typed ? val() : S.acc;
+        r = calc(S.acc, S.op, b); if (r == null) return;
+        S.last = { op: S.op, b };
+      } else if (S.last) r = calc(val(), S.last.op, S.last.b);
+      else return;
+      if (r == null) return;
+      S.cur = fmtR(r); S.op = null; S.acc = null; S.fresh = true; S.typed = true; S.justEq = true;
+    });
+  }
+  function pctKey() {
+    if (S.err) return;
+    guard(() => {
+      const b = S.typed ? val() : (S.acc == null ? 0 : S.acc);
+      let r;
+      if (S.op && S.acc != null) {
+        const a = S.acc;
+        if (S.op === '*') r = a * b / 100;
+        else if (S.op === '/') { if (b === 0) { setErr(); return; } r = a / b * 100; }
+        else if (S.op === '+') r = a + a * b / 100;
+        else r = a - a * b / 100;
+        S.op = null; S.acc = null; S.last = null;
+      } else r = b / 100;
+      S.cur = fmtR(r); S.fresh = true; S.typed = true; S.justEq = true;
+    });
+  }
+  function sqrtKey() {
+    if (S.err) return;
+    guard(() => {
+      const v = val(); if (v < 0) { setErr(); return; }
+      S.cur = fmtR(Math.sqrt(v)); S.fresh = true; S.typed = true;
+    });
+  }
+  function negKey() {
+    if (S.err) return;
+    if (S.cur === '0') return;
+    S.cur = S.cur[0] === '-' ? S.cur.slice(1) : '-' + S.cur;
+    if (S.fresh && S.op) { S.typed = true; }
+  }
+  function bsKey() {
+    if (S.err || S.fresh) return;
+    S.cur = S.cur.slice(0, -1);
+    if (S.cur === '' || S.cur === '-') S.cur = '0';
+  }
+  function clrKey() {
+    if (S.err) { S.err = false; S.cur = '0'; S.fresh = true; S.typed = true; return; }
+    if (!S.fresh && S.cur !== '0') { S.cur = '0'; S.fresh = true; if (S.op) S.typed = false; return; }   // 첫 누름: 입력 중인 수만 지움
+    S.cur = '0'; S.acc = null; S.op = null; S.fresh = true; S.typed = true; S.justEq = false; S.last = null;   // 한 번 더: 전체 지움
+  }
+  function memKey(m) {
+    if (S.err && m !== 'mc') return;
+    guard(() => {
+      if (m === 'mc') { S.mem = 0; return; }
+      if (m === 'mr') { S.cur = plain(+S.mem.toPrecision(12)); S.fresh = true; S.typed = true; S.justEq = false; return; }
+      if (S.op) eqKey(); if (S.err) return;
+      const v = val();
+      S.mem = +(S.mem + (m === 'mp' ? v : -v)).toPrecision(12);
+      if (Math.abs(S.mem) >= 1e12) { S.mem = 0; throw new Error('E'); }
+      S.fresh = true; S.typed = true;
+    });
+  }
+
+  /* ─────────── 표시 ─────────── */
+  const OPSYM = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+  function showNum(s) {
+    const neg = s[0] === '-'; if (neg) s = s.slice(1);
+    const dot = s.indexOf('.') >= 0; const [i, f] = s.split('.');
+    return (neg ? '-' : '') + i.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (dot ? '.' + (f || '') : (i === '0' ? '.' : ''));
+  }
+  const nf = {};
+  function fmtMoney(v, d) {
+    const k = d; nf[k] = nf[k] || new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+    return nf[k].format(v);
+  }
+  function render() {
+    renderSeg($('seg1'), S.err ? '0.' : showNum(S.cur), 12);
+    $('iM').classList.toggle('on', S.mem !== 0);
+    $('iE').classList.toggle('on', S.err);
+    $('iOp').textContent = S.op ? OPSYM[S.op] : '';
+    $('iOp').classList.toggle('on', !!S.op);
+    $('calc').dataset.mode = S.mode;
+    $('bCalc').classList.toggle('on', S.mode === 'calc');
+    $('bFx').classList.toggle('on', S.mode === 'fx');
+    $('iFrom').textContent = S.mode === 'fx' ? S.from : '';
+    if (S.mode === 'fx') {
+      $('iTo').textContent = S.to;
+      const out = convert(S.err ? 0 : val(), S.from, S.to);
+      let t = '';
+      if (out == null) t = '  ';
+      else { t = fmtMoney(out, BYC[S.to].d); if (t.replace(/[-,.]/g, '').length > 13) t = 'E'; }
+      renderSeg($('seg2'), t, 13);
+    }
+    renderDec();
+    renderRate();
+  }
+
+  /* ─────────── 소수점 스위치 ─────────── */
+  function buildDec() {
+    const tr = $('decTrack');
+    DECS.forEach((d, i) => {
+      const b = document.createElement('button'); b.textContent = d; b.dataset.d = d; b.setAttribute('aria-label', '소수점 ' + (d === 'F' ? '자동' : d + '자리'));
+      b.addEventListener('click', () => { S.dec = d; persist(); render(); });
+      tr.appendChild(b);
+    });
+  }
+  function renderDec() {
+    const i = DECS.indexOf(S.dec), n = DECS.length;
+    $('decThumb').style.left = 'calc(' + (i * 100 / n) + '% + 2px)'; $('decThumb').style.width = 'calc(' + (100 / n) + '% - 4px)';
+    [...$('decTrack').querySelectorAll('button')].forEach(b => b.classList.toggle('on', b.dataset.d === S.dec));
+  }
+
+  /* ─────────── 환율 ─────────── */
+  const R = { rates: null, asOf: 0, src: '', at: 0, status: 'idle' };   // status: idle | loading | ok | stale | fail
+  const SOURCES = [
+    { id: 'ExchangeRate-API', url: 'https://open.er-api.com/v6/latest/USD',
+      parse: j => { if (!j || j.result !== 'success' || !j.rates) throw new Error('bad'); return { rates: j.rates, asOf: (j.time_last_update_unix || 0) * 1000 }; } },
+    { id: 'currency-api', url: 'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.min.json',
+      parse: j => { if (!j || !j.usd) throw new Error('bad'); const r = {}; for (const k in j.usd) r[k.toUpperCase()] = j.usd[k]; return { rates: r, asOf: Date.parse(j.date + 'T00:00:00Z') || 0 }; } },
+    { id: 'currency-api', url: 'https://latest.currency-api.pages.dev/v1/currencies/usd.min.json',
+      parse: j => { if (!j || !j.usd) throw new Error('bad'); const r = {}; for (const k in j.usd) r[k.toUpperCase()] = j.usd[k]; return { rates: r, asOf: Date.parse(j.date + 'T00:00:00Z') || 0 }; } }
+  ];
+  async function fetchJSON(url, ms) {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms || 8000);
+    try { const res = await fetch(url, { signal: ctl.signal, cache: 'no-store' }); if (!res.ok) throw new Error('HTTP ' + res.status); return await res.json(); }
+    finally { clearTimeout(t); }
+  }
+  let loadP = null;
+  function loadRates(manual) {
+    if (loadP) return loadP;
+    R.status = 'loading'; renderRate();
+    loadP = (async () => {
+      for (const s of SOURCES) {
+        try {
+          const j = s.parse(await fetchJSON(s.url));
+          const rr = {}; for (const k in j.rates) { const v = +j.rates[k]; if (v > 0 && Number.isFinite(v)) rr[k.toUpperCase()] = v; }
+          rr.USD = 1;
+          if (!(rr.KRW > 100 && rr.KRW < 10000)) throw new Error('insane');
+          R.rates = rr; R.asOf = j.asOf; R.src = s.id; R.at = Date.now(); R.status = 'ok';
+          lsSet('simcalc.rates', JSON.stringify({ rates: rr, asOf: j.asOf, src: s.id, at: R.at }));
+          return true;
+        } catch (e) { /* 다음 소스 */ }
+      }
+      R.status = R.rates ? 'stale' : 'fail'; return false;
+    })().finally(() => { loadP = null; render(); });
+    return loadP;
+  }
+  function loadCached() {
+    try {
+      const o = JSON.parse(lsGet('simcalc.rates') || 'null');
+      if (o && o.rates && o.rates.KRW > 100) { R.rates = o.rates; R.asOf = o.asOf; R.src = o.src; R.at = o.at; R.status = 'stale'; }
+    } catch (e) {}
+  }
+  function convert(amount, from, to) {
+    const r = R.rates; if (!r || !(r[from] > 0) || !(r[to] > 0)) return null;
+    return amount / r[from] * r[to];
+  }
+  const fmtDT = ms => { if (!ms) return ''; const d = new Date(ms), z = n => String(n).padStart(2, '0'); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); };
+  function renderRate() {
+    const dot = $('rdot'), line = $('rate'), tm = $('rtime');
+    $('bRef').classList.toggle('spin', R.status === 'loading');
+    dot.className = 'dot' + (R.status === 'ok' ? ' ok' : R.status === 'fail' ? ' bad' : '');
+    const unit = (() => { const r1 = convert(1, S.from, S.to); if (r1 == null) return null; let m = 1; while (r1 * m < 0.1 && m < 1e6) m *= 10; return { m, v: r1 * m }; })();
+    if (!unit) line.textContent = R.status === 'fail' ? '환율을 불러오지 못했어요' : '환율 불러오는 중…';
+    else line.textContent = fmtMoney(unit.m, 0) + ' ' + S.from + ' = ' + fmtMoney(unit.v, unit.v >= 100 ? 2 : 4) + ' ' + S.to;
+    let t = '';
+    if (R.status === 'loading' && !R.rates) t = '환율 조회 중…';
+    else if (R.status === 'fail') t = '오프라인 · 환율 없음 (⟳ 다시 시도)';
+    else if (R.rates) {
+      t = fmtDT(R.asOf) + ' 기준 · ' + R.src;
+      if (R.status === 'stale') t = '오프라인 · 저장된 환율 ' + t;
+    }
+    tm.textContent = t;
+  }
+
+  /* ─────────── 통화 선택 ─────────── */
+  function buildSelects() {
+    const opts = CUR.map(x => '<option value="' + x.c + '">' + x.c + ' · ' + x.s + '</option>').join('');
+    $('selFrom').innerHTML = opts; $('selTo').innerHTML = opts;
+    $('selFrom').value = S.from; $('selTo').value = S.to;
+    $('selFrom').addEventListener('change', e => { S.from = e.target.value; persist(); render(); });
+    $('selTo').addEventListener('change', e => { S.to = e.target.value; persist(); render(); });
+    $('bSwap').addEventListener('click', () => { const t = S.from; S.from = S.to; S.to = t; $('selFrom').value = S.from; $('selTo').value = S.to; persist(); render(); });
+  }
+  function setPair(from, to) { S.from = from; S.to = to; $('selFrom').value = from; $('selTo').value = to; }
+  function setMode(m) { S.mode = m; persist(); render(); }
+
+  /* ─────────── 키패드 ─────────── */
+  const KEYS = [
+    ['MC', 'mem', 'mc'], ['MR', 'mem', 'mr'], ['M−', 'mem', 'mm'], ['M+', 'mem', 'mp'], ['÷', 'op short', '/'],
+    ['√', 'fn', 'sqrt'], ['7', 'num'], ['8', 'num'], ['9', 'num'], ['×', 'op', '*'],
+    ['%', 'fn', 'pct'], ['4', 'num'], ['5', 'num'], ['6', 'num'], ['−', 'op', '-'],
+    ['±', 'fn', 'neg'], ['1', 'num'], ['2', 'num'], ['3', 'num'], ['+', 'op', '+'],
+    ['AC', 'clr', 'clr'], ['0', 'num'], ['00', 'num'], ['.', 'num'], ['=', 'eq', 'eq']
+  ];
+  function buildKeys() {
+    const box = $('keys');
+    KEYS.forEach(([label, cls, act]) => {
+      const b = document.createElement('button');
+      b.className = 'k ' + cls; b.type = 'button'; cls = cls.split(' ')[0];
+      b.textContent = label; b.dataset.cls = cls; b.dataset.act = act || label;
+      if (label === '√') b.innerHTML = '<span class="sq">√</span>';
+      b.setAttribute('aria-label', { '÷': '나누기', '×': '곱하기', '−': '빼기', '+': '더하기', '=': '결과', 'AC': '지우기', '±': '부호 바꾸기', '√': '제곱근', '%': '퍼센트', 'MC': '메모리 지우기', 'MR': '메모리 불러오기', 'M−': '메모리 빼기', 'M+': '메모리 더하기' }[label] || label);
+      box.appendChild(b);
+    });
+    box.addEventListener('click', e => {
+      const b = e.target.closest('.k'); if (!b) return;
+      press(b.dataset.cls, b.dataset.act);
+    });
+  }
+  function press(cls, act) {
+    try { if (navigator.vibrate) navigator.vibrate(6); } catch (e) {}
+    if (cls === 'num') digit(act);
+    else if (cls === 'op') opKey(act);
+    else if (cls === 'eq') eqKey();
+    else if (cls === 'clr') clrKey();
+    else if (cls === 'mem') memKey(act);
+    else if (act === 'pct') pctKey();
+    else if (act === 'sqrt') sqrtKey();
+    else if (act === 'neg') negKey();
+    persist(); render();
+  }
+
+  /* 키보드 */
+  window.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target; if (t && /^(SELECT|INPUT|TEXTAREA)$/.test(t.tagName)) return;
+    const k = e.key; let did = true;
+    if (/^[0-9]$/.test(k)) press('num', k);
+    else if (k === '.' || k === ',') press('num', '.');
+    else if (k === '+') press('op', '+');
+    else if (k === '-') press('op', '-');
+    else if (k === '*' || k === 'x' || k === 'X') press('op', '*');
+    else if (k === '/') press('op', '/');
+    else if (k === 'Enter' || k === '=') press('eq', 'eq');
+    else if (k === '%') press('fn', 'pct');
+    else if (k === 'Backspace') { bsKey(); persist(); render(); }
+    else if (k === 'Escape' || k === 'Delete' || k === 'c' || k === 'C') press('clr', 'clr');
+    else did = false;
+    if (did) e.preventDefault();
+  });
+
+  /* ─────────── 음성 환율 계산 ─────────── */
+  const NUMCH = '영공일이삼사오육칠팔구십백천만억조';
+  const NUM = '(?:\\d[\\d,]*(?:\\.\\d+)?|[' + NUMCH + '])(?:\\s*(?:\\d[\\d,]*(?:\\.\\d+)?|[' + NUMCH + ']))*';
+  function koNum(str) {
+    const s = String(str).replace(/[\s,]/g, '');
+    const D = { '영': 0, '공': 0, '일': 1, '이': 2, '삼': 3, '사': 4, '오': 5, '육': 6, '칠': 7, '팔': 8, '구': 9 };
+    const U = { '십': 10, '백': 100, '천': 1000 }, M = { '만': 1e4, '억': 1e8, '조': 1e12 };
+    const re = /(\d+(?:\.\d+)?)|([영공일이삼사오육칠팔구])|([십백천])|([만억조])/g;
+    let total = 0, sec = 0, cur = null, lastDigit = false, m, any = false;
+    while ((m = re.exec(s))) {
+      any = true;
+      if (m[1] !== undefined) { cur = lastDigit && cur !== null && /^\d+$/.test(m[1]) && Number.isInteger(cur) ? cur * Math.pow(10, m[1].length) + +m[1] : +m[1]; lastDigit = true; }
+      else if (m[2] !== undefined) { cur = lastDigit && cur !== null ? cur * 10 + D[m[2]] : D[m[2]]; lastDigit = true; }
+      else if (m[3] !== undefined) { sec += (cur === null ? 1 : cur) * U[m[3]]; cur = null; lastDigit = false; }
+      else { sec += cur === null ? 0 : cur; total += (sec === 0 ? 1 : sec) * M[m[4]]; sec = 0; cur = null; lastDigit = false; }
+    }
+    if (!any) return NaN;
+    return total + sec + (cur === null ? 0 : cur);
+  }
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const ALIAS = []; const ALIASMAP = {};
+  CUR.forEach(x => x.al.forEach(a => { ALIAS.push({ c: x.c, a }); ALIASMAP[a.replace(/\s+/g, '').toLowerCase()] = x.c; }));
+  ALIAS.sort((p, q) => q.a.replace(/\s/g, '').length - p.a.replace(/\s/g, '').length);
+  const JOSA = '(?:으로|로|은|는|이|가|을|를|에서|에|도|만|화|짜리|입니다|이에요|이야|야|랑|와|과)';
+  const aliasPat = (hangulGuard) => ALIAS.map(x => {
+    const latin = /^[a-z]+$/.test(x.a);
+    const p = esc(x.a).replace(/ /g, '\\s*');
+    if (latin) return '(?<![a-z])' + p + '(?![a-z])';
+    const one = x.a.length === 1;   // 원·불·엔 같은 한 글자는 뒤에 다른 한글이 이어지면("불러줘", "원하는") 통화가 아님
+    return (hangulGuard ? '(?<![가-힣a-z])' : '') + p + (one ? '(?:(?![가-힣])|(?=' + JOSA + '))' : '');
+  }).join('|');
+  const AMT_RE = new RegExp('(' + NUM + ')\\s*(' + aliasPat(false) + ')', 'gi');
+  const AMT2_RE = new RegExp('(' + aliasPat(false) + ')\\s*(' + NUM + ')', 'gi');
+  const TGT_RE = new RegExp('(' + aliasPat(true) + ')', 'gi');
+  const codeOf = txt => ALIASMAP[String(txt).replace(/\s+/g, '').toLowerCase()];
+  const mentions = text => { const out = []; TGT_RE.lastIndex = 0; let m; while ((m = TGT_RE.exec(text))) { const c = codeOf(m[1]); if (c) out.push({ c, i: m.index }); } return out; };
+
+  /* 음성 문장 → { amount, from, to } (못 알아들으면 null) */
+  function parseVoice(raw) {
+    let text = String(raw || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!text) return null;
+    let amount = null, from = null, rest = text, m;
+    AMT_RE.lastIndex = 0;
+    while ((m = AMT_RE.exec(text))) {
+      const v = koNum(m[1]); const c = codeOf(m[2]);
+      if (Number.isFinite(v) && c) { amount = v; from = c; rest = text.slice(0, m.index) + ' ' + text.slice(m.index + m[0].length); break; }
+    }
+    if (amount == null) {
+      AMT2_RE.lastIndex = 0;
+      while ((m = AMT2_RE.exec(text))) {
+        const v = koNum(m[2]); const c = codeOf(m[1]);
+        if (Number.isFinite(v) && c) { amount = v; from = c; rest = text.slice(0, m.index) + ' ' + text.slice(m.index + m[0].length); break; }
+      }
+    }
+    const ms = mentions(rest);
+    let to = null;
+    if (from) {
+      const o = ms.find(x => x.c !== from); if (o) to = o.c;
+    } else if (ms.length) {                        // 금액 없이 "달러 원 환율" 같은 말
+      from = ms[0].c; const o = ms.find(x => x.c !== from); if (o) to = o.c;
+      amount = 1;
+    }
+    if (!from) return null;
+    if (!to) to = from === 'KRW' ? (S.to !== 'KRW' ? S.to : 'USD') : 'KRW';
+    if (from === to) return null;
+    return { amount, from, to };
+  }
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null, listening = false, heard = false;
+  const say = t => { const el = $('msg'); el.textContent = t || ''; el.classList.toggle('show', !!t); };
+  function speak(t) {
+    if (!S.tts || !('speechSynthesis' in window)) return;
+    try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'ko-KR'; speechSynthesis.speak(u); } catch (e) {}
+  }
+  const hasFinal = w => { const c = w.charCodeAt(w.length - 1); return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 !== 0; };
+  const numStr = v => fmtMoney(v, Number.isInteger(v) ? 0 : 2);
+
+  async function applyVoice(p, spoken) {
+    setMode('fx'); setPair(p.from, p.to);
+    if (!R.rates || R.status !== 'ok') await loadRates();
+    const amt = +p.amount.toPrecision(12);
+    if (!(amt >= 0) || amt >= 1e12) { say('금액이 너무 커요'); render(); return; }
+    S.cur = plain(amt); S.acc = null; S.op = null; S.fresh = true; S.typed = true; S.justEq = false; S.err = false;
+    persist(); render();
+    const out = convert(amt, p.from, p.to);
+    if (out == null) { say('환율 정보를 불러오지 못했어요'); speak('환율 정보를 불러오지 못했어요.'); return; }
+    const fN = BYC[p.from], tN = BYC[p.to];
+    const outS = fmtMoney(out, tN.d);
+    const line = numStr(amt) + ' ' + fN.s + (hasFinal(fN.s) ? '은' : '는') + ' 약 ' + outS + ' ' + tN.s;
+    say(line); speak(line + '입니다.');
+  }
+  function stopListen() { try { rec && rec.abort(); } catch (e) {} listening = false; $('bMic').classList.remove('live'); }
+  function startListen() {
+    if (!SR) { setMode('fx'); say('이 브라우저는 음성 인식을 지원하지 않아요 (Chrome·Safari 권장)'); return; }
+    if (listening) { try { rec.stop(); } catch (e) {} return; }
+    try { speechSynthesis && speechSynthesis.cancel(); } catch (e) {}
+    setMode('fx');
+    rec = new SR(); rec.lang = 'ko-KR'; rec.interimResults = true; rec.maxAlternatives = 4; rec.continuous = false;
+    let finalAlts = null, interim = '';
+    rec.onstart = () => { listening = true; heard = false; $('bMic').classList.add('live'); say('듣는 중… 예) “100달러 원으로”'); };
+    rec.onresult = e => {
+      heard = true;
+      const r = e.results[e.results.length - 1];
+      interim = r[0].transcript;
+      if (r.isFinal) { finalAlts = []; for (let i = 0; i < r.length; i++) finalAlts.push(r[i].transcript); }
+      else say('“' + interim + '”');
+    };
+    rec.onerror = e => {
+      const code = e.error;
+      if (code === 'not-allowed' || code === 'service-not-allowed') say('마이크 권한이 필요해요 (브라우저 설정에서 허용)');
+      else if (code === 'no-speech') say('말씀이 들리지 않았어요. 다시 눌러 주세요');
+      else if (code === 'network') say('음성 인식 서버에 연결하지 못했어요');
+      else if (code !== 'aborted') say('음성 인식 오류: ' + code);
+      finalAlts = null; interim = '';
+    };
+    rec.onend = async () => {
+      listening = false; $('bMic').classList.remove('live');
+      const alts = finalAlts || (interim ? [interim] : null);
+      if (!alts) return;
+      let p = null; for (const a of alts) { p = parseVoice(a); if (p) break; }
+      if (p) await applyVoice(p, alts[0]);
+      else say('못 알아들었어요: “' + alts[0] + '”  → “100달러 원으로”처럼 말해 보세요');
+    };
+    try { rec.start(); } catch (e) { say('음성 인식을 시작하지 못했어요'); }
+  }
+
+  /* ─────────── 시작 ─────────── */
+  buildDec(); buildSelects(); buildKeys();
+  $('ckTts').checked = S.tts;
+  $('ckTts').addEventListener('change', e => { S.tts = e.target.checked; persist(); if (!S.tts) try { speechSynthesis.cancel(); } catch (x) {} });
+  $('bCalc').addEventListener('click', () => setMode('calc'));
+  $('bFx').addEventListener('click', () => { setMode('fx'); if (!R.rates || Date.now() - R.at > 6e5) loadRates(); });
+  $('bBs').addEventListener('click', () => { bsKey(); persist(); render(); });
+  $('bMic').addEventListener('click', startListen);
+  $('bRef').addEventListener('click', () => loadRates(true));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { if (listening) stopListen(); return; }
+    if (Date.now() - R.at > 6e5) loadRates();
+  });
+  setInterval(() => { if (!document.hidden && Date.now() - R.at > 6e5) loadRates(); }, 6e4);
+
+  loadCached(); render(); loadRates();
+
+  window.simcalc = { parseVoice, koNum, S };   // 점검용
+})();
+</script>
+</body>
+</html>

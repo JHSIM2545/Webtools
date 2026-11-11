@@ -2,7 +2,7 @@
 // 새 툴 파일을 추가하면 SHELL 목록에 넣고 CACHE 숫자를 올리세요.
 const CACHE = 'simwebtools-shell-v109';
 const SHELL = ['./', './index.html', './ui-guard.js', './tv.html', './note.html', './manifest.webmanifest',
-  './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './tv-icon-192.png', './note-icon-192.png', './phone.html', './phone-icon-192.png', './aitel.html', './aitel-icon-192.png', './assistant.html', './qr.min.js', './sync.js', './assistant-icon-192.png', './calendar.html', './calendar-icon-192.png', './pin-icon.svg', './folder.html', './folder-icon-192.png', './message.html', './message-icon-192.png', './orchestra.html', './orchestra-icon-192.png', './radio.html', './radio-icon-192.png', './kbo.html', './kbo-icon-192.png', './kbo-bg.png', './ai-gemini.png', './ai-claude.png', './ai-groq.png'];
+  './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './tv-icon-192.png', './note-icon-192.png', './phone.html', './phone-icon-192.png', './aitel.html', './aitel-icon-192.png', './assistant.html', './qr.min.js', './sync.js', './assistant-icon-192.png', './calendar.html', './calendar-icon-192.png', './pin-icon.svg', './folder.html', './folder-icon-192.png', './message.html', './message-icon-192.png', './orchestra.html', './orchestra-icon-192.png', './radio.html', './radio-icon-192.png', './calc.html', './calc-icon-192.png', './kbo.html', './kbo-icon-192.png', './kbo-bg.png', './ai-gemini.png', './ai-claude.png', './ai-groq.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));

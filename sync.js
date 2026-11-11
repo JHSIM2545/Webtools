@@ -300,6 +300,48 @@
     b.querySelector('#acPw').addEventListener('keydown', e => { if (e.key === 'Enter') go(false); });
     b.querySelector('#acGoogle').onclick = async () => { try { const c = await client(), r = await c.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname.replace(/[^/]*$/, 'index.html') } }); if (r.error) throw r.error; } catch (e) { say('구글 로그인을 시작하지 못했어요: ' + (e.message || e), 1); } };
   }
+  /* ── 로그아웃: 서버에 마지막 백업 → 이 기기의 모든 데이터 삭제 → 로그아웃 ── */
+  async function wipeLocal() {
+    let names = [...DBS];
+    try { if (indexedDB.databases) { const l = await indexedDB.databases(); l.forEach(d => { if (d && d.name && !names.includes(d.name)) names.push(d.name); }); } } catch (e) {}
+    for (const name of names) {
+      await new Promise(res => {
+        let r; try { r = indexedDB.open(name); } catch (e) { return res(); }
+        r.onupgradeneeded = () => { try { r.transaction.abort(); } catch (e) {} };   // 없던 DB를 새로 만들지 않는다
+        r.onerror = () => res(); r.onblocked = () => res();
+        r.onsuccess = () => {
+          const db = r.result, st = [...db.objectStoreNames];
+          if (!st.length) { db.close(); return res(); }
+          try { const tx = db.transaction(st, 'readwrite'); st.forEach(n => tx.objectStore(n).clear()); tx.oncomplete = tx.onerror = tx.onabort = () => { db.close(); res(); }; } catch (e) { db.close(); res(); }
+        };
+      });
+    }
+    try { localStorage.clear(); } catch (e) {}
+    try { sessionStorage.clear(); } catch (e) {}
+    try { const ks = await caches.keys(); await Promise.all(ks.filter(k => k.indexOf('simwebtools-shell') !== 0).map(k => caches.delete(k))); } catch (e) {}
+  }
+  async function finishLogout() {
+    const b = modal('로그아웃 중…', '<p>이 기기의 데이터를 지우는 중…</p>');
+    cUser = null; clearInterval(cTimer);
+    try { const c = await client(); await c.auth.signOut(); } catch (e) {}
+    await wipeLocal();
+    location.replace(location.pathname.replace(/[^/]*$/, 'index.html'));
+  }
+  async function logoutFlow() {
+    const b = modal('로그아웃', '<p>로그아웃하면 <b>이 기기의 모든 데이터</b>(메모·연락처·일정·알람·AI-Tel·기억·설정·이미지)가 <b>삭제</b>돼요.</p><p style="' + sub + ';margin-top:6px">먼저 내 계정 서버에 마지막으로 백업한 뒤 지워요. 다시 로그인하면 서버에서 복원돼요.</p><p id="acMsg" style="margin-top:8px;font-size:13px"></p><div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button id="loC">취소</button><button id="loOk" class="primary" style="background:#c0392b;border-color:#c0392b">백업 후 로그아웃</button></div>');
+    b.querySelector('#loC').onclick = close;
+    const run = async () => {
+      const msg = b.querySelector('#acMsg'), ok = b.querySelector('#loOk'); ok.disabled = true; b.querySelector('#loC').disabled = true; msg.style.color = 'var(--sub)'; msg.textContent = '서버에 백업하는 중…';
+      let done_ = false, err = '';
+      for (let i = 0; i < 3 && !done_; i++) { try { const r = await cloudSync(); if (r) done_ = true; else await sleep(1500); } catch (e) { err = e && e.message || String(e); await sleep(800); } }
+      if (done_) return finishLogout();
+      msg.style.color = '#ff8a8a'; msg.textContent = '백업하지 못했어요' + (err ? ' (' + err + ')' : '') + '. 이대로 로그아웃하면 아직 올라가지 않은 데이터는 영구히 사라져요.';
+      ok.disabled = false; ok.textContent = '다시 시도'; ok.onclick = run; b.querySelector('#loC').disabled = false; const old = b.querySelector('#loForce'); if (old) old.remove();
+      const force = document.createElement('button'); force.id = 'loForce'; force.textContent = '백업 없이 삭제하고 로그아웃'; force.style.cssText = 'color:#ff8a8a'; force.onclick = () => { if (confirm('백업되지 않은 데이터는 복구할 수 없어요. 정말 삭제할까요?')) finishLogout(); };
+      b.querySelector('#loC').disabled = false; b.querySelector('#loC').parentNode.insertBefore(force, b.querySelector('#loC'));
+    };
+    b.querySelector('#loOk').onclick = run;
+  }
   function acctMenu() {
     if (!cUser) return authView();
     const last = +lget(C_LAST) || 0;
@@ -308,7 +350,7 @@
     b.querySelector('#acX').onclick = close;
     b.querySelector('#acNmSave').onclick = async () => { const v = b.querySelector('#acNm').value.trim().slice(0, 12), e = b.querySelector('#acMsg'); if (!v) { e.textContent = '이름을 입력해 주세요.'; return; } try { const c = await client(), r = await c.auth.updateUser({ data: { display_name: v } }); if (r.error) throw r.error; cUser = r.data.user; acctBtn(); e.textContent = '이름을 "' + v + '"(으)로 바꿨어요.'; } catch (x) { e.textContent = '변경하지 못했어요: ' + (x.message || x); } };
     b.querySelector('#acNow').onclick = async () => { const e = b.querySelector('#acMsg'); e.textContent = '동기화 중…'; try { const st = await cloudSync(); e.textContent = '완료 — ' + (st && (st.put || st.del) ? '서버에서 ' + st.put + '건 반영' : '변경 없음/서버에 저장') + '. (' + new Date().toLocaleTimeString('ko-KR') + ')'; } catch (x) { e.textContent = '실패: ' + (x.message || x); } };
-    b.querySelector('#acOut').onclick = async () => { try { await cloudSync(); } catch (e) {} try { const c = await client(); await c.auth.signOut(); } catch (e) {} close(); await setUser(null); toast_('로그아웃했어요 (이 기기 데이터는 그대로예요)'); };
+    b.querySelector('#acOut').onclick = () => logoutFlow();
   }
   const toast_ = t => { const e = $('toast'); if (e) { e.textContent = t; e.classList.add('show'); setTimeout(() => e.classList.remove('show'), 2200); } };
   async function cloudBoot() {

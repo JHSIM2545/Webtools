@@ -212,7 +212,17 @@
   function boot() {
     const hd = document.querySelector('header'), ins = $('btnInstall');
     if (hd && !$('btnAcct')) { const a = document.createElement('button'); a.id = 'btnAcct'; a.title = '계정 로그인·자동 백업'; a.textContent = '👤 로그인'; a.onclick = acctMenu; hd.insertBefore(a, ins || null); cloudBoot(); }
-    if (hd && !$('btnSync')) { const b = document.createElement('button'); b.id = 'btnSync'; b.title = '기기 간 동기화'; b.textContent = '🔄 동기화'; b.onclick = menu; hd.insertBefore(b, ins || null); }
+    if (hd && !$('btnMore')) {   // ⋯ 더보기 메뉴 (기기 동기화)
+      const w = document.createElement('div'); w.style.cssText = 'position:relative;flex:none';
+      const mb = document.createElement('button'); mb.id = 'btnMore'; mb.title = '더보기'; mb.setAttribute('aria-label', '더보기'); mb.textContent = '⋯'; mb.style.cssText = 'font-size:18px;line-height:1;padding:6px 11px';
+      const pop = document.createElement('div'); pop.id = 'morePop'; pop.style.cssText = 'display:none;position:absolute;right:0;top:calc(100% + 6px);min-width:170px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 10px 28px rgba(0,0,0,.55);z-index:60';
+      const it = document.createElement('button'); it.id = 'btnSync'; it.textContent = '🔄 기기 동기화'; it.style.cssText = 'display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px 12px;border-radius:8px;white-space:nowrap';
+      it.onclick = () => { pop.style.display = 'none'; menu(); };
+      pop.appendChild(it); w.appendChild(mb); w.appendChild(pop);
+      mb.onclick = e => { e.stopPropagation(); pop.style.display = pop.style.display === 'block' ? 'none' : 'block'; };
+      document.addEventListener('click', e => { if (!w.contains(e.target)) pop.style.display = 'none'; });
+      hd.appendChild(w);
+    }
     const m = /#sync=([0-9a-f]{32}\.[A-Za-z0-9_-]{43})/.exec(location.hash || '');
     if (m) { history.replaceState(null, '', location.pathname + location.search); join(m[1]); }
     else if (/[?&]sync=1/.test(location.search)) { history.replaceState(null, '', location.pathname); menu(); }

@@ -589,12 +589,13 @@ main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-ove
       const t = AC.currentTime, j = 1 + (Math.random() - .5) * .08;
       const n = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
       n.buffer = NB; f.type = 'bandpass'; f.frequency.value = (kind === 'eq' ? 4200 : 5000) * j; f.Q.value = 2.2;
-      g.gain.setValueAtTime(.9, t); g.gain.exponentialRampToValueAtTime(.0001, t + .014);
+      g.gain.setValueAtTime(.22, t); g.gain.exponentialRampToValueAtTime(.0001, t + .014);
       n.connect(f); f.connect(g); g.connect(AC.destination); n.start(t); n.stop(t + .03);
     } catch (e) {}
   }
   function press(cls, act) {
     click(cls);
+    try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {}
     if (cls === 'num') digit(act);
     else if (cls === 'op') opKey(act);
     else if (cls === 'eq') eqKey();

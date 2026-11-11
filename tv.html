@@ -95,7 +95,7 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
 .hint{font-size:12px;color:var(--sub);margin-top:8px;line-height:1.5}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222a3d;border:1px solid var(--line);padding:9px 16px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99}
 .toast.show{opacity:1}
-@media (max-width:760px){
+@media (max-width:760px) and (max-aspect-ratio:3/2){   /* 세로형 화면만 위아래 배치 — 가로로 긴 화면은 좌우 배치 유지 */
   header{gap:6px;padding-left:10px;padding-right:10px}
   header button{padding:6px 9px;font-size:13px;white-space:nowrap}
   header .appicon{display:none}
@@ -104,6 +104,10 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
   .video-wrap{flex:none;aspect-ratio:16/9;width:100%}
   aside{width:100%;max-width:none;flex:1;border-left:none;border-top:1px solid var(--line)}
   header h1{font-size:16px}
+}
+@media (min-aspect-ratio:3/2) and (max-height:520px){   /* 가로로 길고 세로가 짧은 화면: 영상 왼쪽 / 채널 목록 오른쪽 */
+  header{padding-top:calc(4px + env(safe-area-inset-top));padding-bottom:4px}
+  aside{width:300px;max-width:38vw}
 }
 </style>
 <script src="ui-guard.js" defer></script>

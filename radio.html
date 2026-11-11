@@ -454,7 +454,7 @@ audio{display:none}
   }
 
   function setPower(on) {
-    power = on; $('radio').classList.toggle('on', on); $('pwr').setAttribute('aria-checked', on ? 'true' : 'false');
+    power = on; $('radio').classList.toggle('on', on); document.body.classList.toggle('on', on);   // body에도 붙여 오른쪽 패널로 옮겨진 표시부도 점등 $('pwr').setAttribute('aria-checked', on ? 'true' : 'false');
     if (on) {
       initNoise(); setName('수신 대기'); setStat('');
       paintFreq(); onFreq(true);

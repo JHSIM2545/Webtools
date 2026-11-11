@@ -75,6 +75,12 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;p
 .on .stat{opacity:1}
 .stat.err{color:#ff9a9a}
 
+/* 서치(다음 채널 검색) 버튼 */
+.seek{flex:none;display:flex;flex-direction:column;gap:4px}
+.seek button{width:34px;height:27px;padding:0;font-size:13px;line-height:1;color:#7fffb4;background:linear-gradient(#1d2b24,#101a15);border:1px solid #2c4a3b;border-radius:7px;box-shadow:0 2px 0 #070c09;text-shadow:0 0 6px rgba(88,255,164,.6)}
+.seek button:active{transform:translateY(1px);box-shadow:none;background:#18382a}
+.seek button b{display:none;font-size:9px;letter-spacing:.5px;margin-left:3px;opacity:.85;font-weight:700}
+
 /* 조작부 */
 .ctrl{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:14px;padding:0}
 .ctrl>*{min-width:0}
@@ -146,6 +152,8 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;p
   #dispSlot .freq{font-size:46px;min-width:150px}
   #dispSlot .name{font-size:22px;white-space:normal;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
   #dispSlot .stat{font-size:13px;margin-top:5px}
+  #dispSlot .seek button{width:58px;height:34px;font-size:16px}
+  #dispSlot .seek button b{display:inline}
   .presets{width:100%}
   .grid{grid-template-columns:repeat(auto-fill,minmax(98px,1fr))}
 }
@@ -156,6 +164,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;p
   .brand{font-size:10px}
   #dispSlot .freq{font-size:40px;min-width:132px}
   #dispSlot .name{font-size:19px}
+  #dispSlot .seek button{height:30px}
   .note{display:none}
 }
 @media (min-aspect-ratio:3/2) and (max-height:400px){
@@ -166,6 +175,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;p
   .rocker{width:42px;height:50px}
   #dispSlot .freq{font-size:34px;min-width:112px}
   #dispSlot .name{font-size:17px}
+  #dispSlot .seek button{height:26px}
 }
 audio{display:none}
 </style>
@@ -195,6 +205,7 @@ audio{display:none}
       <div class="disp">
         <div class="freq" id="freq">--.-<small>MHz</small></div>
         <div class="info"><div class="name" id="name">전원을 켜세요</div><div class="stat" id="stat"></div></div>
+        <div class="seek"><button id="seekUp" aria-label="다음 높은 주파수 채널 검색" title="높은 주파수로 서치">▲<b>SEEK</b></button><button id="seekDn" aria-label="다음 낮은 주파수 채널 검색" title="낮은 주파수로 서치">▼<b>SEEK</b></button></div>
       </div>
 
       <div class="ctrl">
@@ -466,6 +477,8 @@ audio{display:none}
   $('pwr').addEventListener('click', e => { const r = $('pwr').getBoundingClientRect(); const hasPos = e.clientY > 0 || e.clientX > 0; setPower(hasPos ? (e.clientY - r.top) < r.height / 2 : !power); });   // 위쪽을 누르면 켜짐, 아래쪽을 누르면 꺼짐
   $('dn').addEventListener('click', () => { if (!power) setPower(true); step(-1); });
   $('up').addEventListener('click', () => { if (!power) setPower(true); step(1); });
+  $('seekUp').addEventListener('click', () => { if (!power) setPower(true); step(1, true); });   // 높은 주파수의 다음 채널
+  $('seekDn').addEventListener('click', () => { if (!power) setPower(true); step(-1, true); });  // 낮은 주파수의 다음 채널
 
   /* 다이얼 직접 드래그 */
   (function dialDrag() {

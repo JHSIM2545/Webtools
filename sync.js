@@ -233,6 +233,7 @@
       paintMv();
       mb.onclick = e => { e.stopPropagation(); pop.style.display = pop.style.display === 'block' ? 'none' : 'block'; };
       document.addEventListener('click', e => { if (!w.contains(e.target)) pop.style.display = 'none'; });
+      w.appendChild(mb); w.appendChild(pop);
       hd.appendChild(w);
     }
     const m = /#sync=([0-9a-f]{32}\.[A-Za-z0-9_-]{43})/.exec(location.hash || '');

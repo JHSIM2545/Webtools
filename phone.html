@@ -88,6 +88,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
 .mbox h2{font-size:16px;margin-bottom:8px}
 .mbox .sub{font-size:12px;color:var(--sub);margin-bottom:10px;line-height:1.5}
 .menu button{display:block;width:100%;text-align:left;margin-top:8px;padding:13px 14px}
+#mnPicker.off{opacity:.55}
 .menu small{display:block;color:var(--sub);font-size:12px;margin-top:2px}
 .row2{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 #busy{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:90;color:#fff;font-size:15px;text-align:center;padding:20px}
@@ -224,6 +225,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
 <!-- 더보기 -->
 <div class="modal" id="mMenu"><div class="mbox menu">
   <h2>더보기</h2>
+  <button id="mnPicker">📱 휴대폰 연락처 가져오기<small>휴대폰 연락처 선택 창을 열어 고른 사람을 가져옵니다 (선택 창의 '전체 선택'으로 한 번에 가능, 중복은 건너뜀)</small></button>
   <button id="mnExport">📤 전체 연락처 내보내기 (.vcf)<small>폰 연락처 앱이나 다른 기기로 옮길 수 있는 표준 파일</small></button>
   <button id="mnImport">📥 연락처 가져오기 (.vcf)<small>폰에서 내보낸 vCard 파일을 읽어 옵니다 (같은 번호·이메일은 건너뜀)</small></button>
   <button id="mnBackup">💾 백업 파일 저장 (.json)<small>사진·명함 이미지까지 모두 포함한 이 앱 전용 백업</small></button>
@@ -535,6 +537,32 @@ $('mnExport').onclick = () => {
   download('SIM_Phone_연락처.vcf', contacts.slice().sort(cmp).map(vcard).join('\r\n') + '\r\n', 'text/vcard;charset=utf-8'); toast('연락처 ' + contacts.length + '명을 .vcf 파일로 저장했습니다');
 };
 $('mnImport').onclick = () => $('vcfFile').click();
+/* 휴대폰 연락처 가져오기: 웹앱은 연락처 전체를 몰래 읽을 수 없고, 브라우저의 연락처 선택 창(Contact Picker, 안드로이드 크롬)을 통해서만 사용자가 고른 연락처를 받는다 */
+const HAS_PICKER = !!(navigator.contacts && navigator.contacts.select);
+const PICK_PROPS = ['name', 'tel', 'email', 'address'];
+if (HAS_PICKER && navigator.contacts.getProperties) navigator.contacts.getProperties().then(s => { if (s && s.indexOf('icon') >= 0) PICK_PROPS.push('icon'); }).catch(() => {});
+if (!HAS_PICKER) { $('mnPicker').classList.add('off'); $('mnPicker').querySelector('small').textContent = '이 브라우저는 지원하지 않아요 (안드로이드 크롬만 가능). 아래 .vcf 가져오기를 이용하세요'; }
+$('mnPicker').onclick = async () => {
+  if (!HAS_PICKER) { toast('이 브라우저는 연락처 선택 창을 지원하지 않아요. 연락처 앱에서 내보낸 .vcf 파일을 가져와 주세요', 4200); return; }
+  $('mMenu').classList.remove('show');
+  let list; try { list = await navigator.contacts.select(PICK_PROPS, { multiple: true }); }
+  catch (e) { if (e && e.name === 'AbortError') return; toast('휴대폰 연락처를 열지 못했습니다. 연락처 접근 권한을 확인하거나 .vcf 가져오기를 이용해 보세요', 4200); return; }
+  if (!list || !list.length) { toast('선택한 연락처가 없습니다'); return; }
+  const isMob = n => /^\+?(82)?0?1[016-9]/.test(String(n).replace(/[\s\-().]/g, ''));
+  try {
+    busy('연락처를 가져오는 중…'); let add = 0, skip = 0, i = 0;
+    for (const p of list) {
+      const tels = [...new Set((p.tel || []).map(s => String(s).trim()).filter(Boolean))], mob = tels.filter(isMob), oth = tels.filter(n => !isMob(n)), a = (p.address || [])[0];
+      const c = { name: ((p.name || [])[0] || '').trim(), title: '', company: '', mobile: mob[0] || '', tel: oth[0] || mob[1] || '', fax: '', email: ((p.email || [])[0] || '').trim(), address: a ? [a.region, a.city, (a.addressLine || []).join(' ')].filter(Boolean).join(' ').trim() : '', memo: '', group_name: '', photo: '' };
+      ['mobile', 'tel'].forEach(k => { if (c[k]) c[k] = ta4FmtPhone(c[k]) || c[k]; });
+      if (!c.name && !c.mobile && !c.tel && !c.email) continue;
+      const ic = (p.icon || [])[0]; if (ic) { try { c.photo = await compressFile(ic, 300, 0.8); } catch (x) {} }
+      if (findDup(c, '')) { skip++; continue; }
+      await saveContact(c); add++; if (++i % 40 === 0) await nextFrame();
+    }
+    unbusy(); renderList(); toast(add + '명 가져옴' + (skip ? ' · 중복 ' + skip + '명 건너뜀' : ''), 3500);
+  } catch (er) { unbusy(); toast('연락처를 저장하지 못했습니다'); }
+};
 $('vcfFile').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value = ''; $('mMenu').classList.remove('show'); if (!f) return;
   try {

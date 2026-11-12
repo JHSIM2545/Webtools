@@ -171,8 +171,14 @@
     const r = btn.getBoundingClientRect();
     pop = document.createElement('div'); pop.className = 'simvm-pop'; pop.setAttribute('role', 'menu');
     pop.style.top = Math.round(r.bottom + 6) + 'px'; pop.style.right = Math.max(8, Math.round(innerWidth - r.right)) + 'px';
-    pop.innerHTML = '<button role="menuitem" data-k="ver"><span>ⓘ</span><span>버전 정보</span></button><button role="menuitem" data-k="perm"><span>🔐</span><span>권한 정보</span></button>';
-    pop.addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (!b) return; closePop(); open(b.dataset.k); });
+    // 화면(페이지)이 자기 항목을 더하려면: (window.simAppMenuExtra = window.simAppMenuExtra || []).push({ icon:'📡', label:'이름', run(){...} })  (불러오는 순서와 무관)
+    const ex = Array.isArray(window.simAppMenuExtra) ? window.simAppMenuExtra.filter(x => x && x.label && typeof x.run === 'function') : [];
+    pop.innerHTML = '<button role="menuitem" data-k="ver"><span>ⓘ</span><span>버전 정보</span></button><button role="menuitem" data-k="perm"><span>🔐</span><span>권한 정보</span></button>' +
+      ex.map((x, i) => '<button role="menuitem" data-x="' + i + '"><span>' + esc(x.icon || '•') + '</span><span>' + esc(x.label) + '</span></button>').join('');
+    pop.addEventListener('click', e => {
+      const x = e.target.closest('button[data-x]'); if (x) { closePop(); try { ex[+x.dataset.x].run(); } catch (err) {} return; }
+      const b = e.target.closest('button[data-k]'); if (!b) return; closePop(); open(b.dataset.k);
+    });
     document.body.appendChild(pop);
   }
   function open(kind) { closePop(); return kind === 'perm' ? openPerm() : openVer(); }

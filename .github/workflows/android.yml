@@ -145,7 +145,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           # 릴리스를 지우지 않고 파일만 바꿔 올린다 → 중간에 버전표가 사라지는 순간이 없고, 안 바뀐 앱의 APK 는 그대로 남는다
-          jq -s '{apps: (map({(.key): {v: .v, h: .h, t: .t, n: .n}) | add)}' apks/ver-*.json > versions.json
+          jq -s '{apps: (map({(.key): {v: .v, h: .h, t: .t, n: .n}}) | add)}' apks/ver-*.json > versions.json
           cat versions.json
           ls -la apks
           gh release view apps-latest >/dev/null 2>&1 || gh release create apps-latest --title "SIM Tools 앱 모음 (Android)" --notes "SIM Tools 런처와 각 도구의 안드로이드 앱" --latest=false

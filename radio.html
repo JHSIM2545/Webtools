@@ -120,13 +120,15 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;p
 /* ── 가로로 길고 세로가 짧은 화면(차량 디스플레이·가로 모드 폰): 좌우 배치 ──
    왼쪽: 라디오 본체(이미지) / 오른쪽: 주파수·채널명 + 방송국 목록 */
 .side{display:contents}
+.stage{display:contents}
 #dispSlot{display:none}
-@media (min-aspect-ratio:3/2) and (max-height:760px){
+@media (min-aspect-ratio:3/2){
   header{padding:5px 12px;padding-top:calc(5px + env(safe-area-inset-top));padding-left:calc(12px + env(safe-area-inset-left))}
   .appicon{width:26px;height:26px}
   .back{width:30px;height:30px}
-  main{flex-direction:row;align-items:stretch;justify-content:center;gap:12px;padding:8px calc(12px + env(safe-area-inset-right)) 0 calc(12px + env(safe-area-inset-left))}
-  .radio{width:auto;flex:0 0 clamp(300px,46%,540px);align-self:flex-start;padding:9px 9px 11px;border-radius:20px}
+  main{flex-direction:row;align-items:stretch;justify-content:center;gap:14px;padding:8px calc(12px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}
+  .stage{display:block;position:relative;flex:none;align-self:flex-start}
+  .stage .radio{position:absolute;left:0;top:0;width:520px;max-width:none;flex:none;transform-origin:0 0;padding:9px 9px 11px;border-radius:20px}
   .radio::before{border-radius:20px}
   .face{padding:8px;border-radius:14px}
   .brand{padding:0 2px 5px;font-size:11px}
@@ -178,7 +180,7 @@ audio{display:none}
 </header>
 
 <main>
-  <div class="radio" id="radio">
+  <div class="stage" id="stage"><div class="radio" id="radio">
     <div class="face" id="face">
       <div class="brand">
         <div>SIM <b>RADIO</b> · FM</div>
@@ -207,7 +209,7 @@ audio{display:none}
       </div>
       <div class="grille"></div>
     </div>
-  </div>
+  </div></div>
 
   <div class="side" id="side">
   <div id="dispSlot"></div>
@@ -496,22 +498,36 @@ audio{display:none}
     else if (e.key === 'ArrowDown') { vol = Math.max(0, vol - .05); paintVol(); persist(); }
     else if (e.key === ' ') { e.preventDefault(); setPower(!power); }
   });
-  window.addEventListener('resize', () => { drawScale(); paintFreq(); });
+  window.addEventListener('resize', () => fit());
+  window.addEventListener('orientationchange', () => setTimeout(fit, 150));
   au.addEventListener('waiting', () => { if (power && curSt) setStat('버퍼링…'); });
   au.addEventListener('playing', () => { if (power && curSt) setStat(curSt.f.toFixed(1) + ' MHz · 수신 중'); });
 
   /* 가로로 길고 세로가 짧은 화면이면 주파수·채널명을 오른쪽 패널로 옮김 (CSS 미디어쿼리와 동일 조건) */
-  const mqWide = window.matchMedia('(min-aspect-ratio:3/2) and (max-height:760px)');
+  const mqWide = window.matchMedia('(min-aspect-ratio:3/2)');
+  /* 가로 화면: 라디오 본체를 세로로 가득(가능한 최대 크기) 키운다. 오른쪽 목록 칸은 최소 폭만 남김 */
+  function fit() {
+    const st = $('stage'), rd = $('radio'), main = document.querySelector('main');
+    if (!mqWide.matches) { st.style.width = st.style.height = ''; rd.style.transform = ''; drawScale(); paintFreq(); return; }
+    rd.style.transform = '';
+    const cs = getComputedStyle(main), padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight), padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom), gap = parseFloat(cs.columnGap) || 14;
+    const availH = main.clientHeight - padY, availW = main.clientWidth - padX - gap - 270;   // 270px: 오른쪽 목록 최소 폭
+    const nw = rd.offsetWidth, nh = rd.offsetHeight;
+    const z = Math.max(.3, Math.min(availH / nh, availW / nw));
+    rd.style.transform = 'scale(' + z.toFixed(4) + ')';
+    st.style.width = Math.floor(nw * z) + 'px'; st.style.height = Math.floor(nh * z) + 'px';
+    drawScale(); paintFreq();
+  }
   function layoutDisp() {
     const d = document.querySelector('.disp'), slot = $('dispSlot');
     if (mqWide.matches) { if (d.parentNode !== slot) slot.appendChild(d); }
     else if (d.parentNode === slot) $('face').insertBefore(d, document.querySelector('.ctrl'));
-    drawScale(); paintFreq();
+    fit();
   }
   if (mqWide.addEventListener) mqWide.addEventListener('change', layoutDisp); else if (mqWide.addListener) mqWide.addListener(layoutDisp);
   layoutDisp();
 
-  drawScale(); paintVol(); paintFreq(); setTimeout(() => { drawScale(); paintFreq(); }, 80);
+  drawScale(); paintVol(); paintFreq(); fit(); setTimeout(fit, 80); setTimeout(fit, 400);
 })();
 </script>
 </body>

@@ -870,6 +870,19 @@ function callBtns(c, primary) {
   if (c.mobile) b.push({ label: '💬 문자', href: 'sms:' + c.mobile.replace(/[^0-9+]/g, '') });
   return b;
 }
+/* 검색 순서: ① 휴대폰 연락처(앱 APK의 SIMNative 다리가 있을 때만 조용히 검색 가능) → ② SIM Phone.
+   일반 브라우저는 웹 보안상 ①을 몰래 검색할 수 없어 ②를 먼저 보고, 없으면 연락처 선택 창을 연다. */
+async function nativeFind(name) {
+  try {
+    if (!(window.SIMNative && SIMNative.findContacts)) return [];
+    const r = await SIMNative.findContacts(String(name || ''));
+    return (r || []).map(x => ({ id: 'dev:' + (x.id || x.name), name: x.name || '', mobile: (x.tel || x.phones || [])[0] || x.mobile || '', tel: '', company: x.company || '', title: '', email: '', address: '', memo: '', dev: true })).filter(c => c.name);
+  } catch (e) { return []; }
+}
+async function lookupContacts(sl) {
+  const d = await nativeFind(sl.name); if (d.length) return d;
+  await loadContacts(); return searchContacts(sl);
+}
 /* SIM Phone에 없을 때: 휴대폰 내부 연락처(Contact Picker). 웹은 연락처를 몰래 검색할 수 없어 사용자가 직접 고르는 방식이다. */
 const canDevPick = () => !!(navigator.contacts && navigator.contacts.select && window.ContactsManager);
 function devPickBtns(intent, sl) {
@@ -887,12 +900,11 @@ async function devPick(intent, sl) {
 }
 async function findFlow(intent, sl) {
   if (!sl.name) { pending = newP(intent, sl); pending.ask = 'findname'; pending.stage = 'fill'; return bot('누구를 ' + (intent === 'call' ? '찾아 전화할까요?' : '찾을까요?') + ' 이름을 말씀해 주세요.', { tok: pending.tok, btns: [{ label: '취소', fn: () => cancelP('취소했어요.') }] }); }
-  await loadContacts();
-  if (!contacts.length) { pending = null; return bot('SIM Phone에 저장된 연락처가 없어요.' + (canDevPick() ? ' 휴대폰 연락처에서 ' + sl.name + '님을 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: 'SIM Phone', href: 'phone.html' }]) }); }
-  const res = searchContacts(sl);
+  const res = await lookupContacts(sl);
+  if (!res.length && !contacts.length) { pending = null; return bot('SIM Phone에 저장된 연락처가 없어요.' + (canDevPick() ? ' 휴대폰 연락처에서 ' + sl.name + '님을 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: 'SIM Phone', href: 'phone.html' }]) }); }
   if (!res.length) {
     pending = null;
-    return bot(sl.name + '님이 SIM Phone에 없어요.' + (canDevPick() ? ' 휴대폰 연락처에서 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: sl.name + ' 저장하기', fn: () => { pending = newP('contact_add', { name: sl.name }); step(); } }]) });
+    return bot(sl.name + '님이 ' + (window.SIMNative ? '휴대폰 연락처와 ' : '') + 'SIM Phone에 없어요.' + (canDevPick() ? ' 휴대폰 연락처에서 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: sl.name + ' 저장하기', fn: () => { pending = newP('contact_add', { name: sl.name }); step(); } }]) });
   }
   const top = res.filter(c => searchContacts(sl).length && true);
   const exact = res.length === 1 || (NLU.digits(res[0].mobile) && false);
@@ -1151,13 +1163,13 @@ const LTOOLS = {
     return { ok: true, updated: !!dup, name: row.name };
   },
   async find_contact(a) {
-    await loadContacts(); const r = searchContacts({ name: String(a.query || '') }).slice(0, 5);
+    const r = (await lookupContacts({ name: String(a.query || '') })).slice(0, 5);
     if (!r.length) { liveCard('<b>' + esc(a.query || '') + '</b><span class="sub">SIM Phone에 없어요</span>', devPickBtns('find', { name: a.query })); return { ok: true, found: 0, note: 'SIM Phone에 없음. 화면의 휴대폰 연락처 버튼을 안내' }; }
     liveCard(contactCard(r[0]), callBtns(r[0], true));
     return { ok: true, found: r.length, contacts: r.map(c => ({ name: c.name, company: c.company, title: c.title, mobile: c.mobile, tel: c.tel, email: c.email })) };
   },
   async call_contact(a) {
-    await loadContacts(); const r = searchContacts({ name: String(a.query || '') });
+    const r = await lookupContacts({ name: String(a.query || '') });
     if (!r.length) { liveCard('<b>' + esc(a.query || '') + '</b><span class="sub">SIM Phone에 없어요</span>', devPickBtns('call', { name: a.query })); return { ok: false, error: 'SIM Phone에 없어요. 화면의 휴대폰 연락처 버튼을 눌러 고르게 안내하세요' }; }
     if (r.length > 1 && String(r[0].name).replace(/\s/g, '') !== String(a.query || '').replace(/\s/g, '')) return { ok: false, error: '여러 명이에요. 누구인지 물어보세요', candidates: r.slice(0, 4).map(c => c.name + (c.company ? ' (' + c.company + ')' : '')) };
     const c = r[0], no = c.mobile || c.tel; if (!no) return { ok: false, error: '전화번호가 없어요' };

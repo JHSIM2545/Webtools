@@ -454,7 +454,7 @@
         const c = await client(), { data } = await c.auth.getSession(); if (!data.session) return o;
         o.login = true; o.email = data.session.user.email || '';
         const dl = await c.storage.from(C_BUCKET).download(data.session.user.id + '/snapshot.gz');
-        if (dl.data) { const P = await ungz(dl.data), n = d => (((P.idb || {})[d] || {}).events || {}).rows ? P.idb[d].events.rows.length : 0; o.server = { t: P.t || 0, cal: n('simcalendar'), asst: n('simassistant') }; } else o.server = { none: true };
+        if (dl.data) { const P = await ungz(dl.data), n = d => (((P.idb || {})[d] || {}).events || {}).rows ? P.idb[d].events.rows.length : 0; o.server = { t: P.t || 0, cal: n('simcalendar'), asst: n('simassistant'), notes: (((((P.idb || {}).simmemo || {}).notes || {}).rows) || []).filter(r => r && r.kind !== 'folder').length }; } else o.server = { none: true };
       } catch (e) { o.err = o.err || (e && e.message) || String(e); }
       return o;
     } };   // sync(): 지금 바로 서버와 맞추기(도구 화면에서 저장 직후 호출)

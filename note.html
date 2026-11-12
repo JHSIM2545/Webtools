@@ -211,6 +211,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     <a class="back" href="index.html" aria-label="SIM Tools 런처로" title="런처로">‹</a>
     <h1 id="listTitle">SIM <span>Note</span></h1>
     <div class="spacer"></div>
+    <button id="btnCloud" title="기기 간 동기화 상태" aria-label="동기화 상태" style="font-size:16px;padding:6px 10px">☁️</button>
   </div>
   <div class="listwrap">
     <div class="search"><input id="nq" type="search" placeholder="노트 검색 (제목)"></div>
@@ -296,6 +297,15 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     </div>
   </div>
 </section>
+
+<!-- 동기화 상태 -->
+<div class="modal" id="mSync">
+  <div class="box">
+    <h2>☁️ 기기 간 동기화</h2>
+    <div class="sub" id="snBody" style="font-size:13px;color:var(--text);line-height:1.7">확인 중…</div>
+    <div class="row"><button class="primary" id="snNow">지금 동기화</button><button id="snClose">닫기</button></div>
+  </div>
+</div>
 
 <!-- 폴더 이름 입력 (새 폴더·이름 바꾸기) -->
 <div class="modal" id="mFolder" style="z-index:70">
@@ -429,10 +439,14 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   const dbRows = () => db ? new Promise((res, rej) => { const q = store('readonly').getAll(); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }) : Promise.resolve(memOnly.slice());
   const isFolder = r => !!r && r.kind === 'folder';
   const dbAll = () => dbRows().then(a => a.filter(r => !isFolder(r)));   // 노트만
-  const dbPut = n => db ? new Promise((res, rej) => { const q = store('readwrite').put(n); q.onsuccess = () => res(); q.onerror = () => rej(q.error); })
+  const dbPut0 = n => db ? new Promise((res, rej) => { const q = store('readwrite').put(n); q.onsuccess = () => res(); q.onerror = () => rej(q.error); })
                         : (memOnly = memOnly.filter(x => x.id !== n.id).concat([n]), Promise.resolve());
-  const dbDel = id => db ? new Promise((res, rej) => { const q = store('readwrite').delete(id); q.onsuccess = () => res(); q.onerror = () => rej(q.error); })
+  const dbDel0 = id => db ? new Promise((res, rej) => { const q = store('readwrite').delete(id); q.onsuccess = () => res(); q.onerror = () => rej(q.error); })
                          : (memOnly = memOnly.filter(x => x.id !== id), Promise.resolve());
+  // 저장·삭제 직후 잠깐 뒤에 서버와 동기화 → 웹에서 저장한 노트가 APK(다른 기기)에 빨리 닿는다
+  const syncSoon = (() => { let t; return () => { clearTimeout(t); t = setTimeout(() => { try { if (window.simSync && simSync.sync) simSync.sync().catch(() => {}); } catch (e) {} }, 5000); }; })();
+  const dbPut = n => dbPut0(n).then(r => { syncSoon(); return r; });
+  const dbDel = id => dbDel0(id).then(r => { syncSoon(); return r; });
 
   /* ───────── 상태 ───────── */
   let note = null, pageEls = [], activePage = 0, io = null;
@@ -619,6 +633,37 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     if (n) openNote(normalize(n));
   });
   $('btnNew').onclick = async () => { const n = newNote(); n.folder = curFolder; await dbPut(n); openNote(n); };   // 폴더 안이면 그 폴더에 만든다
+  /* ☁ 동기화: 웹·APK는 저장소가 서로 달라서 같은 계정 로그인 + 서버 백업을 거쳐 노트가 오간다. 안 보일 때 이유를 바로 볼 수 있게 한다 */
+  window.addEventListener('simsync', () => { if (!note) renderList(); });   // 백그라운드 동기화로 새 노트가 들어오면 목록을 다시 그린다 (편집 중에는 닫을 때 갱신)
+  async function snInfo(prefix) {
+    const body = $('snBody'), now = $('snNow'); now.disabled = true;
+    if (!prefix) body.textContent = '확인 중…';
+    $('mSync').classList.add('show');
+    let st = null; try { st = window.simSync && simSync.status ? await simSync.status() : null; } catch (e) {}
+    const mine = (await dbAll()).length;
+    let h;
+    if (!window.simSync) h = '동기화 모듈을 불러오지 못했어요. 인터넷 연결을 확인하고 앱을 다시 열어 주세요.';
+    else if (!st || !st.login) h = '<b>로그인되어 있지 않아요.</b><br>웹에서 저장한 노트는 <b>같은 계정으로 로그인</b>해야 이 앱에서 보여요. SIM Tools 런처 오른쪽 위 <b>👤 로그인</b>으로 로그인한 뒤 다시 확인해 주세요.<br>이 기기의 노트: <b>' + mine + '</b>개';
+    else {
+      const n = st.server && st.server.notes != null ? st.server.notes : null;
+      h = '로그인: ' + esc(st.email) + '<br>이 기기 노트 <b>' + mine + '</b>개 · 서버 백업 노트 <b>' + (st.server && st.server.none ? '백업 없음' : n == null ? '?' : n + '개') + '</b>' +
+          '<br>마지막 동기화: ' + (st.last ? fmt(st.last) : '아직 없음') + (st.err ? '<br><span style="color:#ff8a8a">최근 오류: ' + esc(String(st.err).replace(/^\d+\|/, '')) + '</span>' : '');
+      if (n != null && n > mine) h += '<br><span style="color:var(--sub)">서버에 더 많아요 → <b>지금 동기화</b>를 누르면 받아 와요.</span>';
+      else if (n != null && n < mine) h += '<br><span style="color:var(--sub)">이 기기가 더 많아요 → <b>지금 동기화</b>를 누르면 서버로 올려요.</span>';
+    }
+    body.innerHTML = (prefix ? '<div style="color:var(--accent);margin-bottom:6px">' + prefix + '</div>' : '') + h;
+    now.disabled = !(st && st.login);
+  }
+  $('btnCloud').onclick = () => snInfo();
+  $('snClose').onclick = () => $('mSync').classList.remove('show');
+  $('mSync').addEventListener('click', e => { if (e.target === $('mSync')) $('mSync').classList.remove('show'); });
+  $('snNow').onclick = async () => {
+    $('snNow').disabled = true; $('snBody').textContent = '동기화 중…';
+    let msg = '';
+    try { const r = await simSync.sync(); msg = r === null ? '이미 동기화 중이에요. 잠시 뒤 다시 눌러 주세요.' : '동기화했어요' + (r && (r.put || r.del) ? ' — 서버에서 ' + r.put + '건 반영' + (r.del ? ', 삭제 ' + r.del + '건' : '') : ' — 이미 같아요'); }
+    catch (e) { msg = '동기화하지 못했어요 (' + esc(e && e.message || e) + ')'; }
+    await renderList(); snInfo(msg);
+  };
   $('btnNewFolder').onclick = async () => { const f = await createFolder(); if (f) { renderList(); toast('폴더를 만들었어요.'); } };
   $('btnPdfNew').onclick = () => $('pdfNew').click();
   $('pdfNew').addEventListener('change', async e => {

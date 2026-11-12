@@ -27,8 +27,12 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -45,6 +49,7 @@ public class MainActivity extends Activity {
     private View customView;
     private WebChromeClient.CustomViewCallback customCb;
     private boolean errorShown = false;
+    private final List<String> pendingShare = new ArrayList<>();   // 연락처 앱에서 공유받은 vCard 텍스트(화면이 가져가기 전까지 보관)
 
     @Override
     protected void onCreate(Bundle b) {
@@ -156,8 +161,10 @@ public class MainActivity extends Activity {
         });
 
         web.addJavascriptInterface(new SessionBridge(), "SimSession");
+        web.addJavascriptInterface(new ShareBridge(), "SimShare");
         Extra.attach(this, web);
         handleAuth(getIntent());
+        handleShare(getIntent());
         web.loadUrl(BuildConfig.START_URL);
     }
 
@@ -206,11 +213,59 @@ public class MainActivity extends Activity {
         if (web != null) web.post(() -> web.evaluateJavascript("window.__simAuthReturn&&window.__simAuthReturn()", null));
     }
 
+    /** 화면(웹)이 공유받은 연락처를 가져가는 창구: JSON 문자열 배열을 돌려주고 비운다 */
+    private class ShareBridge {
+        @JavascriptInterface public String take() {
+            synchronized (pendingShare) {
+                if (pendingShare.isEmpty()) return "";
+                JSONArray a = new JSONArray();
+                for (String t : pendingShare) a.put(t);
+                pendingShare.clear();
+                return a.toString();
+            }
+        }
+    }
+
+    /** 연락처 앱 등에서 '공유'로 들어온 vCard(.vcf 파일 또는 텍스트)를 읽어 보관하고 화면에 알린다 */
+    @SuppressWarnings("deprecation")
+    private void handleShare(Intent i) {
+        if (i == null) return;
+        String act = i.getAction();
+        final boolean one = Intent.ACTION_SEND.equals(act), many = Intent.ACTION_SEND_MULTIPLE.equals(act);
+        if (!one && !many) return;
+        final List<Uri> uris = new ArrayList<>();
+        if (one) { Uri u = i.getParcelableExtra(Intent.EXTRA_STREAM); if (u != null) uris.add(u); }
+        else { ArrayList<Uri> l = i.getParcelableArrayListExtra(Intent.EXTRA_STREAM); if (l != null) uris.addAll(l); }
+        final String text = i.getStringExtra(Intent.EXTRA_TEXT);
+        i.setAction(Intent.ACTION_MAIN);   // 화면 회전·재생성 때 같은 공유를 다시 처리하지 않도록
+        new Thread(() -> {
+            List<String> got = new ArrayList<>();
+            for (Uri u : uris) {
+                try (InputStream in = getContentResolver().openInputStream(u)) {
+                    if (in == null) continue;
+                    ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                    byte[] buf = new byte[8192]; int n, tot = 0;
+                    while ((n = in.read(buf)) > 0 && tot < 4_000_000) { bo.write(buf, 0, n); tot += n; }
+                    String t = new String(bo.toByteArray(), StandardCharsets.UTF_8);
+                    if (t.length() > 0 && t.charAt(0) == '\uFEFF') t = t.substring(1);
+                    got.add(t);
+                } catch (Exception e) { /* 읽지 못한 파일은 건너뜀 */ }
+            }
+            if (text != null && text.toUpperCase().contains("BEGIN:VCARD")) got.add(text);
+            runOnUiThread(() -> {
+                if (got.isEmpty()) { Toast.makeText(this, "공유받은 연락처를 읽지 못했습니다", Toast.LENGTH_SHORT).show(); return; }
+                synchronized (pendingShare) { pendingShare.addAll(got); }
+                if (web != null) web.evaluateJavascript("window.__simShare&&window.__simShare()", null);   // 화면이 이미 열려 있으면 바로 가져가게
+            });
+        }).start();
+    }
+
     @Override
     protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
         setIntent(i);
         handleAuth(i);
+        handleShare(i);
     }
 
     private boolean granted(String p) { return checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED; }

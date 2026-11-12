@@ -1129,6 +1129,12 @@ async function consumeShared() {
     const ch = await caches.open('simphone-share'), key = new URL('./share-inbox', location.href).href, hit = await ch.match(key);
     if (!hit) { toast('공유받은 연락처를 찾지 못했어요', 3500); return; }
     const items = await hit.json(); await ch.delete(key);
+    await importShared(items);
+  } catch (e) { toast('공유받은 연락처를 저장하지 못했습니다', 3800); }
+}
+
+/* 공유·가져오기로 받은 vCard 텍스트 목록을 등록 (웹 공유 대상 · 안드로이드 앱 공유 수신 공용) */
+async function importShared(items) {
     const list = []; items.forEach(t => parseVcf(t).forEach(c => list.push(c)));
     if (!list.length) { toast('공유받은 내용에서 연락처를 읽지 못했어요 (.vcf 형식이 아닐 수 있어요)', 4200); return; }
     let add = 0, skip = 0, last = null;
@@ -1136,8 +1142,19 @@ async function consumeShared() {
     renderList();
     toast(list.length === 1 ? (add ? (last.name || '연락처') + ' 님을 등록했습니다' : '이미 등록된 연락처예요 (' + (last.name || last.mobile || '') + ')') : add + '명 등록' + (skip ? ' · 중복 ' + skip + '명 건너뜀' : ''), 3800);
     if (list.length === 1 && last) openDetail(last.id);
+}
+
+/* 안드로이드 앱(APK): 연락처 앱에서 공유하면 앱이 받아 두고(SimShare), 화면이 열리거나 새로 공유될 때 여기서 가져간다 */
+let appReady = false;
+async function consumeNative() {
+  if (!window.SimShare || !appReady) return;
+  try {
+    const raw = window.SimShare.take(); if (!raw) return;
+    const items = JSON.parse(raw); if (!Array.isArray(items) || !items.length) return;
+    await importShared(items);
   } catch (e) { toast('공유받은 연락처를 저장하지 못했습니다', 3800); }
 }
+window.__simShare = consumeNative;
 
 /* ───────── 계정 동기화로 들어온 연락처 반영 (sync.js 가 알림) ───────── */
 window.addEventListener('simsync', async () => {
@@ -1150,6 +1167,7 @@ window.addEventListener('simsync', async () => {
   await repairQp();
   renderList();
   await consumeShared();
+  appReady = true; await consumeNative();
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 })();

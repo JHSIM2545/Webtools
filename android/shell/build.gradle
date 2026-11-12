@@ -23,6 +23,7 @@ android {
         versionName '1.0'
         buildConfigField 'String', 'START_URL', "\"https://jhsim2545.github.io/Webtools/${startPage}\""
         resValue 'string', 'app_name', appLabel
+        manifestPlaceholders = [shareEnabled: (appKey == 'phone') ? 'true' : 'false']   // 연락처 공유 수신은 SIM Phone 앱에서만
     }
 
     flavorDimensions 'role'

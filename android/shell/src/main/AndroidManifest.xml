@@ -45,5 +45,28 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 연락처 앱 '공유' 목록에 SIM Phone 이 나오게 한다 (SIM Phone 앱 빌드에서만 켜짐) -->
+        <activity-alias
+            android:name=".ShareContactAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="${shareEnabled}"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/x-vcard" />
+                <data android:mimeType="text/vcard" />
+                <data android:mimeType="text/directory" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/x-vcard" />
+                <data android:mimeType="text/vcard" />
+                <data android:mimeType="text/directory" />
+            </intent-filter>
+        </activity-alias>
     </application>
 </manifest>

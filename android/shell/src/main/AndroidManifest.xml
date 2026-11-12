@@ -13,23 +13,8 @@
     <!-- 각 앱이 ⋯ 메뉴에서 스스로 새 버전 APK 를 설치할 수 있게 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!-- 런처가 '설치된 SIM 앱'을 알아보기 위해 -->
+    <!-- 도구 앱이 런처를 열 때 필요 (다른 앱 목록은 런처 매니페스트에만 둔다: 새 앱이 추가돼도 도구 앱 APK 는 바뀌지 않게) -->
     <queries>
-        <package android:name="kr.simtools.simtv" />
-        <package android:name="kr.simtools.note" />
-        <package android:name="kr.simtools.phone" />
-        <package android:name="kr.simtools.aitel" />
-        <package android:name="kr.simtools.assistant" />
-        <package android:name="kr.simtools.calendar" />
-        <package android:name="kr.simtools.folder" />
-        <package android:name="kr.simtools.message" />
-        <package android:name="kr.simtools.kbo" />
-        <package android:name="kr.simtools.orchestra" />
-        <package android:name="kr.simtools.radio" />
-        <package android:name="kr.simtools.calc" />
-        <package android:name="kr.simtools.teams" />
-        <package android:name="kr.simtools.map" />
-        <package android:name="kr.simtools.simpad" />
         <package android:name="kr.simtools.launcher" />
     </queries>
 

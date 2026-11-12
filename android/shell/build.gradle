@@ -8,6 +8,9 @@ def appKey    = (project.findProperty('appKey') ?: 'launcher') as String
 def appLabel  = (project.findProperty('appLabel') ?: 'SIM Tools') as String
 def startPage = (project.findProperty('startPage') ?: 'index.html') as String
 def verCode   = (project.findProperty('verCode') ?: '1') as int
+def verName   = (project.findProperty('verName') ?: '1.0') as String
+// 빌드 시각은 CI 가 정해서 넘긴다(앱 내용이 바뀐 때만 새 값). 직접 빌드할 때만 현재 시각을 쓴다.
+def buildStamp = (project.findProperty('buildTime') ?: System.currentTimeMillis().toString()) as String
 
 android {
     namespace 'kr.simtools.shell'
@@ -20,14 +23,14 @@ android {
         minSdk 28
         targetSdk 34
         versionCode verCode
-        versionName '1.0'
+        versionName verName
         buildConfigField 'String', 'START_URL', "\"https://jhsim2545.github.io/Webtools/${startPage}\""
         resValue 'string', 'app_name', appLabel
         // 연락처 공유 수신은 SIM Phone 앱에서만, 폰 연락처 읽기(READ_CONTACTS)는 SIM Message·SIM Assistant 앱에서만
         manifestPlaceholders = [shareEnabled: (appKey == 'phone') ? 'true' : 'false',
                                 contactsPerm: (appKey == 'message' || appKey == 'assistant') ? 'android.permission.READ_CONTACTS' : 'android.permission.ACCESS_NETWORK_STATE']
         buildConfigField 'String', 'APP_KEY', "\"${appKey}\""
-        buildConfigField 'long', 'BUILD_TIME', "${System.currentTimeMillis()}L"   // 빌드한 시각(버전 정보 화면에 표시)
+        buildConfigField 'long', 'BUILD_TIME', "${buildStamp}L"   // 빌드한 시각(버전 정보 화면에 표시)
         buildConfigField 'boolean', 'CONTACTS', (appKey == 'message' || appKey == 'assistant') ? 'true' : 'false'
     }
 

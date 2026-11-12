@@ -3,6 +3,8 @@ plugins {
 }
 
 def verCode = (project.findProperty('verCode') ?: '1') as int
+def verName = (project.findProperty('verName') ?: '1.0') as String
+def buildStamp = (project.findProperty('buildTime') ?: System.currentTimeMillis().toString()) as String
 
 android {
     namespace 'kr.simtools.simpad'
@@ -13,9 +15,9 @@ android {
         minSdk 28
         targetSdk 34
         versionCode verCode
-        versionName '1.0'
+        versionName verName
         buildConfigField 'String', 'APP_KEY', '"pad"'
-        buildConfigField 'long', 'BUILD_TIME', "${System.currentTimeMillis()}L"   // 빌드한 시각(버전 정보 화면에 표시)
+        buildConfigField 'long', 'BUILD_TIME', "${buildStamp}L"   // 빌드한 시각(버전 정보 화면에 표시)
     }
     buildFeatures { buildConfig true }
     signingConfigs {

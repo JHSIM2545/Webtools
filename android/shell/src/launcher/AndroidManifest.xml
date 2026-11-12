@@ -4,6 +4,25 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
+    <!-- 런처가 '설치된 SIM 앱'을 알아보기 위해 (새 앱을 추가하면 여기에도 넣는다) -->
+    <queries>
+        <package android:name="kr.simtools.simtv" />
+        <package android:name="kr.simtools.note" />
+        <package android:name="kr.simtools.phone" />
+        <package android:name="kr.simtools.aitel" />
+        <package android:name="kr.simtools.assistant" />
+        <package android:name="kr.simtools.calendar" />
+        <package android:name="kr.simtools.folder" />
+        <package android:name="kr.simtools.message" />
+        <package android:name="kr.simtools.kbo" />
+        <package android:name="kr.simtools.orchestra" />
+        <package android:name="kr.simtools.radio" />
+        <package android:name="kr.simtools.calc" />
+        <package android:name="kr.simtools.teams" />
+        <package android:name="kr.simtools.map" />
+        <package android:name="kr.simtools.simpad" />
+    </queries>
+
     <application>
         <!-- 브라우저에서 구글 로그인을 마친 뒤 kr.simtools.launcher://auth 로 앱에 돌아온다 -->
         <activity android:name=".MainActivity">

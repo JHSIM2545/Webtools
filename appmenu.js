@@ -73,6 +73,7 @@
     try { const ks = await caches.keys(); await Promise.all(ks.filter(k => /^simwebtools-shell/.test(k)).map(k => caches.delete(k))); } catch (e) {}
     location.reload();
   }
+  const OLDAPK = !NA && !!(window.SimSession || window.SimShare);   // 안드로이드 앱인데 ⋯ 메뉴 창구(SimApp)가 아직 없는 옛 APK
   const nativeInfo = () => { try { return NA ? JSON.parse(NA.info()) : null; } catch (e) { return null; } };
   const appName = () => { const h = document.querySelector('header h1, .bar h1'); return h ? h.textContent.replace(/\s+/g, ' ').trim() : document.title; };
 
@@ -85,10 +86,10 @@
       ['앱', info.name], ['버전', info.versionName || '—'], ['빌드 번호', '#' + info.build], ['빌드 날짜', fmt(info.buildTime)],
       ['화면(웹) 버전', wv ? 'v' + wv : '—'], ['패키지', info.pkg], ['안드로이드', 'API ' + info.sdk]
     ] : [
-      ['앱', appName()], ['실행 방식', '웹(브라우저·설치형 웹앱)'], ['화면(웹) 버전', wv ? 'v' + wv : '—']
+      ['앱', appName()], ['실행 방식', OLDAPK ? '안드로이드 앱(구버전)' : '웹(브라우저·설치형 웹앱)'], ['화면(웹) 버전', wv ? 'v' + wv : '—']
     ];
     bd.innerHTML = rows.map(r => '<div class="simvm-row"><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></div>').join('') +
-      '<div class="simvm-st" id="svSt">"업데이트 확인"을 눌러 새 버전이 있는지 확인하세요.</div>' +
+      '<div class="simvm-st' + (OLDAPK ? ' up' : '') + '" id="svSt">' + (OLDAPK ? '이 앱은 구버전이라 빌드 번호·앱 업데이트를 여기서 볼 수 없어요.\nSIM Tools 런처 → 앱 추가에서 이 앱을 업데이트(재설치)하면 모든 기능이 열려요.' : '"업데이트 확인"을 눌러 새 버전이 있는지 확인하세요.') + '</div>' +
       '<div class="simvm-act"><button id="svChk" class="pri">🔄 업데이트 확인</button><button id="svApp" class="pri" hidden>⬇ 앱 업데이트</button><button id="svWeb" class="pri" hidden>♻ 화면 새로 받기</button></div>' +
       '<div class="simvm-note">' + (info ? '앱 업데이트는 새 APK 를 내려받아 설치합니다(설치 화면에서 "설치"를 눌러 주세요). ' : '') + '화면 새로 받기는 저장된 데이터는 그대로 두고 화면 파일만 새로 받습니다.</div>';
     const $ = id => bd.querySelector('#' + id), st = (t, k) => { const e = $('svSt'); if (e) { e.className = 'simvm-st' + (k ? ' ' + k : ''); e.textContent = t; } };
@@ -125,6 +126,7 @@
   }
   async function openPerm() {
     const bd = modal('권한 정보');
+    if (OLDAPK) { bd.innerHTML = '<div class="simvm-st up">이 앱은 구버전이라 권한을 여기서 바꿀 수 없어요.\nSIM Tools 런처 → 앱 추가에서 이 앱을 업데이트(재설치)해 주세요.</div>'; return; }
     let list = [], busy = false, ask = '';
     const load = async () => {
       if (NA) { try { list = JSON.parse(NA.perms() || '[]'); } catch (e) { list = []; } }

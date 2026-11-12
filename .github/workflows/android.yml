@@ -138,7 +138,6 @@ jobs:
           pattern: apk-*
           merge-multiple: true
           path: apks
-      - uses: actions/checkout@v4
       - name: 릴리스로 올리기 (런처가 여기서 내려받음)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

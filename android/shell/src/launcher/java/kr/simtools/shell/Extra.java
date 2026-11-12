@@ -15,6 +15,13 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
 import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -29,6 +36,7 @@ final class Extra {
         for (String id : new String[]{"simtv", "note", "phone", "aitel", "assistant", "calendar", "folder", "message", "kbo", "orchestra", "radio", "calc", "map"})
             PKG.put(id, "kr.simtools." + id);
         PKG.put("pad", "kr.simtools.simpad");
+        PKG.put("launcher", "kr.simtools.launcher");   // 런처 자신도 업데이트 대상
     }
     private static String file(String id) { return "simtools-" + id + ".apk"; }
 
@@ -85,6 +93,27 @@ final class Extra {
             return arr.toString();
         }
 
+        private long ver(String pkg) {
+            try { return a.getPackageManager().getPackageInfo(pkg, 0).getLongVersionCode(); } catch (Exception e) { return -1; }
+        }
+
+        /** 서버(릴리스)의 최신 버전 번호와 설치된 앱의 버전을 비교해, 업데이트가 필요한 앱 id 목록을 JS 로 알려 준다 */
+        @JavascriptInterface public void checkUpdates() {
+            new Thread(() -> {
+                try {
+                    HttpURLConnection c = (HttpURLConnection) new URL(BASE + "versions.json").openConnection();
+                    c.setConnectTimeout(10000); c.setReadTimeout(10000); c.setInstanceFollowRedirects(true);
+                    InputStream in = c.getInputStream(); ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                    byte[] buf = new byte[1024]; int n; while ((n = in.read(buf)) > 0) bo.write(buf, 0, n); in.close();
+                    long latest = new JSONObject(bo.toString("UTF-8")).getLong("verCode");
+                    JSONArray need = new JSONArray();
+                    for (Map.Entry<String, String> e : PKG.entrySet()) { long v = ver(e.getValue()); if (v >= 0 && v < latest) need.put(e.getKey()); }
+                    final String js = "window.__simUpdates&&window.__simUpdates(" + need + ")";
+                    w.post(() -> w.evaluateJavascript(js, null));
+                } catch (Exception e) { /* 인터넷이 없으면 조용히 넘어감 */ }
+            }).start();
+        }
+
         @JavascriptInterface public void open(String id) {
             String p = PKG.get(id); if (p == null) return;
             Intent i = a.getPackageManager().getLaunchIntentForPackage(p);
@@ -100,6 +129,7 @@ final class Extra {
                         a.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + a.getPackageName())));
                         return;
                     }
+                    try { new File(a.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), file(id)).delete(); } catch (Exception e) { /* 무시 */ }   // 이전에 받은 같은 파일이 남아 있으면 지운다
                     DownloadManager dm = (DownloadManager) a.getSystemService(Context.DOWNLOAD_SERVICE);
                     DownloadManager.Request r = new DownloadManager.Request(Uri.parse(BASE + file(id)));
                     r.setTitle("SIM 앱 내려받는 중");

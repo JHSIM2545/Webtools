@@ -55,6 +55,8 @@ main{max-width:960px;margin:0 auto;padding:18px 16px 40px}
 .search input:focus{border-color:var(--accent)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:16px}
 a.card,.card.ghost{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:16px;background:var(--panel);border:1px solid var(--line);text-decoration:none;color:inherit;min-height:150px}
+a.card{position:relative}
+.card .upd{position:absolute;top:10px;right:10px;font-size:10px;font-weight:800;letter-spacing:.3px;padding:2px 7px;border-radius:99px;background:#ff5b5b;color:#fff}
 a.card{transition:transform .12s,border-color .12s;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 a.card:hover{border-color:var(--accent);transform:translateY(-2px)}
 a.card:active{transform:scale(.98)}
@@ -208,7 +210,7 @@ button.danger{color:#ff8a8a}
   /* ── 순서 (이 기기에만 저장). 목록에 없는 새 툴은 맨 뒤에 붙는다 ── */
   /* ── 안드로이드 런처 앱 안에서 열렸을 때: 설치된 SIM 앱만 보드에 나열, 나머지는 '앱 추가'에서 내려받아 설치 ── */
   const APP = window.SimLauncher || null;
-  let INSTALLED = [];
+  let INSTALLED = [], UPDATES = [];   // UPDATES: 새 버전이 나온 설치 앱 id
   function readInstalled() { if (!APP) return; try { INSTALLED = JSON.parse(APP.installed()); } catch (e) { INSTALLED = []; } }
   readInstalled();
   const KEY_ORDER = 'simtools_order';
@@ -232,12 +234,12 @@ button.danger{color:#ff8a8a}
     if (!list.length) { $('grid').innerHTML = APP && !q ? '<div class="card ghost add" id="addApp" style="grid-column:1/-1"><div class="plus">+</div>설치된 앱이 없어요. 눌러서 앱을 추가하세요</div>' : '<div class="empty" style="grid-column:1/-1">검색 결과가 없습니다.</div>'; return; }
     let html = list.map(t => {
       const ico = t.icon ? '<img src="' + esc(t.icon) + '" alt="" draggable="false">' : esc(t.emoji || '🧰');
-      return '<a class="card" data-id="' + esc(t.id) + '" draggable="false" href="' + (APP ? '#' : esc(t.url)) + '">' +
+      return '<a class="card" data-id="' + esc(t.id) + '" draggable="false" href="' + (APP ? '#' : esc(t.url)) + '">' + (APP && UPDATES.indexOf(t.id) >= 0 ? '<span class="upd">UPDATE</span>' : '') +
         '<div class="ico">' + ico + '</div>' +
         '<div><div class="name">' + nameHtml(t) + '</div><div class="desc">' + esc(t.desc || '') + '</div></div>' +
         (t.tag ? '<span class="tag">' + esc(t.tag) + '</span>' : '') + '</a>';
     }).join('');
-    if (!q) html += APP ? '<div class="card ghost add" id="addApp"><div class="plus">+</div>앱 추가</div>' : '<div class="card ghost"><div class="plus">+</div>새 툴이 여기에 추가됩니다</div>';
+    if (!q) html += APP ? '<div class="card ghost add" id="addApp"><div class="plus">+</div>앱 추가' + (UPDATES.length ? '<br><b style="color:#ff8a8a">업데이트 ' + UPDATES.length + '개</b>' : '') + '</div>' : '<div class="card ghost"><div class="plus">+</div>새 툴이 여기에 추가됩니다</div>';
     $('grid').innerHTML = html;
   }
   $('q').addEventListener('input', render);
@@ -248,9 +250,17 @@ button.danger{color:#ff8a8a}
       const add = e.target.closest && e.target.closest('#addApp'); if (add) { e.preventDefault(); openApps(); return; }
       const c = e.target.closest && e.target.closest('a.card'); if (c && c.dataset.id) { e.preventDefault(); APP.open(c.dataset.id); }
     });
-    window.__simRefresh = () => { readInstalled(); render(); if ($('mApps').classList.contains('show')) paintApps(); };
+    window.__simRefresh = () => { readInstalled(); render(); if ($('mApps').classList.contains('show')) paintApps(); checkUpd(); };
+    window.__simUpdates = ids => {   // 앱이 서버 최신 버전과 비교한 결과
+      const had = UPDATES.join(); UPDATES = Array.isArray(ids) ? ids : [];
+      render(); if ($('mApps').classList.contains('show')) paintApps();
+      if (UPDATES.length && UPDATES.join() !== had) toast('업데이트할 앱이 ' + UPDATES.length + '개 있어요 — 앱 추가에서 업데이트하세요');
+    };
+    let lastChk = 0;
+    function checkUpd() { if (Date.now() - lastChk < 60e3) return; lastChk = Date.now(); try { APP.checkUpdates(); } catch (e) {} }
+    checkUpd();
     window.__simInstall = (id, st) => {
-      const t = TOOLS.find(x => x.id === id), n = t ? t.name : id;
+      const t = TOOLS.find(x => x.id === id), n = t ? t.name : (id === 'launcher' ? 'SIM Tools 런처' : id);
       toast(st === 'start' ? n + ' 내려받는 중…' : st === 'done' ? n + ' 설치 화면을 여는 중…' : st === 'perm' ? '설정에서 "이 출처 허용"을 켠 뒤 다시 눌러 주세요' : n + ' 설치에 실패했어요');
     };
     $('appsClose').onclick = () => $('mApps').classList.remove('show');
@@ -263,10 +273,11 @@ button.danger{color:#ff8a8a}
   }
   function paintApps() {
     readInstalled();
-    $('appList').innerHTML = TOOLS.map(t => {
+    const self = UPDATES.indexOf('launcher') >= 0 ? '<div class="arow"><img src="icon-192.png" alt=""><div class="t"><b>SIM <span style="color:var(--accent)">Tools</span> 런처</b><span>새 버전이 있어요 · 설치하면 앱이 다시 시작돼요</span></div><button class="get" data-act="get" data-id="launcher">업데이트</button></div>' : '';
+    $('appList').innerHTML = self + TOOLS.map(t => {
       const on = INSTALLED.indexOf(t.id) >= 0;
       return '<div class="arow"><img src="' + esc(t.icon) + '" alt=""><div class="t"><b>' + nameHtml(t) + '</b><span>' + esc(t.desc || '') + '</span></div>' +
-        (on ? '<button data-act="open" data-id="' + esc(t.id) + '">열기</button><button class="danger" data-act="del" data-id="' + esc(t.id) + '">제거</button>'
+        (on ? (UPDATES.indexOf(t.id) >= 0 ? '<button class="get" data-act="get" data-id="' + esc(t.id) + '">업데이트</button>' : '') + '<button data-act="open" data-id="' + esc(t.id) + '">열기</button><button class="danger" data-act="del" data-id="' + esc(t.id) + '">제거</button>'
             : '<button class="get" data-act="get" data-id="' + esc(t.id) + '">받기</button>') + '</div>';
     }).join('');
   }

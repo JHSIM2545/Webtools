@@ -103,9 +103,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
+          echo '{"verCode":${{ github.run_number }}}' > apks/versions.json   # 런처가 업데이트 여부를 비교하는 기준
           ls -la apks
           gh release delete apps-latest --yes --cleanup-tag || true
-          gh release create apps-latest apks/*.apk --title "SIM Tools 앱 모음 (Android)" --notes "SIM Tools 런처와 각 도구의 안드로이드 앱" --latest=false
+          gh release create apps-latest apks/* --title "SIM Tools 앱 모음 (Android)" --notes "SIM Tools 런처와 각 도구의 안드로이드 앱" --latest=false
           cp apks/simtools-pad.apk SIM-PAD.apk
           gh release delete simpad-latest --yes --cleanup-tag || true
           gh release create simpad-latest SIM-PAD.apk --title "SIM PAD (Android)" --notes "차량 블루투스 마우스·키보드용 SIM PAD 앱" --latest=false

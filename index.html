@@ -260,7 +260,9 @@ button.danger{color:#ff8a8a}
     let lastChk = 0;
     function checkUpd() { if (Date.now() - lastChk < 60e3) return; lastChk = Date.now(); try { APP.checkUpdates(); } catch (e) {} }
     checkUpd();
+    let gotCb = true;
     window.__simInstall = (id, st) => {
+      gotCb = true;
       const t = TOOLS.find(x => x.id === id), n = t ? t.name : (id === 'launcher' ? 'SIM Tools 런처' : id);
       toast(st === 'start' ? n + ' 내려받는 중…' : st === 'done' ? n + ' 설치 화면을 여는 중…' : st === 'perm' ? '설정에서 "이 출처 허용"을 켠 뒤 다시 눌러 주세요' : n + ' 설치에 실패했어요');
     };
@@ -269,7 +271,7 @@ button.danger{color:#ff8a8a}
     $('appList').addEventListener('click', e => {
       const b = e.target.closest('button[data-act]'); if (!b) return;
       const id = b.dataset.id;
-      if (b.dataset.act === 'get') APP.install(id); else if (b.dataset.act === 'open') APP.open(id); else if (b.dataset.act === 'del') APP.uninstall(id);
+      if (b.dataset.act === 'get') { gotCb = false; APP.install(id); setTimeout(() => { if (!gotCb) toast('받기에 반응이 없어요 — 위쪽 "SIM Tools 런처" 업데이트를 먼저 설치한 뒤 다시 눌러 주세요'); }, 1800); } else if (b.dataset.act === 'open') APP.open(id); else if (b.dataset.act === 'del') APP.uninstall(id);
     });
   }
   function paintApps() {

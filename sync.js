@@ -265,8 +265,9 @@
       if (P && P.v === 2) { F = merge(L, P, getBase_(), getBase_()); st = await apply(F, L); }
       const hF = hashes(F), cloudSame = P && JSON.stringify(hashes({ idb: P.idb || {}, ls: P.ls || {} })) === JSON.stringify(hF);
       if (!cloudSame) { const body = await gz({ v: 2, t: Date.now(), idb: F.idb, ls: F.ls }); const up = await c.storage.from(C_BUCKET).upload(path, new Blob([body], { type: 'application/octet-stream' }), { upsert: true, contentType: 'application/octet-stream' }); if (up.error) throw up.error; }
-      lset(C_BASE, JSON.stringify(hF)); lset(C_LAST, String(Date.now()));
+      lset(C_BASE, JSON.stringify(hF)); lset(C_LAST, String(Date.now())); try { localStorage.removeItem('SIM_CLOUD_ERR'); } catch (e) {}
       return st;
+    } catch (e) { lset('SIM_CLOUD_ERR', Date.now() + '|' + ((e && (e.message || e.error_description)) || String(e))); throw e;   // 실패 이유를 남겨 둔다(화면의 ☁ 동기화 상태에서 보임)
     } finally { cBusy = false; }
   }
   const getBase_ = () => { try { return JSON.parse(lget(C_BASE) || '{}') || {}; } catch (e) { return {}; } };
@@ -402,7 +403,17 @@
       setInterval(() => { if (!document.hidden) up(); }, 60e3);
     } catch (e) { if (GATED && !hasTok()) gate(true); else gate(false); }
   }
-  window.simSync = { menu, collect, merge, hash, pick, sync: () => (cUser ? cloudSync().then(notify) : Promise.resolve(null)) };   // sync(): 지금 바로 서버와 맞추기(도구 화면에서 저장 직후 호출)
+  window.simSync = { menu, collect, merge, hash, pick, sync: () => (cUser ? cloudSync().then(notify) : Promise.resolve(null)),
+    status: async () => {   // 도구 화면의 ☁ 동기화 상태용: 로그인 여부·서버 저장본의 일정 수/시각·마지막 오류
+      const o = { login: false, email: '', last: +lget(C_LAST) || 0, err: lget('SIM_CLOUD_ERR') || '', server: null };
+      try {
+        const c = await client(), { data } = await c.auth.getSession(); if (!data.session) return o;
+        o.login = true; o.email = data.session.user.email || '';
+        const dl = await c.storage.from(C_BUCKET).download(data.session.user.id + '/snapshot.gz');
+        if (dl.data) { const P = await ungz(dl.data), n = d => (((P.idb || {})[d] || {}).events || {}).rows ? P.idb[d].events.rows.length : 0; o.server = { t: P.t || 0, cal: n('simcalendar'), asst: n('simassistant') }; } else o.server = { none: true };
+      } catch (e) { o.err = o.err || (e && e.message) || String(e); }
+      return o;
+    } };   // sync(): 지금 바로 서버와 맞추기(도구 화면에서 저장 직후 호출)
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
   window.addEventListener('hashchange', boot);
 })();

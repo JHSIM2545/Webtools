@@ -160,6 +160,7 @@ textarea{resize:vertical}
   <button class="navb" id="btnPrev" aria-label="이전">‹</button>
   <label class="nlabel"><span id="nlabel"></span><input type="date" id="jump" aria-label="날짜로 이동"></label>
   <button class="navb" id="btnNext" aria-label="다음">›</button>
+  <button class="navb" id="btnCloud" aria-label="동기화 상태" title="기기 간 동기화 상태" style="font-size:16px">☁️</button>
 </div>
 <div class="tabs" id="tabs">
   <button data-v="month">월</button>
@@ -327,6 +328,26 @@ const openDB = (name, stores, ver) => new Promise((res, rej) => {
 });
 const tx = (db, s, m) => db.transaction(s, m).objectStore(s);
 const idbAll = (db, s) => new Promise((res, rej) => { const q = tx(db, s, 'readonly').getAll(); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+/* ☁ 동기화 상태: 로그인 여부, 이 기기와 서버의 일정 수를 나란히 보여줘서 안 맞는 이유를 바로 알 수 있게 한다 */
+async function showCloud() {
+  const tm = t => t ? new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '없음';
+  for (;;) {
+    const st = window.simSync && simSync.status ? await simSync.status() : null;
+    const me = own.length, ma = asst.length; let msg;
+    if (!st) msg = '동기화 모듈을 불러오지 못했어요. 인터넷 연결을 확인하고 앱을 새로 열어 주세요.';
+    else if (!st.login) msg = '이 기기는 로그인되어 있지 않아요. 런처(SIM Tools) 상단 👤 로그인에서 같은 계정으로 로그인해야 기기끼리 일정이 맞춰져요.' + (st.err ? '\n\n최근 오류: ' + st.err.split('|').slice(1).join('|') : '');
+    else {
+      const sv = st.server && !st.server.none ? st.server : null;
+      msg = '계정: ' + st.email + '\n이 기기 일정: ' + (me + ma) + '개 (직접 ' + me + ' · 비서 ' + ma + ')\n서버 저장본: ' + (sv ? (sv.cal + sv.asst) + '개 (직접 ' + sv.cal + ' · 비서 ' + sv.asst + ') · ' + tm(sv.t) + ' 업로드' : '아직 없음') + '\n이 기기 마지막 동기화: ' + tm(st.last) +
+        (sv && me + ma !== sv.cal + sv.asst ? '\n\n⚠ 개수가 달라요. “지금 동기화”를 눌러 보세요. 그래도 다르면 다른 기기에서도 같은 계정으로 로그인했는지, 그 기기의 앱을 새로 열어 동기화됐는지 확인해 주세요.' : '\n\n✔ 이 기기와 서버가 같아요.') +
+        (st.err ? '\n\n최근 오류: ' + st.err.split('|').slice(1).join('|') : '');
+    }
+    const k = await choose('☁️ 기기 간 동기화 상태', msg, st && st.login ? [{ key: 'now', label: '지금 동기화', sub: '서버와 바로 맞춰요' }] : []);
+    if (k !== 'now') return;
+    try { await simSync.sync(); } catch (e) {} await new Promise(r => setTimeout(r, 300));
+  }
+}
+$('btnCloud').onclick = showCloud;
 /* 계정 동기화(sync.js): 저장·삭제하면 잠깐 뒤 서버에 올리고, 다른 기기에서 바뀐 게 들어오면 화면을 새로 그린다 */
 let syncT = 0;
 function syncSoon() { clearTimeout(syncT); syncT = setTimeout(() => { try { if (window.simSync && simSync.sync) simSync.sync().catch(() => {}); } catch (e) {} }, 2500); }

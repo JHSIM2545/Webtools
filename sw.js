@@ -1,6 +1,6 @@
 // SIM Tools service worker: 앱 껍데기(HTML·아이콘)만 캐시. 방송 스트림 등 외부 요청은 건드리지 않음.
 // 새 툴 파일을 추가하면 SHELL 목록에 넣고 CACHE 숫자를 올리세요.
-const CACHE = 'simwebtools-shell-v114';
+const CACHE = 'simwebtools-shell-v115';
 const SHELL = ['./', './index.html', './ui-guard.js', './tv.html', './note.html', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './tv-icon-192.png', './note-icon-192.png', './phone.html', './phone-icon-192.png', './aitel.html', './aitel-icon-192.png', './assistant.html', './qr.min.js', './sync.js', './assistant-icon-192.png', './calendar.html', './calendar-icon-192.png', './pin-icon.svg', './folder.html', './folder-icon-192.png', './message.html', './message-icon-192.png', './orchestra.html', './orchestra-icon-192.png', './radio.html', './radio-icon-192.png', './calc.html', './calc-icon-192.png', './kbo.html', './kbo-icon-192.png', './kbo-bg.png', './ai-gemini.png', './ai-claude.png', './ai-groq.png', './map.html', './map-icon-192.png'];
 

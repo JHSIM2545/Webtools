@@ -18,7 +18,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
-body{height:100dvh;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;display:flex;flex-direction:column;overflow:hidden}
+body{height:var(--app-h,100dvh);background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;display:flex;flex-direction:column;overflow:hidden}
 header{display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));background:var(--panel);border-bottom:1px solid var(--line)}
 header h1{font-size:17px;font-weight:700;letter-spacing:-.3px;display:flex;align-items:center;gap:8px}
 header h1 span{color:var(--accent);margin-left:-5px}
@@ -599,6 +599,18 @@ body.fs .grab{top:7px;bottom:auto}
     box.style.setProperty('width', bw + 'px'); box.style.setProperty('height', bh + 'px');
     box.style.setProperty('left', (W - bw) / 2 + 'px'); box.style.setProperty('top', (H - bh) / 2 + 'px');
   }
+  /* 차량·내장 브라우저는 처음 로딩 때 dvh가 실제 보이는 영역보다 크게 잡혀 하단 조작부가 잘린다 → 실제 높이를 직접 재서 맞춘다 */
+  let lastH = 0;
+  function fitH() {
+    const vv = window.visualViewport, h = Math.round(Math.min(window.innerHeight || 1e5, vv && vv.height ? vv.height : 1e5));
+    if (!h || h >= 1e5 || h === lastH) return; lastH = h;
+    document.documentElement.style.setProperty('--app-h', h + 'px'); layoutYT();
+  }
+  fitH(); window.addEventListener('resize', fitH); window.addEventListener('orientationchange', () => setTimeout(fitH, 200)); window.addEventListener('pageshow', fitH);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', fitH);
+  document.addEventListener('fullscreenchange', () => setTimeout(fitH, 120));
+  document.addEventListener('pointerdown', fitH, { passive: true });
+  { let n = 0; const iv = setInterval(() => { fitH(); if (++n > 20) clearInterval(iv); }, 500); }   // 로딩 직후 10초간 재측정
   window.addEventListener('resize', layoutYT);
 
   let slideTok = 0, slideTimer = 0, flip = 0;

@@ -44,12 +44,12 @@ final class Extra {
                 if (tool == null) return;
                 DownloadManager dm = (DownloadManager) c.getSystemService(Context.DOWNLOAD_SERVICE);
                 Uri u = dm.getUriForDownloadedFile(id);
-                if (u == null) { notify(w, tool, "fail"); return; }
-                notify(w, tool, "done");
+                if (u == null) { tell(w, tool, "fail"); return; }
+                tell(w, tool, "done");
                 Intent inst = new Intent(Intent.ACTION_VIEW);
                 inst.setDataAndType(u, "application/vnd.android.package-archive");
                 inst.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-                try { c.startActivity(inst); } catch (Exception e) { notify(w, tool, "fail"); }
+                try { c.startActivity(inst); } catch (Exception e) { tell(w, tool, "fail"); }
             }
         };
         IntentFilter f = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
@@ -66,7 +66,7 @@ final class Extra {
         receiver = null;
     }
 
-    private static void notify(final WebView w, final String tool, final String st) {
+    private static void tell(final WebView w, final String tool, final String st) {
         w.post(() -> w.evaluateJavascript("window.__simInstall&&window.__simInstall('" + tool + "','" + st + "')", null));
     }
 
@@ -96,7 +96,7 @@ final class Extra {
             a.runOnUiThread(() -> {
                 try {
                     if (Build.VERSION.SDK_INT >= 26 && !a.getPackageManager().canRequestPackageInstalls()) {
-                        notify(w, id, "perm");
+                        tell(w, id, "perm");
                         a.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + a.getPackageName())));
                         return;
                     }
@@ -108,9 +108,9 @@ final class Extra {
                     r.setDestinationInExternalFilesDir(a, Environment.DIRECTORY_DOWNLOADS, file(id));
                     long did = dm.enqueue(r);
                     pending.put(did, id);
-                    notify(w, id, "start");
+                    tell(w, id, "start");
                 } catch (Exception e) {
-                    notify(w, id, "fail");
+                    tell(w, id, "fail");
                 }
             });
         }

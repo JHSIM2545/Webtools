@@ -232,6 +232,8 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
   <button id="mnImport">📥 연락처 가져오기 (.vcf)<small>폰에서 내보낸 vCard 파일을 읽어 옵니다 (같은 번호·이메일은 건너뜀)</small></button>
   <button id="mnBackup">💾 백업 파일 저장 (.json)<small>사진·명함 이미지까지 모두 포함한 이 앱 전용 백업</small></button>
   <button id="mnRestore">♻️ 백업에서 복원 (.json)<small>백업 파일의 연락처를 합쳐 넣습니다</small></button>
+  <button id="mnVer">ⓘ 버전 정보<small>버전·빌드 번호·빌드 날짜 확인, 업데이트 확인</small></button>
+  <button id="mnPerm">🔐 권한 정보<small>카메라·마이크·연락처 등 권한을 켜거나 끕니다</small></button>
   <div class="row2"><button id="mnClose">닫기</button></div>
   <input type="file" id="vcfFile" accept=".vcf,text/vcard,text/x-vcard" hidden>
   <input type="file" id="jsonFile" accept=".json,application/json" hidden>
@@ -551,6 +553,8 @@ $('btnAdd').onclick = () => openEdit('');
 
 /* ───────── 더보기: 내보내기 · 가져오기 · 백업 ───────── */
 $('btnMenu').onclick = () => $('mMenu').classList.add('show');
+$('mnVer').onclick = () => { $('mMenu').classList.remove('show'); window.simAppMenu && window.simAppMenu.open('ver'); };
+$('mnPerm').onclick = () => { $('mMenu').classList.remove('show'); window.simAppMenu && window.simAppMenu.open('perm'); };
 $('mnClose').onclick = () => $('mMenu').classList.remove('show');
 $('mMenu').addEventListener('click', e => { if (e.target === $('mMenu')) $('mMenu').classList.remove('show'); });
 $('mnExport').onclick = () => {

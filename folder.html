@@ -1080,6 +1080,7 @@ function moreSheet(){
   let h='<div class="sht">정렬</div>'+[['name','이름순'],['date','올린 날짜순'],['type','유형순'],['size','크기순']].map(s=>'<div class="it'+(sortKey===s[0]?' on':'')+'" data-act="sort" data-v="'+s[0]+'">'+ic('sort')+s[1]+ck(s[0])+'</div>').join('');
   h+='<div class="sht">보기</div><div class="it" data-act="x" data-k="view">'+ic(view==='grid'?'list':'grid')+(view==='grid'?'목록으로 보기':'아이콘으로 보기')+'</div><div class="it" data-act="x" data-k="refresh">'+ic('refresh')+'새로 고침</div>';
   if(tab==='trash')h+='<div class="it d" data-act="x" data-k="empty">'+ic('trash')+'휴지통 비우기</div>';
+  h+='<div class="sht">앱 정보</div><div class="it" data-act="appver">ⓘ 버전 정보</div><div class="it" data-act="appperm">🔐 권한 정보</div>';
   h+='<div class="sht">'+esc(user.email||'')+'</div><div class="it" data-act="logout">'+ic('logout')+'로그아웃</div>';
   sheet('',h);
 }
@@ -1217,6 +1218,8 @@ $('#sh').addEventListener('click',async e=>{
   if(a==='dev'){closeSheet();devOpen();return;}
   closeSheet();
   if(a==='nf')newFolder();
+  else if(a==='appver'){window.simAppMenu&&window.simAppMenu.open('ver');}
+  else if(a==='appperm'){window.simAppMenu&&window.simAppMenu.open('perm');}
   else if(a==='x'){const k=el.dataset.k,id=el.dataset.id;if(id)act(k,id);else act(k);}
   else if(a==='sort'){const v=el.dataset.v;if(sortKey===v)sortAsc=!sortAsc;else{sortKey=v;sortAsc=true;}lset('simfolder.sk',sortKey);lset('simfolder.sa',sortAsc?'1':'0');render();}
   else if(a==='moveto'){const to=el.dataset.to==='root'?null:el.dataset.to;moveItems(moveIds,to);}

@@ -177,6 +177,7 @@
 
   function mountBar(back) {
     const bar = back.closest('header, .bar'); if (!bar || bar.querySelector(':scope > .simvm-btn')) return;
+    if (bar.querySelector('[aria-label="더보기"], [data-h="more"]')) return;   // 이미 ⋯ 더보기 메뉴가 있는 화면(SIM Phone·SIM Folder)은 그 메뉴 안에 항목을 넣는다
     css();
     const b = document.createElement('button'); b.type = 'button'; b.className = 'simvm-btn'; b.title = '더보기'; b.setAttribute('aria-label', '더보기'); b.setAttribute('aria-haspopup', 'menu');
     b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>';

@@ -1,0 +1,31 @@
+{
+  "id": "./calendar.html",
+  "name": "SIM Calendar",
+  "short_name": "SIM Calendar",
+  "description": "SIM Calendar — 일정 달력 (삼성 캘린더 일정 공유 받기)",
+  "lang": "ko",
+  "start_url": "./calendar.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117",
+  "icons": [
+    { "src": "calendar-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "calendar-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "calendar-icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "share_target": {
+    "action": "./calendar.html",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        { "name": "ics", "accept": ["text/calendar", "text/x-vcalendar", "application/ics", ".ics", ".ical", ".vcs"] }
+      ]
+    }
+  }
+}

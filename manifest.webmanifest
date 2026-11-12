@@ -26,16 +26,6 @@
             "text/directory",
             ".vcf"
           ]
-        },
-        {
-          "name": "ics",
-          "accept": [
-            "text/calendar",
-            "text/x-vcalendar",
-            "application/ics",
-            ".ics",
-            ".ical"
-          ]
         }
       ]
     }

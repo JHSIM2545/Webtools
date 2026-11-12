@@ -222,6 +222,25 @@ header h1 span{color:var(--accent);margin-left:-5px}
   #ov{align-items:center}
   #sh{border-radius:14px;border-bottom:1px solid var(--line);padding-bottom:10px;max-width:420px}
 }
+#dev{position:fixed;inset:0;z-index:40;background:var(--bg);display:none;flex-direction:column}
+#dev.show{display:flex}
+#dcrumb{display:flex;align-items:center;gap:6px;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--panel);overflow-x:auto;white-space:nowrap;flex:none;font-size:14px}
+#dcrumb span{color:var(--sub);padding:4px 6px;border-radius:6px;cursor:pointer}
+#dcrumb span.cur{color:var(--text);font-weight:600;cursor:default}
+#dcrumb span.sep{padding:0;cursor:default}
+#dls{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#dls .row{cursor:pointer}
+#dls .dck{width:24px;height:24px;border-radius:50%;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;color:transparent;font-size:15px}
+#dls .row.on{background:rgba(200,148,106,.14)}
+#dls .row.on .dck{background:var(--accent2);border-color:var(--accent2);color:#fff}
+#dempty{padding:60px 24px;text-align:center;color:var(--sub);line-height:1.7}
+#dempty .btn{margin:18px auto 0;max-width:260px}
+#dbar{display:flex;align-items:center;gap:10px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--panel);flex:none}
+#dbar .dt{flex:1;min-width:0;font-size:13px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#dbar button{height:42px;padding:0 16px;border-radius:10px;font-weight:600;white-space:nowrap}
+#dbar .go{background:var(--accent2);color:#fff}
+#dbar .go:disabled{opacity:.4}
+#dbar .al{color:var(--accent);border:1px solid var(--line)}
 @media (max-width:759px){
   #chead{display:none}
 }
@@ -273,6 +292,17 @@ header h1 span{color:var(--accent);margin-left:-5px}
   <div id="pbar" class="mo"></div>
   <nav id="nav"></nav>
   <div id="bar"></div>
+</div>
+
+<div id="dev">
+  <header>
+    <button class="hb" id="dClose" aria-label="닫기">✕</button>
+    <h1>내 기기 폴더</h1><div class="spacer"></div>
+    <button class="hbt" id="dPick">폴더 선택</button>
+  </header>
+  <div id="dcrumb"></div>
+  <div id="dls"></div>
+  <div id="dbar"></div>
 </div>
 
 <div id="ov"><div id="sh"></div>
@@ -435,7 +465,7 @@ function toast(msg,label,fn){
 function sheet(title,html){$('#sh').innerHTML=(title?'<div class="sht">'+esc(title)+'</div>':'')+html;$('#ov').style.display='flex';}
 function closeSheet(){$('#ov').style.display='none';}
 const sheetOpen=()=>$('#ov').style.display==='flex';
-const modalOpen=()=>sheetOpen()||$('#upm').classList.contains('show')||$('#busy').classList.contains('show')||$('#viewer').style.display==='flex';
+const modalOpen=()=>sheetOpen()||$('#upm').classList.contains('show')||$('#busy').classList.contains('show')||$('#viewer').style.display==='flex'||$('#dev').classList.contains('show');
 
 function uniqueName(name,pid,except){
   const names=new Set(items.filter(i=>!i.deleted_at&&(i.parent_id||null)===(pid||null)&&i.id!==except).map(i=>i.name));
@@ -484,7 +514,7 @@ function renderTool(){
   let h='';
   if(t)h+='<button class="tbtn pc'+d+'" data-t="restore">'+ic('restore')+'복원</button><button class="tbtn pc dng'+d+'" data-t="perm">'+ic('trash')+'영구 삭제</button><button class="tbtn" data-t="empty">'+ic('trash')+'휴지통 비우기</button>';
   else{
-    if(can)h+='<button class="tbtn pri" data-t="mkdir">'+ic('fplus')+'새 폴더</button><button class="tbtn pri" data-t="upload">'+ic('upload')+'업로드</button><span class="tsep pc"></span>';
+    if(can)h+='<button class="tbtn pri" data-t="mkdir">'+ic('fplus')+'새 폴더</button><button class="tbtn pri" data-t="upload">'+ic('upload')+'업로드</button>'+(devOk()?'<button class="tbtn" data-t="dev">'+ic('folder')+'내 기기</button>':'')+'<span class="tsep pc"></span>';
     h+='<button class="tbtn pc'+d+'" data-t="cut">'+ic('cut')+'잘라내기</button><button class="tbtn pc'+d+'" data-t="copy">'+ic('copy')+'복사</button>'
       +(can?'<button class="tbtn pc'+(clip?'':' dis')+'" data-t="paste">'+ic('paste')+'붙여넣기</button>':'')
       +'<button class="tbtn pc'+d+'" data-t="rename">'+ic('edit')+'이름 바꾸기</button><button class="tbtn pc'+d+'" data-t="down">'+ic('download')+'다운로드</button><button class="tbtn pc dng'+d+'" data-t="trash">'+ic('trash')+'삭제</button><span class="tsep pc"></span>';
@@ -833,6 +863,73 @@ $('#upX').onclick=()=>{
   if(upBusy){upCancel=true;if(upXhr)try{upXhr.abort();}catch(e){}}
   else $('#upm').classList.remove('show');
 };
+/* ───────── 내 기기 폴더 ───────── */
+const devOk=()=>typeof window.showDirectoryPicker==='function';
+let devStack=[],devEnts=[],devSel=new Set();
+function devClose(){$('#dev').classList.remove('show');}
+async function devOpen(){
+  if(!devOk()){toast('이 브라우저는 기기 폴더 열기를 지원하지 않습니다 (PC·안드로이드 Chrome)');return;}
+  if(tab!=='files'||q){toast('폴더를 연 상태에서 사용할 수 있습니다');return;}
+  $('#dev').classList.add('show');
+  if(devStack.length)await devLoad();else devRender();
+}
+async function devPick(){
+  try{const h=await window.showDirectoryPicker({mode:'read'});devStack=[h];await devLoad();}
+  catch(e){if(e&&e.name!=='AbortError')toast('폴더를 열 수 없습니다');}
+}
+async function devLoad(){
+  const h=devStack[devStack.length-1],out=[];
+  try{for await(const [name,eh] of h.entries())out.push({name,kind:eh.kind==='directory'?'folder':'file',h:eh,size:0,mime:''});}
+  catch(e){toast('폴더를 읽을 수 없습니다');}
+  await Promise.all(out.filter(o=>o.kind==='file').map(async o=>{try{const f=await o.h.getFile();o.size=f.size;o.mime=f.type||'';}catch(e){}}));
+  out.sort((a,b)=>a.kind!==b.kind?(a.kind==='folder'?-1:1):a.name.localeCompare(b.name,'ko',{numeric:true}));
+  devEnts=out;devSel.clear();devRender();
+}
+function devRender(){
+  const has=devStack.length>0;
+  $('#dcrumb').innerHTML=has?devStack.map((h,i)=>(i?'<span class="sep">\\</span>':'')+'<span data-di="'+i+'"'+(i===devStack.length-1?' class="cur"':'')+'>'+esc(h.name||'기기')+'</span>').join(''):'<span class="cur">폴더를 선택하세요</span>';
+  if(!has){
+    $('#dls').innerHTML='<div id="dempty">내 기기의 폴더를 하나 열면<br>그 안의 폴더·파일을 둘러보고<br>골라서 서버로 올릴 수 있습니다.<br><button class="btn" id="dPick2">기기 폴더 열기</button></div>';
+    $('#dbar').innerHTML='';return;
+  }
+  $('#dls').innerHTML=devEnts.length?devEnts.map((o,i)=>'<div class="row'+(devSel.has(i)?' on':'')+'" data-i="'+i+'"><span class="dck" data-ck="'+i+'">✓</span><span class="ic" style="display:flex">'+iconOf(o,34)+'</span><div class="nm"><div class="n">'+esc(o.name)+'</div><div class="m">'+(o.kind==='folder'?'폴더':fmtSize(o.size))+'</div></div>'+(o.kind==='folder'?'<span style="color:var(--sub);padding:0 12px">'+ic('chr')+'</span>':'')+'</div>').join(''):'<div id="dempty">비어 있는 폴더입니다.</div>';
+  const n=devSel.size,tgt=cwd&&idx.get(cwd)?idx.get(cwd).name:'파일저장소';
+  $('#dbar').innerHTML='<div class="dt">올릴 곳: '+esc(tgt)+(n?' · '+n+'개 선택':'')+'</div><button class="al" id="dAll">'+(n===devEnts.length&&n?'선택 해제':'전체 선택')+'</button><button class="go" id="dGo"'+(devEnts.length?'':' disabled')+'>'+(n?'선택 '+n+'개 올리기':'이 폴더 전체 올리기')+'</button>';
+}
+async function devEnter(i){const o=devEnts[i];if(!o||o.kind!=='folder')return;devStack.push(o.h);await devLoad();}
+async function devUp(i){devStack=devStack.slice(0,i+1);await devLoad();}
+async function devUpload(){
+  const ents=devSel.size?[...devSel].map(i=>devEnts[i]):devEnts;
+  if(!ents.length)return;
+  if(upBusy){toast('업로드가 진행 중입니다');return;}
+  const out={files:[],dirs:[]};
+  showBusy('기기 폴더를 읽는 중',0,'');
+  try{
+    const walk=async(h,path)=>{
+      if(h.kind==='file'){out.files.push({file:await h.getFile(),path});return;}
+      const np=path.concat(h.name);out.dirs.push(np);
+      for await(const [,c] of h.entries())await walk(c,np);
+    };
+    for(const e of ents)await walk(e.h,[]);
+  }catch(e){hideBusy();toast('기기 폴더를 읽지 못했습니다');return;}
+  hideBusy();devClose();
+  uploadList(out.files,cwd,out.dirs);
+}
+$('#dClose').onclick=devClose;
+$('#dPick').onclick=devPick;
+$('#dcrumb').addEventListener('click',e=>{const s=e.target.closest('[data-di]');if(s&&!s.classList.contains('cur'))devUp(+s.dataset.di);});
+$('#dls').addEventListener('click',e=>{
+  if(e.target.closest('#dPick2')){devPick();return;}
+  const r=e.target.closest('.row');if(!r)return;
+  const i=+r.dataset.i;
+  if(e.target.closest('[data-ck]')||devEnts[i].kind==='file'){devSel.has(i)?devSel.delete(i):devSel.add(i);devRender();}
+  else devEnter(i);
+});
+$('#dbar').addEventListener('click',e=>{
+  if(e.target.closest('#dGo'))devUpload();
+  else if(e.target.closest('#dAll')){if(devSel.size===devEnts.length)devSel.clear();else devEnts.forEach((_,i)=>devSel.add(i));devRender();}
+});
+
 function pickFiles(list){return Array.from(list||[]).map(f=>({file:f,path:[]}));}
 function pickDir(list){
   return Array.from(list||[]).map(f=>{const p=(f.webkitRelativePath||'').split('/');p.pop();return {file:f,path:p};});
@@ -865,6 +962,7 @@ function uploadSheet(){
   if(!finePtr()){h+='<div class="it" data-act="gal">'+ic('image')+'사진·동영상 올리기 (여러 개 선택)</div><div class="it" data-act="cam">'+ic('camera')+'사진 촬영</div>';}
   else h+='<div class="it" data-act="gal">'+ic('image')+'사진·동영상 올리기</div>';
   if(finePtr()&&wide())h+='<div class="it" data-act="dir">'+ic('folder')+'폴더 통째로 올리기</div>';
+  if(devOk())h+='<div class="it" data-act="dev">'+ic('folder')+'내 기기 폴더 열기</div>';
   h+='<div class="it" data-act="nf">'+ic('fplus')+'새 폴더 만들기</div>';
   sheet('올리기 — '+(cwd?idx.get(cwd).name:'내 파일'),h);
 }
@@ -948,6 +1046,7 @@ function act(k,id){
   switch(k){
     case 'mkdir':newFolder();break;
     case 'upload':uploadSheet();break;
+    case 'dev':devOpen();break;
     case 'cut':case 'copy':if(!need())return;clip={ids,cut:k==='cut'};exitSel();render();toast(ids.length+'개 '+(k==='cut'?'잘라냄':'복사함')+' — 붙여넣을 폴더를 여세요');break;
     case 'paste':paste();break;
     case 'rename':if(!need())return;if(ids.length!==1){toast('이름은 항목 하나씩 바꿀 수 있습니다');return;}renameItem(ids[0]);break;
@@ -1114,6 +1213,7 @@ $('#sh').addEventListener('click',async e=>{
   if(a==='gal'){closeSheet();$('#gi').click();return;}
   if(a==='cam'){closeSheet();$('#ci').click();return;}
   if(a==='dir'){closeSheet();$('#di').click();return;}
+  if(a==='dev'){closeSheet();devOpen();return;}
   closeSheet();
   if(a==='nf')newFolder();
   else if(a==='x'){const k=el.dataset.k,id=el.dataset.id;if(id)act(k,id);else act(k);}
@@ -1192,6 +1292,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     if($('#viewer').style.display==='flex'){closeViewer();return;}
     if(sheetOpen()){closeSheet();return;}
+    if($('#dev').classList.contains('show')){devClose();return;}
     closeCtx();if(selMode||sel.size){exitSel();render();}return;
   }
   if($('#viewer').style.display==='flex'){

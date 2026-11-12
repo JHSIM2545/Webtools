@@ -24,6 +24,7 @@
         <package android:name="kr.simtools.orchestra" />
         <package android:name="kr.simtools.radio" />
         <package android:name="kr.simtools.calc" />
+        <package android:name="kr.simtools.teams" />
         <package android:name="kr.simtools.map" />
         <package android:name="kr.simtools.simpad" />
         <package android:name="kr.simtools.launcher" />

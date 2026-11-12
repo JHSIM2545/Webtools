@@ -16,3 +16,9 @@ elif grep -qi 'not found' <<<"$out"; then
 else
   echo "::error::릴리스 조회 실패: $out"; exit 1
 fi
+
+# (일회성) .github/reset-versions.json 이 있으면 버전표를 그 값으로 되돌려 '기준선'으로 삼는다. 쓰고 나면 파일을 지운다.
+if [ -f .github/reset-versions.json ]; then
+  jq --slurpfile r .github/reset-versions.json '$r[0] as $r | .apps |= with_entries(.value.h = "legacy" | .value.v = ($r.versions[.key] // $r.default) | .value.n = "1.0." + (.value.v|tostring))' prev.json > prev.reset.json && mv prev.reset.json prev.json
+  echo "::notice::버전표를 reset-versions.json 기준으로 되돌렸습니다"
+fi

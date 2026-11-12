@@ -71,7 +71,7 @@ jobs:
         id: ver
         run: |
           cp "$(find android/shell/build/outputs/apk -name '*.apk' | head -n1)" probe.apk
-          .github/scripts/apk-version.sh "${{ matrix.key }}" probe.apk out
+          .github/scripts/apk-version.sh "${{ matrix.key }}" probe.apk out android/shell/build.gradle
       - name: APK 빌드 (새 버전일 때만)
         if: steps.ver.outputs.build == '1'
         run: >
@@ -115,7 +115,7 @@ jobs:
         id: ver
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk probe.apk
-          .github/scripts/apk-version.sh pad probe.apk out
+          .github/scripts/apk-version.sh pad probe.apk out android/app/build.gradle
       - name: APK 빌드 (새 버전일 때만)
         if: steps.ver.outputs.build == '1'
         run: gradle -p android :app:assembleDebug --no-daemon --stacktrace -PverCode=${{ steps.ver.outputs.v }} -PbuildTime=${{ steps.ver.outputs.t }} -PverName=${{ steps.ver.outputs.n }}

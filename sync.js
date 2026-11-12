@@ -232,6 +232,7 @@
       const inst = mk('btnInstallMenu', '<span>📲 앱 설치</span>', () => { pop.style.display = 'none'; const bi = $('btnInstall'); if (bi) bi.click(); });
       const paintInst = () => { const bi = $('btnInstall'); inst.style.display = bi && bi.style.display !== 'none' ? 'flex' : 'none'; };
       mb.addEventListener('click', paintInst); paintInst();
+      mk('btnApk', '<span>📥 SIM PAD 안드로이드 앱 받기 (APK)</span>', () => { pop.style.display = 'none'; const l = document.createElement('a'); l.href = 'https://github.com/JHSIM2545/Webtools/releases/download/simpad-latest/SIM-PAD.apk'; l.download = 'SIM-PAD.apk'; l.rel = 'noopener'; document.body.appendChild(l); l.click(); l.remove(); });
       const hr = document.createElement('div'); hr.style.cssText = 'height:1px;background:var(--line);margin:4px 6px'; pop.appendChild(hr);
       const it = mk('btnSync', '<span>🔄 기기 동기화</span>', () => { pop.style.display = 'none'; menu(); });
       paintMv();

@@ -91,6 +91,8 @@ input[type=text]:focus{border-color:var(--accent)}
 .sw input:checked::after{left:22px}
 .pri{background:linear-gradient(180deg,#8f8a74,#7d7966);border-color:var(--accent);color:#fff;font-weight:700;padding:12px;border-radius:10px;font-size:15px}
 .dang{color:var(--danger)}
+a.apk{display:block;text-align:center;text-decoration:none;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 12px}
+a.apk:hover{border-color:var(--accent)}
 .note{font-size:12.5px;color:var(--sub);line-height:1.55}
 .note b{color:var(--text)}
 .note ol{padding-left:18px;display:flex;flex-direction:column;gap:4px}
@@ -203,6 +205,7 @@ input[type=text]:focus{border-color:var(--accent)}
   <h3>연결</h3>
   <button id="bCode">연결 코드 입력·변경</button>
   <button id="bHelp">PC 프로그램 설치 방법</button>
+  <a id="bApk" class="apk" href="https://github.com/JHSIM2545/Webtools/releases/download/simpad-latest/SIM-PAD.apk" download="SIM-PAD.apk" rel="noopener">안드로이드 앱(APK) 받기 · 차량 블루투스용</a>
   <button id="bGest">제스처 안내</button>
   <button class="dang" id="bUnpair">연결 해제 (코드 삭제)</button>
 </div></div>
@@ -555,7 +558,7 @@ if (BT) {
   $('stat').onclick = () => { btRefresh(); open('ovBt'); };
   $('bCode').textContent = '블루투스 연결 (차량 선택)';
   $('bCode').onclick = () => { close('ovSet'); btRefresh(); open('ovBt'); };
-  $('bHelp').style.display = 'none'; $('bUnpair').style.display = 'none';
+  $('bHelp').style.display = 'none'; $('bApk').style.display = 'none'; $('bUnpair').style.display = 'none';
   $('btDisc').onclick = () => { try { window.SimPadBT.discoverable(); } catch (e) {} };
   $('btSet').onclick = () => { try { window.SimPadBT.btSettings(); } catch (e) {} };
   $('btList').addEventListener('click', e => { const b = e.target.closest('[data-addr]'); if (!b) return; try { b.dataset.c === '1' ? window.SimPadBT.disconnect(b.dataset.addr) : window.SimPadBT.connect(b.dataset.addr); } catch (er) {} toast('요청했습니다'); setTimeout(btRefresh, 1500); });

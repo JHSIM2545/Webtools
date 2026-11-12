@@ -6,7 +6,7 @@
   const URL_ = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-sync';
   const DBS = ['simmemo', 'simphone', 'simaitel', 'simcalendar', 'simassistant', 'simorch-img', 'simmap'];
   const BG = /[?&]bg=1/.test((document.currentScript && document.currentScript.src) || '');   // 도구 화면에서 불러오면 화면 없이 계정 동기화만 한다
-  const LS_JSON = ['onlineTv.v1', 'simcal_types', 'simmsg_opts', 'simmsg_sender', 'simorch.v1', 'simorch.q.v1', 'simorch.set.v1', 'simkbo.team', 'simkbo.asked', 'simradio.v1', 'simcalc.v1', 'SIMPH_CARDOPT', 'SIMAS_AUTOSEND', 'SIMAS_TTS', 'SIMAS_WAKE', 'simtools_order'], LS_FILL = ['SIMAS_AI_PHONE', 'S1_KAKAO_MAP_KEY'], LS_KB = 'simas_memory', BASE_KEY = 'SIM_SYNC_BASE', CHUNK = 380000;
+  const LS_JSON = ['onlineTv.v1', 'simcal_types', 'simmsg_opts', 'simmsg_sender', 'simorch.v1', 'simorch.q.v1', 'simorch.set.v1', 'simkbo.team', 'simkbo.asked', 'simradio.v1', 'simcalc.v1', 'SIMPH_CARDOPT', 'SIMAS_AUTOSEND', 'SIMAS_TTS', 'SIMAS_WAKE', 'simtools_order', 'simpad.v1'], LS_FILL = ['SIMAS_AI_PHONE', 'S1_KAKAO_MAP_KEY'], LS_KB = 'simas_memory', BASE_KEY = 'SIM_SYNC_BASE', CHUNK = 380000;
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const lget = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };

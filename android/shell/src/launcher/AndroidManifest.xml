@@ -3,4 +3,22 @@
     <!-- 런처만: 다른 SIM 앱 APK 를 내려받아 설치·제거 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+
+    <application>
+        <!-- 브라우저에서 구글 로그인을 마친 뒤 kr.simtools.launcher://auth 로 앱에 돌아온다 -->
+        <activity android:name=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="kr.simtools.launcher" android:host="auth" />
+            </intent-filter>
+        </activity>
+
+        <!-- 도구 앱들이 로그인 세션을 가져가는 창구 (같은 서명키 앱만 허용) -->
+        <provider
+            android:name=".SessionProvider"
+            android:authorities="kr.simtools.launcher.session"
+            android:exported="true" />
+    </application>
 </manifest>

@@ -9,6 +9,24 @@
 <meta name="apple-mobile-web-app-title" content="SIM Tools">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>SIM Tools</title>
+<script>
+/* 안드로이드 앱의 구글 로그인: app-login.html 로 시작한 브라우저가 여기로 돌아오면 로그인 정보를 SIM Tools 앱으로 넘기고 브라우저에는 남기지 않는다 */
+(function () {
+  try {
+    var h = location.hash || '', t = +localStorage.getItem('simapp_oauth') || 0;
+    if (window.SimLauncher || !t || Date.now() - t > 15 * 60e3 || !/access_token=/.test(h) || !/refresh_token=/.test(h)) return;
+    localStorage.removeItem('simapp_oauth');
+    var p = new URLSearchParams(h.slice(1));
+    var url = 'intent://auth?access_token=' + encodeURIComponent(p.get('access_token')) + '&refresh_token=' + encodeURIComponent(p.get('refresh_token')) + '#Intent;scheme=kr.simtools.launcher;package=kr.simtools.launcher;end';
+    window.__simHandoff = url;
+    history.replaceState(null, '', location.pathname + location.search);
+    document.addEventListener('DOMContentLoaded', function () {
+      document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;background:#0f1117;color:#e8eaf0;font-family:sans-serif"><div><div style="font-size:42px">✅</div><h2 style="margin:10px 0 6px;font-size:18px">구글 로그인 완료</h2><p style="margin:0 0 16px;color:#8b92a8;font-size:14px;line-height:1.5">SIM Tools 앱으로 돌아가는 중이에요.<br>자동으로 열리지 않으면 아래 버튼을 눌러 주세요.</p><a href="' + url + '" style="display:inline-block;padding:11px 20px;border-radius:10px;background:#2f6fe8;color:#fff;text-decoration:none;font-weight:600">SIM Tools 앱으로 돌아가기</a></div></div>';
+    });
+    location.href = url;
+  } catch (e) {}
+})();
+</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/svg+xml" href="icon.svg">
@@ -42,6 +60,7 @@ a.card:hover{border-color:var(--accent);transform:translateY(-2px)}
 a.card:active{transform:scale(.98)}
 a.card.dragging{position:relative;z-index:30;transition:none;pointer-events:none;border-color:var(--accent);box-shadow:0 16px 36px rgba(0,0,0,.6);opacity:.97}
 body.dragmode,body.dragmode *{cursor:grabbing!important;-webkit-user-select:none;user-select:none}
+body.moveon a.card{touch-action:none}
 .reorder{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--sub)}
 .reorder:empty{display:none}
 .reorder button{padding:2px 10px;font-size:12px;border-radius:99px}
@@ -339,16 +358,17 @@ button.danger{color:#ff8a8a}
      마우스: 6px 이상 끌면 시작. 터치: 0.4초 길게 누른 뒤 끌기(그 전에 움직이면 일반 스크롤).
      검색 중에는 일부만 보이므로 끌기를 막는다. */
   const grid = $('grid');
+  document.body.classList.toggle('moveon', moveOn());
   let D = null, suppressClick = 0;
   grid.addEventListener('click', e => { if (Date.now() < suppressClick) { e.preventDefault(); e.stopPropagation(); } }, true);
   grid.addEventListener('dragstart', e => e.preventDefault());
-  grid.addEventListener('contextmenu', e => { if (D) e.preventDefault(); });
+  grid.addEventListener('contextmenu', e => { if (D || moveOn()) e.preventDefault(); });   // 길게 누를 때 뜨는 메뉴·선택을 막는다
   grid.addEventListener('pointerdown', e => {
     if (D || $('q').value.trim() || !moveOn()) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const el = e.target.closest && e.target.closest('a.card'); if (!el) return;
     D = { el, pid: e.pointerId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, gx: 0, gy: 0, active: false, type: e.pointerType, timer: 0, raf: 0 };
-    if (e.pointerType !== 'mouse') D.timer = setTimeout(startDrag, 400);
+    if (e.pointerType !== 'mouse') D.timer = setTimeout(startDrag, 250);
   });
   document.addEventListener('pointermove', e => {
     if (!D || e.pointerId !== D.pid) return;
@@ -356,7 +376,7 @@ button.danger{color:#ff8a8a}
     if (!D.active) {
       const mv = Math.hypot(D.x - D.sx, D.y - D.sy);
       if (D.type === 'mouse') { if (mv > 6) startDrag(); }
-      else if (mv > 10) { clearTimeout(D.timer); D = null; }   // 길게 누르기 전에 움직였으면 스크롤로 본다
+      else if (mv > 8) startDrag();   // 이동 모드에서는 카드에서 터치 스크롤을 막아 두었으므로 조금만 끌어도 바로 시작
       return;
     }
     e.preventDefault(); moveDrag();
@@ -427,7 +447,7 @@ button.danger{color:#ff8a8a}
     openAi: () => openAiModal('gemini'),
     resetOrder: () => { lsDel(KEY_ORDER); render(); toast('카드 순서를 기본으로 되돌렸어요'); },
     moveOn,
-    setMove: on => { lsSet(KEY_MOVE, on ? '1' : '0'); toast(on ? '카드 이동 켜짐 — 카드를 길게(PC는 끌어서) 옮겨요' : '카드 이동 꺼짐'); }
+    setMove: on => { lsSet(KEY_MOVE, on ? '1' : '0'); document.body.classList.toggle('moveon', !!on); toast(on ? '카드 이동 켜짐 — 카드를 끌어서 옮겨요' : '카드 이동 꺼짐'); }
   };
 
   /* ── 앱 설치 (PWA) ── */

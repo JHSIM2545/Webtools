@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>SIM Tools 구글 로그인</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;background:#0f1117;color:#e8eaf0;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+  p{color:#8b92a8;font-size:14px;line-height:1.6;margin:8px 0 0}
+  button{margin-top:16px;padding:11px 20px;border-radius:10px;border:0;background:#2f6fe8;color:#fff;font:inherit;font-weight:600}
+</style>
+</head>
+<body>
+<div>
+  <div style="font-size:42px">🔐</div>
+  <h2 style="margin:10px 0 0;font-size:18px">구글 로그인으로 이동 중…</h2>
+  <p id="msg">SIM Tools 앱 로그인을 위해 구글 계정 선택 화면을 엽니다.</p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* SIM Tools 안드로이드 앱 전용: 구글은 앱 안 WebView 에서의 로그인을 막으므로, 앱이 기본 브라우저로 이 페이지를 연다.
+   로그인을 마치면 index.html 로 돌아오고, 거기서 로그인 정보를 앱(kr.simtools.launcher)으로 넘긴다. */
+(async () => {
+  const msg = document.getElementById('msg');
+  try {
+    if (!window.supabase) throw new Error('로그인 모듈을 불러오지 못했어요 (인터넷 확인)');
+    const c = supabase.createClient('https://rgamgjdnhunzzwzsbnbs.supabase.co', 'sb_publishable_hnBcVEuMXFRdFRqJhOM0OQ_rp72JywU', { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    localStorage.setItem('simapp_oauth', String(Date.now()));
+    const r = await c.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: new URL('index.html', location.href).href, queryParams: { prompt: 'select_account' } } });
+    if (r.error) throw r.error;
+  } catch (e) {
+    localStorage.removeItem('simapp_oauth');
+    msg.textContent = '구글 로그인을 시작하지 못했어요: ' + (e.message || e);
+    const b = document.createElement('button'); b.textContent = '다시 시도'; b.onclick = () => location.reload(); msg.parentNode.appendChild(b);
+  }
+})();
+</script>
+</body>
+</html>

@@ -26,6 +26,8 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -152,8 +154,62 @@ public class MainActivity extends Activity {
             }
         });
 
+        web.addJavascriptInterface(new SessionBridge(), "SimSession");
         Extra.attach(this, web);
+        handleAuth(getIntent());
         web.loadUrl(BuildConfig.START_URL);
+    }
+
+    /** 로그인 세션 공유(런처가 보관, 도구 앱은 런처에서 받아 씀) + 구글 로그인용 브라우저 열기 */
+    private class SessionBridge {
+        @JavascriptInterface public String get() { return SessionStore.get(MainActivity.this); }
+
+        @JavascriptInterface public void put(String json) {
+            if (json != null && json.startsWith("{")) SessionStore.put(MainActivity.this, json);
+        }
+
+        /** 런처에서 로그아웃하면 "OUT" 으로 표시해 도구 앱들도 로그아웃되게 한다 */
+        @JavascriptInterface public void clear() {
+            if (BuildConfig.IS_LAUNCHER) SessionStore.put(MainActivity.this, "OUT");
+        }
+
+        /** 구글은 앱 안 WebView 로그인을 막으므로 기본 브라우저에서 진행 (우리 사이트 주소만 허용) */
+        @JavascriptInterface public void openBrowser(final String url) {
+            if (url == null || !url.startsWith(BASE)) return;
+            runOnUiThread(() -> {
+                try {
+                    Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "브라우저를 열 수 없습니다", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+    }
+
+    /** 브라우저에서 구글 로그인을 마치고 kr.simtools.launcher://auth?... 로 돌아온 경우 세션을 저장하고 화면에 알린다 */
+    private void handleAuth(Intent i) {
+        if (!BuildConfig.IS_LAUNCHER || i == null) return;
+        Uri d = i.getData();
+        if (d == null || !"kr.simtools.launcher".equals(d.getScheme()) || !"auth".equals(d.getHost())) return;
+        String at = d.getQueryParameter("access_token"), rt = d.getQueryParameter("refresh_token");
+        i.setData(null);
+        if (at == null || rt == null) return;
+        try {
+            JSONObject o = new JSONObject();
+            o.put("access_token", at);
+            o.put("refresh_token", rt);
+            SessionStore.put(this, o.toString());
+        } catch (Exception e) { return; }
+        if (web != null) web.post(() -> web.evaluateJavascript("window.__simAuthReturn&&window.__simAuthReturn()", null));
+    }
+
+    @Override
+    protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        setIntent(i);
+        handleAuth(i);
     }
 
     private boolean granted(String p) { return checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED; }

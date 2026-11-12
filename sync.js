@@ -210,7 +210,11 @@
     const b = modal('기기 동기화', '<p>모바일과 PC의 <b>모든 데이터</b>(메모·연락처·일정·알람·AI-Tel·어시스턴트 기억·TV 설정)를 서로 맞춰요. 한쪽에서 QR을 보여주고 다른 쪽에서 찍으면 같은 사용자의 기기로 확인돼요. 내용은 QR 안의 키로 암호화돼서 서버도 읽을 수 없어요.</p><div style="display:flex;flex-direction:column;gap:8px;margin-top:12px"><button id="syA" style="background:var(--accent2);border-color:var(--accent2);font-weight:700">QR 보여주기 (이 기기에서 시작)</button><button id="syB">QR 스캔하기 (다른 기기 QR 찍기)</button></div><div style="margin-top:12px"><input id="syC" placeholder="또는 QR 주소/코드를 붙여넣기" style="width:100%;font:inherit;font-size:13px;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px"><button id="syD" style="margin-top:6px;width:100%">붙여넣은 코드로 연결</button></div><p style="' + sub + ';margin-top:10px">동기화 전에 다른 도구 창은 닫아 주세요. 열려 있으면 나중에 예전 내용으로 덮어쓸 수 있어요.</p><div style="margin-top:6px;text-align:right"><button id="syX">닫기</button></div>');
     b.querySelector('#syA').onclick = show; b.querySelector('#syB').onclick = scan; b.querySelector('#syX').onclick = close; b.querySelector('#syD').onclick = () => join(b.querySelector('#syC').value);
   }
+  window.__simAuthReturn = async () => {   // 브라우저 구글 로그인 후 앱으로 돌아옴: 런처가 받은 세션을 이 화면에도 적용
+    try { close(); const c = await client(); await nativeInit(c); } catch (e) {}
+  };
   function boot() {
+    if (window.__simHandoff) return;   // 브라우저에서 앱으로 로그인 정보를 넘기는 중
     if (BG) return bgBoot();
     const hd = document.querySelector('header'), ins = $('btnInstall');
     if (!$('simHdStyle')) { const st = document.createElement('style'); st.id = 'simHdStyle'; st.textContent = 'header button{white-space:nowrap}#btnAcct{flex:none;max-width:132px;overflow:hidden;text-overflow:ellipsis}@media(max-width:480px){#btnInstall{display:none!important}#btnAcct{max-width:104px}}'; document.head.appendChild(st); }
@@ -251,7 +255,43 @@
   const C_URL = 'https://rgamgjdnhunzzwzsbnbs.supabase.co', C_KEY = 'sb_publishable_hnBcVEuMXFRdFRqJhOM0OQ_rp72JywU', C_BUCKET = 'sim-sync', C_BASE = 'SIM_CLOUD_BASE', C_LAST = 'SIM_CLOUD_LAST';
   let sb = null, cUser = null, cBusy = false, cTimer = null;
   const loadSB = () => window.supabase ? Promise.resolve() : new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; s.onload = ok; s.onerror = () => no(new Error('로그인 모듈을 불러오지 못했어요 (인터넷 확인)')); document.head.appendChild(s); });
-  async function client() { if (sb) return sb; await loadSB(); sb = supabase.createClient(C_URL, C_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }); return sb; }
+  /* 안드로이드 앱: 앱(런처·도구)마다 저장소가 따로라서 로그인 세션을 런처가 한 곳에 보관하고(SimSession) 모든 앱이 그걸 받아 쓴다.
+     refresh 토큰이 둘로 갈라져 서로를 로그아웃시키지 않도록, 앱에서는 자동 갱신 타이머를 끄고 동기화 직전에 런처의 최신 세션을 먼저 받는다. */
+  const NS = window.SimSession || null, IS_L = !!window.SimLauncher;
+  async function nativeInit(c) {   // 반환: 'in'(새로 로그인됨) · 'sw'(세션 교체) · 'out'(로그아웃됨) · ''(변화 없음)
+    if (!NS) return '';
+    let raw; try { raw = NS.get(); } catch (e) { return ''; }
+    if (raw == null || raw === 'NA') return '';   // 런처가 없거나 조회 실패 → 이 앱 자신의 세션을 그대로 쓴다
+    let cur = null; try { cur = (await c.auth.getSession()).data.session; } catch (e) {}
+    if (raw === '' || raw === 'OUT') {
+      if (!cur) return '';
+      if (IS_L) { nativePut(cur); return ''; }   // 런처: 이미 로그인돼 있는데 보관본이 없으면(업데이트 직후) 채워 넣는다
+      if (raw === 'OUT') { lset('SIM_LOGGED_OUT', '1'); try { await c.auth.signOut({ scope: 'local' }); } catch (e) {} return 'out'; }   // 런처에서 로그아웃함 → 이 앱 데이터도 지우도록 표시
+      return '';
+    }
+    let t; try { t = JSON.parse(raw); } catch (e) { return ''; }
+    if (!t || !t.refresh_token || (cur && cur.refresh_token === t.refresh_token)) return '';
+    try { const r = await c.auth.setSession({ access_token: t.access_token, refresh_token: t.refresh_token }); if (r.error || !r.data.session) return ''; } catch (e) { return ''; }
+    try { localStorage.removeItem('SIM_LOGGED_OUT'); } catch (e) {}
+    return cur ? 'sw' : 'in';
+  }
+  function nativePut(s) { if (NS && s && s.refresh_token) { try { NS.put(JSON.stringify({ access_token: s.access_token, refresh_token: s.refresh_token })); } catch (e) {} } }
+  let sbP = null;
+  function client() {
+    return sbP || (sbP = (async () => {
+      await loadSB();
+      const c = supabase.createClient(C_URL, C_KEY, { auth: { persistSession: true, autoRefreshToken: !NS, detectSessionInUrl: !NS } });
+      if (NS) {
+        c.auth.onAuthStateChange((ev, s) => { if (s && (ev === 'SIGNED_IN' || ev === 'TOKEN_REFRESHED')) nativePut(s); else if (ev === 'SIGNED_OUT' && IS_L) { try { NS.clear(); } catch (e) {} } });   // 갱신된 토큰은 즉시 런처 보관본에 되돌려 둔다
+        await nativeInit(c);
+        document.addEventListener('visibilitychange', async () => {   // 앱으로 돌아올 때 런처의 최신 세션으로 맞춘다
+          if (document.hidden) return; const r = await nativeInit(c);
+          if (!IS_L && (r === 'out' || r === 'in')) location.reload();   // 도구 화면: 로그인/로그아웃 상태가 바뀌었으니 다시 불러온다
+        });
+      }
+      sb = c; return c;
+    })().catch(e => { sbP = null; throw e; }));
+  }
   const normPhone = v => { let d = String(v || '').replace(/[^\d+]/g, ''); if (d.startsWith('+')) return d; if (d.startsWith('00')) return '+' + d.slice(2); if (d.startsWith('0')) return '+82' + d.slice(1); return d ? '+82' + d : ''; };
   const who = u => { if (!u) return ''; const m = u.user_metadata || {}; return String(m.display_name || m.full_name || m.name || (u.email ? u.email.split('@')[0] : '') || '로그인됨').trim().slice(0, 12); };
   const gz = async o => { let u = new TextEncoder().encode(JSON.stringify(o)); if (typeof CompressionStream !== 'undefined') u = await pipe(u, CompressionStream); return u; };
@@ -259,7 +299,7 @@
   async function cloudSync(opt) {   // 서버 스냅샷 받기 → 병합 → 이 기기에 반영 → 변화가 있으면 다시 올리기
     if (cBusy || !cUser) return null; cBusy = true;
     try {
-      const c = await client(), path = cUser.id + '/snapshot.gz', L = await collect();
+      const c = await client(); await nativeInit(c); const path = cUser.id + '/snapshot.gz', L = await collect();
       let P = null; const dl = await c.storage.from(C_BUCKET).download(path);
       if (dl.data) P = await ungz(dl.data); else if (dl.error && !/not.?found|404|Object/i.test(dl.error.message || '') && dl.error.statusCode !== '404') throw dl.error;
       let F = L, st = { put: 0, del: 0 };
@@ -304,7 +344,9 @@
     };
     b.querySelector('#acIn').onclick = () => go(false); b.querySelector('#acUp').onclick = () => go(true);
     b.querySelector('#acPw').addEventListener('keydown', e => { if (e.key === 'Enter') go(false); });
-    b.querySelector('#acGoogle').onclick = async () => { try { const c = await client(), r = await c.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname.replace(/[^/]*$/, 'index.html') } }); if (r.error) throw r.error; } catch (e) { say('구글 로그인을 시작하지 못했어요: ' + (e.message || e), 1); } };
+    b.querySelector('#acGoogle').onclick = async () => {
+      if (NS && NS.openBrowser) { say('브라우저가 열려요. 구글 로그인을 마치면 이 앱으로 돌아와요.'); try { NS.openBrowser(new URL('app-login.html', location.href).href); } catch (e) { say('브라우저를 열지 못했어요: ' + (e.message || e), 1); } return; }   // 구글은 앱 안(WebView) 로그인을 막는다
+      try { const c = await client(), r = await c.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname.replace(/[^/]*$/, 'index.html') } }); if (r.error) throw r.error; } catch (e) { say('구글 로그인을 시작하지 못했어요: ' + (e.message || e), 1); } };
   }
   /* ── 로그아웃: 서버에 마지막 백업 → 이 기기의 모든 데이터 삭제 → 로그아웃 ── */
   async function wipeLocal() {
@@ -329,6 +371,7 @@
   async function finishLogout() {
     const b = modal('로그아웃 중…', '<p>이 기기의 데이터를 지우는 중…</p>');
     cUser = null; clearInterval(cTimer);
+    if (NS && IS_L) { try { NS.clear(); } catch (e) {} }
     try { const c = await client(); await c.auth.signOut(); } catch (e) {}
     await wipeLocal();
     try { localStorage.setItem('SIM_LOGGED_OUT', '1'); } catch (e) {}

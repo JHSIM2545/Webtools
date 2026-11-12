@@ -511,7 +511,7 @@ audio{display:none}
     if (!mqWide.matches) { st.style.width = st.style.height = ''; rd.style.transform = ''; drawScale(); paintFreq(); return; }
     rd.style.transform = '';
     const cs = getComputedStyle(main), padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight), padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom), gap = parseFloat(cs.columnGap) || 14;
-    const availH = main.clientHeight - padY, availW = main.clientWidth - padX - gap - 270;   // 270px: 오른쪽 목록 최소 폭
+    const availH = (main.clientHeight - padY) * 0.94 - 8, availW = main.clientWidth - padX - gap - 270;   // 270px: 오른쪽 목록 최소 폭
     const nw = rd.offsetWidth, nh = rd.offsetHeight;
     const z = Math.max(.3, Math.min(availH / nh, availW / nw));
     rd.style.transform = 'scale(' + z.toFixed(4) + ')';

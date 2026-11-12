@@ -873,17 +873,19 @@ function callBtns(c, primary) {
 /* 검색 순서: ① 휴대폰 연락처(앱 APK의 SimContacts 연결부가 있을 때만 조용히 검색 가능) → ② SIM Phone.
    일반 브라우저는 웹 보안상 ①을 몰래 검색할 수 없어 ②를 먼저 보고, 없으면 연락처 선택 창을 연다. */
 let devPerm = null;   // 휴대폰 연락처 읽기 권한(앱 APK의 SimContacts). 거절하면 이번 실행 동안 다시 묻지 않는다.
+let devDiag = '';     // 마지막 휴대폰 연락처 검색 상태(못 찾았을 때 이유를 화면에 보여 줌)
 async function nativeFind(sl) {
+  devDiag = '';
   try {
-    const B = window.SimContacts; if (!(B && typeof B.all === 'function')) return [];
+    const B = window.SimContacts; if (!(B && typeof B.all === 'function')) { devDiag = '이 앱 버전에는 휴대폰 연락처 연결이 없어요(앱 업데이트 필요)'; return []; }
     if (!B.has()) {
-      if (devPerm === false) return [];
-      devPerm = await new Promise(res => { window.__simContactsPerm = res; B.request(); });
-      window.__simContactsPerm = null; if (!devPerm) return [];
+      if (devPerm === false) { devDiag = '휴대폰 연락처 권한이 거절돼 있어요(폰 설정 > 앱 > SIM Assistant > 권한)'; return []; }
+      devPerm = await new Promise(res => { window.__simContactsPerm = res; B.request(); setTimeout(() => res(false), 60000); });
+      window.__simContactsPerm = null; if (!devPerm) { devDiag = '휴대폰 연락처 권한이 허용되지 않았어요(폰 설정 > 앱 > SIM Assistant > 권한)'; return []; }
     }
     const list = JSON.parse(B.all() || '[]').map(x => ({ id: 'dev:' + x.n, name: x.n || '', company: x.c || '', title: x.t || '', mobile: (x.p || [])[0] || '', tel: '', email: '', address: '', memo: '', dev: true })).filter(c => c.name && c.mobile);
-    return searchContacts(sl, list);
-  } catch (e) { return []; }
+    const r = searchContacts(sl, list); devDiag = '휴대폰 연락처 ' + list.length + '명 중 일치 없음'; return r;
+  } catch (e) { devDiag = '휴대폰 연락처 읽기 오류: ' + (e && e.message || e); return []; }
 }
 async function lookupContacts(sl) {
   const d = await nativeFind(sl); if (d.length) return d;
@@ -907,10 +909,10 @@ async function devPick(intent, sl) {
 async function findFlow(intent, sl) {
   if (!sl.name) { pending = newP(intent, sl); pending.ask = 'findname'; pending.stage = 'fill'; return bot('누구를 ' + (intent === 'call' ? '찾아 전화할까요?' : '찾을까요?') + ' 이름을 말씀해 주세요.', { tok: pending.tok, btns: [{ label: '취소', fn: () => cancelP('취소했어요.') }] }); }
   const res = await lookupContacts(sl);
-  if (!res.length && !contacts.length) { pending = null; return bot('SIM Phone에 저장된 연락처가 없어요.' + (canDevPick() ? ' 휴대폰 연락처에서 ' + sl.name + '님을 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: 'SIM Phone', href: 'phone.html' }]) }); }
+  if (!res.length && !contacts.length) { pending = null; return bot('SIM Phone에 저장된 연락처가 없어요.' + (devDiag ? ' (' + devDiag + ')' : '') + (canDevPick() ? ' 휴대폰 연락처에서 ' + sl.name + '님을 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: 'SIM Phone', href: 'phone.html' }]) }); }
   if (!res.length) {
     pending = null;
-    return bot(sl.name + '님이 ' + (window.SimContacts ? '휴대폰 연락처와 ' : '') + 'SIM Phone에 없어요.' + (canDevPick() ? ' 휴대폰 연락처에서 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: sl.name + ' 저장하기', fn: () => { pending = newP('contact_add', { name: sl.name }); step(); } }]) });
+    return bot(sl.name + '님을 찾지 못했어요. (' + (devDiag ? devDiag + ' · ' : '') + 'SIM Phone에도 없음)' + (canDevPick() ? ' 휴대폰 연락처에서 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: sl.name + ' 저장하기', fn: () => { pending = newP('contact_add', { name: sl.name }); step(); } }]) });
   }
   const top = res.filter(c => searchContacts(sl).length && true);
   const exact = res.length === 1 || (NLU.digits(res[0].mobile) && false);

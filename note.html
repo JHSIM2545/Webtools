@@ -33,8 +33,12 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
 .spacer{flex:1}
 
 /* 목록 */
-.listwrap{flex:1;overflow-y:auto;padding:14px 14px calc(100px + env(safe-area-inset-bottom))}
-.fab{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom));width:60px;height:60px;padding:0;border-radius:50%;background:var(--accent2);border:none;color:#fff;font-size:34px;font-weight:300;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px #0009;z-index:30}
+.listwrap{flex:1;overflow-y:auto;padding:14px 14px calc(140px + env(safe-area-inset-bottom))}
+/* 아래 툴 메뉴 (파일 열기·새 폴더) — 동그란 + 버튼은 이 막대 오른쪽 끝에 떠 있다 */
+.ltools{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:8px 14px;padding-bottom:calc(8px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line)}
+.lt-in{max-width:960px;margin:0 auto;display:flex;gap:8px;padding-right:84px}
+.lt-in button{flex:0 1 auto;padding:11px 15px;font-size:14px}
+.fab{position:fixed;right:20px;bottom:calc(18px + env(safe-area-inset-bottom));width:60px;height:60px;padding:0;border-radius:50%;background:var(--accent2);border:none;color:#fff;font-size:34px;font-weight:300;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px #0009;z-index:30}
 .fab:hover{background:var(--accent);border:none}
 .fab:active{transform:scale(.94)}
 .search input{width:100%;max-width:960px;display:block;margin:0 auto 14px;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit;outline:none}
@@ -45,7 +49,34 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
 .ncard .th{aspect-ratio:240/340;background:#e9edf4;display:block;width:100%;object-fit:cover}
 .ncard .nm{padding:8px 10px 2px;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ncard .dt{padding:0 10px 9px;font-size:12px;color:var(--sub)}
-.ncard .del{position:absolute;top:6px;right:6px;padding:3px 7px;background:#000a;border-color:#0000;font-size:13px}
+.ncard .acts{position:absolute;top:6px;right:6px;display:flex;gap:4px}
+.ncard .acts button{padding:3px 7px;background:#000a;border-color:#0000;font-size:13px}
+.ncard .fav{position:absolute;top:6px;left:6px;padding:2px 8px;background:#000a;border-color:#0000;font-size:16px;line-height:1.3;color:#d5d9e6}
+.ncard .fav.on,#btnFav.on{color:#ffd43b}
+.sec{grid-column:1/-1;margin:8px 2px 0;font-size:13px;font-weight:600;color:var(--sub)}
+.sec:first-child{margin-top:0}
+.sec small{font-weight:500;opacity:.8;margin-left:3px}
+.fcard{display:flex;align-items:center;gap:10px;padding:12px 10px 12px 12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;cursor:pointer;min-width:0}
+.fcard:hover{border-color:var(--accent)}
+.fcard .fi{font-size:26px;line-height:1;flex:none}
+.fcard .fm{flex:1;min-width:0}
+.fcard .fn{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fcard .fc{font-size:12px;color:var(--sub);margin-top:2px}
+.fcard .fa{display:flex;flex-direction:column;gap:4px;flex:none}
+.fcard .fa button{padding:2px 7px;font-size:12px;background:transparent}
+#btnFav{padding:7px 9px;font-size:16px;line-height:1.2;flex:none}
+/* 좁은 폰: 편집기 상단 바에 즐겨찾기 ★가 늘어난 만큼 간격을 줄이고 저장 상태 글자는 숨긴다 (제목 칸을 지키려고) */
+@media (max-width:430px){
+  .ebar{gap:4px;padding-left:8px;padding-right:8px}
+  .ebar button{padding:7px 8px}
+  .ebar a.back,.ebar #btnBack{flex:none}
+  #saveState{display:none}
+}
+#fnIn{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;outline:none}
+#fnIn:focus{border-color:var(--accent)}
+.mvlist{display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow-y:auto}
+.mvlist button{text-align:left;padding:12px;white-space:normal}
+.mvlist button.mvnew{color:var(--accent)}
 .empty{padding:50px 10px;text-align:center;color:var(--sub);line-height:1.7;grid-column:1/-1}
 
 /* 편집기 */
@@ -178,14 +209,20 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
 <section class="view on" id="viewList">
   <div class="bar">
     <a class="back" href="index.html" aria-label="SIM Tools 런처로" title="런처로">‹</a>
-    <h1>SIM <span>Note</span></h1>
+    <h1 id="listTitle">SIM <span>Note</span></h1>
     <div class="spacer"></div>
-    <button id="btnPdfNew" title="PDF·Word·Excel·PowerPoint 파일을 새 노트로 열기">파일 열기</button>
-    <input type="file" id="pdfNew" accept="application/pdf,.pdf,.docx,.xlsx,.xls,.pptx" hidden>
   </div>
   <div class="listwrap">
     <div class="search"><input id="nq" type="search" placeholder="노트 검색 (제목)"></div>
     <div class="ngrid" id="ngrid"></div>
+  </div>
+  <!-- 아래 툴 메뉴 -->
+  <div class="ltools" id="listTools">
+    <div class="lt-in">
+      <button id="btnPdfNew" title="PDF·Word·Excel·PowerPoint 파일을 새 노트로 열기">📂 파일 열기</button>
+      <button id="btnNewFolder" title="노트를 묶어 둘 폴더 만들기">📁 새 폴더</button>
+    </div>
+    <input type="file" id="pdfNew" accept="application/pdf,.pdf,.docx,.xlsx,.xls,.pptx" hidden>
   </div>
   <button class="fab" id="btnNew" aria-label="새 노트" title="새 노트">+</button>
 </section>
@@ -196,6 +233,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     <button id="btnBack" title="목록으로">‹</button>
     <input class="title" id="titleIn" placeholder="제목 없음" maxlength="80">
     <span id="saveState"></span>
+    <button id="btnFav" title="즐겨찾기" aria-label="즐겨찾기">☆</button>
     <button id="btnUndo" title="되돌리기 (Ctrl+Z)">↶</button>
     <button id="btnRedo" title="다시 실행 (Ctrl+Y)">↷</button>
     <button id="btnIns">삽입</button>
@@ -258,6 +296,25 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     </div>
   </div>
 </section>
+
+<!-- 폴더 이름 입력 (새 폴더·이름 바꾸기) -->
+<div class="modal" id="mFolder" style="z-index:70">
+  <div class="box">
+    <h2 id="fnTitle">새 폴더</h2>
+    <input id="fnIn" type="text" maxlength="30" placeholder="폴더 이름" autocomplete="off" autofocus>
+    <div class="row"><button id="fnNo">취소</button><button class="primary" id="fnOk">확인</button></div>
+  </div>
+</div>
+
+<!-- 노트를 폴더로 이동 -->
+<div class="modal" id="mMove">
+  <div class="box">
+    <h2>폴더로 이동</h2>
+    <div class="sub" id="mvSub"></div>
+    <div class="mvlist" id="mvList"></div>
+    <div class="row"><button id="mvClose">닫기</button></div>
+  </div>
+</div>
 
 <!-- 삽입 -->
 <div class="modal" id="mIns">
@@ -367,7 +424,11 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     });
   }
   const store = m => db.transaction('notes', m).objectStore('notes');
-  const dbAll = () => db ? new Promise((res, rej) => { const q = store('readonly').getAll(); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }) : Promise.resolve(memOnly.slice());
+  // 폴더도 같은 'notes' 저장소의 행(kind:'folder')으로 둔다 → DB 버전을 올리지 않으므로 sync.js(기기·계정 동기화)가 노트와 똑같이 병합한다.
+  // 예전 버전 화면이 폴더 행을 만나도 깨지지 않게 pages:[] · title 을 함께 둔다.
+  const dbRows = () => db ? new Promise((res, rej) => { const q = store('readonly').getAll(); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }) : Promise.resolve(memOnly.slice());
+  const isFolder = r => !!r && r.kind === 'folder';
+  const dbAll = () => dbRows().then(a => a.filter(r => !isFolder(r)));   // 노트만
   const dbPut = n => db ? new Promise((res, rej) => { const q = store('readwrite').put(n); q.onsuccess = () => res(); q.onerror = () => rej(q.error); })
                         : (memOnly = memOnly.filter(x => x.id !== n.id).concat([n]), Promise.resolve());
   const dbDel = id => db ? new Promise((res, rej) => { const q = store('readwrite').delete(id); q.onsuccess = () => res(); q.onerror = () => rej(q.error); })
@@ -414,50 +475,157 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   let saveTimer = null, dirty = false;
 
   const newPage = (type, w, h) => ({ w: w || DW, h: h || DH, bg: { type: type || 'lined', img: null, fit: 'contain' }, strokes: [], texts: [], images: [] });
-  const newNote = () => ({ id: rid('n'), title: '', created: Date.now(), updated: Date.now(), thumb: '', assets: {}, pages: [newPage('lined')] });
+  const newNote = () => ({ id: rid('n'), title: '', created: Date.now(), updated: Date.now(), thumb: '', assets: {}, pages: [newPage('lined')], folder: '', fav: false });
+  const newFolder = name => ({ id: rid('f'), kind: 'folder', title: name, created: Date.now(), updated: Date.now(), thumb: '', pages: [] });
   function normalize(n) {
-    n.assets = n.assets || {};
+    n.assets = n.assets || {}; n.folder = n.folder || ''; n.fav = !!n.fav;
     n.pages.forEach(p => { p.w = p.w || DW; p.h = p.h || DH; p.images = p.images || []; p.texts = p.texts || []; p.strokes = p.strokes || []; });
     return n;
   }
   const isEmptyPage = p => !p.strokes.length && !p.texts.length && !p.images.length && p.bg.type !== 'image';
 
-  /* ───────── 목록 ───────── */
+  /* ───────── 목록 · 폴더 · 즐겨찾기 ───────── */
   const fmt = t => { const d = new Date(t); return d.getFullYear() + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+  const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+  let curFolder = '';                      // '' = 처음 화면, 아니면 열려 있는 폴더 id (폴더는 한 단계만)
+  const koSort = (a, b) => String(a.title).localeCompare(String(b.title), 'ko');
+  const byUpd = (a, b) => b.updated - a.updated;
+  const noteCard = (n, fname) =>
+    '<div class="ncard" data-id="' + n.id + '"><img class="th" alt="" src="' + (n.thumb || BLANK) + '">' +
+    '<button class="fav' + (n.fav ? ' on' : '') + '" data-fav="' + n.id + '" title="' + (n.fav ? '즐겨찾기 해제' : '즐겨찾기') + '" aria-label="즐겨찾기">' + (n.fav ? '★' : '☆') + '</button>' +
+    '<div class="acts"><button data-mv="' + n.id + '" title="폴더로 이동" aria-label="폴더로 이동">📁</button><button data-del="' + n.id + '" title="삭제">🗑</button></div>' +
+    '<div class="nm">' + esc(n.title || '제목 없음') + '</div><div class="dt">' + fmt(n.updated) + ' · ' + (n.pages || []).length + '쪽' + (fname ? ' · 📁 ' + esc(fname) : '') + '</div></div>';
+  const folderCard = (f, cnt) =>
+    '<div class="fcard" data-fid="' + f.id + '"><div class="fi">📁</div><div class="fm"><div class="fn">' + esc(f.title) + '</div><div class="fc">노트 ' + cnt + '개</div></div>' +
+    '<div class="fa"><button data-fren="' + f.id + '" title="이름 바꾸기" aria-label="이름 바꾸기">✎</button><button data-fdel="' + f.id + '" title="폴더 삭제" aria-label="폴더 삭제">🗑</button></div></div>';
   async function renderList() {
-    let all = [];
-    try { all = await dbAll(); } catch (e) { toast('저장소를 읽지 못했습니다.'); }
-    const q = $('nq').value.trim().toLowerCase();
-    all = all.filter(n => !q || (n.title || '제목 없음').toLowerCase().includes(q)).sort((a, b) => b.updated - a.updated);
-    if (!all.length) {
-      $('ngrid').innerHTML = '<div class="empty">' + (q ? '검색 결과가 없습니다.' : '아직 노트가 없습니다.<br>오른쪽 아래 <b>+</b> 버튼으로 새 노트를 시작하거나 <b>PDF 열기</b>로 PDF에 필기하세요.') + '</div>';
+    let rows = [];
+    try { rows = await dbRows(); } catch (e) { toast('저장소를 읽지 못했습니다.'); }
+    const folders = rows.filter(isFolder).sort(koSort), notes = rows.filter(r => !isFolder(r));
+    const fById = new Map(folders.map(f => [f.id, f])), cnt = {};
+    notes.forEach(n => { if (n.folder && !fById.has(n.folder)) n.folder = ''; if (n.folder) cnt[n.folder] = (cnt[n.folder] || 0) + 1; });   // 폴더가 지워졌다면 처음 화면에 보인다
+    if (curFolder && !fById.has(curFolder)) curFolder = '';
+    const cf = fById.get(curFolder);
+    $('listTitle').innerHTML = cf ? '<span>📁</span> ' + esc(cf.title) : 'SIM <span>Note</span>';
+    $('btnNewFolder').style.display = cf ? 'none' : '';   // 폴더 안에는 폴더를 만들지 않는다
+    $('nq').placeholder = cf ? '이 폴더에서 검색 (제목)' : '노트 검색 (제목)';
+    const q = $('nq').value.trim().toLowerCase(), G = $('ngrid'), fname = n => n.folder && fById.has(n.folder) ? fById.get(n.folder).title : '';
+    if (q) {   // 검색: 처음 화면에서는 전체, 폴더 안에서는 그 폴더만
+      const hit = (cf ? notes.filter(n => n.folder === curFolder) : notes).filter(n => (n.title || '제목 없음').toLowerCase().includes(q)).sort(byUpd);
+      const fh = cf ? [] : folders.filter(f => f.title.toLowerCase().includes(q));
+      G.innerHTML = fh.length || hit.length ? fh.map(f => folderCard(f, cnt[f.id] || 0)).join('') + hit.map(n => noteCard(n, cf ? '' : fname(n))).join('') : '<div class="empty">검색 결과가 없습니다.</div>';
       return;
     }
-    $('ngrid').innerHTML = all.map(n =>
-      '<div class="ncard" data-id="' + n.id + '">' +
-      '<img class="th" alt="" src="' + (n.thumb || 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==') + '">' +
-      '<div class="nm">' + esc(n.title || '제목 없음') + '</div><div class="dt">' + fmt(n.updated) + ' · ' + n.pages.length + '쪽</div>' +
-      '<button class="del" data-del="' + n.id + '" title="삭제">🗑</button></div>').join('');
+    if (cf) {
+      const mine = notes.filter(n => n.folder === curFolder).sort(byUpd);
+      G.innerHTML = mine.length ? mine.map(n => noteCard(n)).join('') : '<div class="empty">이 폴더는 비어 있어요.<br>오른쪽 아래 <b>+</b>로 이 폴더에 새 노트를 만들거나,<br>다른 노트의 <b>📁</b> 버튼으로 옮겨 보세요.</div>';
+      return;
+    }
+    const favs = notes.filter(n => n.fav).sort(byUpd), rest = notes.filter(n => !n.folder && !n.fav).sort(byUpd);
+    let h = '';
+    if (favs.length) h += '<h3 class="sec">⭐ 즐겨찾기 <small>' + favs.length + '</small></h3>' + favs.map(n => noteCard(n, fname(n))).join('');
+    if (folders.length) h += '<h3 class="sec">📁 폴더 <small>' + folders.length + '</small></h3>' + folders.map(f => folderCard(f, cnt[f.id] || 0)).join('');
+    if (rest.length) h += (favs.length || folders.length ? '<h3 class="sec">📝 노트 <small>' + rest.length + '</small></h3>' : '') + rest.map(n => noteCard(n)).join('');
+    G.innerHTML = h || '<div class="empty">아직 노트가 없습니다.<br>오른쪽 아래 <b>+</b> 버튼으로 새 노트를 시작하거나,<br>아래 <b>파일 열기</b>로 PDF·Word 등에 필기하세요.</div>';
   }
   $('nq').addEventListener('input', renderList);
+  async function patchNote(id, fn) {   // 노트 한 건의 폴더·즐겨찾기만 바꾼다 (수정 시각은 그대로 → 최근 순서가 흐트러지지 않음)
+    const n = (await dbAll()).find(x => x.id === id); if (!n) return false;
+    fn(n); await dbPut(n); return true;
+  }
+  /* 폴더 이름 입력창 (새 폴더 · 이름 바꾸기) */
+  function askName(title, init) {
+    return new Promise(res => {
+      const m = $('mFolder'), inp = $('fnIn');
+      $('fnTitle').textContent = title; inp.value = init || ''; m.classList.add('show');
+      setTimeout(() => { inp.focus(); inp.select(); }, 60);
+      const done = v => { m.classList.remove('show'); $('fnOk').onclick = $('fnNo').onclick = m.onclick = inp.onkeydown = null; res(v); };
+      $('fnOk').onclick = () => { const v = inp.value.trim().replace(/\s+/g, ' ').slice(0, 30); if (!v) { inp.focus(); return; } done(v); };
+      $('fnNo').onclick = () => done(null);
+      m.onclick = e => { if (e.target === m) done(null); };
+      inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('fnOk').click(); } else if (e.key === 'Escape') done(null); };
+    });
+  }
+  const sameName = (rows, v, exceptId) => rows.some(r => isFolder(r) && r.id !== exceptId && String(r.title).toLowerCase() === v.toLowerCase());
+  async function createFolder() {
+    const v = await askName('새 폴더', ''); if (!v) return null;
+    if (sameName(await dbRows(), v)) { toast('같은 이름의 폴더가 이미 있어요.'); return null; }
+    const f = newFolder(v); await dbPut(f); return f;
+  }
+  async function renameFolder(id) {
+    const rows = await dbRows(), f = rows.find(r => r.id === id && isFolder(r)); if (!f) return;
+    const v = await askName('폴더 이름 바꾸기', f.title); if (!v || v === f.title) return;
+    if (sameName(rows, v, id)) { toast('같은 이름의 폴더가 이미 있어요.'); return; }
+    f.title = v; f.updated = Date.now(); await dbPut(f); renderList();
+  }
+  async function deleteFolder(id) {
+    const rows = await dbRows(), f = rows.find(r => r.id === id && isFolder(r)); if (!f) return;
+    const inside = rows.filter(r => !isFolder(r) && r.folder === id);
+    if (!confirm('「' + f.title + '」 폴더를 삭제할까요?' + (inside.length ? '\n안의 노트 ' + inside.length + '개는 삭제되지 않고 처음 화면으로 옮겨집니다.' : ''))) return;
+    for (const n of inside) { n.folder = ''; await dbPut(n); }
+    await dbDel(id); if (curFolder === id) curFolder = ''; renderList();
+  }
+  /* 노트를 폴더로 이동 */
+  let mvId = null;
+  async function openMove(id) {
+    const rows = await dbRows(), n = rows.find(r => r.id === id && !isFolder(r)); if (!n) return;
+    mvId = id; const fs = rows.filter(isFolder).sort(koSort), cur = n.folder || '';
+    $('mvSub').textContent = '「' + (n.title || '제목 없음') + '」을(를) 옮길 곳을 고르세요.';
+    $('mvList').innerHTML = '<button data-to="" class="' + (cur === '' ? 'on' : '') + '">📂 폴더 없음 (처음 화면)</button>' +
+      fs.map(f => '<button data-to="' + f.id + '" class="' + (cur === f.id ? 'on' : '') + '">📁 ' + esc(f.title) + '</button>').join('') +
+      '<button data-to="__new" class="mvnew">＋ 새 폴더 만들어 옮기기</button>';
+    $('mMove').classList.add('show');
+  }
+  $('mvList').addEventListener('click', async e => {
+    const b = e.target.closest('[data-to]'); if (!b) return;
+    let to = b.dataset.to; $('mMove').classList.remove('show');
+    if (to === '__new') { const f = await createFolder(); if (!f) return; to = f.id; }
+    if (await patchNote(mvId, n => { n.folder = to; })) toast(to ? '폴더로 옮겼어요.' : '처음 화면으로 옮겼어요.');
+    renderList();
+  });
+  $('mvClose').onclick = () => $('mMove').classList.remove('show');
+  $('mMove').addEventListener('click', e => { if (e.target === $('mMove')) $('mMove').classList.remove('show'); });
+  /* 폴더 열고 닫기 — 기록(history)에 남겨 두어 안드로이드 뒤로가기·브라우저 뒤로가기가 '폴더 → 처음 화면'으로 동작하게 한다 */
+  function setFolder(id) { curFolder = id || ''; $('nq').value = ''; renderList(); const lw = document.querySelector('.listwrap'); if (lw) lw.scrollTop = 0; }
+  function enterFolder(id) { try { history.pushState({ simnote: 'folder', id }, ''); } catch (e) {} setFolder(id); }
+  window.addEventListener('popstate', e => {
+    const id = e.state && e.state.simnote === 'folder' ? e.state.id : '';
+    if (note) {   // 편집 중에 뒤로가기: 노트를 닫고 있던 폴더 목록에 그대로 머문다
+      const keep = curFolder;
+      closeNote().then(() => { if (keep) { try { history.pushState({ simnote: 'folder', id: keep }, ''); } catch (er) {} setFolder(keep); } });
+      return;
+    }
+    setFolder(id);
+  });
+  document.querySelector('#viewList a.back').addEventListener('click', e => {
+    if (!curFolder) return;   // 처음 화면의 ‹ 는 런처로
+    e.preventDefault();
+    if (history.state && history.state.simnote === 'folder') history.back(); else setFolder('');
+  });
   $('ngrid').addEventListener('click', async e => {
-    const d = e.target.closest('[data-del]');
-    if (d) {
+    const t = e.target; let b;
+    if ((b = t.closest('[data-del]'))) {
       e.stopPropagation();
       if (!confirm('이 노트를 삭제할까요? 되돌릴 수 없습니다.')) return;
-      await dbDel(d.dataset.del); renderList(); return;
+      await dbDel(b.dataset.del); renderList(); return;
     }
-    const c = e.target.closest('.ncard'); if (!c) return;
+    if ((b = t.closest('[data-fav]'))) { e.stopPropagation(); await patchNote(b.dataset.fav, n => { n.fav = !n.fav; }); renderList(); return; }
+    if ((b = t.closest('[data-mv]'))) { e.stopPropagation(); openMove(b.dataset.mv); return; }
+    if ((b = t.closest('[data-fren]'))) { e.stopPropagation(); renameFolder(b.dataset.fren); return; }
+    if ((b = t.closest('[data-fdel]'))) { e.stopPropagation(); deleteFolder(b.dataset.fdel); return; }
+    if ((b = t.closest('.fcard'))) { enterFolder(b.dataset.fid); return; }
+    const c = t.closest('.ncard'); if (!c) return;
     const all = await dbAll(); const n = all.find(x => x.id === c.dataset.id);
     if (n) openNote(normalize(n));
   });
-  $('btnNew').onclick = async () => { const n = newNote(); await dbPut(n); openNote(n); };
+  $('btnNew').onclick = async () => { const n = newNote(); n.folder = curFolder; await dbPut(n); openNote(n); };   // 폴더 안이면 그 폴더에 만든다
+  $('btnNewFolder').onclick = async () => { const f = await createFolder(); if (f) { renderList(); toast('폴더를 만들었어요.'); } };
   $('btnPdfNew').onclick = () => $('pdfNew').click();
   $('pdfNew').addEventListener('change', async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     try {
       const pages = await filePages(f);
-      const n = newNote(); n.pages = pages; n.title = f.name.replace(/\.(pdf|docx|xlsx|xls|pptx)$/i, '');
+      const n = newNote(); n.pages = pages; n.title = f.name.replace(/\.(pdf|docx|xlsx|xls|pptx)$/i, ''); n.folder = curFolder;
       await dbPut(n); unbusy(); openNote(n); scheduleSave();
     } catch (err) { unbusy(); toast(pdfErrMsg(err)); }
   });
@@ -1312,7 +1480,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   /* ───────── 열기/닫기 ───────── */
   function openNote(n) {
     note = normalize(n); activePage = 0; dirty = false;
-    $('titleIn').value = n.title || ''; $('saveState').textContent = '';
+    $('titleIn').value = n.title || ''; $('saveState').textContent = ''; paintFav();
     $('viewList').classList.remove('on'); $('viewEdit').classList.add('on');
     buildEditor(); resetHistory(); setTool(tool); $('scroller').scrollTop = 0;
   }
@@ -1328,6 +1496,8 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     $('viewEdit').classList.remove('on'); $('viewList').classList.add('on'); renderList();
   }
   $('btnBack').onclick = closeNote;
+  function paintFav() { const f = !!(note && note.fav), b = $('btnFav'); b.textContent = f ? '★' : '☆'; b.classList.toggle('on', f); b.title = f ? '즐겨찾기 해제' : '즐겨찾기'; }
+  $('btnFav').onclick = () => { if (!note) return; note.fav = !note.fav; paintFav(); scheduleSave(); toast(note.fav ? '즐겨찾기에 추가했어요.' : '즐겨찾기에서 뺐어요.'); };
   $('titleIn').addEventListener('input', () => { note.title = $('titleIn').value; scheduleSave(); });
   $('btnDelNote').onclick = async () => {
     if (!confirm('이 노트를 삭제할까요? 되돌릴 수 없습니다.')) return;

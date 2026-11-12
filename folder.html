@@ -259,7 +259,7 @@ header h1 span{color:var(--accent);margin-left:-5px}
   <div id="tool"></div>
   <div id="addr">
     <div id="crow"></div>
-    <input id="sr" type="search" placeholder="내 파일 검색" autocomplete="off">
+    <input id="sr" type="search" placeholder="파일 저장소 검색" autocomplete="off">
   </div>
   <div id="body">
     <aside id="tree"></aside>
@@ -489,7 +489,7 @@ function renderTool(){
       +(can?'<button class="tbtn pc'+(clip?'':' dis')+'" data-t="paste">'+ic('paste')+'붙여넣기</button>':'')
       +'<button class="tbtn pc'+d+'" data-t="rename">'+ic('edit')+'이름 바꾸기</button><button class="tbtn pc'+d+'" data-t="down">'+ic('download')+'다운로드</button><button class="tbtn pc dng'+d+'" data-t="trash">'+ic('trash')+'삭제</button><span class="tsep pc"></span>';
   }
-  h+='<button class="tbtn" data-t="view">'+ic(view==='grid'?'list':'grid')+(view==='grid'?'목록':'아이콘')+'</button><button class="tbtn pc" data-t="refresh" title="새로 고침">'+ic('refresh')+'</button>';
+  h+='<button class="tbtn" data-t="view">'+ic(view==='grid'?'list':'grid')+(view==='grid'?'자세히':'큰 아이콘')+'</button><button class="tbtn pc" data-t="refresh" title="새로 고침">'+ic('refresh')+'</button>';
   $('#tool').innerHTML=h;
 }
 function crumbHtml(){
@@ -498,8 +498,8 @@ function crumbHtml(){
   if(tab==='trash')return '<span class="cur">휴지통 ('+TRASH_DAYS+'일 뒤 자동 삭제)</span>';
   if(q)return '<span class="cur">검색 결과</span>';
   const path=pathOf(cwd);
-  let h='<span data-go="" data-drop=""'+(path.length?'':' class="cur"')+'>내 파일</span>';
-  path.forEach((it,k)=>{h+='<span class="sep">›</span><span data-go="'+it.id+'" data-drop="'+it.id+'"'+(k===path.length-1?' class="cur"':'')+'>'+esc(it.name)+'</span>';});
+  let h='<span data-go="" data-drop=""'+(path.length?'':' class="cur"')+'>파일저장소</span>';
+  path.forEach((it,k)=>{h+='<span class="sep">\\</span><span data-go="'+it.id+'" data-drop="'+it.id+'"'+(k===path.length-1?' class="cur"':'')+'>'+esc(it.name)+'</span>';});
   return h;
 }
 function renderAddr(){
@@ -518,7 +518,7 @@ function renderTree(){
     return '<div class="tn'+(tab==='files'&&!q&&cwd===c.id?' cur':'')+'" style="padding-left:'+(6+d*14)+'px" data-go="'+c.id+'" data-drop="'+c.id+'"><span class="tg" data-tg="'+c.id+'">'+(has?(open?'▾':'▸'):'')+'</span>'+folderSvg(16)+'<span class="tl">'+esc(c.name)+'</span></div>'+(open?kids(c.id,d+1):'');
   }).join('');
   const tabRow=(k,name,icon)=>'<div class="tn'+(tab===k?' cur':'')+'" data-tab="'+k+'"><span class="tg"></span>'+ic(icon)+'<span class="tl">'+name+'</span></div>';
-  el.innerHTML='<div class="tn'+(tab==='files'&&!q&&cwd===null?' cur':'')+'" data-go="" data-drop=""><span class="tg"></span>'+folderSvg(16)+'<span class="tl"><b>내 파일</b></span></div>'+kids(null,1)
+  el.innerHTML='<div class="tn'+(tab==='files'&&!q&&cwd===null?' cur':'')+'" data-go="" data-drop=""><span class="tg"></span>'+folderSvg(16)+'<span class="tl"><b>파일저장소</b></span></div>'+kids(null,1)
     +'<hr>'+tabRow('recent','최근','clock')+tabRow('star','즐겨찾기','star')+tabRow('trash','휴지통','trash');
 }
 function renderHead(){
@@ -540,7 +540,7 @@ function renderList(){
   const L=visible(),ls=$('#ls'),drag=finePtr()&&tab!=='trash';
   ls.className=view==='grid'?'grid':'';
   if(!L.length){
-    const e={files:q?['search','검색 결과가 없습니다','다른 이름으로 찾아보세요.']:['folder','폴더가 비어 있습니다',wide()?'파일을 이 창으로 끌어다 놓거나 업로드를 눌러 보세요.':'위의 업로드 버튼으로 파일을 올려 보세요.'],recent:['clock','최근 파일이 없습니다',''],star:['star','즐겨찾기한 항목이 없습니다','항목 메뉴에서 즐겨찾기를 지정할 수 있어요.'],trash:['trash','휴지통이 비어 있습니다','']}[tab];
+    const e={files:q?['search','검색 결과가 없습니다','다른 이름으로 찾아보세요.']:['folder','이 폴더는 비어 있습니다',wide()?'파일을 이 창으로 끌어다 놓거나 업로드를 눌러 보세요.':'위의 업로드 버튼으로 파일을 올려 보세요.'],recent:['clock','최근 파일이 없습니다',''],star:['star','즐겨찾기한 항목이 없습니다','항목 메뉴에서 즐겨찾기를 지정할 수 있어요.'],trash:['trash','휴지통이 비어 있습니다','']}[tab];
     ls.innerHTML='<div class="emp">'+ic(e[0])+'<b>'+e[1]+'</b>'+esc(e[2])+'</div>';
     return;
   }

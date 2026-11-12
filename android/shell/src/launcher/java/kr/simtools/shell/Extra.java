@@ -105,9 +105,12 @@ final class Extra {
                     c.setConnectTimeout(10000); c.setReadTimeout(10000); c.setInstanceFollowRedirects(true);
                     InputStream in = c.getInputStream(); ByteArrayOutputStream bo = new ByteArrayOutputStream();
                     byte[] buf = new byte[1024]; int n; while ((n = in.read(buf)) > 0) bo.write(buf, 0, n); in.close();
-                    long latest = new JSONObject(bo.toString("UTF-8")).getLong("verCode");
+                    JSONObject apps = new JSONObject(bo.toString("UTF-8")).getJSONObject("apps");   // 앱마다 따로 버전 비교
                     JSONArray need = new JSONArray();
-                    for (Map.Entry<String, String> e : PKG.entrySet()) { long v = ver(e.getValue()); if (v >= 0 && v < latest) need.put(e.getKey()); }
+                    for (Map.Entry<String, String> e : PKG.entrySet()) {
+                        long v = ver(e.getValue()), latest = apps.has(e.getKey()) ? apps.getJSONObject(e.getKey()).optLong("v", -1) : -1;
+                        if (v >= 0 && latest > v) need.put(e.getKey());
+                    }
                     final String js = "window.__simUpdates&&window.__simUpdates(" + need + ")";
                     w.post(() -> w.evaluateJavascript(js, null));
                 } catch (Exception e) { /* 인터넷이 없으면 조용히 넘어감 */ }

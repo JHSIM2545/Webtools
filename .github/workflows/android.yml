@@ -48,11 +48,27 @@ jobs:
         run: |
           mkdir -p android/shell/src/main/res/mipmap-xxxhdpi
           cp "${{ matrix.icon }}" android/shell/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+      - name: 버전 정하기 (앱 내용이 바뀐 것만 새 버전 번호, 나머지는 이전 번호 유지)
+        id: ver
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [ "${{ matrix.flavor }}" = "Launcher" ]; then SKIP='src/tool/'; else SKIP='src/launcher/'; fi
+          H=$( { echo "${{ matrix.key }}|${{ matrix.label }}|${{ matrix.page }}"; git ls-files android | grep -v '^android/app/' | grep -v "$SKIP" | sort | xargs -d '\n' cat; cat "${{ matrix.icon }}"; } | sha256sum | cut -c1-16 )
+          gh release download apps-latest -p versions.json -O prev.json 2>/dev/null || echo '{}' > prev.json
+          PV=$(jq -r --arg k "${{ matrix.key }}" '.apps[$k].v // empty' prev.json 2>/dev/null || true)
+          PH=$(jq -r --arg k "${{ matrix.key }}" '.apps[$k].h // empty' prev.json 2>/dev/null || true)
+          if [ -n "$PV" ] && [ "$PH" = "$H" ]; then V=$PV; else V=${{ github.run_number }}; fi
+          echo "hash=$H prev=$PV/$PH -> version=$V"
+          echo "v=$V" >> "$GITHUB_OUTPUT"
+          mkdir -p out
+          echo "{\"key\":\"${{ matrix.key }}\",\"v\":$V,\"h\":\"$H\"}" > out/ver-${{ matrix.key }}.json
       - name: APK 빌드
         run: >
           gradle -p android :shell:assemble${{ matrix.flavor }}Debug --no-daemon --stacktrace
           -PappKey=${{ matrix.key }} "-PappLabel=${{ matrix.label }}" -PstartPage=${{ matrix.page }}
-          -PverCode=${{ github.run_number }}
+          -PverCode=${{ steps.ver.outputs.v }}
       - name: 파일 이름 정리
         run: |
           mkdir -p out
@@ -60,7 +76,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: apk-${{ matrix.key }}
-          path: out/simtools-${{ matrix.key }}.apk
+          path: |
+            out/simtools-${{ matrix.key }}.apk
+            out/ver-${{ matrix.key }}.json
 
   pad:
     name: SIM PAD (Bluetooth)
@@ -78,8 +96,23 @@ jobs:
         run: |
           mkdir -p android/app/src/main/assets
           cp pad.html pad-icon-192.png ui-guard.js android/app/src/main/assets/
+      - name: 버전 정하기 (PAD 내용이 바뀐 때만 새 버전 번호)
+        id: ver
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          H=$( { git ls-files android/app android/build.gradle android/settings.gradle android/gradle.properties | sort | xargs -d '\n' cat; cat pad.html pad-icon-192.png ui-guard.js; } | sha256sum | cut -c1-16 )
+          gh release download apps-latest -p versions.json -O prev.json 2>/dev/null || echo '{}' > prev.json
+          PV=$(jq -r '.apps.pad.v // empty' prev.json 2>/dev/null || true)
+          PH=$(jq -r '.apps.pad.h // empty' prev.json 2>/dev/null || true)
+          if [ -n "$PV" ] && [ "$PH" = "$H" ]; then V=$PV; else V=${{ github.run_number }}; fi
+          echo "hash=$H prev=$PV/$PH -> version=$V"
+          echo "v=$V" >> "$GITHUB_OUTPUT"
+          mkdir -p out
+          echo "{\"key\":\"pad\",\"v\":$V,\"h\":\"$H\"}" > out/ver-pad.json
       - name: APK 빌드
-        run: gradle -p android :app:assembleDebug --no-daemon --stacktrace -PverCode=${{ github.run_number }}
+        run: gradle -p android :app:assembleDebug --no-daemon --stacktrace -PverCode=${{ steps.ver.outputs.v }}
       - name: 파일 이름 정리
         run: |
           mkdir -p out
@@ -87,7 +120,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: apk-pad
-          path: out/simtools-pad.apk
+          path: |
+            out/simtools-pad.apk
+            out/ver-pad.json
 
   publish:
     needs: [tools, pad]
@@ -103,7 +138,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          echo '{"verCode":${{ github.run_number }}}' > apks/versions.json   # 런처가 업데이트 여부를 비교하는 기준
+          jq -s '{apps: (map({(.key): {v: .v, h: .h}}) | add)}' apks/ver-*.json > apks/versions.json   # 런처가 앱별 업데이트 여부를 비교하는 기준
+          rm apks/ver-*.json
+          cat apks/versions.json
           ls -la apks
           gh release delete apps-latest --yes --cleanup-tag || true
           gh release create apps-latest apks/* --title "SIM Tools 앱 모음 (Android)" --notes "SIM Tools 런처와 각 도구의 안드로이드 앱" --latest=false

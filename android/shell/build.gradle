@@ -26,6 +26,8 @@ android {
         // 연락처 공유 수신은 SIM Phone 앱에서만, 폰 연락처 읽기(READ_CONTACTS)는 SIM Message·SIM Assistant 앱에서만
         manifestPlaceholders = [shareEnabled: (appKey == 'phone') ? 'true' : 'false',
                                 contactsPerm: (appKey == 'message' || appKey == 'assistant') ? 'android.permission.READ_CONTACTS' : 'android.permission.ACCESS_NETWORK_STATE']
+        buildConfigField 'String', 'APP_KEY', "\"${appKey}\""
+        buildConfigField 'long', 'BUILD_TIME', "${System.currentTimeMillis()}L"   // 빌드한 시각(버전 정보 화면에 표시)
         buildConfigField 'boolean', 'CONTACTS', (appKey == 'message' || appKey == 'assistant') ? 'true' : 'false'
     }
 

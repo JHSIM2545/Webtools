@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="${contactsPerm}" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 각 앱이 ⋯ 메뉴에서 스스로 새 버전 APK 를 설치할 수 있게 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- 런처가 '설치된 SIM 앱'을 알아보기 위해 -->
     <queries>

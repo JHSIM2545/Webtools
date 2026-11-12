@@ -123,6 +123,7 @@ button.danger{color:#ff8a8a}
 .card.ghost.add{cursor:pointer}
 </style>
 <script src="ui-guard.js" defer></script>
+<script src="appmenu.js" defer></script>
 <script src="sync.js" defer></script>
 </head>
 <body>
@@ -252,14 +253,11 @@ button.danger{color:#ff8a8a}
       const c = e.target.closest && e.target.closest('a.card'); if (c && c.dataset.id) { e.preventDefault(); APP.open(c.dataset.id); }
     });
     window.__simRefresh = () => { readInstalled(); render(); if ($('mApps').classList.contains('show')) paintApps(); checkUpd(); };
-    /* 업데이트 표시: 처음 한 번은 "지금 상태를 모두 업데이트된 것"으로 보고 표시하지 않는다(확인한 버전을 기기에 기억).
-       이후 서버에 그보다 새 버전이 올라온 앱만 표시한다. map = {앱id: 서버 최신 버전} (없는 옛 앱은 id 목록만 받음) */
+    /* 업데이트 표시: 앱(checkUpdates)이 '설치된 빌드 번호 < 서버 최신 번호'인 앱 id 목록을 보내 준다. */
     window.__simUpdates = (ids, map) => {
       ids = Array.isArray(ids) ? ids : [];
-      let ack = null; try { ack = JSON.parse(lsGet('simtools_upd_ack') || 'null'); } catch (e) {}
-      const cur = map && typeof map === 'object' ? map : ids.reduce((o, id) => (o[id] = 1, o), {});   // 버전을 모르면 임시값 1
-      if (!ack || (ack._p && map)) { ack = Object.assign({}, cur); if (!map) ack._p = 1; lsSet('simtools_upd_ack', JSON.stringify(ack)); }
-      ids = ids.filter(id => (cur[id] || 1) > (ack[id] || 0));
+      /* 설치된 앱의 빌드 번호가 서버 최신보다 낮은 앱만 앱 쪽에서 이미 골라 보내 준다(checkUpdates).
+         예전에는 여기서 '처음 본 시점을 확인 완료로 기록'해 새 APK 가 올라와도 가려지는 문제가 있어 그 기록으로 거르지 않는다. */
       const had = UPDATES.join(); UPDATES = ids;
       render(); if ($('mApps').classList.contains('show')) paintApps();
       if (UPDATES.length && UPDATES.join() !== had) toast('업데이트할 앱이 ' + UPDATES.length + '개 있어요 — 앱 추가에서 업데이트하세요');

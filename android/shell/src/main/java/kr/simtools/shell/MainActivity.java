@@ -46,6 +46,7 @@ public class MainActivity extends Activity {
     private static final int REQ_FILE = 77, REQ_MEDIA = 78, REQ_GEO = 79, REQ_CONTACTS = 80;
 
     private WebView web;
+    private AppBridge appBridge;   // ⋯ 메뉴: 버전 정보·업데이트·권한
     private ValueCallback<Uri[]> fileCb;
     private PermissionRequest pendingMedia;
     private String geoOrigin;
@@ -167,6 +168,8 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new SessionBridge(), "SimSession");
         web.addJavascriptInterface(new ShareBridge(), "SimShare");
         if (BuildConfig.CONTACTS) web.addJavascriptInterface(new ContactsBridge(), "SimContacts");
+        appBridge = new AppBridge(this, web);
+        web.addJavascriptInterface(appBridge, "SimApp");
         Extra.attach(this, web);
         handleAuth(getIntent());
         handleShare(getIntent());
@@ -357,6 +360,8 @@ public class MainActivity extends Activity {
         } else if (code == REQ_CONTACTS) {
             final boolean g = ok;
             if (web != null) web.post(() -> web.evaluateJavascript("window.__simContactsPerm&&window.__simContactsPerm(" + g + ")", null));
+        } else if (code == AppBridge.REQ_APP && appBridge != null) {
+            appBridge.onPermResult(perms, res);
         } else if (code == REQ_GEO && geoCb != null) {
             geoCb.invoke(geoOrigin, ok, false);
             geoCb = null;
@@ -387,6 +392,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         Extra.destroy(this);
+        if (appBridge != null) appBridge.destroy();
         web.destroy();
         super.onDestroy();
     }

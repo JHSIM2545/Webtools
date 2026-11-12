@@ -317,7 +317,7 @@ public class HidController {
 
     // ───────────────── 글자 → 키 입력 ─────────────────
     private static final String SHIFT_NUM = ")!@#$%^&*(";
-    private static final String P1 = "-=[]\;',./`";          // Shift 없이
+    private static final String P1 = "-=[]\\;',./`";          // Shift 없이
     private static final String P2 = "_+{}|:\"<>?~";          // Shift 와 함께 (P1 과 같은 순서)
     private static final int[] PU = {0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x33, 0x34, 0x36, 0x37, 0x38, 0x35};
 

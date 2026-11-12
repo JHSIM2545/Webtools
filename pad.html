@@ -13,7 +13,7 @@
 <style>
 :root{
   --bg:#0f1117; --panel:#171a23; --panel2:#1f2330; --line:#2a2f3f;
-  --text:#e8eaf0; --sub:#8b92a8; --accent:#d946ef; --accent2:#a21caf; --danger:#ff5d5d; --ok:#3ecf8e; --warn:#ffc46b;
+  --text:#e8eaf0; --sub:#8b92a8; --accent:#a8b0c2; --accent2:#6b7285; --danger:#ff5d5d; --ok:#3ecf8e; --warn:#ffc46b;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
@@ -40,20 +40,20 @@ main{flex:1;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:
   background:radial-gradient(120% 100% at 50% 0%,#232838 0%,#171b27 55%,#12151f 100%);
   border:1px solid #303650;box-shadow:inset 0 2px 0 rgba(255,255,255,.06),inset 0 -6px 18px rgba(0,0,0,.45),0 6px 18px rgba(0,0,0,.4)}
 #pad::after{content:'SIM PAD';position:absolute;left:0;right:0;bottom:14px;text-align:center;font-size:12px;letter-spacing:4px;font-weight:700;color:rgba(255,255,255,.07);pointer-events:none}
-#pad.act{border-color:var(--accent);box-shadow:inset 0 0 0 1px rgba(217,70,239,.35),inset 0 -6px 18px rgba(0,0,0,.45),0 0 22px rgba(217,70,239,.18)}
+#pad.act{border-color:var(--accent);box-shadow:inset 0 0 0 1px rgba(168,176,194,.35),inset 0 -6px 18px rgba(0,0,0,.45),0 0 22px rgba(168,176,194,.18)}
 #pad.off{opacity:.55}
 .dot{position:absolute;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;pointer-events:none;
-  background:radial-gradient(circle,rgba(217,70,239,.45),rgba(217,70,239,.08) 70%,transparent);}
+  background:radial-gradient(circle,rgba(168,176,194,.45),rgba(168,176,194,.08) 70%,transparent);}
 .mbtns{display:flex;gap:8px;flex:none;height:54px}
 .mbtns.hide{display:none}
 .mb{flex:1;border-radius:14px;font-size:14px;font-weight:700;color:#c9cde0;background:linear-gradient(180deg,#252a3a,#1a1e2b);border:1px solid #303650;box-shadow:inset 0 1px 0 rgba(255,255,255,.07);touch-action:none}
 .mb.mid{flex:.45}
-.mb.dn{background:linear-gradient(180deg,#3a2142,#2a1730);border-color:var(--accent);color:#fff}
+.mb.dn{background:linear-gradient(180deg,#383d4d,#2a2e3b);border-color:var(--accent);color:#fff}
 
 .panel{display:flex;flex-direction:column;gap:8px;min-height:0}
 .tabs{display:flex;gap:6px;flex:none}
 .tabs button{flex:1;padding:9px 4px;font-size:13.5px;font-weight:600;border-radius:10px;color:var(--sub)}
-.tabs button.on{color:#fff;background:linear-gradient(180deg,#8f2aa0,#6a1b78);border-color:var(--accent)}
+.tabs button.on{color:#fff;background:linear-gradient(180deg,#6b7285,#4a505f);border-color:var(--accent)}
 .tabbody{display:none;flex-direction:column;gap:7px}
 .tabbody.on{display:flex}
 .row{display:flex;gap:6px}
@@ -61,7 +61,7 @@ main{flex:1;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:
 .row.scroll{overflow-x:auto;scrollbar-width:none}
 .row.scroll>button{flex:none;min-width:52px}
 .row.scroll::-webkit-scrollbar{display:none}
-.row>button.latch.on{background:linear-gradient(180deg,#8f2aa0,#6a1b78);border-color:var(--accent);color:#fff}
+.row>button.latch.on{background:linear-gradient(180deg,#6b7285,#4a505f);border-color:var(--accent);color:#fff}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .grid button{padding:12px 4px;font-size:13px;font-weight:600;border-radius:10px;line-height:1.25}
 .grid button small{display:block;font-size:10.5px;color:var(--sub);font-weight:500;margin-top:2px}
@@ -89,7 +89,7 @@ input[type=text]:focus{border-color:var(--accent)}
 .sw input::after{content:"";position:absolute;left:3px;top:3px;width:21px;height:21px;border-radius:50%;background:#fff;transition:.15s}
 .sw input:checked{background:var(--accent)}
 .sw input:checked::after{left:22px}
-.pri{background:linear-gradient(180deg,#b72fc9,#8f2aa0);border-color:var(--accent);color:#fff;font-weight:700;padding:12px;border-radius:10px;font-size:15px}
+.pri{background:linear-gradient(180deg,#7d8599,#6b7285);border-color:var(--accent);color:#fff;font-weight:700;padding:12px;border-radius:10px;font-size:15px}
 .dang{color:var(--danger)}
 .note{font-size:12.5px;color:var(--sub);line-height:1.55}
 .note b{color:var(--text)}

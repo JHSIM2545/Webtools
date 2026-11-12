@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ea7bf7"/><stop offset="1" stop-color="#a21caf"/></linearGradient></defs>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b4bccd"/><stop offset="1" stop-color="#5f6677"/></linearGradient></defs>
   <rect width="512" height="512" rx="112" fill="url(#bg)"/>
   <!-- 터치패드 본체 -->
   <rect x="88" y="104" width="336" height="236" rx="38" fill="#fff"/>
-  <rect x="112" y="128" width="288" height="188" rx="24" fill="#a21caf" opacity=".16"/>
+  <rect x="112" y="128" width="288" height="188" rx="24" fill="#5f6677" opacity=".16"/>
   <!-- 커서 -->
-  <path d="M214 160 L214 262 L240 238 L262 284 L290 272 L268 226 L304 222 Z" fill="#a21caf" stroke="#fff" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M214 160 L214 262 L240 238 L262 284 L290 272 L268 226 L304 222 Z" fill="#5f6677" stroke="#fff" stroke-width="8" stroke-linejoin="round"/>
   <!-- 클릭 버튼 -->
   <rect x="88" y="362" width="160" height="56" rx="22" fill="#fff"/>
   <rect x="264" y="362" width="160" height="56" rx="22" fill="#fff"/>

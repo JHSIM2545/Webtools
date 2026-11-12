@@ -1,11 +1,12 @@
-name: SIM PAD Android APK
+name: SIM Android APKs
 
 on:
   push:
     paths:
       - 'android/**'
       - 'pad.html'
-      - 'pad-icon-192.png'
+      - '**-icon-192.png'
+      - 'icon-192.png'
       - '.github/workflows/android.yml'
   workflow_dispatch:
 
@@ -13,7 +14,56 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  tools:
+    name: ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { key: launcher,  label: "SIM Tools",      page: index.html,     icon: icon-192.png,           flavor: Launcher }
+          - { key: simtv,     label: "SIM TV",         page: tv.html,        icon: tv-icon-192.png,        flavor: Tool }
+          - { key: note,      label: "SIM Note",       page: note.html,      icon: note-icon-192.png,      flavor: Tool }
+          - { key: phone,     label: "SIM Phone",      page: phone.html,     icon: phone-icon-192.png,     flavor: Tool }
+          - { key: aitel,     label: "SIM AI-Tel",     page: aitel.html,     icon: aitel-icon-192.png,     flavor: Tool }
+          - { key: assistant, label: "SIM Assistant",  page: assistant.html, icon: assistant-icon-192.png, flavor: Tool }
+          - { key: calendar,  label: "SIM Calendar",   page: calendar.html,  icon: calendar-icon-192.png,  flavor: Tool }
+          - { key: folder,    label: "SIM Folder",     page: folder.html,    icon: folder-icon-192.png,    flavor: Tool }
+          - { key: message,   label: "SIM Message",    page: message.html,   icon: message-icon-192.png,   flavor: Tool }
+          - { key: kbo,       label: "SIM KBO",        page: kbo.html,       icon: kbo-icon-192.png,       flavor: Tool }
+          - { key: orchestra, label: "SIM Orchestra",  page: orchestra.html, icon: orchestra-icon-192.png, flavor: Tool }
+          - { key: radio,     label: "SIM Radio",      page: radio.html,     icon: radio-icon-192.png,     flavor: Tool }
+          - { key: calc,      label: "SIM Calculator", page: calc.html,      icon: calc-icon-192.png,      flavor: Tool }
+          - { key: map,       label: "SIM Map",        page: map.html,       icon: map-icon-192.png,       flavor: Tool }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: 앱 아이콘 넣기
+        run: |
+          mkdir -p android/shell/src/main/res/mipmap-xxxhdpi
+          cp "${{ matrix.icon }}" android/shell/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+      - name: APK 빌드
+        run: >
+          gradle -p android :shell:assemble${{ matrix.flavor }}Debug --no-daemon --stacktrace
+          -PappKey=${{ matrix.key }} "-PappLabel=${{ matrix.label }}" -PstartPage=${{ matrix.page }}
+          -PverCode=${{ github.run_number }}
+      - name: 파일 이름 정리
+        run: |
+          mkdir -p out
+          cp "$(find android/shell/build/outputs/apk -name '*.apk' | head -n1)" out/simtools-${{ matrix.key }}.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ matrix.key }}
+          path: out/simtools-${{ matrix.key }}.apk
+
+  pad:
+    name: SIM PAD (Bluetooth)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,16 +79,33 @@ jobs:
           mkdir -p android/app/src/main/assets
           cp pad.html pad-icon-192.png ui-guard.js android/app/src/main/assets/
       - name: APK 빌드
-        run: gradle -p android assembleDebug --no-daemon --stacktrace
+        run: gradle -p android :app:assembleDebug --no-daemon --stacktrace -PverCode=${{ github.run_number }}
       - name: 파일 이름 정리
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk SIM-PAD.apk
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/simtools-pad.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: SIM-PAD-apk
-          path: SIM-PAD.apk
-      - name: 릴리스로 올리기 (폰에서 바로 내려받기)
+          name: apk-pad
+          path: out/simtools-pad.apk
+
+  publish:
+    needs: [tools, pad]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: apk-*
+          merge-multiple: true
+          path: apks
+      - name: 릴리스로 올리기 (런처가 여기서 내려받음)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
+          ls -la apks
+          gh release delete apps-latest --yes --cleanup-tag || true
+          gh release create apps-latest apks/*.apk --title "SIM Tools 앱 모음 (Android)" --notes "SIM Tools 런처와 각 도구의 안드로이드 앱" --latest=false
+          cp apks/simtools-pad.apk SIM-PAD.apk
           gh release delete simpad-latest --yes --cleanup-tag || true
           gh release create simpad-latest SIM-PAD.apk --title "SIM PAD (Android)" --notes "차량 블루투스 마우스·키보드용 SIM PAD 앱" --latest=false

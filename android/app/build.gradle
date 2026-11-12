@@ -10,11 +10,20 @@ android {
         applicationId 'kr.simtools.simpad'
         minSdk 28
         targetSdk 34
-        versionCode 1
+        versionCode (project.findProperty('verCode') ?: '1') as int
         versionName '1.0'
     }
+    signingConfigs {
+        sim {
+            storeFile file('../sim-release.jks')
+            storePassword 'SimTools2026x'
+            keyAlias 'sim'
+            keyPassword 'SimTools2026x'
+        }
+    }
     buildTypes {
-        release { minifyEnabled false }
+        debug { signingConfig signingConfigs.sim }
+        release { minifyEnabled false; signingConfig signingConfigs.sim }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17

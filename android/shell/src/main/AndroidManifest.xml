@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- 런처가 '설치된 SIM 앱'을 알아보기 위해 -->
+    <queries>
+        <package android:name="kr.simtools.simtv" />
+        <package android:name="kr.simtools.note" />
+        <package android:name="kr.simtools.phone" />
+        <package android:name="kr.simtools.aitel" />
+        <package android:name="kr.simtools.assistant" />
+        <package android:name="kr.simtools.calendar" />
+        <package android:name="kr.simtools.folder" />
+        <package android:name="kr.simtools.message" />
+        <package android:name="kr.simtools.kbo" />
+        <package android:name="kr.simtools.orchestra" />
+        <package android:name="kr.simtools.radio" />
+        <package android:name="kr.simtools.calc" />
+        <package android:name="kr.simtools.map" />
+        <package android:name="kr.simtools.simpad" />
+        <package android:name="kr.simtools.launcher" />
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:usesCleartextTraffic="false"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|density|uiMode"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

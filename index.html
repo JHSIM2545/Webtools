@@ -93,6 +93,13 @@ body.dragmode,body.dragmode *{cursor:grabbing!important;-webkit-user-select:none
 .aimsg.ok{color:var(--ok)}.aimsg.bad{color:#ff8a8a}
 .modal .row.multi{gap:6px;flex-wrap:wrap;justify-content:flex-end}
 button.danger{color:#ff8a8a}
+#appList{display:flex;flex-direction:column;gap:8px;max-height:62dvh;overflow-y:auto;margin-top:4px}
+.arow{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:12px;background:var(--panel2);border:1px solid var(--line)}
+.arow img{width:40px;height:40px;border-radius:10px;flex:none}
+.arow .t{flex:1;min-width:0}.arow .t b{display:block;font-size:14px}.arow .t>span{display:block;font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.arow button{flex:none;padding:7px 12px;font-size:13px}
+.arow button.get{background:var(--accent2);border-color:var(--accent2);font-weight:700}
+.card.ghost.add{cursor:pointer}
 </style>
 <script src="ui-guard.js" defer></script>
 <script src="sync.js" defer></script>
@@ -130,6 +137,14 @@ button.danger{color:#ff8a8a}
     <div class="aimsg" id="aiMsg"></div>
     <div class="warn">AI 키는 서버에만 있고 이 기기에는 저장되지 않아요. 전화번호는 SIM Message·Assistant가 같이 써요.</div>
     <div class="row multi"><button id="aiDel" class="danger">번호 삭제</button><button id="aiTest">응답 테스트</button><button id="aiSave" class="primary">저장·확인</button><button id="aiClose">닫기</button></div>
+  </div>
+</div>
+<div class="modal" id="mApps">
+  <div class="box">
+    <h2>앱 추가</h2>
+    <div id="appList"></div>
+    <div class="warn">필요한 앱만 내려받아 설치하세요. 설치가 끝나면 런처 보드에 나타나요. 처음에는 "이 출처의 앱 설치 허용"을 한 번 켜야 해요.</div>
+    <div class="row"><button id="appsClose">닫기</button></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -172,6 +187,11 @@ button.danger{color:#ff8a8a}
   // 이름의 'SIM'은 흰색, 나머지는 각 앱의 컨셉 컬러
   const nameHtml = t => { const m = /^SIM\s+(.+)$/.exec(t.name); return m && t.color ? 'SIM <span style="color:' + esc(t.color) + '">' + esc(m[1]) + '</span>' : esc(t.name); };
   /* ── 순서 (이 기기에만 저장). 목록에 없는 새 툴은 맨 뒤에 붙는다 ── */
+  /* ── 안드로이드 런처 앱 안에서 열렸을 때: 설치된 SIM 앱만 보드에 나열, 나머지는 '앱 추가'에서 내려받아 설치 ── */
+  const APP = window.SimLauncher || null;
+  let INSTALLED = [];
+  function readInstalled() { if (!APP) return; try { INSTALLED = JSON.parse(APP.installed()); } catch (e) { INSTALLED = []; } }
+  readInstalled();
   const KEY_ORDER = 'simtools_order';
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -187,21 +207,51 @@ button.danger{color:#ff8a8a}
 
   function render() {
     const q = $('q').value.trim().toLowerCase();
-    const list = orderedTools().filter(t => !q || t.name.toLowerCase().includes(q) || (t.desc || '').toLowerCase().includes(q));
+    let list = orderedTools().filter(t => !q || t.name.toLowerCase().includes(q) || (t.desc || '').toLowerCase().includes(q));
+    if (APP) list = list.filter(t => INSTALLED.indexOf(t.id) >= 0);      // 앱 안에서는 설치된 도구만 보드에 나열
     updateHint();
-    if (!list.length) { $('grid').innerHTML = '<div class="empty" style="grid-column:1/-1">검색 결과가 없습니다.</div>'; return; }
+    if (!list.length) { $('grid').innerHTML = APP && !q ? '<div class="card ghost add" id="addApp" style="grid-column:1/-1"><div class="plus">+</div>설치된 앱이 없어요. 눌러서 앱을 추가하세요</div>' : '<div class="empty" style="grid-column:1/-1">검색 결과가 없습니다.</div>'; return; }
     let html = list.map(t => {
       const ico = t.icon ? '<img src="' + esc(t.icon) + '" alt="" draggable="false">' : esc(t.emoji || '🧰');
-      return '<a class="card" data-id="' + esc(t.id) + '" draggable="false" href="' + esc(t.url) + '">' +
+      return '<a class="card" data-id="' + esc(t.id) + '" draggable="false" href="' + (APP ? '#' : esc(t.url)) + '">' +
         '<div class="ico">' + ico + '</div>' +
         '<div><div class="name">' + nameHtml(t) + '</div><div class="desc">' + esc(t.desc || '') + '</div></div>' +
         (t.tag ? '<span class="tag">' + esc(t.tag) + '</span>' : '') + '</a>';
     }).join('');
-    if (!q) html += '<div class="card ghost"><div class="plus">+</div>새 툴이 여기에 추가됩니다</div>';
+    if (!q) html += APP ? '<div class="card ghost add" id="addApp"><div class="plus">+</div>앱 추가</div>' : '<div class="card ghost"><div class="plus">+</div>새 툴이 여기에 추가됩니다</div>';
     $('grid').innerHTML = html;
   }
   $('q').addEventListener('input', render);
   render();
+  if (APP) {
+    $('btnInstall').style.display = 'none';
+    document.addEventListener('click', e => {
+      const add = e.target.closest && e.target.closest('#addApp'); if (add) { e.preventDefault(); openApps(); return; }
+      const c = e.target.closest && e.target.closest('a.card'); if (c && c.dataset.id) { e.preventDefault(); APP.open(c.dataset.id); }
+    });
+    window.__simRefresh = () => { readInstalled(); render(); if ($('mApps').classList.contains('show')) paintApps(); };
+    window.__simInstall = (id, st) => {
+      const t = TOOLS.find(x => x.id === id), n = t ? t.name : id;
+      toast(st === 'start' ? n + ' 내려받는 중…' : st === 'done' ? n + ' 설치 화면을 여는 중…' : st === 'perm' ? '설정에서 "이 출처 허용"을 켠 뒤 다시 눌러 주세요' : n + ' 설치에 실패했어요');
+    };
+    $('appsClose').onclick = () => $('mApps').classList.remove('show');
+    $('mApps').addEventListener('click', e => { if (e.target === $('mApps')) $('mApps').classList.remove('show'); });
+    $('appList').addEventListener('click', e => {
+      const b = e.target.closest('button[data-act]'); if (!b) return;
+      const id = b.dataset.id;
+      if (b.dataset.act === 'get') APP.install(id); else if (b.dataset.act === 'open') APP.open(id); else if (b.dataset.act === 'del') APP.uninstall(id);
+    });
+  }
+  function paintApps() {
+    readInstalled();
+    $('appList').innerHTML = TOOLS.map(t => {
+      const on = INSTALLED.indexOf(t.id) >= 0;
+      return '<div class="arow"><img src="' + esc(t.icon) + '" alt=""><div class="t"><b>' + nameHtml(t) + '</b><span>' + esc(t.desc || '') + '</span></div>' +
+        (on ? '<button data-act="open" data-id="' + esc(t.id) + '">열기</button><button class="danger" data-act="del" data-id="' + esc(t.id) + '">제거</button>'
+            : '<button class="get" data-act="get" data-id="' + esc(t.id) + '">받기</button>') + '</div>';
+    }).join('');
+  }
+  function openApps() { paintApps(); $('mApps').classList.add('show'); }
 
   /* AI 연결 확인: 런처가 열릴 때 Gemini·Claude·Groq가 실제로 응답하는지 서버에서 확인해
      성공하면 컬러(활성), 실패·미등록이면 회색(비활성)으로 보여준다. 아이콘은 자체 제작한 이니셜 배지. */

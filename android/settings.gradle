@@ -7,3 +7,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = 'SimPad'
 include ':app'
+include ':shell'

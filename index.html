@@ -252,8 +252,15 @@ button.danger{color:#ff8a8a}
       const c = e.target.closest && e.target.closest('a.card'); if (c && c.dataset.id) { e.preventDefault(); APP.open(c.dataset.id); }
     });
     window.__simRefresh = () => { readInstalled(); render(); if ($('mApps').classList.contains('show')) paintApps(); checkUpd(); };
-    window.__simUpdates = ids => {   // 앱이 서버 최신 버전과 비교한 결과
-      const had = UPDATES.join(); UPDATES = Array.isArray(ids) ? ids : [];
+    /* 업데이트 표시: 처음 한 번은 "지금 상태를 모두 업데이트된 것"으로 보고 표시하지 않는다(확인한 버전을 기기에 기억).
+       이후 서버에 그보다 새 버전이 올라온 앱만 표시한다. map = {앱id: 서버 최신 버전} (없는 옛 앱은 id 목록만 받음) */
+    window.__simUpdates = (ids, map) => {
+      ids = Array.isArray(ids) ? ids : [];
+      let ack = null; try { ack = JSON.parse(lsGet('simtools_upd_ack') || 'null'); } catch (e) {}
+      const cur = map && typeof map === 'object' ? map : ids.reduce((o, id) => (o[id] = 1, o), {});   // 버전을 모르면 임시값 1
+      if (!ack || (ack._p && map)) { ack = Object.assign({}, cur); if (!map) ack._p = 1; lsSet('simtools_upd_ack', JSON.stringify(ack)); }
+      ids = ids.filter(id => (cur[id] || 1) > (ack[id] || 0));
+      const had = UPDATES.join(); UPDATES = ids;
       render(); if ($('mApps').classList.contains('show')) paintApps();
       if (UPDATES.length && UPDATES.join() !== had) toast('업데이트할 앱이 ' + UPDATES.length + '개 있어요 — 앱 추가에서 업데이트하세요');
     };

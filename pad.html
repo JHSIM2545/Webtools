@@ -147,6 +147,7 @@ input[type=text]:focus{border-color:var(--accent)}
         <button class="latch" data-m="alt">Alt</button>
         <button class="latch" data-m="shift">Shift</button>
         <button class="latch" data-m="win">Win</button>
+        <button data-k="hangul">한/영</button>
         <button data-k="backspace">⌫</button>
         <button data-k="enter">⏎</button>
       </div>
@@ -214,6 +215,20 @@ input[type=text]:focus{border-color:var(--accent)}
   <button class="pri" id="bCodeOk">연결</button>
 </div></div>
 
+<!-- 블루투스 연결 (안드로이드 앱) -->
+<div class="ov" id="ovBt"><div class="sheet" role="dialog" aria-modal="true">
+  <h2>블루투스 연결 <button class="ibtn" data-close>✕</button></h2>
+  <div class="note"><ol>
+    <li>아래 <b>차량에서 찾을 수 있게 하기</b>를 누릅니다.</li>
+    <li>차량(안드로이드) 블루투스 설정에서 이 폰을 찾아 <b>페어링</b>합니다.</li>
+    <li>페어링된 목록에서 차량을 눌러 <b>연결</b>합니다.</li>
+  </ol></div>
+  <button class="pri" id="btDisc">차량에서 찾을 수 있게 하기</button>
+  <h3>페어링된 기기</h3>
+  <div id="btList" class="fld"></div>
+  <button id="btSet">폰 블루투스 설정 열기</button>
+</div></div>
+
 <!-- PC 프로그램 안내 -->
 <div class="ov" id="ovHelp"><div class="sheet" role="dialog" aria-modal="true">
   <h2>PC 프로그램 설치 (Windows) <button class="ibtn" data-close>✕</button></h2>
@@ -249,6 +264,8 @@ input[type=text]:focus{border-color:var(--accent)}
 const $ = id => document.getElementById(id);
 const LS = 'simpad.v1';
 const SB_REF = 'gpqlximhoqdybcewdfde', SB_KEY = 'sb_publishable_xUnGxyLCc5TB5nv4keVQVw__grqGJkP';
+const BT = !!window.SimPadBT;          // 안드로이드 앱(SIM PAD BT) 안에서 열렸을 때: 블루투스 HID 로 직접 보냄
+let BT_ST = {};
 const WS_URL = 'wss://' + SB_REF + '.supabase.co/realtime/v1/websocket?apikey=' + SB_KEY + '&vsn=1.0.0';
 
 /* ── 설정 ── */
@@ -269,6 +286,7 @@ const RT = { ws: null, ref: 0, joined: false, hb: 0, rc: 0, timer: 0, pcOk: 0, p
 const topic = () => 'realtime:pad-' + S.code.toLowerCase();
 function setStat() {
   const el = $('stat'), tx = $('statTxt');
+  if (BT) { const b = BT_ST; el.className = 'stat' + (b.conn ? ' ok' : b.reg ? ' wait' : ''); tx.textContent = b.conn ? (b.host || '차량') + ' 연결됨' : b.reg ? '연결 대기 · 눌러서 연결' : b.ok === false ? '블루투스 사용 불가' : '블루투스 준비 중…'; $('pad').classList.toggle('off', !b.conn); return; }
   const pcLive = RT.pcOk && Date.now() - RT.pcOk < 9000;
   el.className = 'stat' + (!S.code ? '' : pcLive ? ' ok' : ' wait');
   tx.textContent = !S.code ? '연결 안 됨' : pcLive ? (RT.pcName || 'PC') + ' 연결됨' : RT.joined ? 'PC 찾는 중…' : '서버 연결 중…';
@@ -300,6 +318,7 @@ function rtOpen() {
 function rtLater() { clearTimeout(RT.timer); RT.timer = setTimeout(rtOpen, Math.min(1000 * Math.pow(1.6, RT.rc++), 8000)); }
 function rtClose(quiet) { RT.wantClose = true; clearTimeout(RT.timer); clearInterval(RT.hb); RT.joined = false; RT.pcOk = 0; if (RT.ws) { try { RT.ws.onclose = null; RT.ws.close(); } catch (e) {} RT.ws = null; } if (!quiet) setStat(); }
 function send(ev, payload) {
+  if (BT) { try { window.SimPadBT.send(ev, JSON.stringify(payload)); } catch (e) {} return true; }
   if (!RT.joined) return false;
   return rtSendRaw({ topic: topic(), event: 'broadcast', ref: String(++RT.ref), payload: { type: 'broadcast', event: ev, payload: payload } });
 }
@@ -388,7 +407,7 @@ function padEnd(e) {
   else if (G.max === 3) {
     const tx = Math.abs(G.sumX), ty = Math.abs(G.sumY);
     if (Math.max(tx, ty) < 30 && dur < 350) { btn('m', 'c'); vib(10); }
-    else if (ty > tx && ty > 40) { combo(G.sumY < 0 ? ['win', 'tab'] : ['win', 'd']); vib(15); }
+    else if (ty > tx && ty > 40) { combo(BT ? [G.sumY < 0 ? 'acHome' : 'acBack'] : G.sumY < 0 ? ['win', 'tab'] : ['win', 'd']); vib(15); }
     else if (tx > 40) { combo(G.sumX < 0 ? ['alt', 'shift', 'tab'] : ['alt', 'tab']); vib(15); }
   }
   G.n = 0; G.armDrag = false;
@@ -425,7 +444,9 @@ const mods = new Set();
 function resetKb() { sent = ''; kb.value = SENT; try { kb.setSelectionRange(kb.value.length, kb.value.length); } catch (e) {} }
 function lcp(a, b) { let i = 0; const n = Math.min(a.length, b.length); while (i < n && a[i] === b[i]) i++; return i; }
 function clearMods() { mods.clear(); document.querySelectorAll('.latch').forEach(b => b.classList.remove('on')); }
-function onKbInput() {
+let comp = false;
+function onKbInput(e) {
+  if (BT && (comp || (e && e.isComposing))) return;     // 블루투스는 조합이 끝난 글자만 전송
   let v = kb.value;
   if (v.charAt(0) !== SENT) {                           // 맨 앞 표식이 지워졌다 = 빈 상태에서 백스페이스
     if (sent === '' ) { key('backspace'); }
@@ -446,6 +467,8 @@ function onKbInput() {
   if (add.indexOf('\n') >= 0) resetKb();
 }
 kb.addEventListener('input', onKbInput);
+kb.addEventListener('compositionstart', () => { comp = true; });
+kb.addEventListener('compositionend', () => { comp = false; if (BT) setTimeout(() => onKbInput(null), 0); });
 kb.addEventListener('focus', () => { if (kb.value.charAt(0) !== SENT) resetKb(); });
 kb.addEventListener('blur', () => { resetKb(); });
 kb.addEventListener('keydown', e => {
@@ -472,7 +495,7 @@ document.querySelectorAll('[data-k]').forEach(b => b.addEventListener('click', (
   vib(8);
 }));
 document.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => { combo(b.dataset.c.split(',')); vib(8); }));
-const SC = [
+const SC_PC = [
   ['복사', 'Ctrl+C', ['ctrl', 'c']], ['붙여넣기', 'Ctrl+V', ['ctrl', 'v']], ['잘라내기', 'Ctrl+X', ['ctrl', 'x']],
   ['실행 취소', 'Ctrl+Z', ['ctrl', 'z']], ['다시 실행', 'Ctrl+Y', ['ctrl', 'y']], ['전체 선택', 'Ctrl+A', ['ctrl', 'a']],
   ['저장', 'Ctrl+S', ['ctrl', 's']], ['찾기', 'Ctrl+F', ['ctrl', 'f']], ['새로고침', 'F5', ['f5']],
@@ -482,6 +505,14 @@ const SC = [
   ['전체 화면', 'F11', ['f11']], ['창 닫기', 'Alt+F4', ['alt', 'f4']], ['작업 관리자', 'Ctrl+Shift+Esc', ['ctrl', 'shift', 'esc']],
   ['화면 잠금', 'Win+L', ['win', 'l']], ['최소화', 'Win+↓', ['win', 'down']], ['최대화', 'Win+↑', ['win', 'up']]
 ];
+const SC_BT = [
+  ['홈', '홈 화면', ['acHome']], ['뒤로', '뒤로 가기', ['acBack']], ['앱 전환', 'Alt+Tab', ['alt', 'tab']],
+  ['복사', 'Ctrl+C', ['ctrl', 'c']], ['붙여넣기', 'Ctrl+V', ['ctrl', 'v']], ['잘라내기', 'Ctrl+X', ['ctrl', 'x']],
+  ['실행 취소', 'Ctrl+Z', ['ctrl', 'z']], ['전체 선택', 'Ctrl+A', ['ctrl', 'a']], ['찾기', 'Ctrl+F', ['ctrl', 'f']],
+  ['새로고침', 'F5', ['f5']], ['새 탭', 'Ctrl+T', ['ctrl', 't']], ['탭 닫기', 'Ctrl+W', ['ctrl', 'w']],
+  ['주소창', 'Ctrl+L', ['ctrl', 'l']], ['Esc', '취소', ['esc']], ['메뉴 키', 'Win', ['win']]
+];
+const SC = BT ? SC_BT : SC_PC;
 $('scGrid').innerHTML = SC.map((s, i) => '<button data-sc="' + i + '">' + s[0] + '<small>' + s[1] + '</small></button>').join('');
 $('scGrid').addEventListener('click', e => { const b = e.target.closest('[data-sc]'); if (!b) return; combo(SC[+b.dataset.sc][2]); vib(10); });
 
@@ -511,6 +542,25 @@ $('bCodeOk').onclick = () => {
   S.code = c; save(); close('ovCode'); rtOpen(); setStat(); toast('PC를 찾는 중…');
 };
 
+/* ── 블루투스(안드로이드 앱) ── */
+const escH = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function renderBt() {
+  const l = BT_ST.hosts || [];
+  $('btList').innerHTML = l.length ? l.map(h => '<button data-addr="' + escH(h.a) + '" data-c="' + (h.c ? 1 : 0) + '">' + escH(h.n || h.a) + ' · ' + (h.c ? '연결됨 (눌러서 해제)' : '연결') + '</button>').join('') : '<div class="note">페어링된 기기가 없습니다. 위 1·2단계를 먼저 진행하세요.</div>';
+}
+function btRefresh() { try { BT_ST = JSON.parse(window.SimPadBT.state()); } catch (e) {} setStat(); renderBt(); }
+if (BT) {
+  document.querySelector('.back').style.display = 'none';
+  window.__btUpdate = btRefresh;
+  $('stat').onclick = () => { btRefresh(); open('ovBt'); };
+  $('bCode').textContent = '블루투스 연결 (차량 선택)';
+  $('bCode').onclick = () => { close('ovSet'); btRefresh(); open('ovBt'); };
+  $('bHelp').style.display = 'none'; $('bUnpair').style.display = 'none';
+  $('btDisc').onclick = () => { try { window.SimPadBT.discoverable(); } catch (e) {} };
+  $('btSet').onclick = () => { try { window.SimPadBT.btSettings(); } catch (e) {} };
+  $('btList').addEventListener('click', e => { const b = e.target.closest('[data-addr]'); if (!b) return; try { b.dataset.c === '1' ? window.SimPadBT.disconnect(b.dataset.addr) : window.SimPadBT.connect(b.dataset.addr); } catch (er) {} toast('요청했습니다'); setTimeout(btRefresh, 1500); });
+}
+
 /* 화면 꺼짐 방지 */
 let wl = null;
 async function wake() {
@@ -519,10 +569,10 @@ async function wake() {
     else if (wl) { await wl.release(); wl = null; }
   } catch (e) { wl = null; }
 }
-document.addEventListener('visibilitychange', () => { wake(); if (document.visibilityState === 'visible' && S.code && !RT.joined) rtOpen(); });
+document.addEventListener('visibilitychange', () => { wake(); if (!BT && document.visibilityState === 'visible' && S.code && !RT.joined) rtOpen(); });
 
 paint(); setStat(); wake(); setInterval(setStat, 1500);
-if (S.code) rtOpen(); else open('ovCode');
+if (BT) { btRefresh(); setTimeout(() => { btRefresh(); if (!BT_ST.conn) open('ovBt'); }, 1200); } else if (S.code) rtOpen(); else open('ovCode');
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 window.__pad = { S, G, RT, send, flush };   // 점검용
 })();

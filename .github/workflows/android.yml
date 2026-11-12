@@ -1,0 +1,44 @@
+name: SIM PAD Android APK
+
+on:
+  push:
+    paths:
+      - 'android/**'
+      - 'pad.html'
+      - 'pad-icon-192.png'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: 화면 파일을 앱 안에 함께 넣기 (인터넷이 없을 때 대비)
+        run: |
+          mkdir -p android/app/src/main/assets
+          cp pad.html pad-icon-192.png ui-guard.js android/app/src/main/assets/
+      - name: APK 빌드
+        run: gradle -p android assembleDebug --no-daemon --stacktrace
+      - name: 파일 이름 정리
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk SIM-PAD.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SIM-PAD-apk
+          path: SIM-PAD.apk
+      - name: 릴리스로 올리기 (폰에서 바로 내려받기)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete simpad-latest --yes --cleanup-tag || true
+          gh release create simpad-latest SIM-PAD.apk --title "SIM PAD (Android)" --notes "차량 블루투스 마우스·키보드용 SIM PAD 앱" --latest=false

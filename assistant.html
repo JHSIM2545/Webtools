@@ -870,14 +870,29 @@ function callBtns(c, primary) {
   if (c.mobile) b.push({ label: '💬 문자', href: 'sms:' + c.mobile.replace(/[^0-9+]/g, '') });
   return b;
 }
+/* SIM Phone에 없을 때: 휴대폰 내부 연락처(Contact Picker). 웹은 연락처를 몰래 검색할 수 없어 사용자가 직접 고르는 방식이다. */
+const canDevPick = () => !!(navigator.contacts && navigator.contacts.select && window.ContactsManager);
+function devPickBtns(intent, sl) {
+  if (canDevPick()) return [{ label: '📇 휴대폰 연락처에서 찾기', primary: true, fn: () => devPick(intent, sl) }];
+  return intent === 'call' ? [{ label: '📞 전화 앱 열기', primary: true, href: 'tel:' }] : [];
+}
+async function devPick(intent, sl) {
+  let sel;
+  try { sel = await navigator.contacts.select(['name', 'tel'], { multiple: false }); }
+  catch (e) { return bot('휴대폰 연락처를 열지 못했어요. 브라우저의 연락처 권한을 확인해 주세요.', { btns: intent === 'call' ? [{ label: '📞 전화 앱 열기', href: 'tel:' }] : [] }); }
+  if (!sel || !sel.length) return bot('선택하지 않았어요.');
+  const x = sel[0], no = (x.tel || []).find(Boolean) || '', nm = (x.name || []).find(Boolean) || sl.name || '';
+  if (!no) return bot(nm + '님은 휴대폰에 저장된 전화번호가 없어요.');
+  return presentContact(intent, sl, { name: nm, mobile: no, tel: '', company: '', title: '', email: '', address: '', memo: '' });
+}
 async function findFlow(intent, sl) {
   if (!sl.name) { pending = newP(intent, sl); pending.ask = 'findname'; pending.stage = 'fill'; return bot('누구를 ' + (intent === 'call' ? '찾아 전화할까요?' : '찾을까요?') + ' 이름을 말씀해 주세요.', { tok: pending.tok, btns: [{ label: '취소', fn: () => cancelP('취소했어요.') }] }); }
   await loadContacts();
-  if (!contacts.length) { pending = null; return bot('저장된 연락처가 없어요. "홍길동 저장해줘"처럼 말씀하시거나 SIM Phone에서 추가해 주세요.', { btns: [{ label: 'SIM Phone', href: 'phone.html' }] }); }
+  if (!contacts.length) { pending = null; return bot('SIM Phone에 저장된 연락처가 없어요.' + (canDevPick() ? ' 휴대폰 연락처에서 ' + sl.name + '님을 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: 'SIM Phone', href: 'phone.html' }]) }); }
   const res = searchContacts(sl);
   if (!res.length) {
     pending = null;
-    return bot(sl.name + '님을 연락처에서 찾지 못했어요. 새로 저장할까요?', { btns: [{ label: sl.name + ' 저장하기', primary: true, fn: () => { pending = newP('contact_add', { name: sl.name }); step(); } }] });
+    return bot(sl.name + '님이 SIM Phone에 없어요.' + (canDevPick() ? ' 휴대폰 연락처에서 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: sl.name + ' 저장하기', fn: () => { pending = newP('contact_add', { name: sl.name }); step(); } }]) });
   }
   const top = res.filter(c => searchContacts(sl).length && true);
   const exact = res.length === 1 || (NLU.digits(res[0].mobile) && false);
@@ -1137,13 +1152,13 @@ const LTOOLS = {
   },
   async find_contact(a) {
     await loadContacts(); const r = searchContacts({ name: String(a.query || '') }).slice(0, 5);
-    if (!r.length) return { ok: true, found: 0 };
+    if (!r.length) { liveCard('<b>' + esc(a.query || '') + '</b><span class="sub">SIM Phone에 없어요</span>', devPickBtns('find', { name: a.query })); return { ok: true, found: 0, note: 'SIM Phone에 없음. 화면의 휴대폰 연락처 버튼을 안내' }; }
     liveCard(contactCard(r[0]), callBtns(r[0], true));
     return { ok: true, found: r.length, contacts: r.map(c => ({ name: c.name, company: c.company, title: c.title, mobile: c.mobile, tel: c.tel, email: c.email })) };
   },
   async call_contact(a) {
     await loadContacts(); const r = searchContacts({ name: String(a.query || '') });
-    if (!r.length) return { ok: false, error: '연락처에 없어요' };
+    if (!r.length) { liveCard('<b>' + esc(a.query || '') + '</b><span class="sub">SIM Phone에 없어요</span>', devPickBtns('call', { name: a.query })); return { ok: false, error: 'SIM Phone에 없어요. 화면의 휴대폰 연락처 버튼을 눌러 고르게 안내하세요' }; }
     if (r.length > 1 && String(r[0].name).replace(/\s/g, '') !== String(a.query || '').replace(/\s/g, '')) return { ok: false, error: '여러 명이에요. 누구인지 물어보세요', candidates: r.slice(0, 4).map(c => c.name + (c.company ? ' (' + c.company + ')' : '')) };
     const c = r[0], no = c.mobile || c.tel; if (!no) return { ok: false, error: '전화번호가 없어요' };
     liveCard(whoHtml(c), callBtns(c, true).filter(b => b.href && b.href.startsWith('tel')));

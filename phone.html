@@ -1139,6 +1139,11 @@ async function consumeShared() {
   } catch (e) { toast('공유받은 연락처를 저장하지 못했습니다', 3800); }
 }
 
+/* ───────── 계정 동기화로 들어온 연락처 반영 (sync.js 가 알림) ───────── */
+window.addEventListener('simsync', async () => {
+  try { if (!db) return; contacts = await dbAll(); const v = stack[stack.length - 1]; if (v === 'vList') renderList(); } catch (e) {}   // 편집·상세 화면은 건드리지 않음
+});
+
 /* ───────── 시작 ───────── */
 (async () => {
   try { db = await openDB(); contacts = await dbAll(); } catch (e) { db = null; toast('이 브라우저는 저장소를 쓸 수 없어 임시로만 동작합니다.', 4000); }

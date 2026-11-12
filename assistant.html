@@ -1504,6 +1504,13 @@ const KB = (() => {
   return d;
 })();
 const kbSave = () => ls.set(KB_KEY, JSON.stringify(KB));
+window.addEventListener('simsync', () => {   // 다른 기기·앱에서 저장한 기억이 계정 동기화로 들어오면 화면을 다시 열지 않아도 바로 반영
+  try {
+    const d = JSON.parse(ls.get(KB_KEY, '') || 'null'); if (!d || typeof d !== 'object') return;
+    KB.places = Array.isArray(d.places) ? d.places : []; KB.facts = Array.isArray(d.facts) ? d.facts : [];
+    KB.counts = d.counts && typeof d.counts === 'object' ? d.counts : {}; KB.del = d.del && typeof d.del === 'object' ? d.del : {};
+  } catch (e) {}
+});
 const KB_GROUPS = [['집', '우리집', '본가', '내집'], ['사무실', '회사', '직장', '일터'], ['어머니댁', '어머님댁', '엄마집', '어머니집', '엄마네', '친정', '친정집'], ['아버지댁', '아버님댁', '아빠집', '아버지집'], ['부모님댁', '부모님집'], ['처갓집', '장인댁', '시댁']];
 const kbCanon = s => {
   let k = String(s || '').replace(/\s+/g, '').replace(/^(우리|내)(?=.)/, '').replace(/(의)?(주소|위치)$/, '').replace(/(으로|에서|은|는|이|가|을|를)$/, '');

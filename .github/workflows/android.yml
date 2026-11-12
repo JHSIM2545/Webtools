@@ -55,8 +55,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
+          # 매니페스트의 <package .../> 줄(런처가 다른 앱을 찾는 목록)은 앱이 새로 추가될 때마다 바뀌므로 해시에서 뺀다
           if [ "${{ matrix.flavor }}" = "Launcher" ]; then SKIP='src/tool/'; else SKIP='src/launcher/'; fi
-          H=$( { echo "${{ matrix.key }}|${{ matrix.label }}|${{ matrix.page }}"; git ls-files android | grep -v '^android/app/' | grep -v "$SKIP" | sort | xargs -d '\n' cat; cat "${{ matrix.icon }}"; } | sha256sum | cut -c1-16 )
+          H=$( { echo "${{ matrix.key }}|${{ matrix.label }}|${{ matrix.page }}"; git ls-files android | grep -v '^android/app/' | grep -v "$SKIP" | sort | xargs -d '\n' grep -ahv '<package android:name=' ; cat "${{ matrix.icon }}"; } | sha256sum | cut -c1-16 )
           gh release download apps-latest -p versions.json -O prev.json 2>/dev/null || echo '{}' > prev.json
           PV=$(jq -r --arg k "${{ matrix.key }}" '.apps[$k].v // empty' prev.json 2>/dev/null || true)
           PH=$(jq -r --arg k "${{ matrix.key }}" '.apps[$k].h // empty' prev.json 2>/dev/null || true)

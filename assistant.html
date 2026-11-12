@@ -845,7 +845,7 @@ function fill(p, text) {
 /* ───────── 연락처 찾기 · 전화 걸기 ───────── */
 const AVC = ['#2f6bff', '#0ea5a4', '#d9488a', '#f08c1f', '#7c5cff', '#16a34a', '#e5484d', '#0b7285'];
 const dial = c => String(c.mobile || c.tel || '').replace(/[^0-9+]/g, '');
-function searchContacts(sl) {
+function searchContacts(sl, list) {
   const q = String(sl.name || '').replace(/\s/g, '').toLowerCase(); if (!q) return [];
   const sc = c => {
     const nm = String(c.name || '').replace(/\s/g, '').toLowerCase(), co = String(c.company || '').replace(/\s/g, '').toLowerCase(), ti = String(c.title || '');
@@ -853,7 +853,7 @@ function searchContacts(sl) {
     if (nm === q) return 100; if (nm.startsWith(q)) return 80; if (nm.includes(q)) return 60; if (co === q) return 55; if (co.includes(q)) return 40;
     if ((String(c.memo || '') + ti).toLowerCase().includes(q)) return 15; return 0;
   };
-  const r = contacts.map(c => ({ c, s: sc(c) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s || String(a.c.name).localeCompare(String(b.c.name), 'ko'));
+  const r = (list || contacts).map(c => ({ c, s: sc(c) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s || String(a.c.name).localeCompare(String(b.c.name), 'ko'));
   return r.map(x => x.c);
 }
 function whoHtml(c) {
@@ -870,17 +870,23 @@ function callBtns(c, primary) {
   if (c.mobile) b.push({ label: '💬 문자', href: 'sms:' + c.mobile.replace(/[^0-9+]/g, '') });
   return b;
 }
-/* 검색 순서: ① 휴대폰 연락처(앱 APK의 SIMNative 다리가 있을 때만 조용히 검색 가능) → ② SIM Phone.
+/* 검색 순서: ① 휴대폰 연락처(앱 APK의 SimContacts 연결부가 있을 때만 조용히 검색 가능) → ② SIM Phone.
    일반 브라우저는 웹 보안상 ①을 몰래 검색할 수 없어 ②를 먼저 보고, 없으면 연락처 선택 창을 연다. */
-async function nativeFind(name) {
+let devPerm = null;   // 휴대폰 연락처 읽기 권한(앱 APK의 SimContacts). 거절하면 이번 실행 동안 다시 묻지 않는다.
+async function nativeFind(sl) {
   try {
-    if (!(window.SIMNative && SIMNative.findContacts)) return [];
-    const r = await SIMNative.findContacts(String(name || ''));
-    return (r || []).map(x => ({ id: 'dev:' + (x.id || x.name), name: x.name || '', mobile: (x.tel || x.phones || [])[0] || x.mobile || '', tel: '', company: x.company || '', title: '', email: '', address: '', memo: '', dev: true })).filter(c => c.name);
+    const B = window.SimContacts; if (!(B && typeof B.all === 'function')) return [];
+    if (!B.has()) {
+      if (devPerm === false) return [];
+      devPerm = await new Promise(res => { window.__simContactsPerm = res; B.request(); });
+      window.__simContactsPerm = null; if (!devPerm) return [];
+    }
+    const list = JSON.parse(B.all() || '[]').map(x => ({ id: 'dev:' + x.n, name: x.n || '', company: x.c || '', title: x.t || '', mobile: (x.p || [])[0] || '', tel: '', email: '', address: '', memo: '', dev: true })).filter(c => c.name && c.mobile);
+    return searchContacts(sl, list);
   } catch (e) { return []; }
 }
 async function lookupContacts(sl) {
-  const d = await nativeFind(sl.name); if (d.length) return d;
+  const d = await nativeFind(sl); if (d.length) return d;
   await loadContacts(); return searchContacts(sl);
 }
 /* SIM Phone에 없을 때: 휴대폰 내부 연락처(Contact Picker). 웹은 연락처를 몰래 검색할 수 없어 사용자가 직접 고르는 방식이다. */
@@ -904,7 +910,7 @@ async function findFlow(intent, sl) {
   if (!res.length && !contacts.length) { pending = null; return bot('SIM Phone에 저장된 연락처가 없어요.' + (canDevPick() ? ' 휴대폰 연락처에서 ' + sl.name + '님을 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: 'SIM Phone', href: 'phone.html' }]) }); }
   if (!res.length) {
     pending = null;
-    return bot(sl.name + '님이 ' + (window.SIMNative ? '휴대폰 연락처와 ' : '') + 'SIM Phone에 없어요.' + (canDevPick() ? ' 휴대폰 연락처에서 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: sl.name + ' 저장하기', fn: () => { pending = newP('contact_add', { name: sl.name }); step(); } }]) });
+    return bot(sl.name + '님이 ' + (window.SimContacts ? '휴대폰 연락처와 ' : '') + 'SIM Phone에 없어요.' + (canDevPick() ? ' 휴대폰 연락처에서 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: sl.name + ' 저장하기', fn: () => { pending = newP('contact_add', { name: sl.name }); step(); } }]) });
   }
   const top = res.filter(c => searchContacts(sl).length && true);
   const exact = res.length === 1 || (NLU.digits(res[0].mobile) && false);

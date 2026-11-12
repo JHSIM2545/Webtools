@@ -23,10 +23,10 @@ android {
         versionName '1.0'
         buildConfigField 'String', 'START_URL', "\"https://jhsim2545.github.io/Webtools/${startPage}\""
         resValue 'string', 'app_name', appLabel
-        // 연락처 공유 수신은 SIM Phone 앱에서만, 폰 연락처 읽기(READ_CONTACTS)는 SIM Message 앱에서만
+        // 연락처 공유 수신은 SIM Phone 앱에서만, 폰 연락처 읽기(READ_CONTACTS)는 SIM Message·SIM Assistant 앱에서만
         manifestPlaceholders = [shareEnabled: (appKey == 'phone') ? 'true' : 'false',
-                                contactsPerm: (appKey == 'message') ? 'android.permission.READ_CONTACTS' : 'android.permission.ACCESS_NETWORK_STATE']
-        buildConfigField 'boolean', 'CONTACTS', (appKey == 'message') ? 'true' : 'false'
+                                contactsPerm: (appKey == 'message' || appKey == 'assistant') ? 'android.permission.READ_CONTACTS' : 'android.permission.ACCESS_NETWORK_STATE']
+        buildConfigField 'boolean', 'CONTACTS', (appKey == 'message' || appKey == 'assistant') ? 'true' : 'false'
     }
 
     flavorDimensions 'role'

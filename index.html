@@ -252,7 +252,7 @@ button.danger{color:#ff8a8a}
       const add = e.target.closest && e.target.closest('#addApp'); if (add) { e.preventDefault(); openApps(); return; }
       const c = e.target.closest && e.target.closest('a.card'); if (c && c.dataset.id) { e.preventDefault(); APP.open(c.dataset.id); }
     });
-    window.__simRefresh = () => { readInstalled(); render(); if ($('mApps').classList.contains('show')) paintApps(); checkUpd(); };
+    window.__simRefresh = () => { readInstalled(); render(); if ($('mApps').classList.contains('show')) paintApps(); checkUpd(true); };   // 앱으로 돌아올 때(설치 직후 등)는 1분 제한 없이 바로 다시 확인해, 최신이 된 앱의 UPDATE 표시를 즉시 뗀다
     /* 업데이트 표시: 앱(checkUpdates)이 '설치된 빌드 번호 < 서버 최신 번호'인 앱 id 목록을 보내 준다. */
     window.__simUpdates = (ids, map) => {
       ids = Array.isArray(ids) ? ids : [];
@@ -263,7 +263,7 @@ button.danger{color:#ff8a8a}
       if (UPDATES.length && UPDATES.join() !== had) toast('업데이트할 앱이 ' + UPDATES.length + '개 있어요 — 앱 추가에서 업데이트하세요');
     };
     let lastChk = 0;
-    function checkUpd() { if (Date.now() - lastChk < 60e3) return; lastChk = Date.now(); try { APP.checkUpdates(); } catch (e) {} }
+    function checkUpd(force) { if (!force && Date.now() - lastChk < 60e3) return; lastChk = Date.now(); try { APP.checkUpdates(); } catch (e) {} }
     checkUpd();
     let gotCb = true;
     window.__simInstall = (id, st) => {

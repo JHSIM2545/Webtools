@@ -14,7 +14,10 @@ android {
         targetSdk 34
         versionCode verCode
         versionName '1.0'
+        buildConfigField 'String', 'APP_KEY', '"pad"'
+        buildConfigField 'long', 'BUILD_TIME', "${System.currentTimeMillis()}L"   // 빌드한 시각(버전 정보 화면에 표시)
     }
+    buildFeatures { buildConfig true }
     signingConfigs {
         sim {
             storeFile file('../sim-release.jks')

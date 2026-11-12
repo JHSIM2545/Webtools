@@ -59,10 +59,13 @@
   }
 
   /* ── 화면(웹) 버전: 서비스 워커 캐시 이름의 번호 ── */
+  const WEBOK = location.protocol !== 'file:';   // 앱 안에 넣어 둔 오프라인 화면(file://)에는 화면(웹) 버전이 없다
   async function webVer() {
+    if (!WEBOK) return 0;
     try { const ks = await caches.keys(); return ks.map(k => /^simwebtools-shell-v(\d+)$/.exec(k)).filter(Boolean).map(m => +m[1]).sort((a, b) => b - a)[0] || 0; } catch (e) { return 0; }
   }
   async function webLatest() {
+    if (!WEBOK) return -1;
     try {
       const r = await fetch(new URL('sw.js', location.href).href + '?t=' + Date.now(), { cache: 'no-store' });
       const m = /simwebtools-shell-v(\d+)/.exec(await r.text()); return m ? +m[1] : 0;
@@ -84,7 +87,7 @@
     const info = nativeInfo(), wv = await webVer();
     const rows = info ? [
       ['앱', info.name], ['버전', info.versionName || '—'], ['빌드 번호', '#' + info.build], ['빌드 날짜', fmt(info.buildTime)],
-      ['화면(웹) 버전', wv ? 'v' + wv : '—'], ['패키지', info.pkg], ['안드로이드', 'API ' + info.sdk]
+      ['화면(웹) 버전', WEBOK ? (wv ? 'v' + wv : '—') : '오프라인 화면'], ['패키지', info.pkg], ['안드로이드', 'API ' + info.sdk]
     ] : [
       ['앱', appName()], ['실행 방식', OLDAPK ? '안드로이드 앱(구버전)' : '웹(브라우저·설치형 웹앱)'], ['화면(웹) 버전', wv ? 'v' + wv : '—']
     ];
@@ -106,9 +109,10 @@
         else { bad = true; lines.push('앱: 확인하지 못했어요 (인터넷 확인)'); }
       }
       let webNeed = false;
-      if (wl) { if (wv && wl > wv) { webNeed = true; lines.push('화면: 새 버전 v' + wl + ' 있음 (현재 v' + wv + ')'); } else lines.push('화면: 최신이에요 (v' + (wv || wl) + ')'); }
+      if (wl < 0) lines.push('화면: 앱 안의 오프라인 화면이라 확인하지 않아요');
+      else if (wl) { if (wv && wl > wv) { webNeed = true; lines.push('화면: 새 버전 v' + wl + ' 있음 (현재 v' + wv + ')'); } else lines.push('화면: 최신이에요 (v' + (wv || wl) + ')'); }
       else { bad = true; lines.push('화면: 확인하지 못했어요 (인터넷 확인)'); }
-      $('svApp').hidden = !need; $('svWeb').hidden = !webNeed && !need && !(wl && !wv);
+      $('svApp').hidden = !need; $('svWeb').hidden = !webNeed && !need && !(wl > 0 && !wv);
       if (!$('svWeb').hidden && !webNeed) $('svWeb').textContent = '♻ 화면 새로 받기';
       st(lines.join('\n') + (need ? '\n\n⬇ "앱 업데이트"를 눌러 설치하세요.' : webNeed ? '\n\n♻ "화면 새로 받기"를 눌러 주세요.' : ''), bad ? 'err' : (need || webNeed) ? 'up' : 'ok');
     };

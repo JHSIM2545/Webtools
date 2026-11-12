@@ -25,6 +25,7 @@ public class MainActivity extends Activity {
 
     private WebView web;
     private HidController hid;
+    private AppBridge appBridge;   // ⋯ 메뉴: 버전 정보·업데이트·권한
     private boolean fellBack = false;
 
     @Override
@@ -44,6 +45,8 @@ public class MainActivity extends Activity {
 
         hid = new HidController(this, this::pushState);
         web.addJavascriptInterface(new Bridge(), "SimPadBT");
+        appBridge = new AppBridge(this, web);
+        web.addJavascriptInterface(appBridge, "SimApp");
         web.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
@@ -88,6 +91,7 @@ public class MainActivity extends Activity {
         super.onRequestPermissionsResult(code, perms, res);
         hid.start();
         pushState();
+        if (code == AppBridge.REQ_APP && appBridge != null) appBridge.onPermResult(perms, res);
     }
 
     @Override
@@ -99,6 +103,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         hid.stop();
+        if (appBridge != null) appBridge.destroy();
         web.destroy();
         super.onDestroy();
     }

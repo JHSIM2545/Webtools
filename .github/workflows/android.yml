@@ -97,14 +97,14 @@ jobs:
       - name: 화면 파일을 앱 안에 함께 넣기 (인터넷이 없을 때 대비)
         run: |
           mkdir -p android/app/src/main/assets
-          cp pad.html pad-icon-192.png ui-guard.js android/app/src/main/assets/
+          cp pad.html pad-icon-192.png ui-guard.js appmenu.js android/app/src/main/assets/
       - name: 버전 정하기 (PAD 내용이 바뀐 때만 새 버전 번호)
         id: ver
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          H=$( { git ls-files android/app android/build.gradle android/settings.gradle android/gradle.properties | sort | xargs -d '\n' cat; cat pad.html pad-icon-192.png ui-guard.js; } | sha256sum | cut -c1-16 )
+          H=$( { git ls-files android/app android/build.gradle android/settings.gradle android/gradle.properties | sort | xargs -d '\n' cat; cat pad.html pad-icon-192.png ui-guard.js appmenu.js; } | sha256sum | cut -c1-16 )
           gh release download apps-latest -p versions.json -O prev.json 2>/dev/null || echo '{}' > prev.json
           PV=$(jq -r '.apps.pad.v // empty' prev.json 2>/dev/null || true)
           PH=$(jq -r '.apps.pad.h // empty' prev.json 2>/dev/null || true)

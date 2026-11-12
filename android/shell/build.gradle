@@ -27,8 +27,8 @@ android {
 
     flavorDimensions 'role'
     productFlavors {
-        launcher { dimension 'role' }
-        tool { dimension 'role' }
+        launcher { dimension 'role'; buildConfigField 'boolean', 'IS_LAUNCHER', 'true' }
+        tool { dimension 'role'; buildConfigField 'boolean', 'IS_LAUNCHER', 'false' }
     }
 
     signingConfigs {

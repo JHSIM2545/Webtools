@@ -764,8 +764,25 @@ async function loadSimContacts() {
 function setSrc(s) {
   P.src = s;
   document.querySelectorAll('#pSrc button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
-  $('pDev').classList.toggle('hide', s !== 'dev'); $('pg').classList.toggle('hide', s !== 'sim');
+  $('pDev').classList.toggle('hide', s !== 'dev' || NATIVE); $('pg').classList.toggle('hide', s !== 'sim');
   renderPick();
+  if (s === 'dev' && NATIVE) loadNative();
+}
+/* SIM Message 앱(APK)에서는 폰 연락처 전체를 앱 안에서 바로 검색한다. 일반 브라우저에서는 이 기능이 없다. */
+const NATIVE = !!(window.SimContacts && typeof window.SimContacts.all === 'function');
+let nativeLoaded = false;
+async function loadNative() {
+  if (nativeLoaded) return;
+  if (!window.SimContacts.has()) {
+    const ok = await new Promise(res => { window.__simContactsPerm = res; window.SimContacts.request(); });
+    window.__simContactsPerm = null;
+    if (!ok) { $('pList').innerHTML = '<div class="empty">연락처 권한이 필요해요<br>폰 설정 > 앱 > SIM Message > 권한에서 허용해 주세요</div>'; return; }
+  }
+  $('pList').innerHTML = '<div class="empty">불러오는 중…</div>';
+  await new Promise(r => setTimeout(r, 30));
+  let list = []; try { list = JSON.parse(window.SimContacts.all() || '[]'); } catch (e) { list = []; }
+  DEVC = list.map(c => ({ name: c.n || '', title: c.t || '', company: c.c || '', group: '', phone: pickTel(c.p) })).filter(c => c.phone);
+  nativeLoaded = true; renderPick();
 }
 $('pSrc').onclick = e => { const b = e.target.closest('button'); if (b) setSrc(b.dataset.s); };
 $('btnPick').onclick = async () => {
@@ -778,13 +795,15 @@ $('btnPick').onclick = async () => {
   $('pq').value = ''; setSrc(P.src);
 };
 const pList = () => P.src === 'dev' ? DEVC : CONTACTS;
-function pFiltered() {
+const PMAX = 300;   // 연락처가 아주 많아도 화면이 느려지지 않게 보이는 수를 제한(검색하면 좁혀짐)
+function pFiltered() { return pAllMatches().slice(0, PMAX); }
+function pAllMatches() {
   const q = $('pq').value.trim().toLowerCase(), g = P.src === 'sim' ? $('pg').value : '';
   return pList().filter(c => (!g || c.group === g) && (!q || [c.name, c.company, c.title, c.group].join(' ').toLowerCase().includes(q)));
 }
 function renderPick() {
   const L = pFiltered();
-  $('pInfo').textContent = L.length + '명 · 선택 ' + pSel.size + '명';
+  const tot = pAllMatches().length; $('pInfo').textContent = (tot > L.length ? L.length + '/' + tot : tot) + '명 · 선택 ' + pSel.size + '명';
   if (!pList().length) {
     $('pList').innerHTML = P.src === 'sim'
       ? '<div class="empty">연락처가 없어요</div>'

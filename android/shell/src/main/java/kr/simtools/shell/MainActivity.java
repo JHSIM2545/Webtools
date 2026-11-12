@@ -9,7 +9,9 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.database.Cursor;
 import android.os.Environment;
+import android.provider.ContactsContract;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -34,12 +36,14 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** SIM Tools 의 화면(웹)을 앱으로 띄우는 공용 껍데기. 런처 앱과 도구별 앱이 같이 쓴다. */
 public class MainActivity extends Activity {
     private static final String BASE = "https://jhsim2545.github.io/";
-    private static final int REQ_FILE = 77, REQ_MEDIA = 78, REQ_GEO = 79;
+    private static final int REQ_FILE = 77, REQ_MEDIA = 78, REQ_GEO = 79, REQ_CONTACTS = 80;
 
     private WebView web;
     private ValueCallback<Uri[]> fileCb;
@@ -162,6 +166,7 @@ public class MainActivity extends Activity {
 
         web.addJavascriptInterface(new SessionBridge(), "SimSession");
         web.addJavascriptInterface(new ShareBridge(), "SimShare");
+        if (BuildConfig.CONTACTS) web.addJavascriptInterface(new ContactsBridge(), "SimContacts");
         Extra.attach(this, web);
         handleAuth(getIntent());
         handleShare(getIntent());
@@ -211,6 +216,47 @@ public class MainActivity extends Activity {
             SessionStore.put(this, o.toString());
         } catch (Exception e) { return; }
         if (web != null) web.post(() -> web.evaluateJavascript("window.__simAuthReturn&&window.__simAuthReturn()", null));
+    }
+
+    /** 폰 연락처 읽기(SIM Message 앱 전용): 권한 확인·요청, 전체 연락처를 JSON 으로 넘긴다. 화면(웹)이 검색·선택을 처리한다. */
+    private class ContactsBridge {
+        @JavascriptInterface public boolean has() { return granted(Manifest.permission.READ_CONTACTS); }
+
+        @JavascriptInterface public void request() {
+            runOnUiThread(() -> requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, REQ_CONTACTS));
+        }
+
+        /** [{n:이름, c:회사, t:직함, p:[번호,...]}] — 번호가 있는 연락처만, 최대 8000명 */
+        @JavascriptInterface public String all() {
+            JSONArray out = new JSONArray();
+            if (!granted(Manifest.permission.READ_CONTACTS)) return out.toString();
+            try {
+                Map<Long, JSONObject> by = new LinkedHashMap<>();
+                try (Cursor c = getContentResolver().query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                        new String[]{ContactsContract.CommonDataKinds.Phone.CONTACT_ID, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER},
+                        null, null, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " COLLATE LOCALIZED ASC")) {
+                    if (c != null) while (c.moveToNext() && by.size() < 8000) {
+                        long id = c.getLong(0); String num = c.getString(2);
+                        if (num == null || num.trim().isEmpty()) continue;
+                        JSONObject o = by.get(id);
+                        if (o == null) { o = new JSONObject(); o.put("n", c.getString(1) == null ? "" : c.getString(1)); o.put("c", ""); o.put("t", ""); o.put("p", new JSONArray()); by.put(id, o); }
+                        JSONArray p = o.getJSONArray("p"); if (p.length() < 5) p.put(num.trim());
+                    }
+                }
+                try (Cursor c = getContentResolver().query(ContactsContract.Data.CONTENT_URI,
+                        new String[]{ContactsContract.Data.CONTACT_ID, ContactsContract.CommonDataKinds.Organization.COMPANY, ContactsContract.CommonDataKinds.Organization.TITLE},
+                        ContactsContract.Data.MIMETYPE + "=?", new String[]{ContactsContract.CommonDataKinds.Organization.CONTENT_ITEM_TYPE}, null)) {
+                    if (c != null) while (c.moveToNext()) {
+                        JSONObject o = by.get(c.getLong(0)); if (o == null) continue;
+                        String co = c.getString(1), ti = c.getString(2);
+                        if (co != null && o.optString("c").isEmpty()) o.put("c", co);
+                        if (ti != null && o.optString("t").isEmpty()) o.put("t", ti);
+                    }
+                }
+                for (JSONObject o : by.values()) out.put(o);
+            } catch (Exception e) { /* 읽다가 실패하면 지금까지 모은 것만 */ }
+            return out.toString();
+        }
     }
 
     /** 화면(웹)이 공유받은 연락처를 가져가는 창구: JSON 문자열 배열을 돌려주고 비운다 */
@@ -308,6 +354,9 @@ public class MainActivity extends Activity {
         if (code == REQ_MEDIA && pendingMedia != null) {
             if (ok) pendingMedia.grant(pendingMedia.getResources()); else pendingMedia.deny();
             pendingMedia = null;
+        } else if (code == REQ_CONTACTS) {
+            final boolean g = ok;
+            if (web != null) web.post(() -> web.evaluateJavascript("window.__simContactsPerm&&window.__simContactsPerm(" + g + ")", null));
         } else if (code == REQ_GEO && geoCb != null) {
             geoCb.invoke(geoOrigin, ok, false);
             geoCb = null;

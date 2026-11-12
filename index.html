@@ -283,9 +283,9 @@ button.danger{color:#ff8a8a}
   }
   function openApps() { paintApps(); $('mApps').classList.add('show'); }
 
-  /* AI 연결 확인: 런처가 열릴 때 Gemini·Claude·Groq가 실제로 응답하는지 서버에서 확인해
+  /* AI 연결 확인: 런처가 열릴 때 Gemini·Groq가 실제로 응답하는지 서버에서 확인해
      성공하면 컬러(활성), 실패·미등록이면 회색(비활성)으로 보여준다. 아이콘은 자체 제작한 이니셜 배지. */
-  const AIS = [['gemini', 'Gemini', 'ai-gemini.png', '#4285f4'], ['claude', 'Claude', 'ai-claude.png', '#d97757'], ['groq', 'Groq', 'ai-groq.png', '#f55036']];
+  const AIS = [['gemini', 'Gemini', 'ai-gemini.png', '#4285f4'], ['groq', 'Groq', 'ai-groq.png', '#f55036']];
   const aiBox = $('ais');
   aiBox.innerHTML = AIS.map(a => '<button class="ai chk" data-k="' + a[0] + '" style="--c:' + a[3] + '" aria-label="' + a[1] + '" title="' + a[1] + ' 확인 중…"><img src="' + a[2] + '" alt=""></button>').join('');
   const aiSet = (k, st, tip) => { const b = aiBox.querySelector('[data-k="' + k + '"]'); if (!b) return; b.classList.remove('chk'); b.classList.toggle('off', st !== 'ok' && st !== 'quota'); b.classList.toggle('q', st === 'quota'); b.title = tip; b.dataset.tip = tip; };

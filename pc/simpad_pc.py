@@ -11,7 +11,9 @@ SIM PAD PC 프로그램 (Windows)
 - 이 프로그램은 '마우스 이동·클릭·스크롤, 키 입력, 글자 입력'만 실행합니다. 파일·명령 실행 기능은 없습니다.
 - 관리자 권한 창(작업관리자 등)을 조작하려면 이 프로그램도 관리자 권한으로 실행해야 합니다.
 """
-import argparse, ctypes, json, os, platform, secrets, socket, sys, threading, time
+import argparse, base64, ctypes, hashlib, json, os, platform, secrets, socket, ssl, struct, sys, threading, time
+import urllib.request
+from urllib.parse import urlparse
 
 SB_REF = 'gpqlximhoqdybcewdfde'
 SB_KEY = 'sb_publishable_xUnGxyLCc5TB5nv4keVQVw__grqGJkP'
@@ -218,6 +220,145 @@ class Handler:
         self.down_btn.clear()
 
 
+# ───────────────────────── 웹소켓 (표준 라이브러리만 사용 — 별도 설치 불필요) ─────────────────────────
+class MiniWS:
+    """아주 작은 WebSocket 클라이언트. wss/ws, 회사 프록시(HTTP CONNECT) 지원."""
+
+    def __init__(self, url, timeout=15):
+        u = urlparse(url)
+        self.tls = u.scheme == 'wss'
+        host, port = u.hostname, u.port or (443 if self.tls else 80)
+        path = (u.path or '/') + ('?' + u.query if u.query else '')
+        sock = self._open(host, port, timeout)
+        if self.tls:
+            ctx = ssl.create_default_context()
+            if os.environ.get('SIMPAD_INSECURE') == '1':      # 시험용
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+            sock = ctx.wrap_socket(sock, server_hostname=host)
+        key = base64.b64encode(os.urandom(16)).decode()
+        req = ('GET %s HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n'
+               'Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\nUser-Agent: SIM-PAD-PC\r\n\r\n') % (path, u.netloc, key)
+        sock.sendall(req.encode())
+        buf = b''
+        while b'\r\n\r\n' not in buf:
+            d = sock.recv(4096)
+            if not d:
+                raise ConnectionError('서버가 연결을 닫았습니다')
+            buf += d
+            if len(buf) > 65536:
+                raise ConnectionError('응답이 너무 큽니다')
+        head, _, rest = buf.partition(b'\r\n\r\n')
+        line = head.split(b'\r\n')[0].decode('latin1')
+        if ' 101 ' not in line + ' ':
+            raise ConnectionError('웹소켓 연결 거부: ' + line)
+        self.sock = sock
+        self.buf = rest
+        self.lock = threading.Lock()
+        sock.settimeout(35)
+
+    @staticmethod
+    def _proxy():
+        try:
+            pr = urllib.request.getproxies()          # 환경변수 + Windows 인터넷 옵션의 프록시
+        except Exception:
+            return None
+        p = pr.get('https') or pr.get('http')
+        if not p:
+            return None
+        if '://' not in p:
+            p = 'http://' + p
+        q = urlparse(p)
+        return q.hostname, q.port or 8080
+
+    def _open(self, host, port, timeout):
+        px = self._proxy()
+        if px and host not in ('127.0.0.1', 'localhost'):
+            s = socket.create_connection(px, timeout)
+            s.sendall(('CONNECT %s:%d HTTP/1.1\r\nHost: %s:%d\r\n\r\n' % (host, port, host, port)).encode())
+            buf = b''
+            while b'\r\n\r\n' not in buf:
+                d = s.recv(4096)
+                if not d:
+                    raise ConnectionError('프록시가 연결을 닫았습니다')
+                buf += d
+            if b' 200' not in buf.split(b'\r\n')[0]:
+                raise ConnectionError('프록시 거부: ' + buf.split(b'\r\n')[0].decode('latin1'))
+            return s
+        return socket.create_connection((host, port), timeout)
+
+    def _frame(self, op, payload=b''):
+        n = len(payload)
+        h = bytes([0x80 | op])
+        if n < 126:
+            h += bytes([0x80 | n])
+        elif n < 65536:
+            h += bytes([0x80 | 126]) + struct.pack('>H', n)
+        else:
+            h += bytes([0x80 | 127]) + struct.pack('>Q', n)
+        mask = os.urandom(4)
+        return h + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
+
+    def send_text(self, text):
+        with self.lock:
+            self.sock.sendall(self._frame(1, text.encode('utf-8')))
+
+    def ping(self):
+        with self.lock:
+            self.sock.sendall(self._frame(9))
+
+    def _read(self, n):
+        while len(self.buf) < n:
+            d = self.sock.recv(65536)
+            if not d:
+                raise ConnectionError('연결이 끊겼습니다')
+            self.buf += d
+        out, self.buf = self.buf[:n], self.buf[n:]
+        return out
+
+    def recv(self):
+        """텍스트 메시지 하나를 돌려준다. 35초 동안 아무 것도 없으면 ping 을 보내고, 3번 연속이면 연결 끊김으로 본다."""
+        text, idle = b'', 0
+        while True:
+            try:
+                b1, b2 = self._read(2)
+            except socket.timeout:
+                idle += 1
+                if idle >= 3:
+                    raise ConnectionError('응답 없음')
+                self.ping()
+                continue
+            idle = 0
+            fin, op, ln = b1 & 0x80, b1 & 0x0F, b2 & 0x7F
+            if ln == 126:
+                ln = struct.unpack('>H', self._read(2))[0]
+            elif ln == 127:
+                ln = struct.unpack('>Q', self._read(8))[0]
+            if b2 & 0x80:
+                mask = self._read(4)
+                data = bytes(b ^ mask[i % 4] for i, b in enumerate(self._read(ln)))
+            else:
+                data = self._read(ln)
+            if op == 8:
+                raise ConnectionError('서버가 연결을 닫았습니다')
+            if op == 9:
+                with self.lock:
+                    self.sock.sendall(self._frame(10, data))
+                continue
+            if op == 10:
+                continue
+            if op in (1, 0):
+                text += data
+                if fin:
+                    return text.decode('utf-8', 'replace')
+
+    def close(self):
+        try:
+            self.sock.close()
+        except Exception:
+            pass
+
+
 # ───────────────────────── Realtime 연결 ─────────────────────────
 def main():
     ap = argparse.ArgumentParser(description='SIM PAD PC 프로그램')
@@ -227,12 +368,7 @@ def main():
     ap.add_argument('--code', default='', help=argparse.SUPPRESS)
     a = ap.parse_args()
 
-    try:
-        import websocket                      # pip install websocket-client
-    except ImportError:
-        print('websocket-client 가 필요합니다:  pip install websocket-client')
-        sys.exit(1)
-
+    log('SIM PAD PC 프로그램을 시작합니다…')
     if a.dry_run or platform.system() != 'Windows':
         if not a.dry_run:
             log('Windows가 아니어서 시험 모드로 실행합니다 (입력은 실행되지 않음).')
@@ -251,30 +387,27 @@ def main():
     print('  SIM PAD  PC 프로그램')
     print('  연결 코드 :  ' + fmt(code))
     print('=' * 52)
-    print('  폰에서 SIM PAD 앱에 위 코드를 입력하거나,')
-    print('  아래 QR을 폰 카메라로 찍으세요.  (창을 닫으면 조작이 멈춥니다)')
+    print('  폰에서 SIM PAD 앱에 위 코드를 입력하세요.')
+    print('  (창을 닫으면 조작이 멈춥니다)')
     print()
     try:
-        import qrcode                         # 선택 사항
+        import qrcode                         # 설치되어 있으면 QR 도 표시 (없어도 무방)
         q = qrcode.QRCode(border=1)
         q.add_data(url); q.make(fit=True)
         q.print_ascii(invert=True)
     except Exception:
-        print('  ' + url)
-    print()
+        pass
 
     state = {'ref': 0, 'ws': None, 'joined': False, 'last_hello': 0.0, 'phone': 0.0}
-    lock = threading.Lock()
 
     def raw(o):
         ws = state['ws']
         if ws is None:
             return
-        with lock:
-            try:
-                ws.send(json.dumps(o))
-            except Exception:
-                pass
+        try:
+            ws.send_text(json.dumps(o))
+        except Exception:
+            pass
 
     def nref():
         state['ref'] += 1
@@ -286,14 +419,7 @@ def main():
                  'payload': {'type': 'broadcast', 'event': 'hello', 'payload': {'n': host, 'os': platform.system()}}})
             state['last_hello'] = time.time()
 
-    def on_open(ws):
-        state['ws'] = ws
-        log('서버 연결됨, 채널 참가 중…')
-        raw({'topic': topic, 'event': 'phx_join', 'ref': nref(), 'join_ref': '1',
-             'payload': {'config': {'broadcast': {'self': False, 'ack': False}, 'presence': {'key': ''},
-                                    'postgres_changes': [], 'private': False}}})
-
-    def on_message(ws, msg):
+    def on_message(msg):
         try:
             m = json.loads(msg)
         except Exception:
@@ -321,11 +447,6 @@ def main():
             except Exception as e:
                 log('입력 처리 오류:', name, e)
 
-    def on_close(ws, *a_):
-        state['joined'] = False
-        handler.release_all()
-        log('연결이 끊겼습니다. 다시 연결합니다…')
-
     def beat():
         n = 0
         while True:
@@ -344,16 +465,30 @@ def main():
 
     wait = 1
     while True:
+        ws = None
         try:
-            ws = websocket.WebSocketApp(a.url, on_open=on_open, on_message=on_message, on_close=on_close,
-                                        on_error=lambda w, e: log('오류:', e))
-            ws.run_forever(ping_interval=30, ping_timeout=10)
+            log('서버에 연결하는 중…')
+            ws = MiniWS(a.url)
+            state['ws'] = ws
+            log('서버 연결됨, 채널 참가 중…')
+            wait = 1
+            raw({'topic': topic, 'event': 'phx_join', 'ref': nref(), 'join_ref': '1',
+                 'payload': {'config': {'broadcast': {'self': False, 'ack': False}, 'presence': {'key': ''},
+                                        'postgres_changes': [], 'private': False}}})
+            while True:
+                on_message(ws.recv())
         except KeyboardInterrupt:
             break
         except Exception as e:
-            log('연결 실패:', e)
-        state['ws'] = None
-        handler.release_all()
+            log('연결 실패/끊김:', e)
+            if wait == 1:
+                log('회사 네트워크가 웹소켓(wss)을 막고 있으면 이 오류가 반복됩니다. 폰 핫스팟으로 시험해 보세요.')
+        finally:
+            state['joined'] = False
+            state['ws'] = None
+            handler.release_all()
+            if ws:
+                ws.close()
         try:
             time.sleep(wait)
         except KeyboardInterrupt:

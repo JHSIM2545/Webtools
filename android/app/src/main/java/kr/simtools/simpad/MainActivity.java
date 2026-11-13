@@ -152,6 +152,7 @@ public class MainActivity extends Activity {
             });
         }
         @JavascriptInterface public void stopScan() { hid.stopScan(); }
+        @JavascriptInterface public void reregister() { hid.reRegister(); }
         @JavascriptInterface public void pair(String addr) { hid.pair(addr); }
         @JavascriptInterface public boolean unpair(String addr) { return hid.unpair(addr); }
         @JavascriptInterface public void discoverable() {

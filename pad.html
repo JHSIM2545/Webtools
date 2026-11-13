@@ -314,6 +314,7 @@ a.apk:hover{border-color:var(--accent)}
   <div id="btList" class="fld"></div>
   <button id="btDisc">이 폰을 차량에서 찾을 수 있게 하기 (5분)</button>
   <div class="note" id="btDiag"></div>
+  <button id="btRereg" style="display:none">키보드·마우스 다시 등록</button>
   <button id="btSet">폰 블루투스 설정 열기</button>
   </div>
   <div id="pcPart" class="fld" style="display:none">
@@ -658,7 +659,9 @@ function renderDiag() {
   e.innerHTML = '폰 블루투스 ' + ok(t.on) + ' · 키보드·마우스 등록 ' + ok(t.reg) + '<br>'
     + '다른 기기에 보이기 ' + ok(t.disc) + (t.disc ? '' : ' (꺼짐)') + '<br>'
     + '권한: 연결 ' + ok(t.pConn) + ' 광고 ' + ok(t.pAdv) + ' 검색 ' + ok(t.pScan) + '<br>'
-    + '폰 이름: <b>' + escH(t.name || '?') + '</b> (차량 목록에 이 이름으로 뜹니다)';
+    + '폰 이름: <b>' + escH(t.name || '?') + '</b> (차량 목록에 이 이름으로 뜹니다)'
+    + (t.reg ? '' : '<br>HID 서비스 ' + ok(t.proxy) + (t.regErr ? '<br>⚠ ' + escH(t.regErr) : '') + '<br>시도 ' + (t.regTry || 0) + '회');
+  const rb = $('btRereg'); if (rb) rb.style.display = t.reg ? 'none' : '';
 }
 function btRefresh() { try { BT_ST = JSON.parse(window.SimPadBT.state()); } catch (e) {} setStat(); renderBt(); renderDiag(); }
 function paintMode() {
@@ -683,6 +686,7 @@ if (BT) {
   $('bCode').onclick = () => { close('ovSet'); paintMode(); if (useBt()) btRefresh(); open('ovBt'); };
   $('bApk').style.display = 'none';
   $('btDisc').onclick = () => { try { window.SimPadBT.discoverable(); } catch (e) { toast('요청 실패: ' + e); } setTimeout(btRefresh, 800); };
+  $('btRereg').onclick = () => { try { window.SimPadBT.reregister(); } catch (e) { toast('실패: ' + e); } toast('다시 등록하는 중…'); setTimeout(btRefresh, 1500); };
   window.__btDisc = r => {
     toast(r === 'ok' ? '5분간 차량에서 이 폰이 보입니다' : r === 'denied' ? '허용 창에서 거부됨 — 다시 눌러 "허용"을 선택하세요'
       : r === 'perm' ? '권한을 허용한 뒤 다시 눌러 주세요' : '검색 허용 요청이 실패했습니다 (' + r + ')');

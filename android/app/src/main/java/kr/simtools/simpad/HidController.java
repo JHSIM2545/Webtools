@@ -63,6 +63,9 @@ public class HidController {
     private BluetoothHidDevice hid;
     private volatile BluetoothDevice host;
     private volatile boolean registered = false, supported = true, started = false;
+    private volatile String regErr = "";            // 등록이 안 될 때 이유 (화면 진단용)
+    private volatile int regTry = 0;
+    private volatile int cbCount = 0;               // 등록 콜백이 불린 횟수
 
     // 주변 기기 검색 · 페어링
     private final java.util.LinkedHashMap<String, String> found = new java.util.LinkedHashMap<>();   // 주소 → 이름
@@ -188,7 +191,23 @@ public class HidController {
         cb.shutdownNow(); out.shutdownNow();
     }
 
+    /** 화면의 "다시 등록" 버튼 */
+    void reRegister() {
+        regTry = 0;
+        cb.execute(this::register);
+    }
+
+    private void retryLater() {
+        if (!started || regTry >= 4) return;
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> { if (started && !registered) cb.execute(this::register); }, 1500);
+    }
+
     private void register() {
+        regTry++;
+        supported = true; regErr = "";
+        BluetoothHidDevice hd = hid;
+        if (hd == null) { regErr = "HID 서비스에 아직 연결되지 않음"; listener.onChange(); retryLater(); return; }
+        try { hd.unregisterApp(); } catch (Exception e) { /* 이전 등록이 없으면 무시 */ }
         try {
             byte[] d = new byte[DESC.length];
             for (int i = 0; i < d.length; i++) d[i] = (byte) DESC[i];
@@ -196,7 +215,10 @@ public class HidController {
                     "SIM Control", "터치패드·키보드", "SIM Tools", BluetoothHidDevice.SUBCLASS1_COMBO, d);
             boolean ok = hid.registerApp(sdp, null, null, cbExec, new BluetoothHidDevice.Callback() {
                 @Override public void onAppStatusChanged(BluetoothDevice dev, boolean reg) {
-                    registered = reg; listener.onChange();
+                    registered = reg; cbCount++;
+                    if (!reg && regErr.isEmpty()) regErr = "시스템이 등록을 거부함 (다른 앱이 키보드·마우스 기능을 쓰는 중일 수 있음)";
+                    listener.onChange();
+                    if (!reg) retryLater();
                 }
                 @Override public void onConnectionStateChanged(BluetoothDevice dev, int state) {
                     if (state == BluetoothProfile.STATE_CONNECTED) host = dev;
@@ -210,9 +232,10 @@ public class HidController {
                     try { hid.reportError(dev, BluetoothHidDevice.ERROR_RSP_SUCCESS); } catch (Exception e) { /* 무시 */ }
                 }
             });
-            if (!ok) supported = false;
+            if (!ok) { supported = false; regErr = "registerApp 이 false 를 돌려줌 (이 폰이 키보드·마우스 기능을 지원하지 않거나 이미 사용 중)"; retryLater(); }
         } catch (Exception e) {
-            supported = false;
+            supported = false; regErr = e.getClass().getSimpleName() + ": " + e.getMessage();
+            retryLater();
         }
         listener.onChange();
     }
@@ -253,6 +276,11 @@ public class HidController {
             o.put("pAdv", perm("android.permission.BLUETOOTH_ADVERTISE"));
             o.put("pScan", perm("android.permission.BLUETOOTH_SCAN"));
             o.put("sdk", Build.VERSION.SDK_INT);
+            o.put("proxy", hid != null);
+            o.put("regErr", regErr);
+            o.put("regTry", regTry);
+            o.put("cbCount", cbCount);
+            o.put("sup", supported);
             o.put("pairing", pairing != null);
             JSONArray fa = new JSONArray();
             synchronized (found) {

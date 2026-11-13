@@ -598,23 +598,37 @@ async function jpegInfo(file) {                 // 사진을 디코딩하지 않
     return { w, h };
   } catch (e) { return null; }
 }
+const lastErr = [];
+const tryStep = async (name, fn) => { try { const r = await fn(); if (r) return r; lastErr.push(name + ': 결과 없음'); } catch (e) { lastErr.push(name + ': ' + ((e && (e.name || '')) + ' ' + ((e && e.message) || '')).trim()); } return null; };
+const imgFrom = (blob) => new Promise((res, rej) => { const u = URL.createObjectURL(blob), im = new Image(); im.onload = () => { res({ im, u }); }; im.onerror = () => { URL.revokeObjectURL(u); rej(new Error('디코딩 실패')); }; im.src = u; });
 async function loadImageCanvas(file) {
+  lastErr.length = 0;
   const cap = (navigator.deviceMemory && navigator.deviceMemory <= 3) ? 2400 : 3000;
-  dbg('읽기 시작 ' + Math.round(file.size / 1024) + 'KB');
-  const info = await jpegInfo(file); let w = info && info.w, h = info && info.h, url = null, im = null;
-  if (!w) {
-    url = URL.createObjectURL(file); im = new Image();
-    try { await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('이미지 형식')); im.src = url; }); } catch (e) { URL.revokeObjectURL(url); throw e; }
-    w = im.naturalWidth; h = im.naturalHeight; if (!w || !h) { URL.revokeObjectURL(url); throw new Error('크기를 알 수 없음'); }
+  dbg('읽기 시작 ' + Math.round(file.size / 1024) + 'KB ' + (file.type || '형식없음'));
+  // 1) 파일을 일단 통째로 메모리에 읽어 둔다(폰의 content:// 파일은 여러 번 읽으면 실패하는 경우가 있다)
+  let blob = file;
+  const buf = await tryStep('파일 읽기', async () => { const b = await file.arrayBuffer(); return b && b.byteLength ? b : null; });
+  if (buf) blob = new Blob([buf], { type: /^image\//.test(file.type) ? file.type : 'image/jpeg' });
+  else { const b2 = await tryStep('파일 읽기2', () => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(fr.error || new Error('FileReader')); fr.readAsArrayBuffer(file); })); if (b2 && b2.byteLength) blob = new Blob([b2], { type: /^image\//.test(file.type) ? file.type : 'image/jpeg' }); }
+  if (blob === file && !buf) throw new Error('사진 파일을 읽지 못했어요 (' + lastErr.join(' / ') + ')');
+  const info = await jpegInfo(blob);
+  dbg('크기 확인 ' + (info ? info.w + 'x' + info.h : '미확인'));
+  let w = info && info.w, h = info && info.h, bmp = null, im = null, url = null;
+  if (w && window.createImageBitmap) {
+    const k = Math.min(1, cap / Math.max(w, h)), tw = Math.max(1, Math.round(w * k)), th = Math.max(1, Math.round(h * k));
+    bmp = await tryStep('축소 읽기', () => createImageBitmap(blob, { resizeWidth: tw, resizeHeight: th, resizeQuality: 'medium' }));
+    if (bmp) { dbg('디코딩 완료'); const c = newCanvas(tw, th); c.getContext('2d').drawImage(bmp, 0, 0, tw, th); if (bmp.close) bmp.close(); return c; }
   }
-  dbg('크기 ' + w + 'x' + h);
-  const k = Math.min(1, cap / Math.max(w, h)), tw = Math.max(1, Math.round(w * k)), th = Math.max(1, Math.round(h * k));
-  let src = null;
-  if (window.createImageBitmap) { try { src = await createImageBitmap(file, { resizeWidth: tw, resizeHeight: th, resizeQuality: 'medium' }); } catch (e) { src = null; } }
-  if (!src && !im) { url = URL.createObjectURL(file); im = new Image(); await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('이미지 형식')); im.src = url; }); }
-  const c = newCanvas(tw, th), x = c.getContext('2d');
-  if (src) { x.drawImage(src, 0, 0, tw, th); if (src.close) src.close(); } else x.drawImage(im, 0, 0, tw, th);
-  if (im) im.src = ''; if (url) URL.revokeObjectURL(url);
+  if (window.createImageBitmap) { bmp = await tryStep('비트맵', () => createImageBitmap(blob)); }
+  if (bmp) { w = bmp.width; h = bmp.height; }
+  else {
+    const r = await tryStep('이미지', () => imgFrom(blob)); if (!r) throw new Error('디코딩 실패 (' + lastErr.join(' / ') + ')');
+    im = r.im; url = r.u; w = im.naturalWidth; h = im.naturalHeight;
+  }
+  if (!w || !h) throw new Error('크기를 알 수 없음');
+  const k = Math.min(1, cap / Math.max(w, h)), tw = Math.max(1, Math.round(w * k)), th = Math.max(1, Math.round(h * k)), c = newCanvas(tw, th);
+  c.getContext('2d').drawImage(bmp || im, 0, 0, tw, th);
+  if (bmp && bmp.close) bmp.close(); if (im) im.src = ''; if (url) URL.revokeObjectURL(url);
   dbg('디코딩 완료'); return c;
 }
 async function handleFiles(files) {
@@ -627,7 +641,7 @@ async function handleFiles(files) {
       const c = await loadImageCanvas(files[i]); await addPageFrom(c, detectFromCanvas(c, 640) || insetQuad(c.width, c.height, 0.03));
     }
     dbg('완료'); unbusy(); toast(files.length + '장 추가'); show('pages');
-  } catch (e) { unbusy(); toast('사진을 읽을 수 없어요' + (e && e.message ? ' (' + e.message + ')' : '')); }
+  } catch (e) { unbusy(); toast('사진을 불러오지 못했어요<br><small>' + esc(((e && e.name) || '') + ' ' + ((e && e.message) || '') + ' · ' + lastErr.join(' / ')) + '</small>', 20000); }
 }
 [$('fileCam'), $('fileGal')].forEach(inp => inp.addEventListener('change', e => { const inp2 = e.target, arr = [...inp2.files]; if (pick) pick.got = true; dbg('선택 결과 받음 ' + arr.length); if (arr.length) handleFiles(arr).finally(() => { try { inp2.value = ''; } catch (er) {} }); }));
 

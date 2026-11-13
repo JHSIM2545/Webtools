@@ -220,7 +220,9 @@ a.apk:hover{border-color:var(--accent)}
 
 <!-- 블루투스 연결 (안드로이드 앱) -->
 <div class="ov" id="ovBt"><div class="sheet" role="dialog" aria-modal="true">
-  <h2>블루투스 연결 <button class="ibtn" data-close>✕</button></h2>
+  <h2>연결 <button class="ibtn" data-close>✕</button></h2>
+  <div class="tabs" id="modeTabs" style="display:none"><button data-md="bt">차량 (블루투스)</button><button data-md="pc">PC (연결 코드)</button></div>
+  <div id="btPart" class="fld">
   <div class="note"><ol>
     <li>아래 <b>차량에서 찾을 수 있게 하기</b>를 누릅니다.</li>
     <li>차량(안드로이드) 블루투스 설정에서 이 폰을 찾아 <b>페어링</b>합니다.</li>
@@ -230,6 +232,14 @@ a.apk:hover{border-color:var(--accent)}
   <h3>페어링된 기기</h3>
   <div id="btList" class="fld"></div>
   <button id="btSet">폰 블루투스 설정 열기</button>
+  </div>
+  <div id="pcPart" class="fld" style="display:none">
+    <div class="note">PC에서 <b>SIM PAD PC 프로그램</b>을 실행하면 검은 창에 나오는 <b>12자리 연결 코드</b>를 입력하세요.</div>
+    <input type="text" id="iCode2" placeholder="XXXX-XXXX-XXXX" maxlength="14" autocomplete="off" autocapitalize="characters" spellcheck="false">
+    <button class="pri" id="bCodeOk2">PC 연결</button>
+    <button id="bHelp2">PC 프로그램 설치 방법</button>
+    <button class="dang" id="bUnpair2">연결 해제 (코드 삭제)</button>
+  </div>
 </div></div>
 
 <!-- PC 프로그램 안내 -->
@@ -267,12 +277,13 @@ a.apk:hover{border-color:var(--accent)}
 const $ = id => document.getElementById(id);
 const LS = 'simpad.v1';
 const SB_REF = 'gpqlximhoqdybcewdfde', SB_KEY = 'sb_publishable_xUnGxyLCc5TB5nv4keVQVw__grqGJkP';
-const BT = !!window.SimPadBT;          // 안드로이드 앱(SIM PAD BT) 안에서 열렸을 때: 블루투스 HID 로 직접 보냄
+const BT = !!window.SimPadBT;          // 안드로이드 앱 안인가? (블루투스 기능 보유)
+const useBt = () => BT && S.mode !== 'pc';   // 지금 조작 대상이 '차량(블루투스)'인가? (앱 안에서 PC로 바꿀 수 있음)          // 안드로이드 앱(SIM PAD BT) 안에서 열렸을 때: 블루투스 HID 로 직접 보냄
 let BT_ST = {};
 const WS_URL = 'wss://' + SB_REF + '.supabase.co/realtime/v1/websocket?apikey=' + SB_KEY + '&vsn=1.0.0';
 
 /* ── 설정 ── */
-const DEF = { code: '', spd: 1.6, scr: 1.6, nat: true, tap: true, btn: true, vib: true, wake: true };
+const DEF = { mode: 'bt', code: '', spd: 1.6, scr: 1.6, nat: true, tap: true, btn: true, vib: true, wake: true };
 let S = Object.assign({}, DEF);
 try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e) {}
 const save = () => { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) {} };
@@ -289,7 +300,7 @@ const RT = { ws: null, ref: 0, joined: false, hb: 0, rc: 0, timer: 0, pcOk: 0, p
 const topic = () => 'realtime:pad-' + S.code.toLowerCase();
 function setStat() {
   const el = $('stat'), tx = $('statTxt');
-  if (BT) { const b = BT_ST; el.className = 'stat' + (b.conn ? ' ok' : b.reg ? ' wait' : ''); tx.textContent = b.conn ? (b.host || '차량') + ' 연결됨' : b.reg ? '연결 대기 · 눌러서 연결' : b.ok === false ? '블루투스 사용 불가' : '블루투스 준비 중…'; $('pad').classList.toggle('off', !b.conn); return; }
+  if (useBt()) { const b = BT_ST; el.className = 'stat' + (b.conn ? ' ok' : b.reg ? ' wait' : ''); tx.textContent = b.conn ? (b.host || '차량') + ' 연결됨' : b.reg ? '연결 대기 · 눌러서 연결' : b.ok === false ? '블루투스 사용 불가' : '블루투스 준비 중…'; $('pad').classList.toggle('off', !b.conn); return; }
   const pcLive = RT.pcOk && Date.now() - RT.pcOk < 9000;
   el.className = 'stat' + (!S.code ? '' : pcLive ? ' ok' : ' wait');
   tx.textContent = !S.code ? '연결 안 됨' : pcLive ? (RT.pcName || 'PC') + ' 연결됨' : RT.joined ? 'PC 찾는 중…' : '서버 연결 중…';
@@ -321,7 +332,7 @@ function rtOpen() {
 function rtLater() { clearTimeout(RT.timer); RT.timer = setTimeout(rtOpen, Math.min(1000 * Math.pow(1.6, RT.rc++), 8000)); }
 function rtClose(quiet) { RT.wantClose = true; clearTimeout(RT.timer); clearInterval(RT.hb); RT.joined = false; RT.pcOk = 0; if (RT.ws) { try { RT.ws.onclose = null; RT.ws.close(); } catch (e) {} RT.ws = null; } if (!quiet) setStat(); }
 function send(ev, payload) {
-  if (BT) { try { window.SimPadBT.send(ev, JSON.stringify(payload)); } catch (e) {} return true; }
+  if (useBt()) { try { window.SimPadBT.send(ev, JSON.stringify(payload)); } catch (e) {} return true; }
   if (!RT.joined) return false;
   return rtSendRaw({ topic: topic(), event: 'broadcast', ref: String(++RT.ref), payload: { type: 'broadcast', event: ev, payload: payload } });
 }
@@ -410,7 +421,7 @@ function padEnd(e) {
   else if (G.max === 3) {
     const tx = Math.abs(G.sumX), ty = Math.abs(G.sumY);
     if (Math.max(tx, ty) < 30 && dur < 350) { btn('m', 'c'); vib(10); }
-    else if (ty > tx && ty > 40) { combo(BT ? [G.sumY < 0 ? 'acHome' : 'acBack'] : G.sumY < 0 ? ['win', 'tab'] : ['win', 'd']); vib(15); }
+    else if (ty > tx && ty > 40) { combo(useBt() ? [G.sumY < 0 ? 'acHome' : 'acBack'] : G.sumY < 0 ? ['win', 'tab'] : ['win', 'd']); vib(15); }
     else if (tx > 40) { combo(G.sumX < 0 ? ['alt', 'shift', 'tab'] : ['alt', 'tab']); vib(15); }
   }
   G.n = 0; G.armDrag = false;
@@ -449,7 +460,7 @@ function lcp(a, b) { let i = 0; const n = Math.min(a.length, b.length); while (i
 function clearMods() { mods.clear(); document.querySelectorAll('.latch').forEach(b => b.classList.remove('on')); }
 let comp = false;
 function onKbInput(e) {
-  if (BT && (comp || (e && e.isComposing))) return;     // 블루투스는 조합이 끝난 글자만 전송
+  if (useBt() && (comp || (e && e.isComposing))) return;     // 블루투스는 조합이 끝난 글자만 전송
   let v = kb.value;
   if (v.charAt(0) !== SENT) {                           // 맨 앞 표식이 지워졌다 = 빈 상태에서 백스페이스
     if (sent === '' ) { key('backspace'); }
@@ -471,7 +482,7 @@ function onKbInput(e) {
 }
 kb.addEventListener('input', onKbInput);
 kb.addEventListener('compositionstart', () => { comp = true; });
-kb.addEventListener('compositionend', () => { comp = false; if (BT) setTimeout(() => onKbInput(null), 0); });
+kb.addEventListener('compositionend', () => { comp = false; if (useBt()) setTimeout(() => onKbInput(null), 0); });
 kb.addEventListener('focus', () => { if (kb.value.charAt(0) !== SENT) resetKb(); });
 kb.addEventListener('blur', () => { resetKb(); });
 kb.addEventListener('keydown', e => {
@@ -515,8 +526,12 @@ const SC_BT = [
   ['새로고침', 'F5', ['f5']], ['새 탭', 'Ctrl+T', ['ctrl', 't']], ['탭 닫기', 'Ctrl+W', ['ctrl', 'w']],
   ['주소창', 'Ctrl+L', ['ctrl', 'l']], ['Esc', '취소', ['esc']], ['메뉴 키', 'Win', ['win']]
 ];
-const SC = BT ? SC_BT : SC_PC;
+let SC = SC_PC;
+function paintSc() {
+SC = useBt() ? SC_BT : SC_PC;
 $('scGrid').innerHTML = SC.map((s, i) => '<button data-sc="' + i + '">' + s[0] + '<small>' + s[1] + '</small></button>').join('');
+}
+paintSc();
 $('scGrid').addEventListener('click', e => { const b = e.target.closest('[data-sc]'); if (!b) return; combo(SC[+b.dataset.sc][2]); vib(10); });
 
 /* ── 설정 시트 ── */
@@ -552,16 +567,39 @@ function renderBt() {
   $('btList').innerHTML = l.length ? l.map(h => '<button data-addr="' + escH(h.a) + '" data-c="' + (h.c ? 1 : 0) + '">' + escH(h.n || h.a) + ' · ' + (h.c ? '연결됨 (눌러서 해제)' : '연결') + '</button>').join('') : '<div class="note">페어링된 기기가 없습니다. 위 1·2단계를 먼저 진행하세요.</div>';
 }
 function btRefresh() { try { BT_ST = JSON.parse(window.SimPadBT.state()); } catch (e) {} setStat(); renderBt(); }
+function paintMode() {
+  const bt = useBt();
+  $('modeTabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.md === (bt ? 'bt' : 'pc')));
+  $('btPart').style.display = bt ? '' : 'none';
+  $('pcPart').style.display = bt ? 'none' : '';
+  $('iCode2').value = S.code ? fmtCode(S.code) : '';
+}
+function setMode(m) {
+  S.mode = m; save();
+  if (m === 'pc') { if (S.code) rtOpen(); } else rtClose(true);
+  paintMode(); paintSc(); setStat(); if (m === 'bt') btRefresh();
+}
 if (BT) {
   document.querySelector('.back').style.display = 'none';
   window.__btUpdate = btRefresh;
-  $('stat').onclick = () => { btRefresh(); open('ovBt'); };
-  $('bCode').textContent = '블루투스 연결 (차량 선택)';
-  $('bCode').onclick = () => { close('ovSet'); btRefresh(); open('ovBt'); };
-  $('bHelp').style.display = 'none'; $('bApk').style.display = 'none'; $('bUnpair').style.display = 'none';
+  $('modeTabs').style.display = '';
+  $('bCode').textContent = '연결 설정 (차량 블루투스 / PC)';
+  $('modeTabs').addEventListener('click', e => { const b = e.target.closest('button[data-md]'); if (b) setMode(b.dataset.md); });
+  $('stat').onclick = () => { paintMode(); if (useBt()) btRefresh(); open('ovBt'); };
+  $('bCode').onclick = () => { close('ovSet'); paintMode(); if (useBt()) btRefresh(); open('ovBt'); };
+  $('bApk').style.display = 'none';
   $('btDisc').onclick = () => { try { window.SimPadBT.discoverable(); } catch (e) {} };
   $('btSet').onclick = () => { try { window.SimPadBT.btSettings(); } catch (e) {} };
   $('btList').addEventListener('click', e => { const b = e.target.closest('[data-addr]'); if (!b) return; try { b.dataset.c === '1' ? window.SimPadBT.disconnect(b.dataset.addr) : window.SimPadBT.connect(b.dataset.addr); } catch (er) {} toast('요청했습니다'); setTimeout(btRefresh, 1500); });
+  $('iCode2').addEventListener('input', e => { e.target.value = fmtCode(normCode(e.target.value)); });
+  $('bCodeOk2').onclick = () => {
+    const c = normCode($('iCode2').value);
+    if (c.length !== 12) { toast('코드는 12자리입니다'); return; }
+    S.code = c; save(); close('ovBt'); rtOpen(); setStat(); toast('PC를 찾는 중…');
+  };
+  $('bHelp2').onclick = () => { close('ovBt'); open('ovHelp'); };
+  $('bUnpair2').onclick = () => { if (!confirm('연결 코드를 삭제할까요?')) return; S.code = ''; save(); rtClose(); setStat(); paintMode(); toast('연결을 해제했습니다'); };
+  paintMode();
 }
 
 /* 화면 꺼짐 방지 */
@@ -572,10 +610,10 @@ async function wake() {
     else if (wl) { await wl.release(); wl = null; }
   } catch (e) { wl = null; }
 }
-document.addEventListener('visibilitychange', () => { wake(); if (!BT && document.visibilityState === 'visible' && S.code && !RT.joined) rtOpen(); });
+document.addEventListener('visibilitychange', () => { wake(); if (!useBt() && document.visibilityState === 'visible' && S.code && !RT.joined) rtOpen(); });
 
 paint(); setStat(); wake(); setInterval(setStat, 1500);
-if (BT) { btRefresh(); setTimeout(() => { btRefresh(); if (!BT_ST.conn) open('ovBt'); }, 1200); } else if (S.code) rtOpen(); else open('ovCode');
+if (BT && useBt()) { btRefresh(); setTimeout(() => { btRefresh(); if (useBt() && !BT_ST.conn) { paintMode(); open('ovBt'); } }, 1200); } else if (S.code) rtOpen(); else if (BT) { paintMode(); open('ovBt'); } else open('ovCode');
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 window.__pad = { S, G, RT, send, flush };   // 점검용
 })();

@@ -6,7 +6,11 @@ import android.bluetooth.BluetoothHidDevice;
 import android.bluetooth.BluetoothHidDeviceAppSdpSettings;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.Build;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -60,6 +64,75 @@ public class HidController {
     private volatile BluetoothDevice host;
     private volatile boolean registered = false, supported = true, started = false;
 
+    // 주변 기기 검색 · 페어링
+    private final java.util.LinkedHashMap<String, String> found = new java.util.LinkedHashMap<>();   // 주소 → 이름
+    private volatile boolean scanning = false;
+    private volatile String pairing = null;          // 페어링 요청 중인 주소 (완료되면 자동 연결)
+    private boolean rxOn = false;
+    private final BroadcastReceiver rx = new BroadcastReceiver() {
+        @Override public void onReceive(Context c, Intent i) {
+            String a = i.getAction();
+            try {
+                if (BluetoothDevice.ACTION_FOUND.equals(a)) {
+                    BluetoothDevice d = i.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                    if (d == null) return;
+                    String n = i.getStringExtra(BluetoothDevice.EXTRA_NAME);
+                    if (n == null) n = safeName(d);
+                    synchronized (found) { found.put(d.getAddress(), n); }
+                } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(a)) {
+                    scanning = false;
+                } else if (BluetoothDevice.ACTION_BOND_STATE_CHANGED.equals(a)) {
+                    BluetoothDevice d = i.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                    int st = i.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR);
+                    if (d != null && st == BluetoothDevice.BOND_BONDED) {
+                        synchronized (found) { found.remove(d.getAddress()); }
+                        if (d.getAddress().equals(pairing)) { pairing = null; connect(d.getAddress()); }   // 페어링 끝나면 바로 연결 시도
+                    } else if (d != null && st == BluetoothDevice.BOND_NONE && d.getAddress().equals(pairing)) {
+                        pairing = null;
+                    }
+                }
+            } catch (Exception e) { /* 무시 */ }
+            listener.onChange();
+        }
+    };
+
+    synchronized void scan() {
+        try {
+            if (adapter == null) return;
+            if (adapter.isDiscovering()) adapter.cancelDiscovery();
+            synchronized (found) { found.clear(); }
+            scanning = adapter.startDiscovery();
+        } catch (SecurityException e) { scanning = false; }
+        listener.onChange();
+    }
+
+    void stopScan() {
+        try { if (adapter != null && adapter.isDiscovering()) adapter.cancelDiscovery(); } catch (SecurityException e) { /* 무시 */ }
+        scanning = false; listener.onChange();
+    }
+
+    void pair(String addr) {
+        try {
+            if (adapter == null) return;
+            stopScan();
+            BluetoothDevice d = adapter.getRemoteDevice(addr);
+            if (d.getBondState() == BluetoothDevice.BOND_BONDED) { connect(addr); return; }
+            pairing = addr;
+            d.createBond();
+        } catch (Exception e) { pairing = null; }
+    }
+
+    /** 폰에 등록된 기기를 지운다 (잘못 등록된 항목을 다시 페어링하려고) */
+    boolean unpair(String addr) {
+        try {
+            BluetoothDevice d = adapter.getRemoteDevice(addr);
+            java.lang.reflect.Method m = d.getClass().getMethod("removeBond");
+            boolean ok = (Boolean) m.invoke(d);
+            listener.onChange();
+            return ok;
+        } catch (Exception e) { return false; }
+    }
+
     // 키·마우스 현재 상태
     private int mods = 0, buttons = 0;
     private final int[] keys = new int[6];
@@ -75,6 +148,15 @@ public class HidController {
             adapter = m == null ? null : m.getAdapter();
             if (adapter == null) { supported = false; listener.onChange(); return; }
             started = true;
+            if (!rxOn) {
+                IntentFilter f = new IntentFilter();
+                f.addAction(BluetoothDevice.ACTION_FOUND);
+                f.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+                f.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
+                if (Build.VERSION.SDK_INT >= 33) ctx.registerReceiver(rx, f, Context.RECEIVER_NOT_EXPORTED);
+                else ctx.registerReceiver(rx, f);
+                rxOn = true;
+            }
             adapter.getProfileProxy(ctx, new BluetoothProfile.ServiceListener() {
                 @Override public void onServiceConnected(int profile, BluetoothProfile proxy) {
                     if (profile != BluetoothProfile.HID_DEVICE) return;
@@ -95,6 +177,7 @@ public class HidController {
     }
 
     synchronized void stop() {
+        try { stopScan(); if (rxOn) { ctx.unregisterReceiver(rx); rxOn = false; } } catch (Exception e) { /* 무시 */ }
         try {
             if (hid != null) { hid.unregisterApp(); if (adapter != null) adapter.closeProfileProxy(BluetoothProfile.HID_DEVICE, hid); }
         } catch (Exception e) { /* 무시 */ }
@@ -152,6 +235,17 @@ public class HidController {
                 }
             }
             o.put("hosts", arr);
+            o.put("scan", scanning);
+            o.put("pairing", pairing != null);
+            JSONArray fa = new JSONArray();
+            synchronized (found) {
+                for (java.util.Map.Entry<String, String> e : found.entrySet()) {
+                    JSONObject f = new JSONObject();
+                    f.put("n", e.getValue()); f.put("a", e.getKey());
+                    fa.put(f);
+                }
+            }
+            o.put("found", fa);
         } catch (Exception e) { /* 무시 */ }
         return o.toString();
     }

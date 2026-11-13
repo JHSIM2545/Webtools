@@ -72,8 +72,9 @@ public class MainActivity extends Activity {
 
         if (Build.VERSION.SDK_INT >= 31) {
             if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
-                    || checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE}, 1);
+                    || checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED
+                    || checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_SCAN}, 1);
             } else hid.start();
         } else hid.start();
 
@@ -120,6 +121,22 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void send(String ev, String json) { hid.handle(ev, json); }
         @JavascriptInterface public void connect(String addr) { hid.connect(addr); }
         @JavascriptInterface public void disconnect(String addr) { hid.disconnect(addr); }
+        @JavascriptInterface public void scan() {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_SCAN}, 1);
+                    return;
+                }
+                if (Build.VERSION.SDK_INT < 31 && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+                    return;
+                }
+                hid.scan();
+            });
+        }
+        @JavascriptInterface public void stopScan() { hid.stopScan(); }
+        @JavascriptInterface public void pair(String addr) { hid.pair(addr); }
+        @JavascriptInterface public boolean unpair(String addr) { return hid.unpair(addr); }
         @JavascriptInterface public void discoverable() {
             runOnUiThread(() -> {
                 try {

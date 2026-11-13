@@ -304,13 +304,15 @@ a.apk:hover{border-color:var(--accent)}
   <div class="tabs" id="modeTabs" style="display:none"><button data-md="bt">차량 (블루투스)</button><button data-md="pc">PC (연결 코드)</button></div>
   <div id="btPart" class="fld">
   <div class="note"><ol>
-    <li>아래 <b>차량에서 찾을 수 있게 하기</b>를 누릅니다.</li>
-    <li>차량(안드로이드) 블루투스 설정에서 이 폰을 찾아 <b>페어링</b>합니다.</li>
-    <li>페어링된 목록에서 차량을 눌러 <b>연결</b>합니다.</li>
+    <li>차량 블루투스 화면을 <b>마우스·키보드 등 주변 기기 연결</b> 모드로 둡니다.</li>
+    <li>아래 <b>주변 기기 검색</b>을 눌러 차량 이름(예: G80CAR)을 찾고 <b>페어링</b>을 누릅니다.</li>
+    <li>페어링이 끝나면 자동으로 연결을 시도합니다. 안 되면 아래 목록에서 눌러 <b>연결</b>하세요.</li>
   </ol></div>
-  <button class="pri" id="btDisc">차량에서 찾을 수 있게 하기</button>
+  <button class="pri" id="btScan">주변 기기 검색</button>
+  <div id="btFound" class="fld"></div>
   <h3>페어링된 기기</h3>
   <div id="btList" class="fld"></div>
+  <button id="btDisc">이 폰을 차량에서 찾을 수 있게 하기 (5분)</button>
   <button id="btSet">폰 블루투스 설정 열기</button>
   </div>
   <div id="pcPart" class="fld" style="display:none">
@@ -644,8 +646,10 @@ $('bCodeOk').onclick = () => {
 /* ── 블루투스(안드로이드 앱) ── */
 const escH = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function renderBt() {
-  const l = BT_ST.hosts || [];
-  $('btList').innerHTML = l.length ? l.map(h => '<button data-addr="' + escH(h.a) + '" data-c="' + (h.c ? 1 : 0) + '">' + escH(h.n || h.a) + ' · ' + (h.c ? '연결됨 (눌러서 해제)' : '연결') + '</button>').join('') : '<div class="note">페어링된 기기가 없습니다. 위 1·2단계를 먼저 진행하세요.</div>';
+  const l = BT_ST.hosts || [], f = BT_ST.found || [];
+  $('btList').innerHTML = l.length ? l.map(h => '<div class="row"><button data-addr="' + escH(h.a) + '" data-c="' + (h.c ? 1 : 0) + '" style="flex:3">' + escH(h.n || h.a) + ' · ' + (h.c ? '연결됨 (눌러서 해제)' : '연결') + '</button><button data-del="' + escH(h.a) + '" style="flex:1" title="이 폰에서 등록 해제">삭제</button></div>').join('') : '<div class="note">페어링된 기기가 없습니다. 위에서 주변 기기를 검색해 페어링하세요.</div>';
+  $('btFound').innerHTML = f.map(h => '<button data-pair="' + escH(h.a) + '">' + escH(h.n || h.a) + ' · 페어링</button>').join('') + (BT_ST.scan ? '<div class="note">검색 중… (최대 약 12초)</div>' : (f.length ? '' : ''));
+  $('btScan').textContent = BT_ST.pairing ? '페어링 중… 차량 화면의 확인 창을 확인하세요' : (BT_ST.scan ? '검색 중지' : '주변 기기 검색');
 }
 function btRefresh() { try { BT_ST = JSON.parse(window.SimPadBT.state()); } catch (e) {} setStat(); renderBt(); }
 function paintMode() {
@@ -671,7 +675,15 @@ if (BT) {
   $('bApk').style.display = 'none';
   $('btDisc').onclick = () => { try { window.SimPadBT.discoverable(); } catch (e) {} };
   $('btSet').onclick = () => { try { window.SimPadBT.btSettings(); } catch (e) {} };
-  $('btList').addEventListener('click', e => { const b = e.target.closest('[data-addr]'); if (!b) return; try { b.dataset.c === '1' ? window.SimPadBT.disconnect(b.dataset.addr) : window.SimPadBT.connect(b.dataset.addr); } catch (er) {} toast('요청했습니다'); setTimeout(btRefresh, 1500); });
+  $('btScan').onclick = () => { try { BT_ST.scan ? window.SimPadBT.stopScan() : window.SimPadBT.scan(); } catch (e) {} setTimeout(btRefresh, 400); };
+  $('btFound').addEventListener('click', e => { const b = e.target.closest('[data-pair]'); if (!b) return; try { window.SimPadBT.pair(b.dataset.pair); } catch (er) {} toast('페어링을 요청했습니다'); setTimeout(btRefresh, 800); });
+  $('btList').addEventListener('click', e => {
+    const d = e.target.closest('[data-del]');
+    if (d) { let ok = false; try { ok = window.SimPadBT.unpair(d.dataset.del); } catch (er) {} toast(ok ? '등록을 해제했습니다' : '해제하지 못했습니다. 폰 블루투스 설정에서 지워 주세요'); setTimeout(btRefresh, 800); return; }
+    const b = e.target.closest('[data-addr]'); if (!b) return;
+    try { b.dataset.c === '1' ? window.SimPadBT.disconnect(b.dataset.addr) : window.SimPadBT.connect(b.dataset.addr); } catch (er) {}
+    toast('요청했습니다'); setTimeout(btRefresh, 1500);
+  });
   $('iCode2').addEventListener('input', e => { e.target.value = fmtCode(normCode(e.target.value)); });
   $('bCodeOk2').onclick = () => {
     const c = normCode($('iCode2').value);

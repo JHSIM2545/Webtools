@@ -256,6 +256,7 @@ input:focus,select:focus{border-color:var(--accent)}
 <div class="toast" id="toast"></div>
 <input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
 <input type="file" id="fileGal" accept="image/*" multiple hidden>
+<input type="file" id="fileAny" hidden>
 
 <script>
 (() => {
@@ -570,11 +571,11 @@ const pickBack = () => {
   setTimeout(() => {
     if (pick !== p0 || p0.got) return; const inp = $(p0.id), arr = inp.files ? [...inp.files] : [];
     if (arr.length) { p0.got = true; handleFiles(arr).finally(() => { try { inp.value = ''; } catch (er) {} }); }
-    else if (Date.now() - p0.t > 2500) { pick = null; if (cur === 'cam') camStart(); }
+    else if (Date.now() - p0.t > 2500) { pick = null; if (cur === 'cam') camStart(); if (p0.id !== 'fileAny') toast('선택한 사진이 앱에 전달되지 않았어요.<br><a href="#" id="lnkAny" style="color:#f0abfc;font-weight:700">파일 앱으로 다시 선택</a>', 15000); const l = $('lnkAny'); if (l) l.onclick = ev => { ev.preventDefault(); openPick('fileAny'); }; }
   }, 1200);
 };
 document.addEventListener('visibilitychange', pickBack); window.addEventListener('focus', pickBack);
-['fileCam', 'fileGal'].forEach(id => $(id).addEventListener('cancel', () => { if (cur === 'cam') camStart(); }));
+['fileCam', 'fileGal', 'fileAny'].forEach(id => $(id).addEventListener('cancel', () => { if (cur === 'cam') camStart(); }));
 $('btnPgs').onclick = $('hdrPages').onclick = () => show('pages');
 window.addEventListener('resize', () => { if (cur === 'cam') camFit(); else if (cur === 'edit') layoutEdit(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) camStop(); else if (cur === 'cam') camStart(); });
@@ -643,7 +644,7 @@ async function handleFiles(files) {
     dbg('완료'); unbusy(); toast(files.length + '장 추가'); show('pages');
   } catch (e) { unbusy(); toast('사진을 불러오지 못했어요<br><small>' + esc(((e && e.name) || '') + ' ' + ((e && e.message) || '') + ' · ' + lastErr.join(' / ')) + '</small>', 20000); }
 }
-[$('fileCam'), $('fileGal')].forEach(inp => inp.addEventListener('change', e => { const inp2 = e.target, arr = [...inp2.files]; if (pick) pick.got = true; dbg('선택 결과 받음 ' + arr.length); if (arr.length) handleFiles(arr).finally(() => { try { inp2.value = ''; } catch (er) {} }); }));
+[$('fileCam'), $('fileGal'), $('fileAny')].forEach(inp => inp.addEventListener('change', e => { const inp2 = e.target, arr = [...inp2.files]; if (pick) pick.got = true; dbg('선택 결과 받음 ' + arr.length); if (!arr.length) toast('전달된 사진이 없어요'); if (arr.length) handleFiles(arr).finally(() => { try { inp2.value = ''; } catch (er) {} }); }));
 
 /* ═════════════ 보정 엔진 (원근 펴기 · 조명 얼룩 제거 · 선명화) ═════════════ */
 function quadMap(P) {      // 단위 정사각형 → 사각형 호모그래피 (Heckbert)

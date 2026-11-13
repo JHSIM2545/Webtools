@@ -184,6 +184,7 @@ input:focus,select:focus{border-color:var(--accent)}
       <div class="tabs"><button id="tabCrop" class="on">✂ 모서리 조정</button><button id="tabPrev">👁 결과 미리보기</button></div>
       <div class="chips" id="fltChips"><label>보정</label>
         <button data-f="doc">선명 컬러</button><button data-f="bw">흑백 문서</button><button data-f="gray">회색조</button><button data-f="orig">원본</button></div>
+      <div class="chips"><label>얼룩 제거</label><input type="range" id="stain" min="0" max="100" step="5"><span id="stainV" class="msg" style="min-width:26px;text-align:right"></span></div>
       <div class="chips"><label>선명도</label><input type="range" id="sharp" min="0" max="100" step="5"><span id="sharpV" class="msg" style="min-width:26px;text-align:right"></span></div>
       <div class="chips" id="ratChips"><label>모양</label>
         <button data-r="auto">자동 보정</button><button data-r="a4">A4 비율</button><button data-r="orig">네 변 평균</button></div>
@@ -277,7 +278,7 @@ const canvasBlob = (c, type, q) => new Promise((res, rej) => c.toBlob(b => b ? r
 const newCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
 
 /* ───────── 설정 (이 기기에만 저장) ───────── */
-const S = Object.assign({ filter: 'doc', sharp: 50, ratio: 'auto', quick: false, fmt: 'pdf' }, (() => { try { return JSON.parse(lget('simscan.v1') || '{}'); } catch (e) { return {}; } })());
+const S = Object.assign({ filter: 'doc', sharp: 50, stain: 60, ratio: 'auto', quick: false, fmt: 'pdf' }, (() => { try { return JSON.parse(lget('simscan.v1') || '{}'); } catch (e) { return {}; } })());
 const saveS = () => lset('simscan.v1', JSON.stringify(S));
 
 /* ═════════════ 문서 모서리 자동 인식 ═════════════ */
@@ -575,7 +576,7 @@ function warp(o, W, H) {
   return id;
 }
 const smooth = t => t * t * (3 - 2 * t);
-function enhance(id, filter, sharp) {
+function enhance(id, filter, sharp, stain) {
   const W = id.width, H = id.height, o = id.data, N = W * H;
   if (filter !== 'orig') {
     // ① 조명 얼룩 제거: 글자를 지운 '종이 바탕'을 추정(작게 줄여 밝은 값 확장 → 흐림)해서 나눈다
@@ -583,7 +584,7 @@ function enhance(id, filter, sharp) {
     const full = newCanvas(W, H); full.getContext('2d').putImageData(id, 0, 0);
     const s = newCanvas(sw, sh), sg = s.getContext('2d', { willReadFrequently: true }); sg.imageSmoothingQuality = 'high'; sg.drawImage(full, 0, 0, sw, sh);
     const sd = sg.getImageData(0, 0, sw, sh).data, bgc = [];
-    for (let ch = 0; ch < 3; ch++) { const f = new Float32Array(sw * sh); for (let i = 0; i < sw * sh; i++) f[i] = sd[i * 4 + ch]; bgc.push(boxBlur(maxFilter(f, sw, sh, 3), sw, sh, 2, 2)); }
+    for (let ch = 0; ch < 3; ch++) { const f = new Float32Array(sw * sh); for (let i = 0; i < sw * sh; i++) f[i] = sd[i * 4 + ch]; bgc.push(boxBlur(maxFilter(f, sw, sh, 3), sw, sh, 1, 2)); }
     const bi = sg.createImageData(sw, sh); for (let i = 0; i < sw * sh; i++) { bi.data[i * 4] = bgc[0][i]; bi.data[i * 4 + 1] = bgc[1][i]; bi.data[i * 4 + 2] = bgc[2][i]; bi.data[i * 4 + 3] = 255; }
     sg.putImageData(bi, 0, 0);
     const bc = newCanvas(W, H), bg = bc.getContext('2d', { willReadFrequently: true }); bg.imageSmoothingEnabled = true; bg.imageSmoothingQuality = 'high'; bg.drawImage(s, 0, 0, W, H);
@@ -596,6 +597,18 @@ function enhance(id, filter, sharp) {
       let r = o[i] * 255 / Math.max(bd[i], 40), g2 = o[i + 1] * 255 / Math.max(bd[i + 1], 40), b2 = o[i + 2] * 255 / Math.max(bd[i + 2], 40);
       if (gray) r = g2 = b2 = 0.299 * r + 0.587 * g2 + 0.114 * b2;
       o[i] = lut[r > 255 ? 255 : r | 0]; o[i + 1] = lut[g2 > 255 ? 255 : g2 | 0]; o[i + 2] = lut[b2 > 255 ? 255 : b2 | 0];
+    }
+  }
+  // ②-2 얼룩·그림자 잔여 제거: 글자(잉크)와 그 주변은 건드리지 않고, 잉크가 아닌 '종이 바탕'의 옅은 얼룩만 흰색 쪽으로 보낸다
+  if (filter !== 'orig' && stain > 0) {
+    const k = stain / 100, ink = new Float32Array(N);
+    for (let i = 0; i < N; i++) ink[i] = (0.299 * o[i * 4] + 0.587 * o[i * 4 + 1] + 0.114 * o[i * 4 + 2]) < 175 ? 1 : 0;
+    const near = boxBlur(ink, W, H, 2, 1);                       // 잉크 둘레 2px 이내는 보호
+    for (let i = 0; i < N; i++) {
+      if (near[i] > 0.0005) continue;
+      const j = i * 4, r = o[j], g = o[j + 1], b = o[j + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b), L = 0.299 * r + 0.587 * g + 0.114 * b;
+      const t = smooth(clamp((L - 140) / 75, 0, 1)) * (1 - clamp(((mx - mn) / (mx + 1)) / 0.35, 0, 1)) * k;
+      if (t > 0) { o[j] = r + (255 - r) * t; o[j + 1] = g + (255 - g) * t; o[j + 2] = b + (255 - b) * t; }
     }
   }
   // ③ 선명화 (밝기 성분만 언샤프 마스크 → 글자 윤곽이 또렷해지고 색 번짐이 없다)
@@ -613,7 +626,7 @@ function rotCanvas(c, rot) {
   g.translate(out.width / 2, out.height / 2); g.rotate(rot * Math.PI / 2); g.drawImage(c, -sw / 2, -sh / 2); return out;
 }
 function renderResult(o, longSide) {
-  const sz = targetSize(o, longSide), id = enhance(warp(o, sz.W, sz.H), o.filter, o.sharp);
+  const sz = targetSize(o, longSide), id = enhance(warp(o, sz.W, sz.H), o.filter, o.sharp, o.stain == null ? 60 : o.stain);
   const c = newCanvas(sz.W, sz.H); c.getContext('2d').putImageData(id, 0, 0); return rotCanvas(c, o.rot || 0);
 }
 function thumbOf(c) { const k = 260 / Math.max(c.width, c.height), t = newCanvas(Math.max(1, Math.round(c.width * k)), Math.max(1, Math.round(c.height * k))); const g = t.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, t.width, t.height); return t.toDataURL('image/jpeg', 0.75); }
@@ -624,8 +637,8 @@ async function finishPage(p, srcCanvas, o) {
   p.blob = await canvasBlob(res, 'image/jpeg', 0.92); p.w = res.width; p.h = res.height; p.thumb = thumbOf(res);
 }
 async function addPageFrom(srcCanvas, pts, opt) {
-  const o = Object.assign({ src: srcCanvas, pts, filter: S.filter, sharp: S.sharp, ratio: S.ratio, rot: 0 }, opt || {});
-  const p = { id: ++uid, srcBlob: await canvasBlob(srcCanvas, 'image/jpeg', 0.9), sw: srcCanvas.width, sh: srcCanvas.height, pts: pts.map(q => q.slice()), filter: o.filter, sharp: o.sharp, ratio: o.ratio, rot: o.rot, sel: true };
+  const o = Object.assign({ src: srcCanvas, pts, filter: S.filter, sharp: S.sharp, stain: S.stain, ratio: S.ratio, rot: 0 }, opt || {});
+  const p = { id: ++uid, srcBlob: await canvasBlob(srcCanvas, 'image/jpeg', 0.9), sw: srcCanvas.width, sh: srcCanvas.height, pts: pts.map(q => q.slice()), filter: o.filter, sharp: o.sharp, stain: o.stain, ratio: o.ratio, rot: o.rot, sel: true };
   await finishPage(p, srcCanvas, o); pages.push(p); dirty = true; updCounts(); return p;
 }
 async function srcCanvasOf(p) {
@@ -647,12 +660,12 @@ function layoutEdit() { if (ed) edQ.layout(ed.src.width, ed.src.height); }
 function paintEditUI() {
   document.querySelectorAll('#fltChips button').forEach(b => b.classList.toggle('on', b.dataset.f === ed.filter));
   document.querySelectorAll('#ratChips button').forEach(b => b.classList.toggle('on', b.dataset.r === ed.ratio));
-  $('sharp').value = ed.sharp; $('sharpV').textContent = ed.sharp;
+  $('sharp').value = ed.sharp; $('sharpV').textContent = ed.sharp; $('stain').value = ed.stain; $('stainV').textContent = ed.stain;
   $('tabCrop').classList.toggle('on', edTab === 'crop'); $('tabPrev').classList.toggle('on', edTab === 'prev');
   $('edStage').hidden = edTab !== 'crop'; $('prevWrap').hidden = edTab !== 'prev';
 }
 function openEditor(o) {
-  ed = { src: o.src, data: null, pts: o.pts.map(p => p.slice()), filter: o.filter || S.filter, sharp: o.sharp != null ? o.sharp : S.sharp, ratio: o.ratio || S.ratio, rot: o.rot || 0, pageId: o.pageId || null, from: o.from || 'cam' };
+  ed = { src: o.src, data: null, pts: o.pts.map(p => p.slice()), filter: o.filter || S.filter, sharp: o.sharp != null ? o.sharp : S.sharp, stain: o.stain != null ? o.stain : S.stain, ratio: o.ratio || S.ratio, rot: o.rot || 0, pageId: o.pageId || null, from: o.from || 'cam' };
   const cv = $('edCv'); cv.width = ed.src.width; cv.height = ed.src.height; cv.getContext('2d').drawImage(ed.src, 0, 0);
   edQ.pts = ed.pts; edTab = 'crop'; paintEditUI(); show('edit'); layoutEdit();
   if (o.found === false) toast('문서 모서리를 자동으로 찾지 못했어요. ●를 끌어 맞춰 주세요.', 3200);
@@ -670,6 +683,8 @@ $('tabCrop').onclick = () => setTab('crop'); $('tabPrev').onclick = () => setTab
 $('fltChips').onclick = e => { const b = e.target.closest('button[data-f]'); if (!b || !ed) return; ed.filter = b.dataset.f; S.filter = ed.filter; saveS(); paintEditUI(); if (edTab === 'prev') drawPreview(); };
 $('ratChips').onclick = e => { const b = e.target.closest('button[data-r]'); if (!b || !ed) return; ed.ratio = b.dataset.r; S.ratio = ed.ratio; saveS(); paintEditUI(); if (edTab === 'prev') drawPreview(); };
 $('sharp').oninput = () => { if (!ed) return; ed.sharp = +$('sharp').value; $('sharpV').textContent = ed.sharp; };
+$('stain').oninput = () => { if (!ed) return; ed.stain = +$('stain').value; $('stainV').textContent = ed.stain; };
+$('stain').onchange = () => { S.stain = ed.stain; saveS(); if (edTab === 'prev') drawPreview(); };
 $('sharp').onchange = () => { S.sharp = ed.sharp; saveS(); if (edTab === 'prev') drawPreview(); };
 $('btnDetect').onclick = async () => {
   if (!ed) return; busy('모서리를 찾는 중…'); await nextFrame(); const q = detectFromCanvas(ed.src, 900); unbusy();
@@ -684,10 +699,10 @@ $('edOk').onclick = async () => {
   try {
     if (ed.pageId) {
       const p = pages.find(x => x.id === ed.pageId);
-      if (p) { Object.assign(p, { pts: ed.pts, filter: ed.filter, sharp: ed.sharp, ratio: ed.ratio, rot: ed.rot }); await finishPage(p, ed.src, ed); dirty = true; }
+      if (p) { Object.assign(p, { pts: ed.pts, filter: ed.filter, sharp: ed.sharp, stain: ed.stain, ratio: ed.ratio, rot: ed.rot }); await finishPage(p, ed.src, ed); dirty = true; }
       const f = ed.from; ed = null; updCounts(); unbusy(); show('pages'); void f; toast('수정했어요.');
     } else {
-      const p = await addPageFrom(ed.src, ed.pts, { filter: ed.filter, sharp: ed.sharp, ratio: ed.ratio, rot: ed.rot }); void p;
+      const p = await addPageFrom(ed.src, ed.pts, { filter: ed.filter, sharp: ed.sharp, stain: ed.stain, ratio: ed.ratio, rot: ed.rot }); void p;
       const f = ed.from; ed = null; unbusy(); show(f === 'pages' ? 'pages' : 'cam'); toast('📑 ' + pages.length + '쪽째 추가했어요 · 이어서 촬영하세요');
     }
   } catch (e) { unbusy(); toast('보정하지 못했어요. 다시 시도하세요.'); }
@@ -712,8 +727,8 @@ $('grid').addEventListener('click', async e => {
   else if (a === 'left' && i > 0) { pages.splice(i - 1, 0, pages.splice(i, 1)[0]); renderPages(); updCounts(); }
   else if (a === 'right' && i < pages.length - 1) { pages.splice(i + 1, 0, pages.splice(i, 1)[0]); renderPages(); updCounts(); }
   else if (a === 'del') { if (confirm((i + 1) + '쪽을 삭제할까요?')) { pages.splice(i, 1); renderPages(); updCounts(); } }
-  else if (a === 'rot') { busy('회전 중…'); await nextFrame(); try { p.rot = ((p.rot || 0) + 1) % 4; const src = await srcCanvasOf(p); await finishPage(p, src, { src, pts: p.pts, filter: p.filter, sharp: p.sharp, ratio: p.ratio, rot: p.rot }); } catch (er) { toast('회전하지 못했어요.'); } unbusy(); renderPages(); updCounts(); }
-  else if (a === 'edit') { busy('불러오는 중…'); await nextFrame(); try { const src = await srcCanvasOf(p); unbusy(); openEditor({ src, pts: p.pts, filter: p.filter, sharp: p.sharp, ratio: p.ratio, rot: p.rot, pageId: p.id, from: 'pages' }); } catch (er) { unbusy(); toast('원본을 불러오지 못했어요.'); } }
+  else if (a === 'rot') { busy('회전 중…'); await nextFrame(); try { p.rot = ((p.rot || 0) + 1) % 4; const src = await srcCanvasOf(p); await finishPage(p, src, { src, pts: p.pts, filter: p.filter, sharp: p.sharp, stain: p.stain, ratio: p.ratio, rot: p.rot }); } catch (er) { toast('회전하지 못했어요.'); } unbusy(); renderPages(); updCounts(); }
+  else if (a === 'edit') { busy('불러오는 중…'); await nextFrame(); try { const src = await srcCanvasOf(p); unbusy(); openEditor({ src, pts: p.pts, filter: p.filter, sharp: p.sharp, stain: p.stain, ratio: p.ratio, rot: p.rot, pageId: p.id, from: 'pages' }); } catch (er) { unbusy(); toast('원본을 불러오지 못했어요.'); } }
 });
 $('pgBack').onclick = () => show('cam');
 $('pgAll').onclick = () => { const all = pages.every(p => p.sel); pages.forEach(p => { p.sel = !all; }); renderPages(); };

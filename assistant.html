@@ -1082,7 +1082,7 @@ const near = (a, b) => { const dl = Math.max(Math.abs(a.lat - b.lat), Math.abs(a
 function noNaverApp() { return !(IS_ANDROID || IS_IOS) ? '<span class="sub">※ PC에서는 네이버 지도 앱이 열리지 않아요. 휴대폰에서 사용해 주세요.</span>' : ''; }
 function confirmNav(p, c) {
   p.stage = 'dok'; p.pick = c; autoTried = false;
-  if (p.sl.saveAs && !c.approx && c.src !== '기억한 장소') { const nm = p.sl.saveAs; p.sl.saveAs = null; kbSavePlace(nm, p.sl.dest, c); sys('"' + nm + '"(으)로 기억했어요. 다음부터 "' + nm + '(으)로 가자"라고 하세요.'); }
+  if (p.sl.saveAs && !c.approx && c.src !== '기억한 장소' && c.src !== 'SIM Map') { const nm = p.sl.saveAs; p.sl.saveAs = null; kbSavePlace(nm, p.sl.dest, c); sys('"' + nm + '"(으)로 기억했어요. 다음부터 "' + nm + '(으)로 가자"라고 하세요.'); }
   if (c.approx) {
     const q = p.sl.dest;
     return bot('"' + q + '"에서 도로나 지명까지만 확인되고 번지나 도로번호는 확인하지 못했어요. 네이버 지도에서 정확히 검색할까요? 대략적인 위치로 바로 안내하려면 "대략"이라고 말씀하세요.', {
@@ -1100,6 +1100,37 @@ function pickNav(p, cands) {
   const html = '<b>' + esc(p.sl.dest) + ' — 후보 ' + cands.length + '곳</b>' + cands.map((c, i) => '<div class="who" style="margin-top:8px"><div class="av" style="background:#0ea5e9;color:#031a2b">' + (i + 1) + '</div><div><b>' + esc(c.name) + '</b><small>' + esc(c.addr || '') + (c.src === '연락처 주소' ? ' · 연락처 주소' : '') + (c.approx ? ' · ⚠ 번지 미확인' : '') + '</small></div></div>').join('');
   bot('후보가 ' + cands.length + '곳 있어요. ' + cands.map((c, i) => (i + 1) + '번 ' + c.name + ' ' + (c.addr || '')).join(', ') + '. 몇 번인가요?', { html, tok: p.tok, btns: cands.map((c, i) => ({ label: (i + 1) + '. ' + c.name, fn: () => confirmNav(p, c) })).concat([{ label: '취소', fn: () => cancelP('취소했어요.') }]) });
 }
+/* ───── SIM Map 저장 장소(IndexedDB 'simmap') 음성 검색·내비 ───── */
+const MAP_WORDS = /(SIM\s*MAP|심\s*맵|지도\s*앱|맵)(에|에서|의)?\s*(저장\s*(한|된|해\s*둔)?)?|내\s*장소(에서|중)?|저장\s*(한|된|해\s*둔)\s*(장소|곳)(에서|중)?/ig;
+const mapOpen = () => new Promise(res => {
+  let r; try { r = indexedDB.open('simmap'); } catch (e) { return res(null); }
+  r.onupgradeneeded = () => { try { r.transaction.abort(); } catch (e) {} };
+  r.onsuccess = () => res(r.result); r.onerror = () => res(null); r.onblocked = () => res(null);
+});
+async function mapPlaces() {
+  const db = await mapOpen(); if (!db) return [];
+  try {
+    if (!db.objectStoreNames.contains('places')) return [];
+    return await new Promise(res => { const q = db.transaction('places', 'readonly').objectStore('places').getAll(); q.onsuccess = () => res(q.result || []); q.onerror = () => res([]); });
+  } catch (e) { return []; } finally { try { db.close(); } catch (e) {} }
+}
+const mapNorm = t => String(t || '').replace(MAP_WORDS, ' ').replace(/(으로|로|에서|에|을|를|은|는|이|가)?\s*(좀|한번)?\s*(길\s*안내|안내|내비\S*|네비\S*|가자|가줘|가\s*줘|찾아\s*줘|찾아|어디(야|지|예요)?|알려\s*줘|보여\s*줘).*$/, '').replace(/\s+/g, '').trim();
+async function mapFind(q) {
+  const k = mapNorm(q).toLowerCase(); if (k.length < 2) return [];
+  const all = (await mapPlaces()).filter(p => p && p.name && isFinite(p.lat) && isFinite(p.lng));
+  const sc = all.map(p => {
+    const n = String(p.name).replace(/\s/g, '').toLowerCase(); let d = 9;
+    if (n === k) d = 0;
+    else if (n.length >= 2 && (n.includes(k) || (k.includes(n) && k.length - n.length <= 2))) d = 0.3;
+    else if (k.length >= 2 && (String(p.memo || '') + ' ' + (p.cat || '') + ' ' + (p.addr || '')).replace(/\s/g, '').toLowerCase().includes(k)) d = 0.6;
+    else { try { let f = FZ.nameDist(k, n); for (const w of String(p.name).split(/\s+/)) if (w.length >= 2) f = Math.min(f, FZ.nameDist(k, w.toLowerCase())); if (f <= 0.9) d = 0.4 + f / 2; } catch (e) {} }
+    return { p, d };
+  }).filter(x => x.d < 9).sort((a, b) => a.d - b.d || String(a.p.name).length - String(b.p.name).length);
+  if (!sc.length) return [];
+  const best = sc[0].d, keep = best <= 0.3 ? sc.filter(x => x.d <= 0.3) : sc;
+  return keep.slice(0, 4).map(x => x.p);
+}
+const mapCand = p => ({ lat: +p.lat, lng: +p.lng, name: p.name, addr: p.addr || '', src: 'SIM Map', approx: false, mapId: p.id });
 async function navFlow(sl) {
   if (sl.dest && !sl.noAlias) {   // 기억한 장소(집·사무실·어머니댁…)면 저장된 주소로 바로
     const kp = kbPlace(sl.dest);
@@ -1108,6 +1139,14 @@ async function navFlow(sl) {
       if (!c) { try { const r0 = await kbGeo(kp.q || kp.addr); if (r0) { kp.lat = r0.lat; kp.lng = r0.lng; kbSave(); c = kbPlaceCand(kp); } } catch (e) {} }
       if (c) { pending = newP('navigate', sl); return confirmNav(pending, c); }
       sys('기억한 주소를 지도에서 찾지 못해 검색해 볼게요.'); sl = Object.assign({}, sl, { dest: kp.q || kp.addr, noAlias: true });
+    }
+  }
+  if (sl.dest && !sl.noAlias && !sl.noMap) {   // SIM Map에 저장한 장소면 그 좌표로 바로
+    let mp = []; try { mp = await mapFind(sl.dest); } catch (e) {}
+    if (mp.length) {
+      pending = newP('navigate', sl);
+      if (mp.length === 1) { sys('SIM Map의 "' + mp[0].name + '"(으)로 안내할게요.'); return confirmNav(pending, mapCand(mp[0])); }
+      return pickNav(pending, mp.map(mapCand));
     }
   }
   if (sl.dest && !sl.saveAs && !sl.asked && !kbPlace(sl.dest)) {   // 같은 목적지 반복 요청 → 기억 제안
@@ -1286,6 +1325,9 @@ const LTOOLS = {
   },
   async find_destination(a) {
     const q = String(a.query || '').trim(); if (!q) return { ok: false, error: '목적지가 비었어요' };
+    try { const mp = await mapFind(q); if (mp.length) { LIVE.cands = mp.map(mapCand);
+      liveCard('<b>SIM Map 저장 장소 ' + mp.length + '곳</b>' + LIVE.cands.map((c, i) => '<div class="who" style="margin-top:6px"><div class="av" style="background:#0ea5e9">' + (i + 1) + '</div><div><b>' + esc(c.name) + '</b><small>' + esc(c.addr || '') + '</small></div></div>').join(''));
+      return { ok: true, source: 'SIM Map(사용자가 직접 저장한 장소)', note: '사용자가 SIM Map에 저장해 둔 장소예요. 정확하므로 후보가 1곳이면 바로 start_navigation 하세요', candidates: LIVE.cands.map((c, i) => ({ index: i + 1, name: c.name, address: c.addr })) }; } } catch (e) {}
     const kp = kbPlace(q);
     if (kp && kp.lat != null) { LIVE.cands = [kbPlaceCand(kp)]; liveCard('<b>' + esc(kp.name) + ' — 기억한 장소</b>' + kvRows([['주소', kp.addr || kp.q]])); return { ok: true, note: '사용자가 기억해 둔 장소예요', candidates: [{ index: 1, name: kp.name, address: kp.addr || kp.q, exact_number_matched: true }] }; }
     let r = []; try { r = await searchPlaces(q); } catch (e) { return { ok: false, error: '위치 검색에 실패했어요' }; }
@@ -1696,6 +1738,8 @@ function kbParse(s) {
 function kbMore(t) {
   // 3) 목록
   if (/(기억|저장).{0,6}(한|해\s*둔|해둔|해\s*놓은|해놓은|된).{0,10}(보여|알려|목록|뭐|전부|모두|리스트)|기억\s*(목록|리스트|보여|뭐)|(내가|뭘|무엇을).{0,6}기억.{0,6}(했|하고)|자주\s*가는\s*(곳|장소).{0,6}(보여|알려|목록|뭐)/.test(t)) return { k: 'list' };
+  // 3.5) SIM Map 저장 장소 찾기 (내비 의도가 아닐 때)
+  if (NLU.detect(t) !== 'navigate' && (MAP_WORDS.lastIndex = 0, /(SIM\s*MAP|심\s*맵|맵에|내\s*장소|저장\s*(한|된|해\s*둔)\s*(장소|곳))/i.test(t)) && /(찾|어디|알려|보여)/.test(t)) return { k: 'mapfind', q: t };
   // 4) 별명 장소로 내비
   if (NLU.detect(t) === 'navigate') { const d = NLU.extract('navigate', t, new Date()).dest; if (d && kbPlace(d)) return { k: 'nav', sl: { dest: d } }; return null; }
   // 5) 질문 → 기억에서 찾기
@@ -1718,6 +1762,12 @@ function kbDel(it) {
 }
 async function memHandle(m) {
   if (m.k === 'nav') return navFlow(m.sl);
+  if (m.k === 'mapfind') {
+    const mp = await mapFind(m.q);
+    if (!mp.length) return bot('SIM Map에 저장된 장소 중에서 찾지 못했어요. 저장한 이름을 다시 말씀해 주세요.');
+    const cs = mp.map(mapCand);
+    return bot(cs.map((c, i) => c.name + (c.addr ? ' ' + c.addr : '')).join(', ') + '. 길 안내를 시작할까요?', { html: '<b>📍 SIM Map 저장 장소 ' + cs.length + '곳</b>' + cs.map(c => '<div class="who" style="margin-top:6px"><div class="av" style="background:#0ea5e9">📍</div><div><b>' + esc(c.name) + '</b><small>' + esc(c.addr || '') + '</small></div></div>').join(''), btns: cs.map(c => ({ label: '🧭 ' + c.name, primary: cs.length === 1, fn: () => { pending = null; navFlow({ dest: c.name }); } })).concat([{ label: '🗺 SIM Map 열기', href: 'map.html' }]) });
+  }
   if (m.k === 'ask') { pending = newP('mem', {}); pending.ask = 'kbcontent'; return bot('무엇을 기억해 둘까요? 예: "2층 화장실 비밀번호는 1234야"', { tok: pending.tok, btns: [{ label: '취소', fn: () => cancelP('취소했어요.') }] }); }
   if (m.k === 'remember') {
     if (m.place) {

@@ -5,7 +5,7 @@ on:
     paths:
       - 'android/**'
       - 'pad.html'
-      - 'appmenu.js'   # SIM PAD 앱 안에 함께 들어가는 파일
+      - 'appmenu.js'   # SIM Control 앱 안에 함께 들어가는 파일
       - 'ui-guard.js'
       - '**-icon-192.png'
       - 'icon-192.png'
@@ -89,7 +89,7 @@ jobs:
             out/ver-${{ matrix.key }}.json
 
   pad:
-    name: SIM PAD (Bluetooth)
+    name: SIM Control (Bluetooth)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -152,6 +152,6 @@ jobs:
           gh release upload apps-latest versions.json --clobber   # 버전표는 APK 를 올린 뒤 마지막에
           if [ -f apks/simtools-pad.apk ]; then
             cp apks/simtools-pad.apk SIM-PAD.apk
-            gh release view simpad-latest >/dev/null 2>&1 || gh release create simpad-latest --title "SIM PAD (Android)" --notes "차량 블루투스 마우스·키보드용 SIM PAD 앱" --latest=false
+            gh release view simpad-latest >/dev/null 2>&1 || gh release create simpad-latest --title "SIM Control (Android)" --notes "차량 블루투스 마우스·키보드용 SIM Control 앱" --latest=false
             gh release upload simpad-latest SIM-PAD.apk --clobber
           fi

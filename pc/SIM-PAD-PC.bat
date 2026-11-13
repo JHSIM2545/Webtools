@@ -1,19 +1,19 @@
 @echo off
 chcp 65001 >nul
-title SIM PAD PC
+title SIM Control PC
 cd /d "%~dp0"
 echo.
-echo  [SIM PAD] starting...
+echo  [SIM Control] starting...
 
 set "PY="
 py -3 --version >nul 2>nul && set "PY=py -3"
 if not defined PY python --version >nul 2>nul && set "PY=python"
 if not defined PY goto nopython
 
-echo  [SIM PAD] using: %PY%
+echo  [SIM Control] using: %PY%
 %PY% "%~dp0simpad_pc.py" %*
 echo.
-echo  [SIM PAD] stopped. If you saw an error above, please send a screenshot.
+echo  [SIM Control] stopped. If you saw an error above, please send a screenshot.
 pause
 exit /b 0
 

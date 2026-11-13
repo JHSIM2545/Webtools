@@ -107,7 +107,7 @@ public class HidController {
             byte[] d = new byte[DESC.length];
             for (int i = 0; i < d.length; i++) d[i] = (byte) DESC[i];
             BluetoothHidDeviceAppSdpSettings sdp = new BluetoothHidDeviceAppSdpSettings(
-                    "SIM PAD", "터치패드·키보드", "SIM Tools", BluetoothHidDevice.SUBCLASS1_COMBO, d);
+                    "SIM Control", "터치패드·키보드", "SIM Tools", BluetoothHidDevice.SUBCLASS1_COMBO, d);
             boolean ok = hid.registerApp(sdp, null, null, cbExec, new BluetoothHidDevice.Callback() {
                 @Override public void onAppStatusChanged(BluetoothDevice dev, boolean reg) {
                     registered = reg; listener.onChange();

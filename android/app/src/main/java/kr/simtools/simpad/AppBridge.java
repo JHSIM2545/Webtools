@@ -28,7 +28,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 /**
- * SIM PAD 용 "SimApp" 창구 (android/shell 의 AppBridge 와 같은 역할·같은 화면 규약).
+ * SIM Control 용 "SimApp" 창구 (android/shell 의 AppBridge 와 같은 역할·같은 화면 규약).
  * 화면(웹)의 ⋯ 메뉴가 쓴다: 버전·빌드 정보, 업데이트 확인·설치, 권한 확인·요청.
  */
 final class AppBridge {

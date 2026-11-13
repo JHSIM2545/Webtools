@@ -6,10 +6,10 @@
 <meta name="theme-color" content="#0f1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="SIM PAD">
+<meta name="apple-mobile-web-app-title" content="SIM Control">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" type="image/png" sizes="192x192" href="pad-icon-192.png">
-<title>SIM PAD</title>
+<title>SIM Control</title>
 <style>
 :root{
   --bg:#0f1117; --panel:#171a23; --panel2:#1f2330; --line:#2a2f3f;
@@ -39,7 +39,7 @@ main{flex:1;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:
 #pad{flex:1;min-height:90px;position:relative;border-radius:22px;overflow:hidden;touch-action:none;
   background:radial-gradient(120% 100% at 50% 0%,#232838 0%,#171b27 55%,#12151f 100%);
   border:1px solid #303650;box-shadow:inset 0 2px 0 rgba(255,255,255,.06),inset 0 -6px 18px rgba(0,0,0,.45),0 6px 18px rgba(0,0,0,.4)}
-#pad::after{content:'SIM PAD';position:absolute;left:0;right:0;bottom:14px;text-align:center;font-size:12px;letter-spacing:4px;font-weight:700;color:rgba(255,255,255,.07);pointer-events:none}
+#pad::after{content:'SIM Control';position:absolute;left:0;right:0;bottom:14px;text-align:center;font-size:12px;letter-spacing:4px;font-weight:700;color:rgba(255,255,255,.07);pointer-events:none}
 #pad.act{border-color:var(--accent);box-shadow:inset 0 0 0 1px rgba(186,181,160,.35),inset 0 -6px 18px rgba(0,0,0,.45),0 0 22px rgba(186,181,160,.18)}
 #pad.off{opacity:.55}
 .dot{position:absolute;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;pointer-events:none;
@@ -121,7 +121,7 @@ a.apk:hover{border-color:var(--accent)}
 <body>
 <header>
   <a class="back" href="index.html" title="런처">‹</a>
-  <h1><img class="appicon" src="pad-icon-192.png" alt="">SIM <span>PAD</span></h1>
+  <h1><img class="appicon" src="pad-icon-192.png" alt="">SIM <span>Control</span></h1>
   <div class="spacer"></div>
   <div class="stat" id="stat"><i></i><span id="statTxt">연결 안 됨</span></div>
   <button class="ibtn" id="btnSet" title="설정">⚙</button>
@@ -251,7 +251,7 @@ a.apk:hover{border-color:var(--accent)}
 <!-- 연결 코드 -->
 <div class="ov" id="ovCode"><div class="sheet" role="dialog" aria-modal="true">
   <h2>PC 연결 <button class="ibtn" data-close>✕</button></h2>
-  <div class="note">PC에서 <b>SIM PAD PC 프로그램</b>을 실행하면 화면에 <b>연결 코드</b>(12자리)가 나옵니다. 아래에 입력하세요. PC 화면의 QR을 이 폰 카메라로 찍으면 자동 입력됩니다.</div>
+  <div class="note">PC에서 <b>SIM Control PC 프로그램</b>을 실행하면 화면에 <b>연결 코드</b>(12자리)가 나옵니다. 아래에 입력하세요. PC 화면의 QR을 이 폰 카메라로 찍으면 자동 입력됩니다.</div>
   <input type="text" id="iCode" placeholder="XXXX-XXXX-XXXX" maxlength="14" autocomplete="off" autocapitalize="characters" spellcheck="false">
   <button class="pri" id="bCodeOk">연결</button>
 </div></div>
@@ -272,7 +272,7 @@ a.apk:hover{border-color:var(--accent)}
   <button id="btSet">폰 블루투스 설정 열기</button>
   </div>
   <div id="pcPart" class="fld" style="display:none">
-    <div class="note">PC에서 <b>SIM PAD PC 프로그램</b>을 실행하면 검은 창에 나오는 <b>12자리 연결 코드</b>를 입력하세요.</div>
+    <div class="note">PC에서 <b>SIM Control PC 프로그램</b>을 실행하면 검은 창에 나오는 <b>12자리 연결 코드</b>를 입력하세요.</div>
     <input type="text" id="iCode2" placeholder="XXXX-XXXX-XXXX" maxlength="14" autocomplete="off" autocapitalize="characters" spellcheck="false">
     <button class="pri" id="bCodeOk2">PC 연결</button>
     <button id="bHelp2">PC 프로그램 설치 방법</button>
@@ -316,7 +316,7 @@ const $ = id => document.getElementById(id);
 const LS = 'simpad.v1';
 const SB_REF = 'gpqlximhoqdybcewdfde', SB_KEY = 'sb_publishable_xUnGxyLCc5TB5nv4keVQVw__grqGJkP';
 const BT = !!window.SimPadBT;          // 안드로이드 앱 안인가? (블루투스 기능 보유)
-const useBt = () => BT && S.mode !== 'pc';   // 지금 조작 대상이 '차량(블루투스)'인가? (앱 안에서 PC로 바꿀 수 있음)          // 안드로이드 앱(SIM PAD BT) 안에서 열렸을 때: 블루투스 HID 로 직접 보냄
+const useBt = () => BT && S.mode !== 'pc';   // 지금 조작 대상이 '차량(블루투스)'인가? (앱 안에서 PC로 바꿀 수 있음)          // 안드로이드 앱(SIM Control BT) 안에서 열렸을 때: 블루투스 HID 로 직접 보냄
 let BT_ST = {};
 const WS_URL = 'wss://' + SB_REF + '.supabase.co/realtime/v1/websocket?apikey=' + SB_KEY + '&vsn=1.0.0';
 

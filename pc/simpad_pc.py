@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SIM PAD PC 프로그램 (Windows)
+SIM Control PC 프로그램 (Windows)
 
-폰의 SIM PAD 앱(터치패드·키보드)이 보내는 신호를 받아 이 PC의 마우스·키보드 입력으로 실행합니다.
-  폰(SIM PAD)  →  Supabase Realtime(Broadcast, 채널 = 연결 코드)  →  이 프로그램  →  Windows SendInput
+폰의 SIM Control 앱(터치패드·키보드)이 보내는 신호를 받아 이 PC의 마우스·키보드 입력으로 실행합니다.
+  폰(SIM Control)  →  Supabase Realtime(Broadcast, 채널 = 연결 코드)  →  이 프로그램  →  Windows SendInput
 
 - 연결 코드: 처음 실행할 때 한 번 만들어 저장하며(%APPDATA%\\SIM-PAD\\config.json) 이후 같은 코드를 씁니다.
   코드를 아는 사람은 이 PC를 조작할 수 있으니 남에게 알려주지 마세요. 바꾸려면:  simpad_pc.py --new-code
@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 SB_REF = 'gpqlximhoqdybcewdfde'
 SB_KEY = 'sb_publishable_xUnGxyLCc5TB5nv4keVQVw__grqGJkP'
 WS_URL = 'wss://%s.supabase.co/realtime/v1/websocket?apikey=%s&vsn=1.0.0' % (SB_REF, SB_KEY)
-APP_URL = 'https://jhsim2545.github.io/Webtools/pad.html'      # QR이 여는 SIM PAD 주소
+APP_URL = 'https://jhsim2545.github.io/Webtools/pad.html'      # QR이 여는 SIM Control 주소
 ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'                  # 헷갈리는 글자(0,O,1,I) 제외
 
 try:
@@ -389,7 +389,7 @@ def diagnose(url):
 
 
 def main():
-    ap = argparse.ArgumentParser(description='SIM PAD PC 프로그램')
+    ap = argparse.ArgumentParser(description='SIM Control PC 프로그램')
     ap.add_argument('--new-code', action='store_true', help='연결 코드를 새로 만든다')
     ap.add_argument('--dry-run', action='store_true', help='실제 입력 없이 받은 동작만 표시')
     ap.add_argument('--url', default=WS_URL, help=argparse.SUPPRESS)
@@ -399,7 +399,7 @@ def main():
     if a.proxy:
         os.environ['SIMPAD_PROXY'] = a.proxy
 
-    log('SIM PAD PC 프로그램을 시작합니다…')
+    log('SIM Control PC 프로그램을 시작합니다…')
     if a.dry_run or platform.system() != 'Windows':
         if not a.dry_run:
             log('Windows가 아니어서 시험 모드로 실행합니다 (입력은 실행되지 않음).')
@@ -415,10 +415,10 @@ def main():
 
     print()
     print('=' * 52)
-    print('  SIM PAD  PC 프로그램')
+    print('  SIM Control  PC 프로그램')
     print('  연결 코드 :  ' + fmt(code))
     print('=' * 52)
-    print('  폰에서 SIM PAD 앱에 위 코드를 입력하세요.')
+    print('  폰에서 SIM Control 앱에 위 코드를 입력하세요.')
     print('  (창을 닫으면 조작이 멈춥니다)')
     print()
     try:

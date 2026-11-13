@@ -18,7 +18,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-/** SIM PAD 화면(pad.html)을 WebView 로 띄우고, 입력을 블루투스 HID(마우스·키보드)로 내보낸다. */
+/** SIM Control 화면(pad.html)을 WebView 로 띄우고, 입력을 블루투스 HID(마우스·키보드)로 내보낸다. */
 public class MainActivity extends Activity {
     static final String URL = "https://jhsim2545.github.io/Webtools/pad.html?app=bt";
     static final String FALLBACK = "file:///android_asset/pad.html?app=bt";

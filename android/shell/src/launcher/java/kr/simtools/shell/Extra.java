@@ -33,7 +33,7 @@ final class Extra {
     static final String BASE = "https://github.com/JHSIM2545/Webtools/releases/download/apps-latest/";
     private static final Map<String, String> PKG = new HashMap<>();
     static {
-        for (String id : new String[]{"simtv", "note", "phone", "aitel", "assistant", "calendar", "folder", "message", "kbo", "orchestra", "radio", "calc", "map", "teams"})
+        for (String id : new String[]{"simtv", "note", "phone", "aitel", "assistant", "calendar", "folder", "message", "kbo", "orchestra", "radio", "calc", "map", "teams", "scan"})
             PKG.put(id, "kr.simtools." + id);
         PKG.put("pad", "kr.simtools.simpad");
         PKG.put("launcher", "kr.simtools.launcher");   // 런처 자신도 업데이트 대상

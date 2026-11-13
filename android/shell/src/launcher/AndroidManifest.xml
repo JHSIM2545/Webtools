@@ -19,6 +19,7 @@
         <package android:name="kr.simtools.radio" />
         <package android:name="kr.simtools.calc" />
         <package android:name="kr.simtools.teams" />
+        <package android:name="kr.simtools.scan" />
         <package android:name="kr.simtools.map" />
         <package android:name="kr.simtools.simpad" />
     </queries>

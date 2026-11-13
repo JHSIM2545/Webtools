@@ -44,6 +44,7 @@ jobs:
           - { key: calc,      label: "SIM Calculator", page: calc.html,      icon: calc-icon-192.png,      flavor: Tool }
           - { key: map,       label: "SIM Map",        page: map.html,       icon: map-icon-192.png,       flavor: Tool }
           - { key: teams,     label: "SIM Teams",      page: teams.html,     icon: teams-icon-192.png,     flavor: Tool }
+          - { key: scan,      label: "SIM Scan",       page: scan.html,      icon: scan-icon-192.png,      flavor: Tool }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4

@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0f1117">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SIM Scan">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" sizes="192x192" href="scan-icon-192.png">
+<title>SIM Scan</title>
+<style>
+:root{
+  --bg:#0f1117; --panel:#171a23; --panel2:#1f2330; --line:#2a2f3f;
+  --text:#e8eaf0; --sub:#8b92a8; --accent:#d946ef; --accent2:#a21caf; --ink:#fff; --danger:#ff5d5d; --ok:#3ecf8e; --warn:#ffc46b;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;display:flex;flex-direction:column;overscroll-behavior:none}
+header{display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));background:var(--panel);border-bottom:1px solid var(--line);flex:none;z-index:5}
+header h1{font-size:17px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:8px}
+header h1 span{color:var(--accent);margin-left:-5px}
+.appicon{width:30px;height:30px;border-radius:8px;display:block}
+.back{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:22px;line-height:1}
+.spacer{flex:1}
+button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:8px 13px;cursor:pointer;touch-action:manipulation}
+button:disabled{opacity:.45}
+button.pri{background:var(--accent);border-color:transparent;color:var(--ink);font-weight:700}
+button.pri:active{background:var(--accent2)}
+input[type=text],input[type=email],input[type=password],select{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;outline:none;width:100%}
+input:focus,select:focus{border-color:var(--accent)}
+.pgchip{font-size:13px;padding:6px 12px;border-radius:99px;font-weight:700}
+.pgchip b{color:var(--accent)}
+
+#views{flex:1;min-height:0;position:relative}
+.view{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg)}
+.area{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#06070a}
+.stage{position:relative;touch-action:none;user-select:none;-webkit-user-select:none;background:#000;flex:none}
+.stage video,.stage canvas.src{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:fill}
+.stage svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.stage polygon{fill:rgba(217,70,239,.16);stroke:var(--accent);stroke-width:3;stroke-linejoin:round}
+.stage.ok polygon{fill:rgba(62,207,142,.16);stroke:var(--ok)}
+.stage.lost polygon{fill:rgba(255,196,107,.06);stroke:var(--warn);stroke-dasharray:10 8}
+.h{position:absolute;width:48px;height:48px;margin:-24px 0 0 -24px;touch-action:none;display:grid;place-items:center;cursor:grab;z-index:3}
+.h::after{content:'';width:24px;height:24px;border-radius:50%;border:3px solid #fff;background:rgba(217,70,239,.4);box-shadow:0 0 0 2px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.5);transition:transform .12s}
+.h.drag::after{transform:scale(1.35)}
+.stage.ok .h::after{border-color:var(--ok);background:rgba(62,207,142,.35)}
+.stage.lost .h::after{border-color:var(--warn);background:rgba(255,196,107,.25)}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:4}
+.flash.on{animation:fl .28s ease-out}
+@keyframes fl{0%{opacity:.85}100%{opacity:0}}
+.camstat{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:6;font-size:13px;font-weight:700;padding:6px 14px;border-radius:99px;background:rgba(15,17,23,.78);border:1px solid var(--line);white-space:nowrap;backdrop-filter:blur(4px)}
+.camstat.ok{color:var(--ok);border-color:#1f5e44}
+.camstat.warn{color:var(--warn)}
+.tops{position:absolute;right:10px;top:10px;z-index:6;display:flex;flex-direction:column;gap:8px}
+.tops button{background:rgba(15,17,23,.78);backdrop-filter:blur(4px);padding:8px 11px;font-size:13px;border-radius:99px}
+.tops button.on{background:var(--accent);border-color:transparent;color:var(--ink)}
+.camerr{position:absolute;inset:0;z-index:7;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;background:var(--bg)}
+.camerr p{color:var(--sub);font-size:14px;line-height:1.6;max-width:420px}
+.camerr .row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+
+.bar{flex:none;display:flex;align-items:center;justify-content:space-around;gap:10px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line)}
+.shutter{width:70px;height:70px;border-radius:50%;border:4px solid #fff;background:var(--accent);padding:0;box-shadow:0 0 0 3px rgba(0,0,0,.5);transition:transform .1s}
+.shutter:active{transform:scale(.9)}
+.sidebtn{position:relative;width:58px;height:58px;border-radius:16px;padding:0;display:grid;place-items:center;font-size:24px;overflow:hidden;background:var(--panel2)}
+.sidebtn img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.sidebtn .badge{position:absolute;right:3px;top:3px;min-width:20px;height:20px;border-radius:10px;background:var(--accent);color:#fff;font-size:12px;font-weight:800;display:grid;place-items:center;padding:0 5px;z-index:1}
+.hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:12px;color:#fffc;text-shadow:0 1px 3px #000;z-index:6;pointer-events:none;padding:0 70px}
+
+/* 편집 */
+.panel{flex:none;max-height:46%;overflow-y:auto;background:var(--panel);border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:9px;overscroll-behavior:contain}
+.tabs{display:flex;gap:6px}
+.tabs button{flex:1;border-radius:10px;padding:8px 6px;font-size:13.5px}
+.tabs button.on{background:var(--accent);border-color:transparent;color:var(--ink);font-weight:700}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chips label{font-size:12.5px;color:var(--sub);min-width:46px}
+.chips button{padding:6px 11px;font-size:13px;border-radius:99px}
+.chips button.on{background:#3a1442;border-color:var(--accent);color:#f5c9ff;font-weight:700}
+.chips input[type=range]{flex:1;min-width:120px;accent-color:var(--accent)}
+.btnrow{display:flex;gap:8px}
+.btnrow button{flex:1;padding:11px 8px;font-size:14.5px}
+.loupe{position:absolute;top:8px;width:112px;height:112px;border-radius:50%;border:3px solid #fff;box-shadow:0 4px 14px rgba(0,0,0,.6);z-index:8;pointer-events:none;background:#000}
+.prevwrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:10px;background:#1a1d27}
+.prevwrap canvas{max-width:100%;max-height:100%;box-shadow:0 4px 20px rgba(0,0,0,.6);background:#fff}
+
+/* 페이지 목록 */
+.pgtop{flex:none;display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel)}
+.pgtop .sub{color:var(--sub);font-size:13px}
+.grid{flex:1;min-height:0;overflow-y:auto;padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;align-content:start;overscroll-behavior:contain}
+.pc{position:relative;background:var(--panel);border:2px solid var(--line);border-radius:14px;overflow:hidden}
+.pc.sel{border-color:var(--accent)}
+.pc .th{display:block;width:100%;aspect-ratio:3/4;object-fit:contain;background:#e9edf4;cursor:pointer}
+.pc .no{position:absolute;left:6px;top:6px;min-width:24px;height:24px;border-radius:12px;background:rgba(15,17,23,.82);font-size:12.5px;font-weight:800;display:grid;place-items:center;padding:0 7px}
+.pc .ck{position:absolute;right:6px;top:6px;width:28px;height:28px;border-radius:50%;padding:0;background:rgba(15,17,23,.82);font-size:15px;display:grid;place-items:center}
+.pc.sel .ck{background:var(--accent);border-color:transparent}
+.pc .tl{display:flex;justify-content:space-between;padding:5px 6px;gap:3px}
+.pc .tl button{flex:1;padding:6px 0;font-size:15px;border-radius:9px}
+.empty{grid-column:1/-1;text-align:center;color:var(--sub);padding:60px 10px;line-height:1.7;font-size:14px}
+
+/* 시트 / 모달 */
+.modal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.62);display:none;align-items:flex-end;justify-content:center}
+.modal.show{display:flex}
+.sheet{width:min(560px,100%);max-height:88dvh;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:20px 20px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
+.sheet h2{font-size:17px;display:flex;align-items:center;gap:8px}
+.sheet h2 .x{margin-left:auto;padding:4px 10px;font-size:18px;background:transparent;border-color:transparent}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 6px;border-radius:14px;font-size:13px;line-height:1.3;text-align:center}
+.tile i{font-style:normal;font-size:26px}
+.tile small{color:var(--sub);font-size:11px}
+.msg{font-size:13px;color:var(--sub);line-height:1.6}
+.msg.err{color:var(--danger)}
+.pbar{height:8px;border-radius:99px;background:var(--panel2);overflow:hidden}
+.pbar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:300;max-width:88vw;background:rgba(20,22,30,.96);color:#fff;border:1px solid #3b4258;border-radius:12px;padding:11px 16px;font-size:14px;text-align:center;line-height:1.5;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+.toast a{color:#f5c9ff;font-weight:700;pointer-events:auto}
+#busy{position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;font-size:15px}
+#busy.show{display:flex}
+.spin{width:38px;height:38px;border-radius:50%;border:4px solid #fff3;border-top-color:var(--accent);animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* 가로로 긴 화면(차량 디스플레이 등): 좌우 배치 */
+@media (orientation:landscape) and (max-height:540px){
+  #vCam,#vEdit{flex-direction:row}
+  #vCam .bar{flex-direction:column;border-top:0;border-left:1px solid var(--line);padding:12px 14px;padding-right:calc(14px + env(safe-area-inset-right))}
+  #vEdit .panel{width:min(44%,380px);max-height:none;border-top:0;border-left:1px solid var(--line)}
+  .hint{display:none}
+}
+@media print{body{display:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <a class="back" href="index.html" title="런처">‹</a>
+  <h1><img class="appicon" src="scan-icon-192.png" alt="">SIM <span>Scan</span></h1>
+  <div class="spacer"></div>
+  <button class="pgchip" id="hdrPages" title="스캔한 페이지">📑 <b id="hdrN">0</b>쪽</button>
+</header>
+
+<div id="views">
+
+  <!-- ① 촬영 -->
+  <section class="view" id="vCam">
+    <div class="area" id="camArea">
+      <div class="stage" id="camStage">
+        <video id="video" playsinline muted autoplay></video>
+        <svg><polygon></polygon></svg>
+        <i class="h"></i><i class="h"></i><i class="h"></i><i class="h"></i>
+        <div class="flash" id="flash"></div>
+      </div>
+      <div class="camstat" id="camStat">카메라를 켜는 중…</div>
+      <div class="tops">
+        <button id="btnTorch" hidden>🔦 플래시</button>
+        <button id="btnQuick" title="촬영하면 바로 보정해서 추가합니다">⚡ 바로 추가</button>
+        <button id="btnAuto" hidden>🎯 자동 인식</button>
+      </div>
+      <div class="hint" id="camHint">문서를 화면에 맞추면 모서리를 자동으로 잡아요 · ●를 끌어 직접 맞출 수도 있어요</div>
+      <div class="camerr" id="camErr" hidden>
+        <div style="font-size:42px">📷</div>
+        <p id="camErrT">카메라를 사용할 수 없어요.</p>
+        <div class="row">
+          <button class="pri" id="btnRetry">다시 시도</button>
+          <button id="btnNativeCam">카메라 앱으로 촬영</button>
+          <button id="btnGal2">사진 선택</button>
+        </div>
+      </div>
+    </div>
+    <div class="bar">
+      <button class="sidebtn" id="btnGal" title="앨범에서 사진 선택">🖼</button>
+      <button class="shutter" id="btnShot" aria-label="촬영"></button>
+      <button class="sidebtn" id="btnPgs" title="스캔한 페이지"><img id="lastThumb" alt="" hidden><span id="lastIco">📑</span><span class="badge" id="pgBadge" hidden>0</span></button>
+    </div>
+  </section>
+
+  <!-- ② 모서리 조정·보정 -->
+  <section class="view" id="vEdit" hidden>
+    <div class="area" id="edArea">
+      <div class="stage" id="edStage">
+        <canvas class="src" id="edCv"></canvas>
+        <svg><polygon></polygon></svg>
+        <i class="h"></i><i class="h"></i><i class="h"></i><i class="h"></i>
+        <canvas class="loupe" id="loupe" width="112" height="112" hidden></canvas>
+      </div>
+      <div class="prevwrap" id="prevWrap" hidden><canvas id="prevCv"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="tabs"><button id="tabCrop" class="on">✂ 모서리 조정</button><button id="tabPrev">👁 결과 미리보기</button></div>
+      <div class="chips" id="fltChips"><label>보정</label>
+        <button data-f="doc">선명 컬러</button><button data-f="bw">흑백 문서</button><button data-f="gray">회색조</button><button data-f="orig">원본</button></div>
+      <div class="chips"><label>선명도</label><input type="range" id="sharp" min="0" max="100" step="5"><span id="sharpV" class="msg" style="min-width:26px;text-align:right"></span></div>
+      <div class="chips" id="ratChips"><label>모양</label>
+        <button data-r="auto">자동 보정</button><button data-r="a4">A4 비율</button><button data-r="orig">네 변 평균</button></div>
+      <div class="chips"><button id="btnDetect">🎯 모서리 다시 찾기</button><button id="btnFull">⬜ 전체 선택</button><button id="btnRotE">↻ 회전</button></div>
+      <div class="btnrow"><button id="edCancel">취소</button><button class="pri" id="edOk">✔ 적용</button></div>
+    </div>
+  </section>
+
+  <!-- ③ 페이지 목록·보내기 -->
+  <section class="view" id="vPages" hidden>
+    <div class="pgtop">
+      <button id="pgBack">📷 더 스캔</button>
+      <button id="pgAll">전체 선택</button>
+      <span class="sub" id="pgSub"></span>
+      <div class="spacer"></div>
+      <button id="pgDelSel" title="선택한 페이지 삭제">🗑</button>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="bar"><button class="pri" id="btnExport" style="flex:1;padding:14px;font-size:16px">📤 보내기 · 저장</button></div>
+  </section>
+</div>
+
+<!-- 보내기 시트 -->
+<div class="modal" id="mExp">
+  <div class="sheet">
+    <h2>📤 보내기 · 저장 <small class="msg" id="expN"></small><button class="x" data-close="mExp">✕</button></h2>
+    <div><div class="msg" style="margin-bottom:5px">파일 이름</div><input type="text" id="expName" maxlength="80" autocomplete="off"></div>
+    <div class="chips" id="fmtChips"><label>형식</label><button data-fmt="pdf">📄 PDF (여러 장 하나로)</button><button data-fmt="jpg">🖼 JPG</button><button data-fmt="png">🖼 PNG</button></div>
+    <div class="msg" id="fmtNote"></div>
+    <div class="tiles">
+      <button class="tile" id="dPrint"><i>🖨</i>프린터 출력</button>
+      <button class="tile" id="dNote"><i>📝</i>노트로 보내기<small>SIM Note</small></button>
+      <button class="tile" id="dDevice"><i>📱</i>내 파일에 저장<small>다운로드 폴더</small></button>
+      <button class="tile" id="dFolder"><i>🗂</i>SIM Folder에 저장</button>
+      <button class="tile" id="dShare" hidden><i>↗</i>다른 앱으로 공유</button>
+    </div>
+    <div class="pbar" id="expBar" hidden><i></i></div>
+    <div class="msg" id="expMsg"></div>
+  </div>
+</div>
+
+<!-- SIM Folder 저장 시트 -->
+<div class="modal" id="mFold">
+  <div class="sheet">
+    <h2>🗂 SIM Folder에 저장 <button class="x" data-close="mFold">✕</button></h2>
+    <div id="fLogin" hidden>
+      <div class="msg" style="margin-bottom:8px">SIM Folder 계정으로 로그인하세요. (SIM Folder에서 쓰는 이메일·비밀번호)</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input type="email" id="fEm" placeholder="이메일" autocomplete="username">
+        <input type="password" id="fPw" placeholder="비밀번호" autocomplete="current-password">
+        <button class="pri" id="fLoginBtn">로그인</button>
+      </div>
+    </div>
+    <div id="fPick" hidden>
+      <div class="msg" style="margin-bottom:5px">저장할 폴더</div>
+      <select id="fSel"></select>
+      <div class="msg" id="fWho" style="margin-top:8px"></div>
+      <button class="pri" id="fSave" style="margin-top:10px;width:100%;padding:13px">여기에 저장</button>
+    </div>
+    <div class="pbar" id="fBar" hidden><i></i></div>
+    <div class="msg" id="fMsg"></div>
+  </div>
+</div>
+
+<div id="busy"><div class="spin"></div><div id="busyT">처리 중…</div></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
+<input type="file" id="fileGal" accept="image/*" multiple hidden>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const nextFrame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const lget = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lset = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+let toastT = 0;
+function toast(html, ms) {
+  const t = $('toast'); t.innerHTML = html; t.classList.add('show'); clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('show'), ms || 2600);
+  t.style.pointerEvents = /<a /.test(html) ? 'auto' : 'none';
+}
+function busy(msg) { $('busyT').textContent = msg || '처리 중…'; $('busy').classList.add('show'); }
+function unbusy() { $('busy').classList.remove('show'); }
+const canvasBlob = (c, type, q) => new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('encode')), type || 'image/jpeg', q == null ? 0.92 : q));
+const newCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+
+/* ───────── 설정 (이 기기에만 저장) ───────── */
+const S = Object.assign({ filter: 'doc', sharp: 50, ratio: 'auto', quick: false, fmt: 'pdf' }, (() => { try { return JSON.parse(lget('simscan.v1') || '{}'); } catch (e) { return {}; } })());
+const saveS = () => lset('simscan.v1', JSON.stringify(S));
+
+/* ═════════════ 문서 모서리 자동 인식 ═════════════ */
+function blur1(src, dst, W, H, r, horiz) {     // 상자 평균 1방향 (가장자리는 끝 값 반복)
+  const n = 2 * r + 1;
+  if (horiz) {
+    for (let y = 0; y < H; y++) {
+      const row = y * W; let sum = 0;
+      for (let x = -r; x <= r; x++) sum += src[row + Math.min(W - 1, Math.max(0, x))];
+      for (let x = 0; x < W; x++) { dst[row + x] = sum / n; sum += src[row + Math.min(W - 1, x + r + 1)] - src[row + Math.max(0, x - r)]; }
+    }
+  } else {
+    for (let x = 0; x < W; x++) {
+      let sum = 0;
+      for (let y = -r; y <= r; y++) sum += src[Math.min(H - 1, Math.max(0, y)) * W + x];
+      for (let y = 0; y < H; y++) { dst[y * W + x] = sum / n; sum += src[Math.min(H - 1, y + r + 1) * W + x] - src[Math.max(0, y - r) * W + x]; }
+    }
+  }
+}
+function boxBlur(src, W, H, r, passes) {
+  let a = new Float32Array(src), b = new Float32Array(W * H);
+  for (let p = 0; p < passes; p++) { blur1(a, b, W, H, r, true); blur1(b, a, W, H, r, false); }
+  return a;
+}
+function maxFilter(src, W, H, r) {
+  const t = new Float32Array(W * H), o = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let m = 0; for (let k = -r; k <= r; k++) { const v = src[y * W + Math.min(W - 1, Math.max(0, x + k))]; if (v > m) m = v; } t[y * W + x] = m; }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let m = 0; for (let k = -r; k <= r; k++) { const v = t[Math.min(H - 1, Math.max(0, y + k)) * W + x]; if (v > m) m = v; } o[y * W + x] = m; }
+  return o;
+}
+const cross3 = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+function hull(pts) {                                // 볼록 껍질 (monotone chain)
+  const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]); if (p.length < 3) return p;
+  const lo = []; for (const q of p) { while (lo.length >= 2 && cross3(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+  const up = []; for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (up.length >= 2 && cross3(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+  lo.pop(); up.pop(); return lo.concat(up);
+}
+function lineX(a, b, c, d) {                        // 직선 ab 와 cd 의 교점
+  const x1 = a[0], y1 = a[1], x2 = b[0], y2 = b[1], x3 = c[0], y3 = c[1], x4 = d[0], y4 = d[1], den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+  if (Math.abs(den) < 1e-9) return null;
+  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den; return [x1 + t * (x2 - x1), y1 + t * (y2 - y1)];
+}
+function quadFromHull(h) {                          // 볼록 다각형을 '가장 적게 넓어지는' 변부터 없애며 사각형으로 줄인다
+  let P = h.slice(); if (P.length < 4) return null;
+  while (P.length > 4) {
+    const n = P.length; let cx = 0, cy = 0; P.forEach(p => { cx += p[0]; cy += p[1]; }); const cen = [cx / n, cy / n];
+    let best = -1, bestA = Infinity, bestX = null;
+    for (let i = 0; i < n; i++) {
+      const a = P[(i - 1 + n) % n], b = P[i], c = P[(i + 1) % n], d = P[(i + 2) % n], X = lineX(a, b, c, d); if (!X) continue;
+      if (cross3(b, c, X) * cross3(b, c, cen) >= 0) continue;   // 교점이 바깥쪽이어야 한다
+      const ar = Math.abs(cross3(b, X, c)) / 2; if (ar < bestA) { bestA = ar; best = i; bestX = X; }
+    }
+    if (best < 0) return null;
+    const nx = [], j = (best + 1) % n; for (let i = 0; i < n; i++) { if (i === best) nx.push(bestX); else if (i !== j) nx.push(P[i]); }
+    P = nx;
+  }
+  return P;
+}
+function orderQuad(P) {                             // 왼위 → 오른위 → 오른아래 → 왼아래
+  let cx = 0, cy = 0; P.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= 4; cy /= 4;
+  const s = P.slice().sort((a, b) => Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx));
+  let k = 0; for (let i = 1; i < 4; i++) if (s[i][0] + s[i][1] < s[k][0] + s[k][1]) k = i;
+  return [s[k], s[(k + 1) % 4], s[(k + 2) % 4], s[(k + 3) % 4]];
+}
+const polyArea = P => Math.abs(P.reduce((s, p, i) => { const n = P[(i + 1) % P.length]; return s + p[0] * n[1] - n[0] * p[1]; }, 0)) / 2;
+function goodQuad(Q) {                              // 각이 너무 찌그러지지 않은 볼록 사각형인가
+  for (let i = 0; i < 4; i++) {
+    const a = Q[(i + 3) % 4], b = Q[i], c = Q[(i + 1) % 4], v1 = [a[0] - b[0], a[1] - b[1]], v2 = [c[0] - b[0], c[1] - b[1]];
+    const ang = Math.acos(clamp((v1[0] * v2[0] + v1[1] * v2[1]) / ((Math.hypot(v1[0], v1[1]) * Math.hypot(v2[0], v2[1])) || 1), -1, 1)) * 180 / Math.PI;
+    if (ang < 40 || ang > 140) return false;
+  }
+  return true;
+}
+function detectQuad(d, W, H) {                      // d: RGBA. 반환: 네 점(왼위·오른위·오른아래·왼아래) 또는 null
+  try {
+    const N = W * H, g = new Float32Array(N);
+    for (let i = 0; i < N; i++) g[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+    const a = boxBlur(g, W, H, 2, 2), hist = new Float64Array(256);
+    for (let i = 0; i < N; i++) hist[Math.min(255, a[i] | 0)]++;
+    let sumAll = 0; for (let i = 0; i < 256; i++) sumAll += i * hist[i];
+    let wB = 0, sumB = 0, best = -1, thr = 128;
+    for (let t = 0; t < 256; t++) { wB += hist[t]; if (!wB) continue; const wF = N - wB; if (!wF) break; sumB += t * hist[t]; const mB = sumB / wB, mF = (sumAll - sumB) / wF, v = wB * wF * (mB - mF) * (mB - mF); if (v > best) { best = v; thr = t; } }
+    const tryPol = bright => {
+      const on = i => bright ? a[i] > thr : a[i] <= thr, lab = new Int32Array(N), stack = new Int32Array(N);
+      let bestC = null, id = 0;
+      for (let s0 = 0; s0 < N; s0++) {
+        if (lab[s0] || !on(s0)) continue;
+        id++; let sp = 0; stack[sp++] = s0; lab[s0] = id; let area = 0, minx = W, maxx = 0, miny = H, maxy = 0;
+        while (sp) {
+          const p = stack[--sp], x = p % W, y = (p / W) | 0; area++;
+          if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+          if (x > 0 && !lab[p - 1] && on(p - 1)) { lab[p - 1] = id; stack[sp++] = p - 1; }
+          if (x < W - 1 && !lab[p + 1] && on(p + 1)) { lab[p + 1] = id; stack[sp++] = p + 1; }
+          if (y > 0 && !lab[p - W] && on(p - W)) { lab[p - W] = id; stack[sp++] = p - W; }
+          if (y < H - 1 && !lab[p + W] && on(p + W)) { lab[p + W] = id; stack[sp++] = p + W; }
+        }
+        const full = (maxx - minx) >= W * 0.98 && (maxy - miny) >= H * 0.98;
+        if (!full && area > N * 0.08 && (!bestC || area > bestC.area)) bestC = { area, id };
+      }
+      if (!bestC) return null;
+      const pts = [];                                // 덩어리의 가장자리 점 (행·열마다 양 끝)
+      for (let y = 0; y < H; y++) { let l = -1, r = -1; for (let x = 0; x < W; x++) if (lab[y * W + x] === bestC.id) { if (l < 0) l = x; r = x; } if (l >= 0) { pts.push([l, y]); pts.push([r, y]); } }
+      for (let x = 0; x < W; x++) { let t = -1, b = -1; for (let y = 0; y < H; y++) if (lab[y * W + x] === bestC.id) { if (t < 0) t = y; b = y; } if (t >= 0) { pts.push([x, t]); pts.push([x, b]); } }
+      const q0 = quadFromHull(hull(pts)); if (!q0) return null;
+      const Q = orderQuad(q0), qa = polyArea(Q);
+      if (qa < N * 0.15 || qa > N * 0.985 || bestC.area / qa < 0.6 || !goodQuad(Q)) return null;
+      return Q;
+    };
+    return tryPol(true) || tryPol(false);
+  } catch (e) { return null; }
+}
+function detectFromCanvas(c, long) {                // 큰 그림에서는 줄여서 찾고 좌표를 되돌린다
+  const k = Math.min(1, (long || 640) / Math.max(c.width, c.height)), w = Math.max(8, Math.round(c.width * k)), h = Math.max(8, Math.round(c.height * k));
+  const t = newCanvas(w, h), g = t.getContext('2d', { willReadFrequently: true }); g.drawImage(c, 0, 0, w, h);
+  const q = detectQuad(g.getImageData(0, 0, w, h).data, w, h);
+  return q ? q.map(p => [p[0] / k, p[1] / k]) : null;
+}
+const insetQuad = (w, h, m) => { m = m == null ? 0.07 : m; return [[w * m, h * m], [w * (1 - m), h * m], [w * (1 - m), h * (1 - m)], [w * m, h * (1 - m)]]; };
+
+/* ═════════════ 모서리 편집기 (실시간 포인터) ═════════════ */
+function QuadEd(stage, area, hooks) {
+  const q = { stage, area, sw: 1, sh: 1, k: 1, pts: [[0, 0], [1, 0], [1, 1], [0, 1]], drag: -1 };
+  const hs = [...stage.querySelectorAll('.h')], poly = stage.querySelector('polygon'), svg = stage.querySelector('svg');
+  q.layout = (sw, sh) => {
+    q.sw = sw; q.sh = sh;
+    const r = area.getBoundingClientRect(), k = Math.min(r.width / sw, r.height / sh) || 1;
+    stage.style.width = Math.round(sw * k) + 'px'; stage.style.height = Math.round(sh * k) + 'px'; q.k = Math.round(sw * k) / sw; q.draw();
+  };
+  q.draw = () => {
+    const w = stage.clientWidth || q.sw * q.k, h = stage.clientHeight || q.sh * q.k;
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    hs.forEach((e, i) => { e.style.left = q.pts[i][0] * q.k + 'px'; e.style.top = q.pts[i][1] * q.k + 'px'; });
+    poly.setAttribute('points', q.pts.map(p => (p[0] * q.k) + ',' + (p[1] * q.k)).join(' '));
+  };
+  hs.forEach((e, i) => {
+    e.addEventListener('pointerdown', ev => { ev.preventDefault(); e.setPointerCapture(ev.pointerId); q.drag = i; e.classList.add('drag'); if (hooks.start) hooks.start(i); });
+    e.addEventListener('pointermove', ev => {
+      if (q.drag !== i) return; const r = stage.getBoundingClientRect();
+      q.pts[i] = [clamp((ev.clientX - r.left) / q.k, 0, q.sw), clamp((ev.clientY - r.top) / q.k, 0, q.sh)]; q.draw(); if (hooks.move) hooks.move(i);
+    });
+    const end = () => { if (q.drag !== i) return; q.drag = -1; e.classList.remove('drag'); if (hooks.end) hooks.end(i); };
+    e.addEventListener('pointerup', end); e.addEventListener('pointercancel', end);
+  });
+  return q;
+}
+
+/* ═════════════ 상태 ═════════════ */
+let cur = 'cam';
+const pages = [];            // {id, srcBlob, sw, sh, pts, filter, sharp, ratio, rot, blob, w, h, thumb, sel}
+let uid = 0, dirty = false;
+let ed = null;               // 편집 중: {src(canvas), data, pts, filter, sharp, ratio, rot, pageId, from}
+let edTab = 'crop';
+
+function show(name) {
+  cur = name;
+  ['cam', 'edit', 'pages'].forEach(n => { $('v' + n[0].toUpperCase() + n.slice(1)).hidden = n !== name; });
+  $('hdrPages').hidden = name === 'pages';
+  if (name === 'cam') camStart(); else if (name === 'pages') camStop();   // 편집 화면에서는 카메라를 켜 둔 채 두어 연속 촬영이 빠르다
+  if (name === 'edit') setTimeout(layoutEdit, 30);
+  if (name === 'pages') renderPages();
+}
+function updCounts() {
+  $('hdrN').textContent = pages.length; const b = $('pgBadge'); b.hidden = !pages.length; b.textContent = pages.length;
+  const t = $('lastThumb'), has = pages.length > 0; t.hidden = !has; $('lastIco').hidden = has; if (has) t.src = pages[pages.length - 1].thumb;
+}
+
+/* ═════════════ ① 카메라 ═════════════ */
+const video = $('video');
+const cam = { stream: null, track: null, vw: 0, vh: 0, miss: 0, manual: false, run: false, torch: false, starting: false };
+const small = newCanvas(8, 8), sctx = small.getContext('2d', { willReadFrequently: true });
+const camQ = QuadEd($('camStage'), $('camArea'), {
+  start() { setManual(true); }, move() {}, end() {}
+});
+function setStat(t, k) { const e = $('camStat'); e.textContent = t; e.className = 'camstat' + (k ? ' ' + k : ''); }
+function setManual(on) {
+  cam.manual = on; $('btnAuto').hidden = !on;
+  if (on) { setStat('수동 조정 중 · ●를 끌어 맞추세요', 'warn'); $('camStage').className = 'stage'; }
+}
+function camFit() { if (cam.vw) camQ.layout(cam.vw, cam.vh); }
+async function camStart() {
+  if (cam.starting) return;
+  if (cam.stream) { camFit(); video.play().catch(() => {}); setManual(false); cam.miss = 99; $('camStage').className = 'stage lost'; setStat('문서를 찾는 중…', 'warn'); return; }
+  cam.starting = true; $('camErr').hidden = true; setStat('카메라를 켜는 중…');
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('nomedia');
+    const st = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } } });
+    if (cur !== 'cam') { st.getTracks().forEach(t => t.stop()); cam.starting = false; return; }
+    cam.stream = st; cam.track = st.getVideoTracks()[0]; video.srcObject = st; await video.play().catch(() => {});
+    await new Promise(r => { if (video.videoWidth) r(); else video.onloadedmetadata = () => r(); });
+    cam.vw = video.videoWidth; cam.vh = video.videoHeight; camQ.pts = insetQuad(cam.vw, cam.vh); camFit();
+    try { const c = cam.track.getCapabilities ? cam.track.getCapabilities() : {}; $('btnTorch').hidden = !c.torch; if (c.focusMode && c.focusMode.includes('continuous')) cam.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {}); } catch (e) {}
+    cam.miss = 99; setManual(false); setStat('문서를 찾는 중…', 'warn'); $('camStage').className = 'stage lost';
+    if (!cam.run) { cam.run = true; camLoop(); }
+  } catch (e) {
+    const name = (e && e.name) || '', msg = (e && e.message) || '';
+    $('camErrT').textContent = name === 'NotAllowedError' || name === 'SecurityError' ? '카메라 권한이 꺼져 있어요. 주소창(또는 앱 ⋯ 메뉴 → 권한 정보)에서 카메라를 허용한 뒤 다시 시도하세요.'
+      : name === 'NotFoundError' || msg === 'nomedia' ? '이 기기에서 카메라를 찾을 수 없어요. 사진을 선택하거나 카메라 앱으로 촬영해 주세요.' : '카메라를 켜지 못했어요. 다른 앱이 카메라를 쓰고 있지 않은지 확인하세요.';
+    $('camErr').hidden = false; setStat('카메라 사용 불가', 'warn');
+  }
+  cam.starting = false;
+}
+function camStop() {
+  cam.run = false;
+  if (cam.stream) { cam.stream.getTracks().forEach(t => t.stop()); cam.stream = null; cam.track = null; }
+  video.srcObject = null; cam.vw = 0; cam.torch = false; $('btnTorch').classList.remove('on');
+}
+function camLoop() {
+  if (!cam.run) return; setTimeout(camLoop, 130);
+  if (cur !== 'cam' || cam.manual || video.readyState < 2 || !cam.vw) return;
+  const k = 320 / Math.max(cam.vw, cam.vh), w = Math.round(cam.vw * k), h = Math.round(cam.vh * k);
+  if (small.width !== w || small.height !== h) { small.width = w; small.height = h; }
+  sctx.drawImage(video, 0, 0, w, h);
+  const Q = detectQuad(sctx.getImageData(0, 0, w, h).data, w, h);
+  const st = $('camStage');
+  if (Q) {
+    const T = Q.map(p => [p[0] / k, p[1] / k]); cam.miss = 0;
+    if (st.className.indexOf('ok') < 0) { st.className = 'stage ok'; setStat('문서 인식됨 ✓ · 촬영하세요', 'ok'); }
+    const P = camQ.pts, diag = Math.hypot(cam.vw, cam.vh); let d = 0; for (let i = 0; i < 4; i++) d += dist(T[i], P[i]); d /= 4;
+    const a = d > 0.1 * diag || st.className.indexOf('lost') >= 0 ? 1 : 0.5;
+    camQ.pts = P.map((p, i) => [p[0] + (T[i][0] - p[0]) * a, p[1] + (T[i][1] - p[1]) * a]);
+    camQ.draw();
+  } else if (++cam.miss > 5 && st.className.indexOf('lost') < 0) {
+    st.className = 'stage lost'; setStat('문서를 찾는 중… (●를 끌어 직접 맞춰도 돼요)', 'warn'); camQ.pts = insetQuad(cam.vw, cam.vh); camQ.draw();
+  }
+}
+$('btnAuto').onclick = () => { setManual(false); cam.miss = 99; $('camStage').className = 'stage lost'; setStat('문서를 찾는 중…', 'warn'); };
+$('btnTorch').onclick = async () => {
+  if (!cam.track) return; cam.torch = !cam.torch;
+  try { await cam.track.applyConstraints({ advanced: [{ torch: cam.torch }] }); } catch (e) { cam.torch = false; toast('이 기기는 플래시를 켤 수 없어요.'); }
+  $('btnTorch').classList.toggle('on', cam.torch);
+};
+function paintQuick() { $('btnQuick').classList.toggle('on', !!S.quick); $('btnQuick').textContent = S.quick ? '⚡ 바로 추가 켜짐' : '⚡ 바로 추가'; }
+$('btnQuick').onclick = () => { S.quick = !S.quick; saveS(); paintQuick(); toast(S.quick ? '촬영하면 편집 없이 바로 보정해 추가해요. (나중에 쪽 목록에서 고칠 수 있어요)' : '촬영 후 모서리를 확인·조정해요.', 3200); };
+$('btnShot').onclick = async () => {
+  if (!cam.vw || video.readyState < 2) { toast('카메라 준비 중이에요.'); return; }
+  const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); try { navigator.vibrate && navigator.vibrate(25); } catch (e) {}
+  const c = newCanvas(cam.vw, cam.vh); c.getContext('2d').drawImage(video, 0, 0);
+  let pts = camQ.pts.map(p => p.slice());
+  if (!cam.manual) { const r = detectFromCanvas(c, 800); if (r && goodQuad(r) && r.reduce((s, p, i) => s + dist(p, pts[i]), 0) / 4 < 0.12 * Math.hypot(c.width, c.height)) pts = r; }
+  if (S.quick) { busy('보정 중…'); await nextFrame(); try { await addPageFrom(c, pts); toast('📑 ' + pages.length + '쪽째 추가했어요'); } catch (e) { toast('보정하지 못했어요.'); } unbusy(); }
+  else openEditor({ src: c, pts, from: 'cam' });
+};
+$('btnRetry').onclick = () => { camStop(); camStart(); };
+$('btnNativeCam').onclick = () => $('fileCam').click();
+$('btnGal').onclick = $('btnGal2').onclick = () => $('fileGal').click();
+$('btnPgs').onclick = $('hdrPages').onclick = () => show('pages');
+window.addEventListener('resize', () => { if (cur === 'cam') camFit(); else if (cur === 'edit') layoutEdit(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) camStop(); else if (cur === 'cam') camStart(); });
+
+/* ═════════════ 사진 불러오기 ═════════════ */
+async function loadImageCanvas(file) {
+  let bmp = null;
+  try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (e) {}
+  let w, h, src;
+  if (bmp) { w = bmp.width; h = bmp.height; src = bmp; }
+  else {
+    const url = URL.createObjectURL(file), im = new Image();
+    await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('img')); im.src = url; });
+    URL.revokeObjectURL(url); w = im.naturalWidth; h = im.naturalHeight; src = im;
+  }
+  const k = Math.min(1, 4000 / Math.max(w, h)), c = newCanvas(Math.round(w * k), Math.round(h * k));
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height); if (bmp && bmp.close) bmp.close();
+  return c;
+}
+async function handleFiles(files) {
+  files = [...files].filter(f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|heif|bmp)$/i.test(f.name)); if (!files.length) { toast('이미지 파일을 선택하세요.'); return; }
+  try {
+    if (files.length === 1) { busy('사진을 읽는 중…'); const c = await loadImageCanvas(files[0]); await nextFrame(); const q = detectFromCanvas(c, 900); unbusy(); openEditor({ src: c, pts: q || insetQuad(c.width, c.height, 0.04), from: cur === 'pages' ? 'pages' : 'cam', found: !!q }); return; }
+    for (let i = 0; i < files.length; i++) {
+      busy('사진 보정 중… ' + (i + 1) + ' / ' + files.length); await nextFrame();
+      const c = await loadImageCanvas(files[i]); await addPageFrom(c, detectFromCanvas(c, 900) || insetQuad(c.width, c.height, 0.03));
+    }
+    unbusy(); toast(files.length + '장을 추가했어요. 모서리가 어긋난 쪽은 ✏️ 로 고치세요.', 3600); show('pages');
+  } catch (e) { unbusy(); toast('사진을 읽을 수 없어요.'); }
+}
+[$('fileCam'), $('fileGal')].forEach(inp => inp.addEventListener('change', e => { const f = e.target.files; const arr = [...f]; e.target.value = ''; if (arr.length) handleFiles(arr); }));
+
+/* ═════════════ 보정 엔진 (원근 펴기 · 조명 얼룩 제거 · 선명화) ═════════════ */
+function quadMap(P) {      // 단위 정사각형 → 사각형 호모그래피 (Heckbert)
+  const [x0, y0] = P[0], [x1, y1] = P[1], [x2, y2] = P[2], [x3, y3] = P[3];
+  const dx1 = x1 - x2, dx2 = x3 - x2, dx3 = x0 - x1 + x2 - x3, dy1 = y1 - y2, dy2 = y3 - y2, dy3 = y0 - y1 + y2 - y3;
+  const den = dx1 * dy2 - dy1 * dx2; let g = 0, h = 0;
+  if (Math.abs(den) > 1e-9 && (Math.abs(dx3) > 1e-9 || Math.abs(dy3) > 1e-9)) { g = (dx3 * dy2 - dy3 * dx2) / den; h = (dx1 * dy3 - dy1 * dx3) / den; }
+  return [x1 - x0 + g * x1, x3 - x0 + h * x3, x0, y1 - y0 + g * y1, y3 - y0 + h * y3, y0, g, h];
+}
+function aspectZhang(P, cx, cy) {   // 원근이 있는 사진에서 원래 종이의 가로/세로 비율 추정 (Zhang & He)
+  const m = P.map(p => [p[0] - cx, p[1] - cy, 1]), m1 = m[0], m2 = m[1], m3 = m[3], m4 = m[2];
+  const cr = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], dt = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const k2 = dt(cr(m1, m4), m3) / dt(cr(m2, m4), m3), k3 = dt(cr(m1, m4), m2) / dt(cr(m3, m4), m2);
+  const n2 = [k2 * m2[0] - m1[0], k2 * m2[1] - m1[1], k2 * m2[2] - m1[2]], n3 = [k3 * m3[0] - m1[0], k3 * m3[1] - m1[1], k3 * m3[2] - m1[2]];
+  const f2 = -((n2[0] * n3[0] + n2[1] * n3[1]) / (n2[2] * n3[2])); if (!(f2 > 0) || !isFinite(f2)) return null;
+  const qf = n => (n[0] * n[0] + n[1] * n[1]) / f2 + n[2] * n[2], r = Math.sqrt(qf(n2) / qf(n3)); return isFinite(r) ? r : null;
+}
+function targetSize(o, longSide) {
+  const P = o.pts, wT = dist(P[0], P[1]), wB = dist(P[3], P[2]), hL = dist(P[0], P[3]), hR = dist(P[1], P[2]);
+  const edgeR = ((wT + wB) / 2) / (((hL + hR) / 2) || 1);
+  let r = edgeR;
+  if (o.ratio === 'auto') { const z = aspectZhang(P, o.src.width / 2, o.src.height / 2); if (z && z > edgeR * 0.65 && z < edgeR * 1.55) r = z; }
+  else if (o.ratio === 'a4') r = edgeR >= 1 ? 1.4142 : 1 / 1.4142;
+  r = clamp(r, 0.1, 10);
+  const nat = Math.max(wT, wB, hL, hR), L = Math.min(longSide, Math.max(nat, longSide >= 1500 ? 1600 : 0));
+  let W, H; if (r >= 1) { W = L; H = L / r; } else { H = L; W = L * r; }
+  return { W: Math.max(40, Math.round(W)), H: Math.max(40, Math.round(H)) };
+}
+function warp(o, W, H) {
+  const sw = o.src.width, sh = o.src.height; if (!o.data) o.data = o.src.getContext('2d').getImageData(0, 0, sw, sh);
+  const sd = o.data.data, [a, b, c, dd, e, f, g, h] = quadMap(o.pts), id = new ImageData(W, H), od = id.data;
+  for (let y = 0; y < H; y++) {
+    const v = (y + 0.5) / H;
+    for (let x = 0; x < W; x++) {
+      const u = (x + 0.5) / W, w = g * u + h * v + 1, X = (a * u + b * v + c) / w - 0.5, Y = (dd * u + e * v + f) / w - 0.5;
+      const x0 = Math.floor(X), y0 = Math.floor(Y), fx = X - x0, fy = Y - y0, i = (y * W + x) * 4;
+      const xa = clamp(x0, 0, sw - 1), xb = clamp(x0 + 1, 0, sw - 1), ya = clamp(y0, 0, sh - 1), yb = clamp(y0 + 1, 0, sh - 1);
+      const p00 = (ya * sw + xa) * 4, p10 = (ya * sw + xb) * 4, p01 = (yb * sw + xa) * 4, p11 = (yb * sw + xb) * 4;
+      const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+      od[i] = sd[p00] * w00 + sd[p10] * w10 + sd[p01] * w01 + sd[p11] * w11;
+      od[i + 1] = sd[p00 + 1] * w00 + sd[p10 + 1] * w10 + sd[p01 + 1] * w01 + sd[p11 + 1] * w11;
+      od[i + 2] = sd[p00 + 2] * w00 + sd[p10 + 2] * w10 + sd[p01 + 2] * w01 + sd[p11 + 2] * w11;
+      od[i + 3] = 255;
+    }
+  }
+  return id;
+}
+const smooth = t => t * t * (3 - 2 * t);
+function enhance(id, filter, sharp) {
+  const W = id.width, H = id.height, o = id.data, N = W * H;
+  if (filter !== 'orig') {
+    // ① 조명 얼룩 제거: 글자를 지운 '종이 바탕'을 추정(작게 줄여 밝은 값 확장 → 흐림)해서 나눈다
+    const sw = Math.max(8, Math.round(W / 12)), sh = Math.max(8, Math.round(H / 12));
+    const full = newCanvas(W, H); full.getContext('2d').putImageData(id, 0, 0);
+    const s = newCanvas(sw, sh), sg = s.getContext('2d', { willReadFrequently: true }); sg.imageSmoothingQuality = 'high'; sg.drawImage(full, 0, 0, sw, sh);
+    const sd = sg.getImageData(0, 0, sw, sh).data, bgc = [];
+    for (let ch = 0; ch < 3; ch++) { const f = new Float32Array(sw * sh); for (let i = 0; i < sw * sh; i++) f[i] = sd[i * 4 + ch]; bgc.push(boxBlur(maxFilter(f, sw, sh, 3), sw, sh, 2, 2)); }
+    const bi = sg.createImageData(sw, sh); for (let i = 0; i < sw * sh; i++) { bi.data[i * 4] = bgc[0][i]; bi.data[i * 4 + 1] = bgc[1][i]; bi.data[i * 4 + 2] = bgc[2][i]; bi.data[i * 4 + 3] = 255; }
+    sg.putImageData(bi, 0, 0);
+    const bc = newCanvas(W, H), bg = bc.getContext('2d', { willReadFrequently: true }); bg.imageSmoothingEnabled = true; bg.imageSmoothingQuality = 'high'; bg.drawImage(s, 0, 0, W, H);
+    const bd = bg.getImageData(0, 0, W, H).data;
+    // ② 밝기 곡선
+    const lut = new Uint8Array(256), lo = filter === 'bw' ? 92 : 52, hi = filter === 'bw' ? 192 : 226;
+    for (let x = 0; x < 256; x++) { const t = clamp((x - lo) / (hi - lo), 0, 1); lut[x] = Math.round(255 * (filter === 'bw' ? smooth(t) : filter === 'doc' ? 0.5 * t + 0.5 * smooth(t) : t)); }
+    const gray = filter === 'bw' || filter === 'gray';
+    for (let i = 0; i < o.length; i += 4) {
+      let r = o[i] * 255 / Math.max(bd[i], 40), g2 = o[i + 1] * 255 / Math.max(bd[i + 1], 40), b2 = o[i + 2] * 255 / Math.max(bd[i + 2], 40);
+      if (gray) r = g2 = b2 = 0.299 * r + 0.587 * g2 + 0.114 * b2;
+      o[i] = lut[r > 255 ? 255 : r | 0]; o[i + 1] = lut[g2 > 255 ? 255 : g2 | 0]; o[i + 2] = lut[b2 > 255 ? 255 : b2 | 0];
+    }
+  }
+  // ③ 선명화 (밝기 성분만 언샤프 마스크 → 글자 윤곽이 또렷해지고 색 번짐이 없다)
+  const amount = sharp / 100 * 1.8;
+  if (amount > 0.01) {
+    const Y = new Float32Array(N); for (let i = 0; i < N; i++) Y[i] = 0.299 * o[i * 4] + 0.587 * o[i * 4 + 1] + 0.114 * o[i * 4 + 2];
+    const B = boxBlur(Y, W, H, Math.max(1, Math.round(Math.max(W, H) / 1400)), 2);
+    for (let i = 0; i < N; i++) { const dlt = (Y[i] - B[i]) * amount, j = i * 4; o[j] += dlt; o[j + 1] += dlt; o[j + 2] += dlt; }
+  }
+  return id;
+}
+function rotCanvas(c, rot) {
+  rot = ((rot % 4) + 4) % 4; if (!rot) return c;
+  const sw = c.width, sh = c.height, out = rot === 2 ? newCanvas(sw, sh) : newCanvas(sh, sw), g = out.getContext('2d');
+  g.translate(out.width / 2, out.height / 2); g.rotate(rot * Math.PI / 2); g.drawImage(c, -sw / 2, -sh / 2); return out;
+}
+function renderResult(o, longSide) {
+  const sz = targetSize(o, longSide), id = enhance(warp(o, sz.W, sz.H), o.filter, o.sharp);
+  const c = newCanvas(sz.W, sz.H); c.getContext('2d').putImageData(id, 0, 0); return rotCanvas(c, o.rot || 0);
+}
+function thumbOf(c) { const k = 260 / Math.max(c.width, c.height), t = newCanvas(Math.max(1, Math.round(c.width * k)), Math.max(1, Math.round(c.height * k))); const g = t.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, t.width, t.height); return t.toDataURL('image/jpeg', 0.75); }
+
+/* ═════════════ 페이지 추가·교체 ═════════════ */
+async function finishPage(p, srcCanvas, o) {
+  const res = renderResult(o, 2800);
+  p.blob = await canvasBlob(res, 'image/jpeg', 0.92); p.w = res.width; p.h = res.height; p.thumb = thumbOf(res);
+}
+async function addPageFrom(srcCanvas, pts, opt) {
+  const o = Object.assign({ src: srcCanvas, pts, filter: S.filter, sharp: S.sharp, ratio: S.ratio, rot: 0 }, opt || {});
+  const p = { id: ++uid, srcBlob: await canvasBlob(srcCanvas, 'image/jpeg', 0.9), sw: srcCanvas.width, sh: srcCanvas.height, pts: pts.map(q => q.slice()), filter: o.filter, sharp: o.sharp, ratio: o.ratio, rot: o.rot, sel: true };
+  await finishPage(p, srcCanvas, o); pages.push(p); dirty = true; updCounts(); return p;
+}
+async function srcCanvasOf(p) {
+  const bmp = await createImageBitmap(p.srcBlob), c = newCanvas(bmp.width, bmp.height); c.getContext('2d').drawImage(bmp, 0, 0); if (bmp.close) bmp.close(); return c;
+}
+
+/* ═════════════ ② 편집 화면 ═════════════ */
+const edQ = QuadEd($('edStage'), $('edArea'), {
+  start(i) { loupeShow(i); }, move(i) { loupeShow(i); }, end() { $('loupe').hidden = true; if (edTab === 'prev') drawPreview(); }
+});
+function loupeShow(i) {
+  const L = $('loupe'), g = L.getContext('2d'), p = edQ.pts[i], rs = 112 / (Math.max(edQ.k, 0.05) * 3);
+  L.hidden = false; g.fillStyle = '#000'; g.fillRect(0, 0, 112, 112);
+  g.drawImage(ed.src, p[0] - rs / 2, p[1] - rs / 2, rs, rs, 0, 0, 112, 112);
+  g.strokeStyle = 'rgba(217,70,239,.95)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(56, 40); g.lineTo(56, 72); g.moveTo(40, 56); g.lineTo(72, 56); g.stroke();
+  const left = p[0] * edQ.k < $('edStage').clientWidth / 2; L.style.left = left ? 'auto' : '8px'; L.style.right = left ? '8px' : 'auto';
+}
+function layoutEdit() { if (ed) edQ.layout(ed.src.width, ed.src.height); }
+function paintEditUI() {
+  document.querySelectorAll('#fltChips button').forEach(b => b.classList.toggle('on', b.dataset.f === ed.filter));
+  document.querySelectorAll('#ratChips button').forEach(b => b.classList.toggle('on', b.dataset.r === ed.ratio));
+  $('sharp').value = ed.sharp; $('sharpV').textContent = ed.sharp;
+  $('tabCrop').classList.toggle('on', edTab === 'crop'); $('tabPrev').classList.toggle('on', edTab === 'prev');
+  $('edStage').hidden = edTab !== 'crop'; $('prevWrap').hidden = edTab !== 'prev';
+}
+function openEditor(o) {
+  ed = { src: o.src, data: null, pts: o.pts.map(p => p.slice()), filter: o.filter || S.filter, sharp: o.sharp != null ? o.sharp : S.sharp, ratio: o.ratio || S.ratio, rot: o.rot || 0, pageId: o.pageId || null, from: o.from || 'cam' };
+  const cv = $('edCv'); cv.width = ed.src.width; cv.height = ed.src.height; cv.getContext('2d').drawImage(ed.src, 0, 0);
+  edQ.pts = ed.pts; edTab = 'crop'; paintEditUI(); show('edit'); layoutEdit();
+  if (o.found === false) toast('문서 모서리를 자동으로 찾지 못했어요. ●를 끌어 맞춰 주세요.', 3200);
+}
+let prevT = 0;
+function drawPreview() {
+  clearTimeout(prevT); prevT = setTimeout(async () => {
+    if (!ed || edTab !== 'prev') return; busy('미리보기 만드는 중…'); await nextFrame();
+    try { ed.pts = edQ.pts; const c = renderResult(ed, 1000), pc = $('prevCv'); pc.width = c.width; pc.height = c.height; pc.getContext('2d').drawImage(c, 0, 0); } catch (e) { toast('미리보기를 만들지 못했어요.'); }
+    unbusy();
+  }, 60);
+}
+function setTab(t) { edTab = t; paintEditUI(); if (t === 'prev') drawPreview(); else layoutEdit(); }
+$('tabCrop').onclick = () => setTab('crop'); $('tabPrev').onclick = () => setTab('prev');
+$('fltChips').onclick = e => { const b = e.target.closest('button[data-f]'); if (!b || !ed) return; ed.filter = b.dataset.f; S.filter = ed.filter; saveS(); paintEditUI(); if (edTab === 'prev') drawPreview(); };
+$('ratChips').onclick = e => { const b = e.target.closest('button[data-r]'); if (!b || !ed) return; ed.ratio = b.dataset.r; S.ratio = ed.ratio; saveS(); paintEditUI(); if (edTab === 'prev') drawPreview(); };
+$('sharp').oninput = () => { if (!ed) return; ed.sharp = +$('sharp').value; $('sharpV').textContent = ed.sharp; };
+$('sharp').onchange = () => { S.sharp = ed.sharp; saveS(); if (edTab === 'prev') drawPreview(); };
+$('btnDetect').onclick = async () => {
+  if (!ed) return; busy('모서리를 찾는 중…'); await nextFrame(); const q = detectFromCanvas(ed.src, 900); unbusy();
+  if (q) { edQ.pts = ed.pts = q; edQ.draw(); toast('모서리를 찾았어요. 어긋나면 ●를 끌어 맞추세요.'); } else toast('자동으로 찾지 못했어요. ●를 직접 맞춰 주세요.');
+  if (edTab === 'prev') drawPreview();
+};
+$('btnFull').onclick = () => { if (!ed) return; edQ.pts = ed.pts = insetQuad(ed.src.width, ed.src.height, 0); edQ.draw(); if (edTab === 'prev') drawPreview(); };
+$('btnRotE').onclick = () => { if (!ed) return; ed.rot = ((ed.rot || 0) + 1) % 4; toast('결과를 시계 방향으로 돌려요 (' + ed.rot * 90 + '°)'); if (edTab === 'prev') drawPreview(); };
+$('edCancel').onclick = () => { const f = ed && ed.from; ed = null; show(f === 'pages' ? 'pages' : 'cam'); };
+$('edOk').onclick = async () => {
+  if (!ed) return; busy('보정 · 해상도 향상 중…'); await nextFrame(); ed.pts = edQ.pts.map(p => p.slice());
+  try {
+    if (ed.pageId) {
+      const p = pages.find(x => x.id === ed.pageId);
+      if (p) { Object.assign(p, { pts: ed.pts, filter: ed.filter, sharp: ed.sharp, ratio: ed.ratio, rot: ed.rot }); await finishPage(p, ed.src, ed); dirty = true; }
+      const f = ed.from; ed = null; updCounts(); unbusy(); show('pages'); void f; toast('수정했어요.');
+    } else {
+      const p = await addPageFrom(ed.src, ed.pts, { filter: ed.filter, sharp: ed.sharp, ratio: ed.ratio, rot: ed.rot }); void p;
+      const f = ed.from; ed = null; unbusy(); show(f === 'pages' ? 'pages' : 'cam'); toast('📑 ' + pages.length + '쪽째 추가했어요 · 이어서 촬영하세요');
+    }
+  } catch (e) { unbusy(); toast('보정하지 못했어요. 다시 시도하세요.'); }
+};
+
+/* ═════════════ ③ 페이지 목록 ═════════════ */
+function renderPages() {
+  const g = $('grid'), sel = pages.filter(p => p.sel).length;
+  $('pgSub').textContent = pages.length ? sel + ' / ' + pages.length + '쪽 선택' : '';
+  $('pgAll').textContent = sel === pages.length && pages.length ? '선택 해제' : '전체 선택';
+  $('btnExport').disabled = !sel;
+  if (!pages.length) { g.innerHTML = '<div class="empty">아직 스캔한 문서가 없어요.<br>“📷 더 스캔”을 눌러 문서를 촬영하세요.</div>'; return; }
+  g.innerHTML = pages.map((p, i) =>
+    '<div class="pc' + (p.sel ? ' sel' : '') + '" data-id="' + p.id + '"><img class="th" data-a="edit" alt="" src="' + p.thumb + '"><div class="no">' + (i + 1) + '</div>' +
+    '<button class="ck" data-a="sel" aria-label="선택">' + (p.sel ? '✓' : '') + '</button>' +
+    '<div class="tl"><button data-a="left" title="앞으로"' + (i ? '' : ' disabled') + '>◀</button><button data-a="edit" title="모서리·보정 다시 편집">✏️</button><button data-a="rot" title="회전">↻</button><button data-a="del" title="삭제">🗑</button><button data-a="right" title="뒤로"' + (i < pages.length - 1 ? '' : ' disabled') + '>▶</button></div></div>').join('');
+}
+$('grid').addEventListener('click', async e => {
+  const b = e.target.closest('[data-a]'); if (!b) return; const card = b.closest('.pc'), id = +card.dataset.id, i = pages.findIndex(p => p.id === id), p = pages[i]; if (!p) return;
+  const a = b.dataset.a;
+  if (a === 'sel') { p.sel = !p.sel; renderPages(); }
+  else if (a === 'left' && i > 0) { pages.splice(i - 1, 0, pages.splice(i, 1)[0]); renderPages(); updCounts(); }
+  else if (a === 'right' && i < pages.length - 1) { pages.splice(i + 1, 0, pages.splice(i, 1)[0]); renderPages(); updCounts(); }
+  else if (a === 'del') { if (confirm((i + 1) + '쪽을 삭제할까요?')) { pages.splice(i, 1); renderPages(); updCounts(); } }
+  else if (a === 'rot') { busy('회전 중…'); await nextFrame(); try { p.rot = ((p.rot || 0) + 1) % 4; const src = await srcCanvasOf(p); await finishPage(p, src, { src, pts: p.pts, filter: p.filter, sharp: p.sharp, ratio: p.ratio, rot: p.rot }); } catch (er) { toast('회전하지 못했어요.'); } unbusy(); renderPages(); updCounts(); }
+  else if (a === 'edit') { busy('불러오는 중…'); await nextFrame(); try { const src = await srcCanvasOf(p); unbusy(); openEditor({ src, pts: p.pts, filter: p.filter, sharp: p.sharp, ratio: p.ratio, rot: p.rot, pageId: p.id, from: 'pages' }); } catch (er) { unbusy(); toast('원본을 불러오지 못했어요.'); } }
+});
+$('pgBack').onclick = () => show('cam');
+$('pgAll').onclick = () => { const all = pages.every(p => p.sel); pages.forEach(p => { p.sel = !all; }); renderPages(); };
+$('pgDelSel').onclick = () => { const n = pages.filter(p => p.sel).length; if (!n) return; if (confirm('선택한 ' + n + '쪽을 삭제할까요?')) { for (let i = pages.length - 1; i >= 0; i--) if (pages[i].sel) pages.splice(i, 1); renderPages(); updCounts(); } };
+
+/* ═════════════ 내보내기 ═════════════ */
+const pad2 = n => String(n).padStart(2, '0');
+const stamp = () => { const d = new Date(); return d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '_' + pad2(d.getHours()) + pad2(d.getMinutes()); };
+const safeName = s => (String(s || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80)) || ('스캔_' + stamp());
+const selPages = () => pages.filter(p => p.sel);
+const bytesOf = async blob => new Uint8Array(await blob.arrayBuffer());
+
+/* PDF 직접 만들기 (JPEG를 그대로 넣음 — 외부 라이브러리 없음) */
+function pdfStr(s) { let h = 'FEFF'; for (let i = 0; i < s.length; i++) h += s.charCodeAt(i).toString(16).padStart(4, '0'); return '<' + h + '>'; }
+async function buildPdf(list, title) {
+  const enc = new TextEncoder(), chunks = []; let len = 0; const offs = [];
+  const put = d => { const u = typeof d === 'string' ? enc.encode(d) : d; chunks.push(u); len += u.length; };
+  const obj = (n, body) => { offs[n] = len; put(n + ' 0 obj\n'); put(body); put('\nendobj\n'); };
+  put('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  const n = list.length; let next = 3; const ids = [];
+  for (let i = 0; i < n; i++) ids.push({ img: next++, cont: next++, page: next++ });
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, '<< /Type /Pages /Count ' + n + ' /Kids [' + ids.map(x => x.page + ' 0 R').join(' ') + '] >>');
+  for (let i = 0; i < n; i++) {
+    const p = list[i], jp = await bytesOf(p.blob), land = p.w > p.h;
+    const pw = land ? 842 : Math.round(842 * p.w / p.h * 100) / 100, ph = land ? Math.round(842 * p.h / p.w * 100) / 100 : 842;   // 긴 변을 A4 긴 변(842pt)에 맞춘다
+    const x = ids[i];
+    offs[x.img] = len; put(x.img + ' 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + p.w + ' /Height ' + p.h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jp.length + ' >>\nstream\n'); put(jp); put('\nendstream\nendobj\n');
+    const cs = 'q ' + pw + ' 0 0 ' + ph + ' 0 0 cm /Im0 Do Q';
+    obj(x.cont, '<< /Length ' + cs.length + ' >>\nstream\n' + cs + '\nendstream');
+    obj(x.page, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + pw + ' ' + ph + '] /Resources << /XObject << /Im0 ' + x.img + ' 0 R >> >> /Contents ' + x.cont + ' 0 R >>');
+  }
+  const infoId = next++; obj(infoId, '<< /Title ' + pdfStr(title || 'SIM Scan') + ' /Producer ' + pdfStr('SIM Scan') + ' >>');
+  const xref = len; put('xref\n0 ' + next + '\n0000000000 65535 f \n');
+  for (let i = 1; i < next; i++) put(String(offs[i]).padStart(10, '0') + ' 00000 n \n');
+  put('trailer\n<< /Size ' + next + ' /Root 1 0 R /Info ' + infoId + ' 0 R >>\nstartxref\n' + xref + '\n%%EOF');
+  return new Blob(chunks, { type: 'application/pdf' });
+}
+async function pngOf(blob) { const bmp = await createImageBitmap(blob), c = newCanvas(bmp.width, bmp.height); c.getContext('2d').drawImage(bmp, 0, 0); if (bmp.close) bmp.close(); return canvasBlob(c, 'image/png'); }
+async function makeFiles(fmt, base, list) {
+  if (fmt === 'pdf') return [{ name: base + '.pdf', blob: await buildPdf(list, base), mime: 'application/pdf' }];
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    setExpMsg((fmt === 'png' ? 'PNG' : 'JPG') + ' 만드는 중… ' + (i + 1) + ' / ' + list.length);
+    out.push({ name: base + (list.length > 1 ? '_' + pad2(i + 1) : '') + (fmt === 'png' ? '.png' : '.jpg'), blob: fmt === 'png' ? await pngOf(list[i].blob) : list[i].blob, mime: fmt === 'png' ? 'image/png' : 'image/jpeg' });
+  }
+  return out;
+}
+
+/* 안드로이드 앱(APK)이면 'SimFiles' 창구로 다운로드 폴더(내 파일)에 직접 저장·인쇄 */
+const NF = window.SimFiles && typeof window.SimFiles.begin === 'function' ? window.SimFiles : null;
+const b64 = u => { let s = ''; for (let i = 0; i < u.length; i += 0x2000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x2000)); return btoa(s); };
+async function nativeWrite(name, mime, blob, mode) {
+  const id = NF.begin(name, mime, mode || 'download'); if (!id || /^ERR/.test(id)) throw new Error('begin');
+  const u = await bytesOf(blob), CH = 3 * 120000;
+  for (let off = 0; off < u.length; off += CH) { if (!NF.chunk(id, b64(u.subarray(off, off + CH)))) { NF.end(id); throw new Error('chunk'); } await sleep(0); }
+  const r = NF.end(id); if (!r || /^ERR/.test(r)) throw new Error('end'); return r;
+}
+function anchorSave(name, blob) { const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 20000); }
+async function saveToDevice(files) {
+  let where = '';
+  for (let i = 0; i < files.length; i++) {
+    setExpMsg('저장 중… ' + (i + 1) + ' / ' + files.length);
+    if (NF) where = await nativeWrite(files[i].name, files[i].mime, files[i].blob); else { anchorSave(files[i].name, files[i].blob); await sleep(450); }
+  }
+  return NF ? '내 파일 → 다운로드 → SIM Scan 폴더에 저장했어요. (' + files.length + '개)' : '다운로드 폴더에 저장했어요. (' + files.length + '개) — 내 파일 → 다운로드에서 볼 수 있어요.';
+}
+
+/* 인쇄 */
+async function printPages(list, base) {
+  if (NF && typeof NF.print === 'function') {
+    const pdf = await buildPdf(list, base), path = await nativeWrite(base + '.pdf', 'application/pdf', pdf, 'cache');
+    NF.print(path, base); return '인쇄 창을 열었어요. 프린터를 고르세요.';
+  }
+  const urls = list.map(p => URL.createObjectURL(p.blob));
+  const fr = document.createElement('iframe'); fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(fr);
+  const d = fr.contentDocument; d.open();
+  d.write('<!doctype html><meta charset="utf-8"><title>' + esc(base) + '</title><style>@page port{size:A4 portrait;margin:0}@page land{size:A4 landscape;margin:0}*{margin:0;padding:0}body{background:#fff}.p{box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:6mm;page-break-after:always;break-after:page;overflow:hidden}.p.port{page:port;width:210mm;height:296.5mm}.p.land{page:land;width:297mm;height:209.5mm}.p img{max-width:100%;max-height:100%;object-fit:contain}.p:last-child{page-break-after:auto;break-after:auto}</style>' +
+    list.map((p, i) => '<div class="p ' + (p.w > p.h ? 'land' : 'port') + '"><img src="' + urls[i] + '"></div>').join(''));
+  d.close();
+  await Promise.all([...d.images].map(im => im.decode ? im.decode().catch(() => {}) : Promise.resolve()));
+  await sleep(200);
+  const w = fr.contentWindow; w.focus(); w.print();
+  setTimeout(() => { fr.remove(); urls.forEach(u => URL.revokeObjectURL(u)); }, 120000);
+  return '인쇄 창에서 프린터를 고르세요. (“PDF로 저장”도 고를 수 있어요)';
+}
+
+/* 노트로 보내기: SIM Note 의 저장소(simmemo)에 새 노트로 직접 넣는다 */
+const DW = 1240;
+const imgDataUrl = (blob, long, q) => new Promise(async (res, rej) => {
+  try {
+    const bmp = await createImageBitmap(blob), k = Math.min(1, long / Math.max(bmp.width, bmp.height)), c = newCanvas(Math.round(bmp.width * k), Math.round(bmp.height * k));
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); if (bmp.close) bmp.close(); res({ url: c.toDataURL('image/jpeg', q), w: c.width, h: c.height, c });
+  } catch (e) { rej(e); }
+});
+function openNotesDB() {
+  return new Promise((res, rej) => {
+    if (!window.indexedDB) return rej(new Error('no idb'));
+    const r = indexedDB.open('simmemo', 1); r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('notes')) r.result.createObjectStore('notes', { keyPath: 'id' }); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function sendToNote(list, title) {
+  const np = [];
+  for (let i = 0; i < list.length; i++) {
+    setExpMsg('노트 페이지 만드는 중… ' + (i + 1) + ' / ' + list.length);
+    const im = await imgDataUrl(list[i].blob, 1800, 0.85), port = im.w <= im.h, w = port ? DW : Math.round(DW * im.w / im.h), h = port ? Math.round(DW * im.h / im.w) : DW;
+    np.push({ w, h, bg: { type: 'image', img: im.url, fit: 'contain' }, strokes: [], texts: [], images: [] });
+    if (i === 0) var first = im.c;
+  }
+  const tc = newCanvas(240, 340), g = tc.getContext('2d'); g.fillStyle = '#e9edf4'; g.fillRect(0, 0, 240, 340);
+  const p0 = np[0], k = Math.min(236 / p0.w, 336 / p0.h), ox = (240 - p0.w * k) / 2, oy = (340 - p0.h * k) / 2; g.fillStyle = '#fff'; g.fillRect(ox, oy, p0.w * k, p0.h * k);
+  const kk = Math.min(p0.w * k / first.width, p0.h * k / first.height); g.drawImage(first, (240 - first.width * kk) / 2, (340 - first.height * kk) / 2, first.width * kk, first.height * kk);
+  const now = Date.now(), note = { id: 'n' + now.toString(36) + Math.random().toString(36).slice(2, 6), title, created: now, updated: now, thumb: tc.toDataURL('image/jpeg', 0.7), assets: {}, pages: np, folder: '', fav: false };
+  const db = await openNotesDB();
+  await new Promise((res, rej) => { const tx = db.transaction('notes', 'readwrite'); tx.objectStore('notes').put(note); tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); });
+  db.close();
+  let synced = null; try { if (window.simSync && simSync.sync) synced = await Promise.race([simSync.sync(), sleep(8000).then(() => 'timeout')]); } catch (e) {}
+  return { id: note.id, synced };
+}
+
+/* SIM Folder 에 저장 */
+const FB = { url: 'https://rgamgjdnhunzzwzsbnbs.supabase.co', key: 'sb_publishable_hnBcVEuMXFRdFRqJhOM0OQ_rp72JywU', bucket: 'sim-folder' };
+let sb = null, fUser = null, fItems = [], fFiles = [];
+function loadSupabase() {
+  return new Promise((res, rej) => {
+    if (window.supabase && window.supabase.createClient) return res();
+    const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; s.onload = () => res(); s.onerror = () => rej(new Error('lib')); document.head.appendChild(s);
+  });
+}
+const fMsg = (t, err) => { const e = $('fMsg'); e.textContent = t || ''; e.className = 'msg' + (err ? ' err' : ''); };
+async function openFolderDialog(files) {
+  fFiles = files; $('mFold').classList.add('show'); $('fLogin').hidden = true; $('fPick').hidden = true; $('fBar').hidden = true; fMsg('SIM Folder에 연결하는 중…');
+  try {
+    await loadSupabase(); if (!sb) sb = supabase.createClient(FB.url, FB.key);
+    const { data } = await sb.auth.getSession();
+    if (data.session) { fUser = data.session.user; await fShowPick(); } else { fMsg(''); $('fLogin').hidden = false; }
+  } catch (e) { fMsg('SIM Folder에 연결하지 못했어요. 인터넷을 확인하세요.', true); }
+}
+async function fShowPick() {
+  fMsg('폴더 목록을 불러오는 중…');
+  const { data, error } = await sb.from('folder_items').select('*').order('created_at').limit(5000);
+  if (error) { fMsg('폴더 목록을 불러오지 못했어요: ' + error.message, true); return; }
+  fItems = (data || []).filter(i => !i.deleted_at);
+  const folders = fItems.filter(i => i.kind === 'folder'), byId = new Map(folders.map(f => [f.id, f]));
+  const pathOf = f => { const seg = []; let c = f, g = 0; while (c && g++ < 30) { seg.unshift(c.name); c = c.parent_id ? byId.get(c.parent_id) : null; } return seg.join(' / '); };
+  const opts = folders.map(f => ({ id: f.id, p: pathOf(f) })).sort((a, b) => a.p.localeCompare(b.p, 'ko'));
+  const dflt = folders.find(f => !f.parent_id && f.name === '스캔');
+  $('fSel').innerHTML = (dflt ? '' : '<option value="__new">📁 스캔 (없으면 새로 만들기)</option>') + '<option value="__root"' + '>📂 최상위 (맨 위)</option>' + opts.map(o => '<option value="' + esc(o.id) + '"' + (dflt && o.id === dflt.id ? ' selected' : '') + '>📁 ' + esc(o.p) + '</option>').join('');
+  $('fWho').textContent = (fUser && fUser.email ? fUser.email + ' · ' : '') + fFiles.length + '개 파일, 합계 ' + (fFiles.reduce((s, f) => s + f.blob.size, 0) / 1048576).toFixed(1) + 'MB';
+  $('fLogin').hidden = true; $('fPick').hidden = false; fMsg('');
+}
+$('fLoginBtn').onclick = async () => {
+  const email = $('fEm').value.trim(), password = $('fPw').value; if (!email || password.length < 6) { fMsg('이메일과 6자 이상의 비밀번호를 입력하세요.', true); return; }
+  fMsg('로그인 중…'); const r = await sb.auth.signInWithPassword({ email, password });
+  if (r.error) { fMsg((r.error.message || '').toLowerCase().includes('not confirmed') ? '이메일 인증이 필요해요. SIM Folder에서 가입 메일을 확인하세요.' : '로그인하지 못했어요. 이메일·비밀번호를 확인하세요.', true); return; }
+  fUser = r.data.session.user; await fShowPick();
+};
+$('fSave').onclick = async () => {
+  const v = $('fSel').value; $('fSave').disabled = true; $('fBar').hidden = false; const bar = $('fBar').firstElementChild; bar.style.width = '0%';
+  try {
+    let parent = null;
+    if (v === '__new') {
+      const ins = await sb.from('folder_items').insert({ parent_id: null, kind: 'folder', name: '스캔' }).select().single(); if (ins.error) throw ins.error; parent = ins.data.id; fItems.push(ins.data);
+    } else if (v !== '__root') parent = v;
+    const taken = new Set(fItems.filter(i => (i.parent_id || null) === parent).map(i => i.name));
+    const uniq = n => { if (!taken.has(n)) { taken.add(n); return n; } const m = /^(.*?)(\.[^.]+)?$/.exec(n), b = m[1], x = m[2] || ''; for (let k = 2; k < 999; k++) { const c = b + ' (' + k + ')' + x; if (!taken.has(c)) { taken.add(c); return c; } } return n; };
+    let ok = 0;
+    for (let i = 0; i < fFiles.length; i++) {
+      const f = fFiles[i]; fMsg('올리는 중… ' + (i + 1) + ' / ' + fFiles.length + ' · ' + f.name); bar.style.width = (i / fFiles.length * 100) + '%';
+      if (f.blob.size > 50 * 1048576) { fMsg(f.name + ': 50MB를 넘어 올릴 수 없어요.', true); continue; }
+      const path = fUser.id + '/' + crypto.randomUUID(), up = await sb.storage.from(FB.bucket).upload(path, f.blob, { contentType: f.mime, upsert: false });
+      if (up.error) throw up.error;
+      const row = await sb.from('folder_items').insert({ parent_id: parent, kind: 'file', name: uniq(f.name), size: f.blob.size, mime: f.mime, storage_path: path }).select().single();
+      if (row.error) { await sb.storage.from(FB.bucket).remove([path]); throw row.error; }
+      ok++;
+    }
+    bar.style.width = '100%'; fMsg('✔ SIM Folder에 ' + ok + '개 저장했어요.'); $('expMsg').textContent = 'SIM Folder에 ' + ok + '개 저장했어요.';
+    setTimeout(() => { $('mFold').classList.remove('show'); $('mExp').classList.remove('show'); toast('🗂 SIM Folder에 저장했어요 · <a href="folder.html">폴더 열기</a>', 5000); }, 700);
+  } catch (e) { fMsg('저장하지 못했어요: ' + ((e && e.message) || '오류'), true); }
+  $('fSave').disabled = false;
+};
+
+/* ───────── 보내기 시트 ───────── */
+const setExpMsg = t => { $('expMsg').textContent = t || ''; $('expMsg').className = 'msg'; };
+function paintFmt() {
+  document.querySelectorAll('#fmtChips button').forEach(b => b.classList.toggle('on', b.dataset.fmt === S.fmt));
+  $('fmtNote').textContent = S.fmt === 'pdf' ? '선택한 쪽을 PDF 한 파일로 묶어요. (쪽 순서대로)' : '쪽마다 그림 파일을 따로 만들어요. (여러 쪽이면 이름 뒤에 번호가 붙어요)';
+}
+function openExport() {
+  const n = selPages().length; if (!n) { toast('보낼 쪽을 선택하세요.'); return; }
+  $('expName').value = safeName('스캔_' + stamp()); $('expN').textContent = n + '쪽'; setExpMsg(''); $('expBar').hidden = true; paintFmt();
+  $('dShare').hidden = !(navigator.canShare && navigator.share) || !!NF; $('mExp').classList.add('show');
+}
+$('btnExport').onclick = openExport;
+$('fmtChips').onclick = e => { const b = e.target.closest('button[data-fmt]'); if (!b) return; S.fmt = b.dataset.fmt; saveS(); paintFmt(); };
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => $(b.dataset.close).classList.remove('show'));
+['mExp', 'mFold'].forEach(id => $(id).addEventListener('click', e => { if (e.target === $(id)) $(id).classList.remove('show'); }));
+let exporting = false;
+async function runExport(kind) {
+  if (exporting) return; const list = selPages(); if (!list.length) return; const base = safeName($('expName').value); exporting = true;
+  document.querySelectorAll('.tile').forEach(t => { t.disabled = true; });
+  try {
+    if (kind === 'print') { setExpMsg('인쇄 준비 중…'); const m = await printPages(list, base); setExpMsg(m); }
+    else if (kind === 'note') {
+      const r = await sendToNote(list, base); dirty = false; $('mExp').classList.remove('show');
+      toast('📝 SIM Note에 새 노트로 보냈어요 · <a href="note.html">노트 열기</a>' + (r.synced ? '' : '<br><small>이 기기에 저장됐어요. 다른 기기(앱)의 SIM Note에서 보려면 런처에서 로그인(계정 동기화)하세요.</small>'), 6500);
+    } else {
+      const files = await makeFiles(S.fmt, base, list);
+      if (kind === 'device') { const m = await saveToDevice(files); dirty = false; setExpMsg('✔ ' + m); }
+      else if (kind === 'folder') { setExpMsg(''); await openFolderDialog(files); }
+      else if (kind === 'share') {
+        const fl = files.map(f => new File([f.blob], f.name, { type: f.mime }));
+        if (navigator.canShare && navigator.canShare({ files: fl })) { try { await navigator.share({ files: fl, title: base }); setExpMsg('공유했어요.'); } catch (e) { if (!e || e.name !== 'AbortError') setExpMsg('공유하지 못했어요.'); else setExpMsg(''); } }
+        else setExpMsg('이 기기는 파일 공유를 지원하지 않아요.');
+      }
+    }
+  } catch (e) { const m = $('expMsg'); m.textContent = '실패했어요: ' + ((e && e.message) || '오류') + ' (쪽 수를 줄여 다시 시도해 보세요)'; m.className = 'msg err'; }
+  exporting = false; document.querySelectorAll('.tile').forEach(t => { t.disabled = false; });
+}
+$('dPrint').onclick = () => runExport('print'); $('dNote').onclick = () => runExport('note'); $('dDevice').onclick = () => runExport('device'); $('dFolder').onclick = () => runExport('folder'); $('dShare').onclick = () => runExport('share');
+
+window.addEventListener('beforeunload', e => { if (pages.length && dirty) { e.preventDefault(); e.returnValue = ''; } });
+paintQuick(); updCounts(); show('cam');
+window.__scan = { pages, detectQuad, quadFromHull, hull, orderQuad, targetSize, warp, enhance, buildPdf, renderResult, aspectZhang, S };   // 점검용
+})();
+</script>
+<script src="ui-guard.js" defer></script>
+<script src="appmenu.js" defer></script>
+<script src="sync.js?bg=1" defer></script>
+</body>
+</html>

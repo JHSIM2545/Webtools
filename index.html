@@ -165,7 +165,6 @@ button.danger{color:#ff8a8a}
   <div class="box">
     <h2>앱 추가</h2>
     <div id="appList"></div>
-    <div class="warn">필요한 앱만 내려받아 설치하세요. 설치가 끝나면 런처 보드에 나타나요. 처음에는 "이 출처의 앱 설치 허용"을 한 번 켜야 해요.</div>
     <div class="row"><button id="appsClose">닫기</button></div>
   </div>
 </div>
@@ -282,10 +281,10 @@ button.danger{color:#ff8a8a}
   }
   function paintApps() {
     readInstalled();
-    const self = UPDATES.indexOf('launcher') >= 0 ? '<div class="arow"><img src="icon-192.png" alt=""><div class="t"><b>SIM <span style="color:var(--accent)">Tools</span> 런처</b><span>새 버전이 있어요 · 설치하면 앱이 다시 시작돼요</span></div><button class="get" data-act="get" data-id="launcher">업데이트</button></div>' : '<div class="arow"><img src="icon-192.png" alt=""><div class="t"><b>SIM <span style="color:var(--accent)">Tools</span> 런처</b><span>최신 버전으로 다시 설치 · 앱이 다시 시작돼요</span></div><button class="get" data-act="get" data-id="launcher">설치</button></div>';
+    const self = UPDATES.indexOf('launcher') >= 0 ? '<div class="arow"><img src="icon-192.png" alt=""><div class="t"><b>SIM <span style="color:var(--accent)">Tools</span> 런처</b></div><button class="get" data-act="get" data-id="launcher">업데이트</button></div>' : '<div class="arow"><img src="icon-192.png" alt=""><div class="t"><b>SIM <span style="color:var(--accent)">Tools</span> 런처</b></div><button class="get" data-act="get" data-id="launcher">설치</button></div>';
     $('appList').innerHTML = self + TOOLS.map(t => {
       const on = INSTALLED.indexOf(t.id) >= 0;
-      return '<div class="arow"><img src="' + esc(t.icon) + '" alt=""><div class="t"><b>' + nameHtml(t) + '</b><span>' + esc(t.desc || '') + '</span></div>' +
+      return '<div class="arow"><img src="' + esc(t.icon) + '" alt=""><div class="t"><b>' + nameHtml(t) + '</b></div>' +
         (on ? (UPDATES.indexOf(t.id) >= 0 ? '<button class="get" data-act="get" data-id="' + esc(t.id) + '">업데이트</button>' : '') + '<button data-act="open" data-id="' + esc(t.id) + '">열기</button><button class="danger" data-act="del" data-id="' + esc(t.id) + '">제거</button>'
             : '<button class="get" data-act="get" data-id="' + esc(t.id) + '">받기</button>') + '</div>';
     }).join('');

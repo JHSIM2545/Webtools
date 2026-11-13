@@ -283,6 +283,11 @@ public class HidController {
         CONS.put("volUp", 0xE9); CONS.put("volDown", 0xEA); CONS.put("mute", 0xE2); CONS.put("play", 0xCD);
         CONS.put("next", 0xB5); CONS.put("prev", 0xB6); CONS.put("stop", 0xB7);
         CONS.put("acHome", 0x223); CONS.put("acBack", 0x224);
+        // 셋톱박스 리모컨용 (HID Consumer 사용 코드)
+        CONS.put("power", 0x30); CONS.put("menu", 0x40); CONS.put("guide", 0x8D);
+        CONS.put("chUp", 0x9C); CONS.put("chDown", 0x9D);
+        CONS.put("ff", 0xB3); CONS.put("rew", 0xB4); CONS.put("info", 0x1BD); CONS.put("search", 0x221);
+        CONS.put("red", 0x69); CONS.put("green", 0x6A); CONS.put("blue", 0x6B); CONS.put("yellow", 0x6C);
     }
 
     private void press(String k) {

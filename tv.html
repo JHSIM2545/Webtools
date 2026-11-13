@@ -33,7 +33,13 @@ button.primary{background:var(--accent2);border-color:var(--accent2);color:#fff}
 button.danger{color:var(--danger)}
 button.icon{padding:7px 10px}
 main{flex:1;display:flex;min-height:0}
-.stage{flex:1;display:flex;flex-direction:column;min-width:0;background:#000}
+.stage{flex:1;display:flex;flex-direction:column;min-width:0;background:#07070b}
+.tvset{flex:1;min-height:0;display:flex;flex-direction:column;margin:10px 10px 0;padding:7px 7px 0;background:#0b0b10;border:1px solid #34344a;border-radius:10px 10px 8px 8px;box-shadow:0 8px 24px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.04)}
+.tvset .video-wrap{border-radius:3px;overflow:hidden}
+.tvlogo{flex:none;height:26px;display:flex;align-items:center;justify-content:center;gap:7px;font-weight:800;font-size:12px;letter-spacing:3px;color:#8d8aa6;user-select:none}
+.tvlogo b{color:var(--accent);font-weight:800}
+.tvlogo i{position:absolute;right:12px;width:4px;height:4px;border-radius:50%;background:var(--accent);opacity:.85}
+.tvlogo{position:relative}
 .video-wrap{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#000}
 video{width:100%;height:100%;background:#000;object-fit:contain}
 .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:24px;pointer-events:none}
@@ -102,7 +108,7 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
 .hint{font-size:12px;color:var(--sub);margin-top:8px;line-height:1.5}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222a3d;border:1px solid var(--line);padding:9px 16px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99}
 .toast.show{opacity:1}
-@media (max-width:760px) and (max-aspect-ratio:3/2){   /* 세로형 화면만 위아래 배치 — 가로로 긴 화면은 좌우 배치 유지 */
+@media (max-width:760px) and (orientation:portrait){   /* 세로형 화면만 위아래 배치 — 가로로 긴(좌우로 긴) 화면은 영상 왼쪽 / 채널 목록 오른쪽 */
   header{gap:6px;padding-left:10px;padding-right:10px}
   header button{padding:6px 9px;font-size:13px;white-space:nowrap}
   header .appicon{display:none}
@@ -133,12 +139,15 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
 
 <main>
   <section class="stage">
-    <div class="video-wrap">
-      <video id="video" controls playsinline autoplay></video>
-      <div class="overlay" id="overlay">
-        <div class="big">📡</div>
-        <div class="msg" id="overlayMsg">오른쪽 목록에서 채널을 선택하세요.</div>
+    <div class="tvset">
+      <div class="video-wrap">
+        <video id="video" controls playsinline autoplay></video>
+        <div class="overlay" id="overlay">
+          <div class="big">📡</div>
+          <div class="msg" id="overlayMsg">채널 목록에서 채널을 선택하세요.</div>
+        </div>
       </div>
+      <div class="tvlogo" aria-hidden="true"><span>SIM</span><b>TV</b><i></i></div>
     </div>
     <div class="nowbar">
       <div style="min-width:0;flex:1">
@@ -668,7 +677,7 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
       state.channels = state.channels.filter(c => !set.has(c.id));
       state.favs = state.favs.filter(id => !set.has(id));
       ids.forEach(id => delete state.bad[id]);
-      if (set.has(currentId)) { currentId = null; destroyHls(); setOverlay('idle', '오른쪽 목록에서 채널을 선택하세요.'); $('nowTitle').textContent = '선택된 채널 없음'; $('nowGrp').textContent = ''; setBadge('대기', false); }
+      if (set.has(currentId)) { currentId = null; destroyHls(); setOverlay('idle', '채널 목록에서 채널을 선택하세요.'); $('nowTitle').textContent = '선택된 채널 없음'; $('nowGrp').textContent = ''; setBadge('대기', false); }
       filterGroup = '전체'; save(); renderTabs(); renderList(); toast(ids.length + '개 삭제했습니다.'); return;
     }
     const s = e.target.closest('[data-star]');
@@ -747,7 +756,7 @@ aside{min-height:0;width:340px;max-width:42vw;display:flex;flex-direction:column
     if (!editingId || !confirm('이 채널을 삭제할까요?')) return;
     state.channels = state.channels.filter(c => c.id !== editingId); delete state.bad[editingId];
     state.favs = state.favs.filter(f => f !== editingId);
-    if (currentId === editingId) { currentId = null; destroyHls(); setOverlay('idle', '오른쪽 목록에서 채널을 선택하세요.'); $('nowTitle').textContent = '선택된 채널 없음'; $('nowGrp').textContent = ''; setBadge('대기', false); }
+    if (currentId === editingId) { currentId = null; destroyHls(); setOverlay('idle', '채널 목록에서 채널을 선택하세요.'); $('nowTitle').textContent = '선택된 채널 없음'; $('nowGrp').textContent = ''; setBadge('대기', false); }
     save(); closeModals(); renderTabs(); renderList();
   };
 

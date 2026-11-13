@@ -134,7 +134,8 @@ input:focus,select:focus{border-color:var(--accent)}
   <a class="back" href="index.html" title="런처">‹</a>
   <h1><img class="appicon" src="scan-icon-192.png" alt="">SIM <span>Scan</span></h1>
   <div class="spacer"></div>
-  <button class="pgchip" id="hdrPages" title="스캔한 페이지">📑 <b id="hdrN">0</b>쪽</button>
+  <button class="pgchip" id="hdrLib">📚 보관함</button>
+  <button class="pgchip" id="hdrPages">📑 <b id="hdrN">0</b>쪽</button>
 </header>
 
 <div id="views">
@@ -146,12 +147,10 @@ input:focus,select:focus{border-color:var(--accent)}
         <video id="video" playsinline muted autoplay></video>
         <div class="flash" id="flash"></div>
       </div>
-      <div class="camstat" id="camStat">카메라를 켜는 중…</div>
       <div class="tops">
         <button id="btnTorch" hidden>🔦 플래시</button>
-        <button id="btnQuick" title="촬영하면 바로 보정해서 추가합니다">⚡ 바로 추가</button>
+        <button id="btnQuick" >⚡ 바로 추가</button>
       </div>
-      <div class="hint" id="camHint">문서를 화면에 담고 촬영하세요 · 촬영 후 모서리를 자동으로 찾아 크롭해요</div>
       <div class="camerr" id="camErr" hidden>
         <div style="font-size:42px">📷</div>
         <p id="camErrT">카메라를 사용할 수 없어요.</p>
@@ -193,6 +192,12 @@ input:focus,select:focus{border-color:var(--accent)}
     </div>
   </section>
 
+  <!-- ④ 보관함 -->
+  <section class="view" id="vLib" hidden>
+    <div class="pgtop"><button id="libBack">‹ 돌아가기</button><button class="pri" id="libNew">＋ 새 스캔</button></div>
+    <div class="grid" id="libGrid"></div>
+  </section>
+
   <!-- ③ 페이지 목록·보내기 -->
   <section class="view" id="vPages" hidden>
     <div class="pgtop">
@@ -213,11 +218,10 @@ input:focus,select:focus{border-color:var(--accent)}
     <h2>📤 보내기 · 저장 <small class="msg" id="expN"></small><button class="x" data-close="mExp">✕</button></h2>
     <div><div class="msg" style="margin-bottom:5px">파일 이름</div><input type="text" id="expName" maxlength="80" autocomplete="off"></div>
     <div class="chips" id="fmtChips"><label>형식</label><button data-fmt="pdf">📄 PDF (여러 장 하나로)</button><button data-fmt="jpg">🖼 JPG</button><button data-fmt="png">🖼 PNG</button></div>
-    <div class="msg" id="fmtNote"></div>
     <div class="tiles">
       <button class="tile" id="dPrint"><i>🖨</i>프린터 출력</button>
-      <button class="tile" id="dNote"><i>📝</i>노트로 보내기<small>SIM Note</small></button>
-      <button class="tile" id="dDevice"><i>📱</i>내 파일에 저장<small>다운로드 폴더</small></button>
+      <button class="tile" id="dNote"><i>📝</i>노트로 보내기</button>
+      <button class="tile" id="dDevice"><i>📱</i>내 파일에 저장</button>
       <button class="tile" id="dFolder"><i>🗂</i>SIM Folder에 저장</button>
       <button class="tile" id="dShare" hidden><i>↗</i>다른 앱으로 공유</button>
     </div>
@@ -231,7 +235,6 @@ input:focus,select:focus{border-color:var(--accent)}
   <div class="sheet">
     <h2>🗂 SIM Folder에 저장 <button class="x" data-close="mFold">✕</button></h2>
     <div id="fLogin" hidden>
-      <div class="msg" style="margin-bottom:8px">SIM Folder 계정으로 로그인하세요. (SIM Folder에서 쓰는 이메일·비밀번호)</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <input type="email" id="fEm" placeholder="이메일" autocomplete="username">
         <input type="password" id="fPw" placeholder="비밀번호" autocomplete="current-password">
@@ -430,17 +433,18 @@ function QuadEd(stage, area, hooks) {
 /* ═════════════ 상태 ═════════════ */
 let cur = 'cam';
 const pages = [];            // {id, srcBlob, sw, sh, pts, filter, sharp, ratio, rot, blob, w, h, thumb, sel}
-let uid = 0, dirty = false;
+let curDoc = null;
 let ed = null;               // 편집 중: {src(canvas), data, pts, filter, sharp, ratio, rot, pageId, from}
 let edTab = 'crop';
 
 function show(name) {
   cur = name;
-  ['cam', 'edit', 'pages'].forEach(n => { $('v' + n[0].toUpperCase() + n.slice(1)).hidden = n !== name; });
-  $('hdrPages').hidden = name === 'pages';
-  if (name === 'cam') camStart(); else if (name === 'pages') camStop();   // 편집 화면에서는 카메라를 켜 둔 채 두어 연속 촬영이 빠르다
+  ['cam', 'edit', 'pages', 'lib'].forEach(n => { $('v' + n[0].toUpperCase() + n.slice(1)).hidden = n !== name; });
+  $('hdrPages').hidden = name === 'pages' || name === 'lib'; $('hdrLib').hidden = name === 'lib';
+  if (name === 'cam') camStart(); else if (name === 'pages' || name === 'lib') camStop();   // 편집 화면에서는 카메라를 켜 둔 채 두어 연속 촬영이 빠르다
   if (name === 'edit') setTimeout(layoutEdit, 30);
   if (name === 'pages') renderPages();
+  if (name === 'lib') renderLib();
 }
 function updCounts() {
   $('hdrN').textContent = pages.length; const b = $('pgBadge'); b.hidden = !pages.length; b.textContent = pages.length;
@@ -451,7 +455,7 @@ function updCounts() {
 const video = $('video');
 const cam = { stream: null, track: null, vw: 0, vh: 0, miss: 0, manual: false, run: false, torch: false, starting: false };
 const small = newCanvas(8, 8), sctx = small.getContext('2d', { willReadFrequently: true });
-function setStat(t, k) { const e = $('camStat'); e.textContent = t; e.className = 'camstat' + (k ? ' ' + k : ''); }
+function setStat() {}
 function camFit() { if (cam.vw) { const r = $('camArea').getBoundingClientRect(), k = Math.min(r.width / cam.vw, r.height / cam.vh) || 1, st = $('camStage'); st.style.width = Math.round(cam.vw * k) + 'px'; st.style.height = Math.round(cam.vh * k) + 'px'; } }
 async function camStart() {
   if (cam.starting) return;
@@ -468,8 +472,7 @@ async function camStart() {
     cam.run = true; setStat('촬영 준비 완료', 'ok');
   } catch (e) {
     const name = (e && e.name) || '', msg = (e && e.message) || '';
-    $('camErrT').textContent = name === 'NotAllowedError' || name === 'SecurityError' ? '카메라 권한이 꺼져 있어요. 주소창(또는 앱 ⋯ 메뉴 → 권한 정보)에서 카메라를 허용한 뒤 다시 시도하세요.'
-      : name === 'NotFoundError' || msg === 'nomedia' ? '이 기기에서 카메라를 찾을 수 없어요. 사진을 선택하거나 카메라 앱으로 촬영해 주세요.' : '카메라를 켜지 못했어요. 다른 앱이 카메라를 쓰고 있지 않은지 확인하세요.';
+    $('camErrT').textContent = name === 'NotAllowedError' || name === 'SecurityError' ? '카메라 권한이 필요해요.' : name === 'NotFoundError' || msg === 'nomedia' ? '카메라를 찾을 수 없어요.' : '카메라를 켜지 못했어요.';
     $('camErr').hidden = false; setStat('카메라 사용 불가', 'warn');
   }
   cam.starting = false;
@@ -481,17 +484,17 @@ function camStop() {
 }
 $('btnTorch').onclick = async () => {
   if (!cam.track) return; cam.torch = !cam.torch;
-  try { await cam.track.applyConstraints({ advanced: [{ torch: cam.torch }] }); } catch (e) { cam.torch = false; toast('이 기기는 플래시를 켤 수 없어요.'); }
+  try { await cam.track.applyConstraints({ advanced: [{ torch: cam.torch }] }); } catch (e) { cam.torch = false; toast('플래시를 켤 수 없어요'); }
   $('btnTorch').classList.toggle('on', cam.torch);
 };
-function paintQuick() { $('btnQuick').classList.toggle('on', !!S.quick); $('btnQuick').textContent = S.quick ? '⚡ 바로 추가 켜짐' : '⚡ 바로 추가'; }
-$('btnQuick').onclick = () => { S.quick = !S.quick; saveS(); paintQuick(); toast(S.quick ? '촬영하면 편집 없이 바로 보정해 추가해요. (나중에 쪽 목록에서 고칠 수 있어요)' : '촬영 후 모서리를 확인·조정해요.', 3200); };
+function paintQuick() { $('btnQuick').classList.toggle('on', !!S.quick); $('btnQuick').textContent = '⚡ 바로 추가'; }
+$('btnQuick').onclick = () => { S.quick = !S.quick; saveS(); paintQuick(); };
 $('btnShot').onclick = async () => {
-  if (!cam.vw || video.readyState < 2) { toast('카메라 준비 중이에요.'); return; }
+  if (!cam.vw || video.readyState < 2) { toast('카메라 준비 중'); return; }
   const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); try { navigator.vibrate && navigator.vibrate(25); } catch (e) {}
   const c = newCanvas(cam.vw, cam.vh); c.getContext('2d').drawImage(video, 0, 0);
   const found = detectFromCanvas(c, 900), pts = found && goodQuad(found) ? found : insetQuad(c.width, c.height, 0.04);   // 찍은 뒤 모서리 자동 인식
-  if (S.quick) { busy('보정 중…'); await nextFrame(); try { await addPageFrom(c, pts); toast('📑 ' + pages.length + '쪽째 추가했어요'); } catch (e) { toast('보정하지 못했어요.'); } unbusy(); }
+  if (S.quick) { busy('보정 중…'); await nextFrame(); try { await addPageFrom(c, pts); toast('📑 ' + pages.length + '쪽 추가'); } catch (e) { toast('보정하지 못했어요.'); } unbusy(); }
   else openEditor({ src: c, pts, from: 'cam', found: !!(found && goodQuad(found)) });
 };
 $('btnRetry').onclick = () => { camStop(); camStart(); };
@@ -517,15 +520,15 @@ async function loadImageCanvas(file) {
   return c;
 }
 async function handleFiles(files) {
-  files = [...files].filter(f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|heif|bmp)$/i.test(f.name)); if (!files.length) { toast('이미지 파일을 선택하세요.'); return; }
+  files = [...files]; if (!files.length) return;
   try {
     if (files.length === 1) { busy('사진을 읽는 중…'); const c = await loadImageCanvas(files[0]); await nextFrame(); const q = detectFromCanvas(c, 900); unbusy(); openEditor({ src: c, pts: q || insetQuad(c.width, c.height, 0.04), from: cur === 'pages' ? 'pages' : 'cam', found: !!q }); return; }
     for (let i = 0; i < files.length; i++) {
       busy('사진 보정 중… ' + (i + 1) + ' / ' + files.length); await nextFrame();
       const c = await loadImageCanvas(files[i]); await addPageFrom(c, detectFromCanvas(c, 900) || insetQuad(c.width, c.height, 0.03));
     }
-    unbusy(); toast(files.length + '장을 추가했어요. 모서리가 어긋난 쪽은 ✏️ 로 고치세요.', 3600); show('pages');
-  } catch (e) { unbusy(); toast('사진을 읽을 수 없어요.'); }
+    unbusy(); toast(files.length + '장 추가'); show('pages');
+  } catch (e) { unbusy(); toast('사진을 읽을 수 없어요' + (e && e.message ? ' (' + e.message + ')' : '')); }
 }
 [$('fileCam'), $('fileGal')].forEach(inp => inp.addEventListener('change', e => { const f = e.target.files; const arr = [...f]; e.target.value = ''; if (arr.length) handleFiles(arr); }));
 
@@ -633,13 +636,14 @@ function thumbOf(c) { const k = 260 / Math.max(c.width, c.height), t = newCanvas
 
 /* ═════════════ 페이지 추가·교체 ═════════════ */
 async function finishPage(p, srcCanvas, o) {
+  p._saved = false;
   const res = renderResult(o, 2800);
   p.blob = await canvasBlob(res, 'image/jpeg', 0.92); p.w = res.width; p.h = res.height; p.thumb = thumbOf(res);
 }
 async function addPageFrom(srcCanvas, pts, opt) {
   const o = Object.assign({ src: srcCanvas, pts, filter: S.filter, sharp: S.sharp, stain: S.stain, ratio: S.ratio, rot: 0 }, opt || {});
-  const p = { id: ++uid, srcBlob: await canvasBlob(srcCanvas, 'image/jpeg', 0.9), sw: srcCanvas.width, sh: srcCanvas.height, pts: pts.map(q => q.slice()), filter: o.filter, sharp: o.sharp, stain: o.stain, ratio: o.ratio, rot: o.rot, sel: true };
-  await finishPage(p, srcCanvas, o); pages.push(p); dirty = true; updCounts(); return p;
+  const p = { id: rid(), srcBlob: await canvasBlob(srcCanvas, 'image/jpeg', 0.9), sw: srcCanvas.width, sh: srcCanvas.height, pts: pts.map(q => q.slice()), filter: o.filter, sharp: o.sharp, stain: o.stain, ratio: o.ratio, rot: o.rot, sel: true };
+  await finishPage(p, srcCanvas, o); pages.push(p); updCounts(); persist(); return p;
 }
 async function srcCanvasOf(p) {
   const bmp = await createImageBitmap(p.srcBlob), c = newCanvas(bmp.width, bmp.height); c.getContext('2d').drawImage(bmp, 0, 0); if (bmp.close) bmp.close(); return c;
@@ -668,7 +672,7 @@ function openEditor(o) {
   ed = { src: o.src, data: null, pts: o.pts.map(p => p.slice()), filter: o.filter || S.filter, sharp: o.sharp != null ? o.sharp : S.sharp, stain: o.stain != null ? o.stain : S.stain, ratio: o.ratio || S.ratio, rot: o.rot || 0, pageId: o.pageId || null, from: o.from || 'cam' };
   const cv = $('edCv'); cv.width = ed.src.width; cv.height = ed.src.height; cv.getContext('2d').drawImage(ed.src, 0, 0);
   edQ.pts = ed.pts; edTab = 'crop'; paintEditUI(); show('edit'); layoutEdit();
-  if (o.found === false) toast('문서 모서리를 자동으로 찾지 못했어요. ●를 끌어 맞춰 주세요.', 3200);
+  if (o.found === false) toast('모서리를 찾지 못했어요');
 }
 let prevT = 0;
 function drawPreview() {
@@ -688,24 +692,24 @@ $('stain').onchange = () => { S.stain = ed.stain; saveS(); if (edTab === 'prev')
 $('sharp').onchange = () => { S.sharp = ed.sharp; saveS(); if (edTab === 'prev') drawPreview(); };
 $('btnDetect').onclick = async () => {
   if (!ed) return; busy('모서리를 찾는 중…'); await nextFrame(); const q = detectFromCanvas(ed.src, 900); unbusy();
-  if (q) { edQ.pts = ed.pts = q; edQ.draw(); toast('모서리를 찾았어요. 어긋나면 ●를 끌어 맞추세요.'); } else toast('자동으로 찾지 못했어요. ●를 직접 맞춰 주세요.');
+  if (q) { edQ.pts = ed.pts = q; edQ.draw(); toast('모서리를 찾았어요'); } else toast('모서리를 찾지 못했어요');
   if (edTab === 'prev') drawPreview();
 };
 $('btnFull').onclick = () => { if (!ed) return; edQ.pts = ed.pts = insetQuad(ed.src.width, ed.src.height, 0); edQ.draw(); if (edTab === 'prev') drawPreview(); };
-$('btnRotE').onclick = () => { if (!ed) return; ed.rot = ((ed.rot || 0) + 1) % 4; toast('결과를 시계 방향으로 돌려요 (' + ed.rot * 90 + '°)'); if (edTab === 'prev') drawPreview(); };
+$('btnRotE').onclick = () => { if (!ed) return; ed.rot = ((ed.rot || 0) + 1) % 4; if (edTab === 'prev') drawPreview(); };
 $('edCancel').onclick = () => { const f = ed && ed.from; ed = null; show(f === 'pages' ? 'pages' : 'cam'); };
 $('edOk').onclick = async () => {
   if (!ed) return; busy('보정 · 해상도 향상 중…'); await nextFrame(); ed.pts = edQ.pts.map(p => p.slice());
   try {
     if (ed.pageId) {
       const p = pages.find(x => x.id === ed.pageId);
-      if (p) { Object.assign(p, { pts: ed.pts, filter: ed.filter, sharp: ed.sharp, stain: ed.stain, ratio: ed.ratio, rot: ed.rot }); await finishPage(p, ed.src, ed); dirty = true; }
-      const f = ed.from; ed = null; updCounts(); unbusy(); show('pages'); void f; toast('수정했어요.');
+      if (p) { Object.assign(p, { pts: ed.pts, filter: ed.filter, sharp: ed.sharp, stain: ed.stain, ratio: ed.ratio, rot: ed.rot }); await finishPage(p, ed.src, ed); persist(); }
+      const f = ed.from; ed = null; updCounts(); unbusy(); show('pages'); void f; toast('수정했어요');
     } else {
       const p = await addPageFrom(ed.src, ed.pts, { filter: ed.filter, sharp: ed.sharp, stain: ed.stain, ratio: ed.ratio, rot: ed.rot }); void p;
-      const f = ed.from; ed = null; unbusy(); show(f === 'pages' ? 'pages' : 'cam'); toast('📑 ' + pages.length + '쪽째 추가했어요 · 이어서 촬영하세요');
+      const f = ed.from; ed = null; unbusy(); show(f === 'pages' ? 'pages' : 'cam'); toast('📑 ' + pages.length + '쪽 추가');
     }
-  } catch (e) { unbusy(); toast('보정하지 못했어요. 다시 시도하세요.'); }
+  } catch (e) { unbusy(); toast('보정하지 못했어요'); }
 };
 
 /* ═════════════ ③ 페이지 목록 ═════════════ */
@@ -714,25 +718,85 @@ function renderPages() {
   $('pgSub').textContent = pages.length ? sel + ' / ' + pages.length + '쪽 선택' : '';
   $('pgAll').textContent = sel === pages.length && pages.length ? '선택 해제' : '전체 선택';
   $('btnExport').disabled = !sel;
-  if (!pages.length) { g.innerHTML = '<div class="empty">아직 스캔한 문서가 없어요.<br>“📷 더 스캔”을 눌러 문서를 촬영하세요.</div>'; return; }
+  if (!pages.length) { g.innerHTML = '<div class="empty">스캔한 쪽이 없어요</div>'; return; }
   g.innerHTML = pages.map((p, i) =>
     '<div class="pc' + (p.sel ? ' sel' : '') + '" data-id="' + p.id + '"><img class="th" data-a="edit" alt="" src="' + p.thumb + '"><div class="no">' + (i + 1) + '</div>' +
     '<button class="ck" data-a="sel" aria-label="선택">' + (p.sel ? '✓' : '') + '</button>' +
     '<div class="tl"><button data-a="left" title="앞으로"' + (i ? '' : ' disabled') + '>◀</button><button data-a="edit" title="모서리·보정 다시 편집">✏️</button><button data-a="rot" title="회전">↻</button><button data-a="del" title="삭제">🗑</button><button data-a="right" title="뒤로"' + (i < pages.length - 1 ? '' : ' disabled') + '>▶</button></div></div>').join('');
 }
 $('grid').addEventListener('click', async e => {
-  const b = e.target.closest('[data-a]'); if (!b) return; const card = b.closest('.pc'), id = +card.dataset.id, i = pages.findIndex(p => p.id === id), p = pages[i]; if (!p) return;
+  const b = e.target.closest('[data-a]'); if (!b) return; const card = b.closest('.pc'), id = card.dataset.id, i = pages.findIndex(p => p.id === id), p = pages[i]; if (!p) return;
   const a = b.dataset.a;
   if (a === 'sel') { p.sel = !p.sel; renderPages(); }
-  else if (a === 'left' && i > 0) { pages.splice(i - 1, 0, pages.splice(i, 1)[0]); renderPages(); updCounts(); }
-  else if (a === 'right' && i < pages.length - 1) { pages.splice(i + 1, 0, pages.splice(i, 1)[0]); renderPages(); updCounts(); }
-  else if (a === 'del') { if (confirm((i + 1) + '쪽을 삭제할까요?')) { pages.splice(i, 1); renderPages(); updCounts(); } }
-  else if (a === 'rot') { busy('회전 중…'); await nextFrame(); try { p.rot = ((p.rot || 0) + 1) % 4; const src = await srcCanvasOf(p); await finishPage(p, src, { src, pts: p.pts, filter: p.filter, sharp: p.sharp, stain: p.stain, ratio: p.ratio, rot: p.rot }); } catch (er) { toast('회전하지 못했어요.'); } unbusy(); renderPages(); updCounts(); }
+  else if (a === 'left' && i > 0) { pages.splice(i - 1, 0, pages.splice(i, 1)[0]); renderPages(); updCounts(); persist(); }
+  else if (a === 'right' && i < pages.length - 1) { pages.splice(i + 1, 0, pages.splice(i, 1)[0]); renderPages(); updCounts(); persist(); }
+  else if (a === 'del') { if (confirm((i + 1) + '쪽을 삭제할까요?')) { pages.splice(i, 1); renderPages(); updCounts(); persist(); } }
+  else if (a === 'rot') { busy('회전 중…'); await nextFrame(); try { p.rot = ((p.rot || 0) + 1) % 4; const src = await srcCanvasOf(p); await finishPage(p, src, { src, pts: p.pts, filter: p.filter, sharp: p.sharp, stain: p.stain, ratio: p.ratio, rot: p.rot }); } catch (er) { toast('회전하지 못했어요'); } unbusy(); renderPages(); updCounts(); persist(); }
   else if (a === 'edit') { busy('불러오는 중…'); await nextFrame(); try { const src = await srcCanvasOf(p); unbusy(); openEditor({ src, pts: p.pts, filter: p.filter, sharp: p.sharp, stain: p.stain, ratio: p.ratio, rot: p.rot, pageId: p.id, from: 'pages' }); } catch (er) { unbusy(); toast('원본을 불러오지 못했어요.'); } }
 });
 $('pgBack').onclick = () => show('cam');
 $('pgAll').onclick = () => { const all = pages.every(p => p.sel); pages.forEach(p => { p.sel = !all; }); renderPages(); };
-$('pgDelSel').onclick = () => { const n = pages.filter(p => p.sel).length; if (!n) return; if (confirm('선택한 ' + n + '쪽을 삭제할까요?')) { for (let i = pages.length - 1; i >= 0; i--) if (pages[i].sel) pages.splice(i, 1); renderPages(); updCounts(); } };
+$('pgDelSel').onclick = () => { const n = pages.filter(p => p.sel).length; if (!n) return; if (confirm('선택한 ' + n + '쪽을 삭제할까요?')) { for (let i = pages.length - 1; i >= 0; i--) if (pages[i].sel) pages.splice(i, 1); renderPages(); updCounts(); persist(); } };
+
+/* ═════════════ 자동 저장 · 보관함 (이 기기 IndexedDB 'simscan') ═════════════ */
+const rid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+function openDB() {
+  return new Promise((res, rej) => {
+    if (!window.indexedDB) return rej(new Error('no idb'));
+    const r = indexedDB.open('simscan', 1);
+    r.onupgradeneeded = () => { const d = r.result; if (!d.objectStoreNames.contains('docs')) d.createObjectStore('docs', { keyPath: 'id' }); if (!d.objectStoreNames.contains('pages')) d.createObjectStore('pages', { keyPath: 'id' }).createIndex('doc', 'docId'); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+const txDone = tx => new Promise((res, rej) => { tx.oncomplete = () => res(); tx.onerror = tx.onabort = () => rej(tx.error); });
+const reqP = rq => new Promise((res, rej) => { rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); });
+const docTitle = () => { const d = new Date(); return '스캔 ' + d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
+let saveQ = Promise.resolve();
+function persist() { saveQ = saveQ.then(doPersist).catch(() => {}); return saveQ; }
+async function doPersist() {
+  if (!pages.length) { if (curDoc) { const id = curDoc.id; curDoc = null; await deleteDoc(id); } return; }
+  if (!curDoc) curDoc = { id: rid(), title: docTitle(), created: Date.now(), order: [] };
+  const db = await openDB(), tx = db.transaction(['docs', 'pages'], 'readwrite'), ps = tx.objectStore('pages'), keep = new Set(pages.map(p => p.id));
+  (curDoc.order || []).forEach(id => { if (!keep.has(id)) ps.delete(id); });
+  pages.forEach(p => { if (!p._saved) { const rec = Object.assign({}, p, { docId: curDoc.id }); delete rec.sel; delete rec._saved; ps.put(rec); p._saved = true; } });
+  curDoc.order = pages.map(p => p.id); curDoc.updated = Date.now(); curDoc.count = pages.length; curDoc.cover = pages[0].thumb;
+  tx.objectStore('docs').put(curDoc); await txDone(tx); db.close();
+}
+async function deleteDoc(id) {
+  const db = await openDB(), tx = db.transaction(['docs', 'pages'], 'readwrite'), ps = tx.objectStore('pages');
+  const keys = await reqP(ps.index('doc').getAllKeys(id)); keys.forEach(k => ps.delete(k)); tx.objectStore('docs').delete(id); await txDone(tx); db.close();
+}
+async function listDocs() { const db = await openDB(), all = await reqP(db.transaction('docs').objectStore('docs').getAll()); db.close(); return all.sort((a, b) => (b.updated || 0) - (a.updated || 0)); }
+async function loadDoc(id) {
+  const db = await openDB(), doc = await reqP(db.transaction('docs').objectStore('docs').get(id)), recs = await reqP(db.transaction('pages').objectStore('pages').index('doc').getAll(id)); db.close();
+  if (!doc) throw new Error('없는 문서');
+  const m = new Map(recs.map(r => [r.id, r]));
+  await saveQ; pages.length = 0;
+  (doc.order || []).forEach(pid => { const r = m.get(pid); if (r) pages.push(Object.assign(r, { sel: true, _saved: true })); });
+  curDoc = doc; updCounts();
+}
+const fmtDate = t => { const d = new Date(t || 0); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
+async function renderLib() {
+  const g = $('libGrid'); let docs = []; try { docs = await listDocs(); } catch (e) {}
+  if (!docs.length) { g.innerHTML = '<div class="empty">보관된 스캔이 없어요</div>'; return; }
+  g.innerHTML = docs.map(d => '<div class="pc' + (curDoc && curDoc.id === d.id ? ' sel' : '') + '" data-id="' + esc(d.id) + '"><img class="th" data-a="open" alt="" src="' + d.cover + '"><div class="no">' + d.count + '쪽</div>' +
+    '<div style="padding:6px 8px 0;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(d.title) + '</div><div class="msg" style="padding:0 8px 2px">' + fmtDate(d.updated) + '</div>' +
+    '<div class="tl"><button data-a="open">열기</button><button data-a="ren">✏️</button><button data-a="del">🗑</button></div></div>').join('');
+}
+$('libGrid').addEventListener('click', async e => {
+  const b = e.target.closest('[data-a]'); if (!b) return; const id = b.closest('.pc').dataset.id, a = b.dataset.a;
+  if (a === 'open') { busy('불러오는 중…'); await nextFrame(); try { await loadDoc(id); unbusy(); show('pages'); } catch (er) { unbusy(); toast('불러오지 못했어요'); } }
+  else if (a === 'ren') {
+    const docs = await listDocs(), d = docs.find(x => x.id === id); if (!d) return; const t = prompt('문서 이름', d.title); if (t == null || !t.trim()) return;
+    d.title = t.trim().slice(0, 80); const db = await openDB(), tx = db.transaction('docs', 'readwrite'); tx.objectStore('docs').put(d); await txDone(tx); db.close(); if (curDoc && curDoc.id === id) curDoc.title = d.title; renderLib();
+  } else if (a === 'del') {
+    if (!confirm('이 스캔 문서를 삭제할까요?')) return; await saveQ; await deleteDoc(id);
+    if (curDoc && curDoc.id === id) { curDoc = null; pages.length = 0; updCounts(); } renderLib();
+  }
+});
+$('hdrLib').onclick = () => show('lib');
+$('libBack').onclick = () => show(pages.length ? 'pages' : 'cam');
+$('libNew').onclick = async () => { await saveQ; pages.length = 0; curDoc = null; updCounts(); show('cam'); };
 
 /* ═════════════ 내보내기 ═════════════ */
 const pad2 = n => String(n).padStart(2, '0');
@@ -794,14 +858,14 @@ async function saveToDevice(files) {
     setExpMsg('저장 중… ' + (i + 1) + ' / ' + files.length);
     if (NF) where = await nativeWrite(files[i].name, files[i].mime, files[i].blob); else { anchorSave(files[i].name, files[i].blob); await sleep(450); }
   }
-  return NF ? '내 파일 → 다운로드 → SIM Scan 폴더에 저장했어요. (' + files.length + '개)' : '다운로드 폴더에 저장했어요. (' + files.length + '개) — 내 파일 → 다운로드에서 볼 수 있어요.';
+  return '저장했어요 (' + files.length + '개)';
 }
 
 /* 인쇄 */
 async function printPages(list, base) {
   if (NF && typeof NF.print === 'function') {
     const pdf = await buildPdf(list, base), path = await nativeWrite(base + '.pdf', 'application/pdf', pdf, 'cache');
-    NF.print(path, base); return '인쇄 창을 열었어요. 프린터를 고르세요.';
+    NF.print(path, base); return '인쇄 창을 열었어요';
   }
   const urls = list.map(p => URL.createObjectURL(p.blob));
   const fr = document.createElement('iframe'); fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(fr);
@@ -813,7 +877,7 @@ async function printPages(list, base) {
   await sleep(200);
   const w = fr.contentWindow; w.focus(); w.print();
   setTimeout(() => { fr.remove(); urls.forEach(u => URL.revokeObjectURL(u)); }, 120000);
-  return '인쇄 창에서 프린터를 고르세요. (“PDF로 저장”도 고를 수 있어요)';
+  return '인쇄 창을 열었어요';
 }
 
 /* 노트로 보내기: SIM Note 의 저장소(simmemo)에 새 노트로 직접 넣는다 */
@@ -866,7 +930,7 @@ async function openFolderDialog(files) {
     await loadSupabase(); if (!sb) sb = supabase.createClient(FB.url, FB.key);
     const { data } = await sb.auth.getSession();
     if (data.session) { fUser = data.session.user; await fShowPick(); } else { fMsg(''); $('fLogin').hidden = false; }
-  } catch (e) { fMsg('SIM Folder에 연결하지 못했어요. 인터넷을 확인하세요.', true); }
+  } catch (e) { fMsg('연결하지 못했어요', true); }
 }
 async function fShowPick() {
   fMsg('폴더 목록을 불러오는 중…');
@@ -884,7 +948,7 @@ async function fShowPick() {
 $('fLoginBtn').onclick = async () => {
   const email = $('fEm').value.trim(), password = $('fPw').value; if (!email || password.length < 6) { fMsg('이메일과 6자 이상의 비밀번호를 입력하세요.', true); return; }
   fMsg('로그인 중…'); const r = await sb.auth.signInWithPassword({ email, password });
-  if (r.error) { fMsg((r.error.message || '').toLowerCase().includes('not confirmed') ? '이메일 인증이 필요해요. SIM Folder에서 가입 메일을 확인하세요.' : '로그인하지 못했어요. 이메일·비밀번호를 확인하세요.', true); return; }
+  if (r.error) { fMsg((r.error.message || '').toLowerCase().includes('not confirmed') ? '이메일 인증이 필요해요' : '로그인하지 못했어요', true); return; }
   fUser = r.data.session.user; await fShowPick();
 };
 $('fSave').onclick = async () => {
@@ -906,8 +970,8 @@ $('fSave').onclick = async () => {
       if (row.error) { await sb.storage.from(FB.bucket).remove([path]); throw row.error; }
       ok++;
     }
-    bar.style.width = '100%'; fMsg('✔ SIM Folder에 ' + ok + '개 저장했어요.'); $('expMsg').textContent = 'SIM Folder에 ' + ok + '개 저장했어요.';
-    setTimeout(() => { $('mFold').classList.remove('show'); $('mExp').classList.remove('show'); toast('🗂 SIM Folder에 저장했어요 · <a href="folder.html">폴더 열기</a>', 5000); }, 700);
+    bar.style.width = '100%'; fMsg('✔ ' + ok + '개 저장');
+    setTimeout(() => { $('mFold').classList.remove('show'); $('mExp').classList.remove('show'); toast('🗂 저장했어요 · <a href="folder.html">폴더 열기</a>', 4000); }, 700);
   } catch (e) { fMsg('저장하지 못했어요: ' + ((e && e.message) || '오류'), true); }
   $('fSave').disabled = false;
 };
@@ -916,10 +980,9 @@ $('fSave').onclick = async () => {
 const setExpMsg = t => { $('expMsg').textContent = t || ''; $('expMsg').className = 'msg'; };
 function paintFmt() {
   document.querySelectorAll('#fmtChips button').forEach(b => b.classList.toggle('on', b.dataset.fmt === S.fmt));
-  $('fmtNote').textContent = S.fmt === 'pdf' ? '선택한 쪽을 PDF 한 파일로 묶어요. (쪽 순서대로)' : '쪽마다 그림 파일을 따로 만들어요. (여러 쪽이면 이름 뒤에 번호가 붙어요)';
 }
 function openExport() {
-  const n = selPages().length; if (!n) { toast('보낼 쪽을 선택하세요.'); return; }
+  const n = selPages().length; if (!n) { toast('쪽을 선택하세요'); return; }
   $('expName').value = safeName('스캔_' + stamp()); $('expN').textContent = n + '쪽'; setExpMsg(''); $('expBar').hidden = true; paintFmt();
   $('dShare').hidden = !(navigator.canShare && navigator.share) || !!NF; $('mExp').classList.add('show');
 }
@@ -934,11 +997,11 @@ async function runExport(kind) {
   try {
     if (kind === 'print') { setExpMsg('인쇄 준비 중…'); const m = await printPages(list, base); setExpMsg(m); }
     else if (kind === 'note') {
-      const r = await sendToNote(list, base); dirty = false; $('mExp').classList.remove('show');
-      toast('📝 SIM Note에 새 노트로 보냈어요 · <a href="note.html">노트 열기</a>' + (r.synced ? '' : '<br><small>이 기기에 저장됐어요. 다른 기기(앱)의 SIM Note에서 보려면 런처에서 로그인(계정 동기화)하세요.</small>'), 6500);
+      const r = await sendToNote(list, base); $('mExp').classList.remove('show');
+      toast('📝 노트로 보냈어요 · <a href="note.html">노트 열기</a>' + (r.synced ? '' : '<br><small>이 기기에만 저장됨</small>'), 5000);
     } else {
       const files = await makeFiles(S.fmt, base, list);
-      if (kind === 'device') { const m = await saveToDevice(files); dirty = false; setExpMsg('✔ ' + m); }
+      if (kind === 'device') { const m = await saveToDevice(files); setExpMsg('✔ ' + m); }
       else if (kind === 'folder') { setExpMsg(''); await openFolderDialog(files); }
       else if (kind === 'share') {
         const fl = files.map(f => new File([f.blob], f.name, { type: f.mime }));
@@ -946,12 +1009,11 @@ async function runExport(kind) {
         else setExpMsg('이 기기는 파일 공유를 지원하지 않아요.');
       }
     }
-  } catch (e) { const m = $('expMsg'); m.textContent = '실패했어요: ' + ((e && e.message) || '오류') + ' (쪽 수를 줄여 다시 시도해 보세요)'; m.className = 'msg err'; }
+  } catch (e) { const m = $('expMsg'); m.textContent = '실패했어요: ' + ((e && e.message) || '오류'); m.className = 'msg err'; }
   exporting = false; document.querySelectorAll('.tile').forEach(t => { t.disabled = false; });
 }
 $('dPrint').onclick = () => runExport('print'); $('dNote').onclick = () => runExport('note'); $('dDevice').onclick = () => runExport('device'); $('dFolder').onclick = () => runExport('folder'); $('dShare').onclick = () => runExport('share');
 
-window.addEventListener('beforeunload', e => { if (pages.length && dirty) { e.preventDefault(); e.returnValue = ''; } });
 paintQuick(); updCounts(); show('cam');
 window.__scan = { pages, detectQuad, quadFromHull, hull, orderQuad, targetSize, warp, enhance, buildPdf, renderResult, aspectZhang, S };   // 점검용
 })();

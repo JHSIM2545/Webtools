@@ -153,27 +153,19 @@ public class HidController {
             adapter = m == null ? null : m.getAdapter();
             if (adapter == null) { supported = false; listener.onChange(); return; }
             started = true;
-            if (!rxOn) {
-                IntentFilter f = new IntentFilter();
-                f.addAction(BluetoothDevice.ACTION_FOUND);
-                f.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-                f.addAction(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED);
-                f.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
-                if (Build.VERSION.SDK_INT >= 33) ctx.registerReceiver(rx, f, Context.RECEIVER_NOT_EXPORTED);
-                else ctx.registerReceiver(rx, f);
-                rxOn = true;
-            }
-            adapter.getProfileProxy(ctx, new BluetoothProfile.ServiceListener() {
-                @Override public void onServiceConnected(int profile, BluetoothProfile proxy) {
-                    if (profile != BluetoothProfile.HID_DEVICE) return;
-                    hid = (BluetoothHidDevice) proxy;
-                    register();
+            try {                                    // 검색·페어링용 수신기 (실패해도 키보드·마우스 기능과는 무관)
+                if (!rxOn) {
+                    IntentFilter f = new IntentFilter();
+                    f.addAction(BluetoothDevice.ACTION_FOUND);
+                    f.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+                    f.addAction(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED);
+                    f.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
+                    if (Build.VERSION.SDK_INT >= 33) ctx.registerReceiver(rx, f, Context.RECEIVER_NOT_EXPORTED);
+                    else ctx.registerReceiver(rx, f);
+                    rxOn = true;
                 }
-                @Override public void onServiceDisconnected(int profile) {
-                    if (profile != BluetoothProfile.HID_DEVICE) return;
-                    hid = null; registered = false; host = null; listener.onChange();
-                }
-            }, BluetoothProfile.HID_DEVICE);
+            } catch (Exception e) { rxErr = e.getClass().getSimpleName(); }
+            requestProxy();
         } catch (SecurityException e) {
             started = false;
         } catch (Exception e) {
@@ -191,9 +183,41 @@ public class HidController {
         cb.shutdownNow(); out.shutdownNow();
     }
 
+    private volatile String proxyMsg = "", rxErr = "";
+    private volatile int proxyTry = 0;
+
+    /** 폰의 HID(키보드·마우스) 서비스에 연결을 요청한다. 결과를 proxyMsg 에 남긴다 */
+    private synchronized void requestProxy() {
+        if (adapter == null) return;
+        proxyTry++;
+        try {
+            boolean asked = adapter.getProfileProxy(ctx, new BluetoothProfile.ServiceListener() {
+                @Override public void onServiceConnected(int profile, BluetoothProfile proxy) {
+                    if (profile != BluetoothProfile.HID_DEVICE) return;
+                    hid = (BluetoothHidDevice) proxy;
+                    proxyMsg = "연결됨";
+                    register();
+                }
+                @Override public void onServiceDisconnected(int profile) {
+                    if (profile != BluetoothProfile.HID_DEVICE) return;
+                    hid = null; registered = false; host = null; listener.onChange();
+                }
+            }, BluetoothProfile.HID_DEVICE);
+            proxyMsg = asked ? "요청함, 응답 대기 중" : "시스템이 요청을 거부함 (이 폰은 앱에 키보드·마우스 기능을 열어 주지 않는 것으로 보임)";
+        } catch (Exception e) {
+            proxyMsg = "오류: " + e.getClass().getSimpleName() + " " + e.getMessage();
+        }
+        listener.onChange();
+        // 응답이 없으면 잠시 뒤 다시 요청 (최대 3번)
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            if (started && hid == null && proxyTry < 3) requestProxy();
+        }, 3000);
+    }
+
     /** 화면의 "다시 등록" 버튼 */
     void reRegister() {
         regTry = 0;
+        if (hid == null) { proxyTry = 0; requestProxy(); return; }
         cb.execute(this::register);
     }
 
@@ -277,6 +301,8 @@ public class HidController {
             o.put("pScan", perm("android.permission.BLUETOOTH_SCAN"));
             o.put("sdk", Build.VERSION.SDK_INT);
             o.put("proxy", hid != null);
+            o.put("proxyMsg", proxyMsg);
+            o.put("rxErr", rxErr);
             o.put("regErr", regErr);
             o.put("regTry", regTry);
             o.put("cbCount", cbCount);

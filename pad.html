@@ -660,7 +660,7 @@ function renderDiag() {
     + '다른 기기에 보이기 ' + ok(t.disc) + (t.disc ? '' : ' (꺼짐)') + '<br>'
     + '권한: 연결 ' + ok(t.pConn) + ' 광고 ' + ok(t.pAdv) + ' 검색 ' + ok(t.pScan) + '<br>'
     + '폰 이름: <b>' + escH(t.name || '?') + '</b> (차량 목록에 이 이름으로 뜹니다)'
-    + (t.reg ? '' : '<br>HID 서비스 ' + ok(t.proxy) + (t.regErr ? '<br>⚠ ' + escH(t.regErr) : '') + '<br>시도 ' + (t.regTry || 0) + '회');
+    + (t.reg ? '' : '<br>HID 서비스 ' + ok(t.proxy) + (t.proxyMsg ? ' · ' + escH(t.proxyMsg) : '') + (t.rxErr ? '<br>수신기 오류: ' + escH(t.rxErr) : '') + (t.regErr ? '<br>⚠ ' + escH(t.regErr) : '') + '<br>시도 ' + (t.regTry || 0) + '회');
   const rb = $('btRereg'); if (rb) rb.style.display = t.reg ? 'none' : '';
 }
 function btRefresh() { try { BT_ST = JSON.parse(window.SimPadBT.state()); } catch (e) {} setStat(); renderBt(); renderDiag(); }

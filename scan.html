@@ -563,17 +563,18 @@ $('btnShot').onclick = async () => {
 $('btnRetry').onclick = () => { camStop(); camStart(); };
 $('btnNativeCam').onclick = () => openPick('fileCam');
 let pick = null;   // 사진 고르기 창을 연 뒤 결과가 안 넘어오는 경우를 잡는다
-const openPick = id => { pick = { id, got: false, t: Date.now() }; dbg('사진 창 열기'); try { $(id).click(); } catch (e) { toast('사진 창을 열 수 없어요'); } };
+const openPick = id => { pick = { id, got: false, t: Date.now() }; dbg('사진 창 열기'); try { camStop(); } catch (e) {} try { $(id).click(); } catch (e) { toast('사진 창을 열 수 없어요'); } };
 $('btnGal').onclick = $('btnGal2').onclick = () => openPick('fileGal');
 const pickBack = () => {
   if (!pick || pick.got || document.hidden) return; const p0 = pick;
   setTimeout(() => {
     if (pick !== p0 || p0.got) return; const inp = $(p0.id), arr = inp.files ? [...inp.files] : [];
     if (arr.length) { p0.got = true; handleFiles(arr).finally(() => { try { inp.value = ''; } catch (er) {} }); }
-    else if (Date.now() - p0.t > 2500) { pick = null; }
+    else if (Date.now() - p0.t > 2500) { pick = null; if (cur === 'cam') camStart(); }
   }, 1200);
 };
 document.addEventListener('visibilitychange', pickBack); window.addEventListener('focus', pickBack);
+['fileCam', 'fileGal'].forEach(id => $(id).addEventListener('cancel', () => { if (cur === 'cam') camStart(); }));
 $('btnPgs').onclick = $('hdrPages').onclick = () => show('pages');
 window.addEventListener('resize', () => { if (cur === 'cam') camFit(); else if (cur === 'edit') layoutEdit(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) camStop(); else if (cur === 'cam') camStart(); });

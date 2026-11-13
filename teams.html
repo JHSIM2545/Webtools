@@ -358,7 +358,7 @@ const tName=(theme,i)=>(THEMES[theme]||THEMES.num).l(i);
 const tColor=i=>'hsl('+((i*47+12)%360)+',78%,62%)';
 const MODES={ladder:['🪜','사다리타기'],cards:['🎴','제비뽑기'],roulette:['🎡','룰렛'],quick:['⚡','바로 섞기'],cond:['🎯','조건 편성']};
 const ATTR={d:'부서',g:'성별',r:'직급'};
-const SAMPLE=[['김민준','남','영업1팀','대리'],['이서연','여','영업1팀','과장'],['박지호','남','영업2팀','사원'],['최수아','여','영업2팀','대리'],['정우진','남','관리팀','과장'],['강하은','여','관리팀','사원'],['조현우','남','기술팀','차장'],['윤지아','여','기술팀','사원'],['장도윤','남','영업1팀','사원'],['임소율','여','영업2팀','과장'],['한지훈','남','관리팀','대리'],['오유나','여','기술팀','대리']];
+const LEGACY_SAMPLE=[['김민준','남','영업1팀','대리'],['이서연','여','영업1팀','과장'],['박지호','남','영업2팀','사원'],['최수아','여','영업2팀','대리'],['정우진','남','관리팀','과장'],['강하은','여','관리팀','사원'],['조현우','남','기술팀','차장'],['윤지아','여','기술팀','사원'],['장도윤','남','영업1팀','사원'],['임소율','여','영업2팀','과장'],['한지훈','남','관리팀','대리'],['오유나','여','기술팀','대리']];  // 예전 예시 명단(삭제 대상)
 
 /* ── 저장 (런처 '기기 동기화'·계정 동기화 대상: localStorage simteams.v1) ── */
 let S;
@@ -369,6 +369,11 @@ let S;
   S.conds=S.conds||[];S.hist=S.hist||[];
   if(!S.rosters.length){const r={id:uid(),name:'우리 모임',members:[]};S.rosters.push(r);S.cur=r.id}
   if(!S.rosters.some(r=>r.id===S.cur))S.cur=S.rosters[0].id;
+  // 예전에 들어 있던 임의의 예시 명단(이름·성별·부서·직급이 모두 같은 멤버)과 그 멤버만으로 만든 편성 기록을 지운다
+  const sk=x=>[x.n,x.g||'',x.d||'',x.r||''].join('|'),sset=new Set(LEGACY_SAMPLE.map(a=>a.join('|'))),sn=new Set(LEGACY_SAMPLE.map(a=>a[0]));
+  S.rosters.forEach(r=>{r.members=r.members.filter(m=>!sset.has(sk(m)))});
+  S.hist=S.hist.filter(h=>!h.members.every(m=>sn.has(m.name)));
+  S.conds=S.conds.filter(c=>S.rosters.some(r=>r.members.some(m=>m.id===c.a||m.id===c.b)));
 })();
 let pT;const save=()=>{clearTimeout(pT);pT=setTimeout(()=>lset(LS,JSON.stringify(S)),150)};
 window.addEventListener('pagehide',()=>lset(LS,JSON.stringify(S)));
@@ -403,9 +408,9 @@ function renderRoster(){
   '<div class="card"><div class="rost"><select id="rsel" data-ch="rsel">'+S.rosters.map(x=>'<option value="'+x.id+'"'+(x.id===r.id?' selected':'')+'>'+esc(x.name)+' ('+x.members.length+')</option>').join('')+'</select>'+
   '<button class="btn sec sm" data-a="rnew">＋</button><button class="btn sec sm" data-a="rren">✎</button><button class="btn sec sm" data-a="rdel">🗑</button></div></div>'+
   '<div class="card"><h2>🙋 멤버 추가</h2><div class="row"><input id="addn" placeholder="이름 입력 후 추가" maxlength="20" enterkeyhint="done"><button class="btn sm" data-a="madd">추가</button></div>'+
-  '<div class="row wrap" style="margin-top:9px"><button class="btn sec sm" data-a="mbulk">📝 여러 명 한 번에</button>'+(ms.length?'<button class="btn sec sm" data-a="mall">전원 참석</button>':'<button class="btn sec sm" data-a="msample">🎁 예시 명단 넣기</button>')+'</div></div>'+
+  '<div class="row wrap" style="margin-top:9px"><button class="btn sec sm" data-a="mbulk">📝 여러 명 한 번에</button>'+'<button class="btn sec sm" data-a="mcon">📇 연락처에서 가져오기</button>'+(ms.length?'<button class="btn sec sm" data-a="mall">전원 참석</button>':'')+'</div></div>'+
   '<div class="card"><h2>👥 명단<small>동그라미를 눌러 참석 ON/OFF · 이름을 누르면 수정</small></h2>'+
-  (ms.length?ms.map(m=>'<div class="mrow'+(m.off?' off':'')+'" data-a="medit" data-id="'+m.id+'"><div class="av">'+avOf(m.n)+'</div><div><div class="mname">'+esc(m.n)+'</div><div class="mtags">'+[m.d,m.g,m.r].filter(Boolean).map(x=>'<span>'+esc(x)+'</span>').join('')+'</div></div><div class="chk" data-a="mtog" data-id="'+m.id+'">✓</div></div>').join(''):'<div class="sub" style="text-align:center;padding:20px 0">아직 멤버가 없어요.<br>이름을 추가하거나 예시 명단을 넣어 보세요!</div>')+'</div>';
+  (ms.length?ms.map(m=>'<div class="mrow'+(m.off?' off':'')+'" data-a="medit" data-id="'+m.id+'"><div class="av">'+avOf(m.n)+'</div><div><div class="mname">'+esc(m.n)+'</div><div class="mtags">'+[m.d,m.g,m.r].filter(Boolean).map(x=>'<span>'+esc(x)+'</span>').join('')+'</div></div><div class="chk" data-a="mtog" data-id="'+m.id+'">✓</div></div>').join(''):'<div class="sub" style="text-align:center;padding:20px 0">아직 멤버가 없어요.<br>이름을 추가하거나 연락처에서 가져와 보세요!</div>')+'</div>';
   const ip=$('addn');if(ip)ip.addEventListener('keydown',e=>{if(e.key==='Enter')act.madd()});
 }
 function sheet(html){const s=$('sheet');s.innerHTML='<div class="in">'+html+'</div>';s.hidden=false}
@@ -421,6 +426,105 @@ function editSheet(id){
   sheet._g=m.g||'';
 }
 function bulkSheet(){sheet('<h3>📝 여러 명 한 번에</h3><div class="sub">줄바꿈이나 쉼표로 구분해서 붙여 넣으세요. (엑셀 이름 열 복사도 OK)</div><textarea id="bulk" rows="7" placeholder="김민준&#10;이서연&#10;박지호"></textarea><div class="row"><div class="spacer"></div><button class="btn sec sm" data-a="sx">취소</button><button class="btn sm" data-a="bulkok">추가</button></div>')}
+
+/* ════════════ 연락처에서 명단 만들기 ════════════
+   SIM Phone: 같은 주소의 IndexedDB(simphone)를 읽는다. 기기 연락처: 앱(APK)에서는 SimContacts 로 전체를 읽고,
+   Android Chrome 은 연락처 선택 창, 그 밖에는 .vcf 파일로 가져온다. */
+const CI={src:'sim',sim:null,dev:[],devLoaded:false,sel:new Set(),msg:''};
+const HAS_PICKER=!!(navigator.contacts&&navigator.contacts.select);
+const NATIVE=()=>!!(window.SimContacts&&typeof window.SimContacts.all==='function');
+function idbReadAll(dbName,store){
+  return new Promise(res=>{
+    if(!window.indexedDB)return res([]);
+    let r;try{r=indexedDB.open(dbName)}catch(e){return res([])}
+    r.onupgradeneeded=()=>{try{r.transaction.abort()}catch(e){}};
+    r.onerror=()=>res([]);r.onblocked=()=>res([]);
+    r.onsuccess=()=>{const db=r.result;try{
+      if(!db.objectStoreNames.contains(store)){db.close();return res([])}
+      const q=db.transaction(store,'readonly').objectStore(store).getAll();
+      q.onsuccess=()=>{db.close();res(q.result||[])};q.onerror=()=>{db.close();res([])};
+    }catch(e){try{db.close()}catch(x){}res([])}};
+  });
+}
+const cNorm=c=>({name:String(c.name||'').trim().slice(0,20),company:String(c.company||'').trim(),title:String(c.title||'').trim(),group:String(c.group||'').trim()});
+function addDevC(c){c=cNorm(c);if(!c.name)return false;if(CI.dev.some(x=>x.name===c.name))return false;CI.dev.push(c);return true}
+async function loadSimC(){
+  const l=await idbReadAll('simphone','contacts');
+  CI.sim=l.map(c=>cNorm({name:c.name,company:c.company,title:c.title,group:c.group_name})).filter(c=>c.name).sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+}
+async function loadDevC(){
+  if(CI.devLoaded||!NATIVE())return;
+  const B=window.SimContacts;
+  if(!B.has()){
+    const ok=await new Promise(res=>{window.__simContactsPerm=res;B.request();setTimeout(()=>res(false),60000)});window.__simContactsPerm=null;
+    if(!ok){CI.msg='연락처 권한이 필요해요 (폰 설정 > 앱 > SIM Teams > 권한)';return}
+  }
+  let l=[];try{l=JSON.parse(B.all()||'[]')}catch(e){}
+  l.forEach(x=>addDevC({name:x.n,company:x.c,title:x.t}));CI.dev.sort((a,b)=>a.name.localeCompare(b.name,'ko'));CI.devLoaded=true;CI.msg='';
+}
+function parseVcf(t){
+  const out=[];
+  t.replace(/\r/g,'').split(/BEGIN:VCARD/i).slice(1).forEach(b=>{
+    b=b.replace(/\n[ \t]/g,'');
+    const g=k=>{const m=b.match(new RegExp('^'+k+'[^:\\n]*:(.*)$','mi'));return m?m[1].trim():''};
+    let n=g('FN');if(!n){const m=g('N').split(';');n=((m[1]||'')+(m[0]||'')).trim()}
+    if(n)out.push({name:n,company:g('ORG').split(';')[0],title:g('TITLE')});
+  });
+  return out;
+}
+async function openContacts(){
+  CI.sel=new Set();CI.msg='';
+  sheet('<h3>📇 연락처에서 명단 만들기</h3>'+
+  '<div class="seg" id="csrc"><button data-a="csrc" data-v="sim" class="on">SIM Phone</button><button data-a="csrc" data-v="dev">기기 연락처</button></div>'+
+  '<div id="cdevtools" class="row wrap" hidden></div>'+
+  '<div class="row"><input id="cq" placeholder="이름·회사 검색" style="flex:1"><select id="cg" style="width:auto;max-width:42%"></select></div>'+
+  '<div class="sub" id="cinfo"></div><div id="clist" style="max-height:38dvh;overflow:auto;overscroll-behavior:contain"></div>'+
+  '<div class="row"><button class="btn sec sm" data-a="call">전체 선택</button><button class="btn sec sm" data-a="cnone">해제</button><div class="spacer"></div><button class="btn sec sm" data-a="sx">닫기</button><button class="btn sm" data-a="cok" id="cok">추가</button></div>');
+  $('cq').addEventListener('input',cRender);$('cg').addEventListener('change',cRender);
+  $('clist').innerHTML='<div class="sub" style="text-align:center;padding:18px 0">불러오는 중…</div>';
+  await loadSimC();cSetSrc('sim');
+}
+async function cSetSrc(src){
+  CI.src=src;
+  document.querySelectorAll('#csrc button').forEach(b=>b.classList.toggle('on',b.dataset.v===src));
+  const tools=$('cdevtools');if(!tools)return;
+  if(src==='dev'){
+    tools.hidden=false;
+    tools.innerHTML=(HAS_PICKER&&!NATIVE()?'<button class="btn sec sm" data-a="cpicker">📲 연락처 선택 창 열기</button>':'')+(NATIVE()?'':'<label class="btn sec sm" style="cursor:pointer">📄 .vcf 파일 가져오기<input type="file" id="cvcf" accept=".vcf,text/vcard,text/x-vcard" hidden></label>');
+    const f=$('cvcf');if(f)f.addEventListener('change',async e=>{const fl=e.target.files[0];e.target.value='';if(!fl)return;try{const l=parseVcf(await fl.text());let n=0;l.forEach(c=>{if(addDevC(c)){n++;CI.sel.add(cNorm(c).name)}});CI.dev.sort((a,b)=>a.name.localeCompare(b.name,'ko'));toast(l.length?n+'명을 가져왔어요':'읽을 수 있는 연락처가 없어요');cRender()}catch(x){toast('파일을 읽지 못했어요')}});
+    if(NATIVE()&&!CI.devLoaded){$('clist').innerHTML='<div class="sub" style="text-align:center;padding:18px 0">기기 연락처를 불러오는 중…</div>';await loadDevC()}
+  }else tools.hidden=true;
+  const sg=$('cg');
+  if(sg){const gs=src==='sim'?[...new Set((CI.sim||[]).map(c=>c.group).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko')):[];sg.innerHTML='<option value="">전체 그룹</option>'+gs.map(g=>'<option>'+esc(g)+'</option>').join('');sg.style.display=gs.length?'':'none'}
+  cRender();
+}
+function cMatches(){
+  const q=($('cq')?$('cq').value:'').trim().toLowerCase(),g=($('cg')&&CI.src==='sim')?$('cg').value:'';
+  return (CI.src==='sim'?(CI.sim||[]):CI.dev).filter(c=>(!g||c.group===g)&&(!q||[c.name,c.company,c.title,c.group].join(' ').toLowerCase().includes(q)));
+}
+function cRender(){
+  const L=cMatches(),have=new Set(R().members.map(m=>m.n)),SHOW=300,el=$('clist');if(!el)return;
+  const sub=CI.src==='sim'?'SIM Phone 연락처':'기기 연락처';
+  $('cinfo').textContent=(L.length>SHOW?SHOW+'/'+L.length:L.length)+'명 · 선택 '+CI.sel.size+'명';
+  $('cok').textContent=CI.sel.size?'추가 ('+CI.sel.size+')':'추가';
+  if(!L.length){
+    el.innerHTML='<div class="sub" style="text-align:center;padding:18px 0">'+(CI.msg?esc(CI.msg):CI.src==='sim'?'SIM Phone에 연락처가 없어요<br>(SIM Phone에서 등록하거나 런처 ⋯ 메뉴의 기기 동기화를 해 보세요)':NATIVE()?'기기에 연락처가 없어요':'아래 버튼으로 연락처를 가져와 주세요')+'</div>';return;
+  }
+  el.innerHTML=L.slice(0,SHOW).map(c=>{
+    const ex=have.has(c.name),on=CI.sel.has(c.name);
+    return '<div class="mrow'+((on&&!ex)?'':' off')+'"'+(ex?'':' data-a="cpick" data-k="'+esc(c.name)+'"')+'><div class="av">'+avOf(c.name)+'</div><div style="min-width:0"><div class="mname">'+esc(c.name)+(ex?' <span class="sub">· 이미 있음</span>':'')+'</div><div class="mtags">'+[c.company,c.title,c.group].filter(Boolean).map(x=>'<span>'+esc(x)+'</span>').join('')+'</div></div><div class="chk">✓</div></div>';
+  }).join('');
+}
+function cAdd(){
+  const have=new Set(R().members.map(m=>m.n));let n=0;
+  const all=(CI.sim||[]).concat(CI.dev);
+  CI.sel.forEach(name=>{
+    if(have.has(name))return;
+    const c=all.find(x=>x.name===name);if(!c)return;
+    R().members.push({id:uid(),n:c.name,g:'',d:c.company||c.group||'',r:c.title||''});have.add(name);n++;
+  });
+  save();closeSheet();render();toast(n?n+'명을 명단에 넣었어요':'추가된 사람이 없어요');
+}
 
 /* ════════════ 설정 패널 (랜덤·조건 공통) ════════════ */
 function effT(){const n=PM().length,s=S.set;let T=s.mode==='M'?Math.ceil(n/Math.max(1,s.M)):s.T;return Math.max(1,Math.min(T,Math.max(1,n)))}
@@ -790,7 +894,13 @@ const act={
   madd:()=>{const ip=$('addn'),v=ip.value.trim();if(!v)return;if(R().members.some(m=>m.n===v)){toast('이미 있는 이름이에요');return}R().members.push({id:uid(),n:v,g:'',d:'',r:''});ip.value='';save();render();$('addn').focus()},
   mbulk:()=>bulkSheet(),
   bulkok:()=>{const names=$('bulk').value.split(/[\n,，;]+/).map(x=>x.trim()).filter(Boolean);let c=0;names.forEach(v=>{if(!R().members.some(m=>m.n===v)){R().members.push({id:uid(),n:v.slice(0,20),g:'',d:'',r:''});c++}});save();closeSheet();render();toast(c+'명 추가했어요')},
-  msample:()=>{SAMPLE.forEach(s=>R().members.push({id:uid(),n:s[0],g:s[1],d:s[2],r:s[3]}));save();render()},
+  mcon:()=>openContacts(),
+  csrc:b=>cSetSrc(b.dataset.v),
+  cpick:b=>{const k=b.dataset.k;CI.sel.has(k)?CI.sel.delete(k):CI.sel.add(k);cRender()},
+  call:()=>{const have=new Set(R().members.map(m=>m.n));cMatches().forEach(c=>{if(!have.has(c.name))CI.sel.add(c.name)});cRender()},
+  cnone:()=>{CI.sel.clear();cRender()},
+  cok:()=>cAdd(),
+  cpicker:async()=>{try{const l=await navigator.contacts.select(['name','tel'],{multiple:true});let n=0;l.forEach(c=>{const nm=(c.name&&c.name[0]||'').trim();if(nm&&addDevC({name:nm})){n++}if(nm)CI.sel.add(nm.slice(0,20))});CI.dev.sort((a,b)=>a.name.localeCompare(b.name,'ko'));cRender()}catch(e){if(e&&e.name!=='AbortError')toast('연락처를 가져오지 못했어요')}},
   mall:()=>{R().members.forEach(m=>m.off=false);save();render()},
   mtog:(b,e)=>{e.stopPropagation();const m=R().members.find(x=>x.id===b.dataset.id);if(m){m.off=!m.off;save();render()}},
   medit:b=>editSheet(b.dataset.id),

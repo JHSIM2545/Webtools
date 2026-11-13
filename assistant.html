@@ -1241,7 +1241,7 @@ const LTOOLS = {
   },
   async find_contact(a) {
     const r = (await lookupContacts({ name: String(a.query || '') })).slice(0, 5);
-    if (!r.length) { liveCard('<b>' + esc(a.query || '') + '</b><span class="sub">SIM Phone에 없어요</span>', devPickBtns('find', { name: a.query })); return { ok: true, found: 0, note: 'SIM Phone에 없음. 화면의 휴대폰 연락처 버튼을 안내' }; }
+    if (!r.length) { const why = devDiag || '휴대폰 연락처·SIM Phone 모두 일치 없음'; liveCard('<b>' + esc(a.query || '') + '</b><span class="sub">' + esc(why) + '</span>', devPickBtns('find', { name: a.query })); return { ok: true, found: 0, reason: why, note: '못 찾은 이유(reason)를 사용자에게 그대로 알려 주세요. 휴대폰 연락처를 못 읽은 것이면 연락처에 없다고 단정하지 마세요' }; }
     liveCard(contactCard(r[0]), callBtns(r[0], true));
     return { ok: true, found: r.length, contacts: r.map(c => ({ name: c.name, company: c.company, title: c.title, mobile: c.mobile, tel: c.tel, email: c.email })) };
   },
@@ -1255,7 +1255,7 @@ const LTOOLS = {
       liveCard(all.map((c, i) => whoHtml(c)).join(''), all.map(c => ({ label: '📞 ' + c.name, href: 'tel:' + String(c.mobile || c.tel || '').replace(/[^0-9+]/g, '') })));
       return { ok: false, error: '음성 인식이 이름을 잘못 알아들었을 수 있어요. 같은/비슷한 이름이 있으니 누구인지 사용자에게 확인하세요. 사용자가 고르면 그 이름 그대로 다시 call_contact 하세요', candidates: all.map(c => c.name + (c.company ? ' (' + c.company + ')' : '')) };
     }
-    if (!r.length) { liveCard('<b>' + esc(a.query || '') + '</b><span class="sub">SIM Phone에 없어요</span>', devPickBtns('call', { name: a.query })); return { ok: false, error: 'SIM Phone에 없어요. 화면의 휴대폰 연락처 버튼을 눌러 고르게 안내하세요' }; }
+    if (!r.length) { const why = devDiag || '휴대폰 연락처·SIM Phone 모두 일치 없음'; liveCard('<b>' + esc(a.query || '') + '</b><span class="sub">' + esc(why) + '</span>', devPickBtns('call', { name: a.query })); return { ok: false, error: '못 찾았어요. 이유: ' + why + '. 휴대폰 연락처를 못 읽은 것이면 "연락처에 없다"고 하지 말고 이유를 그대로 알려 주세요. 화면의 버튼으로 직접 고를 수도 있어요' }; }
     if (r.length > 1 && String(r[0].name).replace(/\s/g, '') !== String(a.query || '').replace(/\s/g, '')) return { ok: false, error: '여러 명이에요. 누구인지 물어보세요', candidates: r.slice(0, 4).map(c => c.name + (c.company ? ' (' + c.company + ')' : '')) };
     const c = r[0], no = c.mobile || c.tel; if (!no) return { ok: false, error: '전화번호가 없어요' };
     liveCard(whoHtml(c), callBtns(c, true).filter(b => b.href && b.href.startsWith('tel')));

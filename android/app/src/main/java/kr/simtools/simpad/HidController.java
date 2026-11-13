@@ -79,6 +79,8 @@ public class HidController {
                     String n = i.getStringExtra(BluetoothDevice.EXTRA_NAME);
                     if (n == null) n = safeName(d);
                     synchronized (found) { found.put(d.getAddress(), n); }
+                } else if (BluetoothAdapter.ACTION_SCAN_MODE_CHANGED.equals(a)) {
+                    // 검색 허용 상태가 바뀜 → 화면 갱신
                 } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(a)) {
                     scanning = false;
                 } else if (BluetoothDevice.ACTION_BOND_STATE_CHANGED.equals(a)) {
@@ -152,6 +154,7 @@ public class HidController {
                 IntentFilter f = new IntentFilter();
                 f.addAction(BluetoothDevice.ACTION_FOUND);
                 f.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+                f.addAction(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED);
                 f.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
                 if (Build.VERSION.SDK_INT >= 33) ctx.registerReceiver(rx, f, Context.RECEIVER_NOT_EXPORTED);
                 else ctx.registerReceiver(rx, f);
@@ -236,6 +239,20 @@ public class HidController {
             }
             o.put("hosts", arr);
             o.put("scan", scanning);
+            boolean disc = false; String nm = "";
+            try {
+                if (adapter != null) {
+                    disc = adapter.getScanMode() == BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE;
+                    nm = adapter.getName();
+                }
+            } catch (SecurityException e) { nm = "(권한 없음)"; }
+            o.put("disc", disc);
+            o.put("name", nm == null ? "" : nm);
+            o.put("on", adapter != null && adapter.isEnabled());
+            o.put("pConn", perm("android.permission.BLUETOOTH_CONNECT"));
+            o.put("pAdv", perm("android.permission.BLUETOOTH_ADVERTISE"));
+            o.put("pScan", perm("android.permission.BLUETOOTH_SCAN"));
+            o.put("sdk", Build.VERSION.SDK_INT);
             o.put("pairing", pairing != null);
             JSONArray fa = new JSONArray();
             synchronized (found) {
@@ -248,6 +265,11 @@ public class HidController {
             o.put("found", fa);
         } catch (Exception e) { /* 무시 */ }
         return o.toString();
+    }
+
+    private boolean perm(String p) {
+        if (Build.VERSION.SDK_INT < 31) return true;      // 안드로이드 11 이하는 이 권한이 따로 없음
+        return ctx.checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED;
     }
 
     private String safeName(BluetoothDevice d) {

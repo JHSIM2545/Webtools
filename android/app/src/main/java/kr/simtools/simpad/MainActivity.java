@@ -109,6 +109,23 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
+    private static final int REQ_DISC = 7001;
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req == REQ_DISC) {
+            // 결과값 > 0 이면 허용된 시간(초), RESULT_CANCELED 이면 거부
+            jsDisc(res == RESULT_CANCELED ? "denied" : "ok");
+            pushState();
+        }
+    }
+
+    private void jsDisc(String r) {
+        if (web == null) return;
+        web.post(() -> web.evaluateJavascript("window.__btDisc&&window.__btDisc('" + r.replace("'", "") + "')", null));
+    }
+
     /** 상태가 바뀌면 화면(JS)에 알린다 */
     void pushState() {
         if (web == null) return;
@@ -139,11 +156,18 @@ public class MainActivity extends Activity {
         @JavascriptInterface public boolean unpair(String addr) { return hid.unpair(addr); }
         @JavascriptInterface public void discoverable() {
             runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_SCAN}, 1);
+                    jsDisc("perm");
+                    return;
+                }
                 try {
                     Intent i = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
                     i.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300);
-                    startActivity(i);
-                } catch (Exception e) { /* 무시 */ }
+                    startActivityForResult(i, REQ_DISC);
+                } catch (Exception e) {
+                    jsDisc("fail:" + e.getClass().getSimpleName());
+                }
             });
         }
         @JavascriptInterface public void btSettings() {

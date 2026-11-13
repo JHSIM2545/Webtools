@@ -581,7 +581,7 @@ window.addEventListener('resize', () => { if (cur === 'cam') camFit(); else if (
 document.addEventListener('visibilitychange', () => { if (document.hidden) camStop(); else if (cur === 'cam') camStart(); });
 
 /* ═════════════ 사진 불러오기 ═════════════ */
-const dbg = (m) => { try { localStorage.setItem('simscan.dbg', Date.now() + '|' + m); } catch (e) {} };
+const dbg = (m) => { try { const o = lget('simscan.dbg') || '', keep = o.split('\n').slice(-5); keep.push(Date.now() + '|' + m); localStorage.setItem('simscan.dbg', keep.join('\n')); } catch (e) {} };
 async function jpegInfo(file) {                 // 사진을 디코딩하지 않고 머리말만 읽어 크기·회전 방향을 얻는다
   try {
     const b = new DataView(await file.slice(0, 262144).arrayBuffer()); if (b.getUint16(0) !== 0xFFD8) return null;
@@ -604,7 +604,7 @@ const tryStep = async (name, fn) => { try { const r = await fn(); if (r) return 
 const imgFrom = (blob) => new Promise((res, rej) => { const u = URL.createObjectURL(blob), im = new Image(); im.onload = () => { res({ im, u }); }; im.onerror = () => { URL.revokeObjectURL(u); rej(new Error('디코딩 실패')); }; im.src = u; });
 async function loadImageCanvas(file) {
   lastErr.length = 0;
-  const cap = (navigator.deviceMemory && navigator.deviceMemory <= 3) ? 2400 : 3000;
+  const cap = (navigator.deviceMemory && navigator.deviceMemory <= 3) ? 1800 : 2400;
   dbg('읽기 시작 ' + Math.round(file.size / 1024) + 'KB ' + (file.type || '형식없음'));
   // 1) 파일을 일단 통째로 메모리에 읽어 둔다(폰의 content:// 파일은 여러 번 읽으면 실패하는 경우가 있다)
   let blob = file;
@@ -1129,7 +1129,9 @@ async function runExport(kind) {
 $('dPrint').onclick = () => runExport('print'); $('dNote').onclick = () => runExport('note'); $('dDevice').onclick = () => runExport('device'); $('dFolder').onclick = () => runExport('folder'); $('dShare').onclick = () => runExport('share');
 
 paintQuick(); updCounts(); show('cam');
-(() => { const d = lget('simscan.dbg'); if (!d) return; const [t, m] = d.split('|'); if (m && !/^(편집 화면|완료)/.test(m) && Date.now() - (+t) < 600000) setTimeout(() => toast('직전 사진 처리가 중간에 멈췄어요 (' + m + '). 다시 시도해 주세요', 6000), 800); try { localStorage.removeItem('simscan.dbg'); } catch (e) {} })();
+(() => { const d = lget('simscan.dbg'); if (!d) return; const L = d.split('\n').map(x => x.split('|')), last = L[L.length - 1];
+  if (last && last[1] && !/^(편집 화면|완료)/.test(last[1]) && Date.now() - (+last[0]) < 900000) setTimeout(() => toast('앱이 사진을 처리하다 멈췄어요.<br><small>멈춘 단계: <b>' + esc(last[1]) + '</b><br>' + esc(L.map(x => x[1]).join(' → ')) + '</small>', 25000), 800);
+  try { localStorage.removeItem('simscan.dbg'); } catch (e) {} })();
 window.__scan = { pages, detectFromCanvas, detectQuad, quadFromHull, hull, orderQuad, targetSize, warp, enhance, buildPdf, renderResult, aspectZhang, S };   // 점검용
 })();
 </script>

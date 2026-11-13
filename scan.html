@@ -388,6 +388,13 @@ function detectQuad(d, W, H) {                      // d: RGBA. 반환: 네 점(
       const db = boxBlur(dist, W, H, 2, 2), td = otsuOf(db, N, null, 256);
       if (td > 0) [1, 0.6].forEach(f => { const m = new Uint8Array(N); for (let i = 0; i < N; i++) m[i] = db[i] > td * f ? 1 : 0; masks.push(m); });
     }
+    { const feats = [new Float32Array(N), new Float32Array(N)];     // 색 특징: 푸른기(B-R)·가장 어두운 채널
+      for (let i = 0; i < N; i++) { const r = d[i * 4], gg = d[i * 4 + 1], bl = d[i * 4 + 2]; feats[0][i] = (bl - r) + 128; feats[1][i] = Math.min(r, gg, bl); }
+      feats.forEach(f => { const fb = boxBlur(f, W, H, 2, 2), t = otsuOf(fb, N, null, 256); if (t < 0) return; [true, false].forEach(br => { const m = new Uint8Array(N); for (let i = 0; i < N; i++) m[i] = br ? (fb[i] > t ? 1 : 0) : (fb[i] <= t ? 1 : 0); masks.push(m); }); }); }
+    { const sw = (arr, lo, hi, n) => { for (let k = 0; k < n; k++) { const t = lo + (hi - lo) * k / (n - 1), m = new Uint8Array(N); for (let i = 0; i < N; i++) m[i] = arr[i] > t ? 1 : 0; masks.push(m); } };
+      const hs = new Float64Array(256); for (let i = 0; i < N; i++) hs[a[i] | 0]++;
+      const pc = f => { let c = 0; for (let t = 0; t < 256; t++) { c += hs[t]; if (c >= N * f) return t; } return 255; };
+      const lo = pc(0.35), hi = pc(0.9); if (hi - lo > 8) sw(a, lo, hi, 7); }   // 밝기 경계값을 여러 단계로 훑기
     { const ef = new Float32Array(N); for (let i = 0; i < N; i++) ef[i] = gm[i] > T * 2 ? 1 : 0; const eb = boxBlur(ef, W, H, 3, 1), m = new Uint8Array(N); for (let i = 0; i < N; i++) m[i] = eb[i] > 0.02 ? 1 : 0; masks.push(m); }
     // ── 후보 → 사각형 → 변이 실제 가장자리에 얼마나 붙어 있는지로 점수
     const lab = new Int32Array(N), stack = new Int32Array(N);
@@ -397,13 +404,13 @@ function detectQuad(d, W, H) {                      // d: RGBA. 반환: 네 점(
         const A = Q[s], B = Q[(s + 1) % 4], len = dist(A, B), n = Math.max(8, Math.floor(len / 2)); let t0c = 0, k0 = 0;
         for (let k = 1; k < n; k++) {
           const f = k / n, x = Math.round(A[0] + (B[0] - A[0]) * f), y = Math.round(A[1] + (B[1] - A[1]) * f); t0c++;
-          if (x <= 2 || y <= 2 || x >= W - 3 || y >= H - 3 || gmx[clamp(y, 0, H - 1) * W + clamp(x, 0, W - 1)] > T) k0++;
+          if (x > 2 && y > 2 && x < W - 3 && y < H - 3 && gmx[clamp(y, 0, H - 1) * W + clamp(x, 0, W - 1)] > T) k0++;
         }
         tot += t0c; ok += k0; mn = Math.min(mn, k0 / (t0c || 1));
       }
       return 0.6 * (ok / (tot || 1)) + 0.4 * mn;
     };
-    let best = null;
+    let best = null, houghC = []; detectQuad.last = [];
     for (const mask of masks) {
       lab.fill(0); let bc = null, id = 0;
       for (let s0 = 0; s0 < N; s0++) {
@@ -427,10 +434,26 @@ function detectQuad(d, W, H) {                      // d: RGBA. 반환: 네 점(
       const q0 = quadFromHull(hull(pts)); if (!q0) continue;
       const Q = orderQuad(q0), qa = polyArea(Q);
       if (qa < N * 0.12 || qa > N * 0.985 || bc.area / qa < 0.55 || !goodQuad(Q)) continue;
-      const sc = support(Q) * (0.6 + 0.4 * Math.min(1, qa / (N * 0.5)));
+      const sc = support(Q) * (0.8 + 0.2 * Math.min(1, qa / (N * 0.4)));
+      detectQuad.last.push({ Q: Q.map(p => p.map(Math.round)), sc: +sc.toFixed(3), qa: Math.round(qa / N * 100) });
       if (!best || sc > best.sc) best = { Q, sc };
     }
-    return best && best.sc > 0.4 ? best.Q : null;
+    // ── 직선 기반 후보: 강한 가장자리에서 허프 변환으로 긴 직선을 찾아 네 변 조합을 만든다
+    { const NT = 120, dg = Math.PI / NT, diag = Math.ceil(Math.hypot(W, H)), R = diag * 2 + 1, acc = new Float32Array(NT * R), cs = [], sn = [];
+      for (let t = 0; t < NT; t++) { cs.push(Math.cos(t * dg)); sn.push(Math.sin(t * dg)); }
+      for (let y = 2; y < H - 2; y++) for (let x = 2; x < W - 2; x++) { const m = gm[y * W + x]; if (m < T * 2) continue; for (let t = 0; t < NT; t++) acc[t * R + Math.round(x * cs[t] + y * sn[t]) + diag] += 1; }
+      const pick = (t0, t1) => { const L = []; for (let t = t0; t <= t1; t++) for (let r = 1; r < R - 1; r++) { const v = acc[t * R + r]; if (v >= Math.min(W, H) * 0.25 && v >= acc[t * R + r - 1] && v >= acc[t * R + r + 1]) L.push({ t, r: r - diag, v }); } L.sort((p, q) => q.v - p.v); const out = []; for (const l of L) { if (out.every(o => Math.abs(o.r - l.r) > 12 || Math.abs(o.t - l.t) > 6)) out.push(l); if (out.length >= 7) break; } return out; };
+      const vs = pick(0, 20).concat(pick(NT - 20, NT - 1)), hs2 = pick(40, 80);
+      const X = (l1, l2) => { const a1 = cs[l1.t], b1 = sn[l1.t], a2 = cs[l2.t], b2 = sn[l2.t], det = a1 * b2 - a2 * b1; return Math.abs(det) < 1e-6 ? null : [(l1.r * b2 - l2.r * b1) / det, (a1 * l2.r - a2 * l1.r) / det]; };
+      houghC = [];
+      for (let i = 0; i < vs.length; i++) for (let j = i + 1; j < vs.length; j++) for (let k = 0; k < hs2.length; k++) for (let m = k + 1; m < hs2.length; m++) {
+        const A = X(vs[i], hs2[k]), B = X(vs[j], hs2[k]), C = X(vs[j], hs2[m]), D = X(vs[i], hs2[m]); if (!A || !B || !C || !D) continue;
+        const Q0 = [A, B, C, D]; if (Q0.some(p => p[0] < -W * 0.03 || p[0] > W * 1.03 || p[1] < -H * 0.03 || p[1] > H * 1.03)) continue;
+        const Q = orderQuad(Q0.map(p => [clamp(p[0], 0, W - 1), clamp(p[1], 0, H - 1)])), qa = polyArea(Q); if (qa < N * 0.12 || qa > N * 0.9 || !goodQuad(Q)) continue;
+        houghC.push({ Q, sc: 0.88 * support(Q) * (0.8 + 0.2 * Math.min(1, qa / (N * 0.4))), qa });
+      } }
+    for (const h of houghC) { detectQuad.last.push({ Q: h.Q.map(p => p.map(Math.round)), sc: +h.sc.toFixed(3), qa: Math.round(h.qa / N * 100), hough: 1 }); if (!best || h.sc > best.sc) best = h; }
+    return best && best.sc > 0.3 ? best.Q : null;
   } catch (e) { return null; }
 }
 function detectFromCanvas(c, long) {                // 큰 그림에서는 줄여서 찾고 좌표를 되돌린다

@@ -40,14 +40,11 @@ input:focus,select:focus{border-color:var(--accent)}
 .stage{position:relative;touch-action:none;user-select:none;-webkit-user-select:none;background:#000;flex:none}
 .stage video,.stage canvas.src{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:fill}
 .stage svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
-.stage polygon{fill:rgba(217,70,239,.16);stroke:var(--accent);stroke-width:3;stroke-linejoin:round}
-.stage.ok polygon{fill:rgba(62,207,142,.16);stroke:var(--ok)}
-.stage.lost polygon{fill:rgba(255,196,107,.06);stroke:var(--warn);stroke-dasharray:10 8}
+.stage .dim{fill:rgba(0,0,0,.3);fill-rule:evenodd}
+.stage polygon{fill:none;stroke:var(--accent);stroke-width:3;stroke-linejoin:round}
 .h{position:absolute;width:48px;height:48px;margin:-24px 0 0 -24px;touch-action:none;display:grid;place-items:center;cursor:grab;z-index:3}
 .h::after{content:'';width:24px;height:24px;border-radius:50%;border:3px solid #fff;background:rgba(217,70,239,.4);box-shadow:0 0 0 2px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.5);transition:transform .12s}
 .h.drag::after{transform:scale(1.35)}
-.stage.ok .h::after{border-color:var(--ok);background:rgba(62,207,142,.35)}
-.stage.lost .h::after{border-color:var(--warn);background:rgba(255,196,107,.25)}
 .flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:4}
 .flash.on{animation:fl .28s ease-out}
 @keyframes fl{0%{opacity:.85}100%{opacity:0}}
@@ -147,17 +144,14 @@ input:focus,select:focus{border-color:var(--accent)}
     <div class="area" id="camArea">
       <div class="stage" id="camStage">
         <video id="video" playsinline muted autoplay></video>
-        <svg><polygon></polygon></svg>
-        <i class="h"></i><i class="h"></i><i class="h"></i><i class="h"></i>
         <div class="flash" id="flash"></div>
       </div>
       <div class="camstat" id="camStat">카메라를 켜는 중…</div>
       <div class="tops">
         <button id="btnTorch" hidden>🔦 플래시</button>
         <button id="btnQuick" title="촬영하면 바로 보정해서 추가합니다">⚡ 바로 추가</button>
-        <button id="btnAuto" hidden>🎯 자동 인식</button>
       </div>
-      <div class="hint" id="camHint">문서를 화면에 맞추면 모서리를 자동으로 잡아요 · ●를 끌어 직접 맞출 수도 있어요</div>
+      <div class="hint" id="camHint">문서를 화면에 담고 촬영하세요 · 촬영 후 모서리를 자동으로 찾아 크롭해요</div>
       <div class="camerr" id="camErr" hidden>
         <div style="font-size:42px">📷</div>
         <p id="camErrT">카메라를 사용할 수 없어요.</p>
@@ -180,7 +174,7 @@ input:focus,select:focus{border-color:var(--accent)}
     <div class="area" id="edArea">
       <div class="stage" id="edStage">
         <canvas class="src" id="edCv"></canvas>
-        <svg><polygon></polygon></svg>
+        <svg><path class="dim"></path><polygon></polygon></svg>
         <i class="h"></i><i class="h"></i><i class="h"></i><i class="h"></i>
         <canvas class="loupe" id="loupe" width="112" height="112" hidden></canvas>
       </div>
@@ -406,7 +400,7 @@ const insetQuad = (w, h, m) => { m = m == null ? 0.07 : m; return [[w * m, h * m
 /* ═════════════ 모서리 편집기 (실시간 포인터) ═════════════ */
 function QuadEd(stage, area, hooks) {
   const q = { stage, area, sw: 1, sh: 1, k: 1, pts: [[0, 0], [1, 0], [1, 1], [0, 1]], drag: -1 };
-  const hs = [...stage.querySelectorAll('.h')], poly = stage.querySelector('polygon'), svg = stage.querySelector('svg');
+  const hs = [...stage.querySelectorAll('.h')], poly = stage.querySelector('polygon'), dim = stage.querySelector('.dim'), svg = stage.querySelector('svg');
   q.layout = (sw, sh) => {
     q.sw = sw; q.sh = sh;
     const r = area.getBoundingClientRect(), k = Math.min(r.width / sw, r.height / sh) || 1;
@@ -416,7 +410,9 @@ function QuadEd(stage, area, hooks) {
     const w = stage.clientWidth || q.sw * q.k, h = stage.clientHeight || q.sh * q.k;
     svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
     hs.forEach((e, i) => { e.style.left = q.pts[i][0] * q.k + 'px'; e.style.top = q.pts[i][1] * q.k + 'px'; });
-    poly.setAttribute('points', q.pts.map(p => (p[0] * q.k) + ',' + (p[1] * q.k)).join(' '));
+    const pp = q.pts.map(p => (p[0] * q.k) + ',' + (p[1] * q.k));
+    poly.setAttribute('points', pp.join(' '));
+    if (dim) dim.setAttribute('d', 'M0,0H' + w + 'V' + h + 'H0Z M' + pp.join(' L') + ' Z');   // 크롭 영역은 비우고 바깥만 검정 30%
   };
   hs.forEach((e, i) => {
     e.addEventListener('pointerdown', ev => { ev.preventDefault(); e.setPointerCapture(ev.pointerId); q.drag = i; e.classList.add('drag'); if (hooks.start) hooks.start(i); });
@@ -454,18 +450,11 @@ function updCounts() {
 const video = $('video');
 const cam = { stream: null, track: null, vw: 0, vh: 0, miss: 0, manual: false, run: false, torch: false, starting: false };
 const small = newCanvas(8, 8), sctx = small.getContext('2d', { willReadFrequently: true });
-const camQ = QuadEd($('camStage'), $('camArea'), {
-  start() { setManual(true); }, move() {}, end() {}
-});
 function setStat(t, k) { const e = $('camStat'); e.textContent = t; e.className = 'camstat' + (k ? ' ' + k : ''); }
-function setManual(on) {
-  cam.manual = on; $('btnAuto').hidden = !on;
-  if (on) { setStat('수동 조정 중 · ●를 끌어 맞추세요', 'warn'); $('camStage').className = 'stage'; }
-}
-function camFit() { if (cam.vw) camQ.layout(cam.vw, cam.vh); }
+function camFit() { if (cam.vw) { const r = $('camArea').getBoundingClientRect(), k = Math.min(r.width / cam.vw, r.height / cam.vh) || 1, st = $('camStage'); st.style.width = Math.round(cam.vw * k) + 'px'; st.style.height = Math.round(cam.vh * k) + 'px'; } }
 async function camStart() {
   if (cam.starting) return;
-  if (cam.stream) { camFit(); video.play().catch(() => {}); setManual(false); cam.miss = 99; $('camStage').className = 'stage lost'; setStat('문서를 찾는 중…', 'warn'); return; }
+  if (cam.stream) { camFit(); video.play().catch(() => {}); setStat('촬영 준비 완료', 'ok'); return; }
   cam.starting = true; $('camErr').hidden = true; setStat('카메라를 켜는 중…');
   try {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('nomedia');
@@ -473,10 +462,9 @@ async function camStart() {
     if (cur !== 'cam') { st.getTracks().forEach(t => t.stop()); cam.starting = false; return; }
     cam.stream = st; cam.track = st.getVideoTracks()[0]; video.srcObject = st; await video.play().catch(() => {});
     await new Promise(r => { if (video.videoWidth) r(); else video.onloadedmetadata = () => r(); });
-    cam.vw = video.videoWidth; cam.vh = video.videoHeight; camQ.pts = insetQuad(cam.vw, cam.vh); camFit();
+    cam.vw = video.videoWidth; cam.vh = video.videoHeight; camFit();
     try { const c = cam.track.getCapabilities ? cam.track.getCapabilities() : {}; $('btnTorch').hidden = !c.torch; if (c.focusMode && c.focusMode.includes('continuous')) cam.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {}); } catch (e) {}
-    cam.miss = 99; setManual(false); setStat('문서를 찾는 중…', 'warn'); $('camStage').className = 'stage lost';
-    if (!cam.run) { cam.run = true; camLoop(); }
+    cam.run = true; setStat('촬영 준비 완료', 'ok');
   } catch (e) {
     const name = (e && e.name) || '', msg = (e && e.message) || '';
     $('camErrT').textContent = name === 'NotAllowedError' || name === 'SecurityError' ? '카메라 권한이 꺼져 있어요. 주소창(또는 앱 ⋯ 메뉴 → 권한 정보)에서 카메라를 허용한 뒤 다시 시도하세요.'
@@ -490,26 +478,6 @@ function camStop() {
   if (cam.stream) { cam.stream.getTracks().forEach(t => t.stop()); cam.stream = null; cam.track = null; }
   video.srcObject = null; cam.vw = 0; cam.torch = false; $('btnTorch').classList.remove('on');
 }
-function camLoop() {
-  if (!cam.run) return; setTimeout(camLoop, 130);
-  if (cur !== 'cam' || cam.manual || video.readyState < 2 || !cam.vw) return;
-  const k = 320 / Math.max(cam.vw, cam.vh), w = Math.round(cam.vw * k), h = Math.round(cam.vh * k);
-  if (small.width !== w || small.height !== h) { small.width = w; small.height = h; }
-  sctx.drawImage(video, 0, 0, w, h);
-  const Q = detectQuad(sctx.getImageData(0, 0, w, h).data, w, h);
-  const st = $('camStage');
-  if (Q) {
-    const T = Q.map(p => [p[0] / k, p[1] / k]); cam.miss = 0;
-    if (st.className.indexOf('ok') < 0) { st.className = 'stage ok'; setStat('문서 인식됨 ✓ · 촬영하세요', 'ok'); }
-    const P = camQ.pts, diag = Math.hypot(cam.vw, cam.vh); let d = 0; for (let i = 0; i < 4; i++) d += dist(T[i], P[i]); d /= 4;
-    const a = d > 0.1 * diag || st.className.indexOf('lost') >= 0 ? 1 : 0.5;
-    camQ.pts = P.map((p, i) => [p[0] + (T[i][0] - p[0]) * a, p[1] + (T[i][1] - p[1]) * a]);
-    camQ.draw();
-  } else if (++cam.miss > 5 && st.className.indexOf('lost') < 0) {
-    st.className = 'stage lost'; setStat('문서를 찾는 중… (●를 끌어 직접 맞춰도 돼요)', 'warn'); camQ.pts = insetQuad(cam.vw, cam.vh); camQ.draw();
-  }
-}
-$('btnAuto').onclick = () => { setManual(false); cam.miss = 99; $('camStage').className = 'stage lost'; setStat('문서를 찾는 중…', 'warn'); };
 $('btnTorch').onclick = async () => {
   if (!cam.track) return; cam.torch = !cam.torch;
   try { await cam.track.applyConstraints({ advanced: [{ torch: cam.torch }] }); } catch (e) { cam.torch = false; toast('이 기기는 플래시를 켤 수 없어요.'); }
@@ -521,10 +489,9 @@ $('btnShot').onclick = async () => {
   if (!cam.vw || video.readyState < 2) { toast('카메라 준비 중이에요.'); return; }
   const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); try { navigator.vibrate && navigator.vibrate(25); } catch (e) {}
   const c = newCanvas(cam.vw, cam.vh); c.getContext('2d').drawImage(video, 0, 0);
-  let pts = camQ.pts.map(p => p.slice());
-  if (!cam.manual) { const r = detectFromCanvas(c, 800); if (r && goodQuad(r) && r.reduce((s, p, i) => s + dist(p, pts[i]), 0) / 4 < 0.12 * Math.hypot(c.width, c.height)) pts = r; }
+  const found = detectFromCanvas(c, 900), pts = found && goodQuad(found) ? found : insetQuad(c.width, c.height, 0.04);   // 찍은 뒤 모서리 자동 인식
   if (S.quick) { busy('보정 중…'); await nextFrame(); try { await addPageFrom(c, pts); toast('📑 ' + pages.length + '쪽째 추가했어요'); } catch (e) { toast('보정하지 못했어요.'); } unbusy(); }
-  else openEditor({ src: c, pts, from: 'cam' });
+  else openEditor({ src: c, pts, from: 'cam', found: !!(found && goodQuad(found)) });
 };
 $('btnRetry').onclick = () => { camStop(); camStart(); };
 $('btnNativeCam').onclick = () => $('fileCam').click();

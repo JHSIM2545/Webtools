@@ -546,17 +546,16 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) camSt
 
 /* ═════════════ 사진 불러오기 ═════════════ */
 async function loadImageCanvas(file) {
-  let bmp = null;
-  try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (e) {}
-  let w, h, src;
-  if (bmp) { w = bmp.width; h = bmp.height; src = bmp; }
-  else {
-    const url = URL.createObjectURL(file), im = new Image();
-    await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('img')); im.src = url; });
-    URL.revokeObjectURL(url); w = im.naturalWidth; h = im.naturalHeight; src = im;
-  }
-  const k = Math.min(1, ((navigator.deviceMemory && navigator.deviceMemory <= 3) ? 2800 : 3600) / Math.max(w, h)), c = newCanvas(Math.round(w * k), Math.round(h * k));
-  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height); if (bmp && bmp.close) bmp.close();
+  const cap = (navigator.deviceMemory && navigator.deviceMemory <= 3) ? 2400 : 3000;
+  const url = URL.createObjectURL(file), im = new Image();
+  try { await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('이미지 형식')); im.src = url; }); } catch (e) { URL.revokeObjectURL(url); throw e; }
+  const w = im.naturalWidth, h = im.naturalHeight; if (!w || !h) { URL.revokeObjectURL(url); throw new Error('크기를 알 수 없음'); }
+  const k = Math.min(1, cap / Math.max(w, h)), tw = Math.max(1, Math.round(w * k)), th = Math.max(1, Math.round(h * k));
+  let src = null;
+  if (k < 1 && window.createImageBitmap) { try { src = await createImageBitmap(file, { resizeWidth: tw, resizeHeight: th, resizeQuality: 'medium' }); } catch (e) { src = null; } }
+  const c = newCanvas(tw, th), x = c.getContext('2d');
+  if (src) { x.drawImage(src, 0, 0, tw, th); if (src.close) src.close(); } else x.drawImage(im, 0, 0, tw, th);
+  im.src = ''; URL.revokeObjectURL(url);
   return c;
 }
 async function handleFiles(files) {

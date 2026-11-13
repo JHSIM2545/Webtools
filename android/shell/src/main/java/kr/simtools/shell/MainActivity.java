@@ -99,6 +99,12 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public boolean onRenderProcessGone(WebView v, android.webkit.RenderProcessGoneDetail d) {
+                runOnUiThread(() -> { try { v.loadUrl(BuildConfig.START_URL); } catch (Exception e) { recreate(); } });
+                return true;
+            }
+
+            @Override
             public void onReceivedHttpError(WebView v, WebResourceRequest r, WebResourceResponse e) {
                 if (r.isForMainFrame() && e.getStatusCode() >= 400) showOffline(v);
             }

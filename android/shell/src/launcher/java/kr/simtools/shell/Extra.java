@@ -42,6 +42,10 @@ final class Extra {
 
     private static BroadcastReceiver receiver;
     private static final Map<Long, String> pending = new HashMap<>();
+    /* 일괄 업데이트: 한꺼번에 내려받고, 설치 화면은 한 번에 하나씩(앞 설치가 끝나 앱으로 돌아오면 다음) 연다. 런처 자신은 맨 마지막. */
+    private static final java.util.LinkedHashMap<String, Uri> ready = new java.util.LinkedHashMap<>();   // 받기 끝, 설치 차례 대기
+    private static final java.util.Set<String> batch = new java.util.LinkedHashSet<>();                  // 일괄 대상 중 아직 설치 화면을 안 연 앱
+    private static boolean installing;
 
     static void attach(final Activity a, final WebView w) {
         w.addJavascriptInterface(new Bridge(a, w), "SimLauncher");
@@ -52,6 +56,11 @@ final class Extra {
                 if (tool == null) return;
                 DownloadManager dm = (DownloadManager) c.getSystemService(Context.DOWNLOAD_SERVICE);
                 Uri u = dm.getUriForDownloadedFile(id);
+                if (batch.contains(tool)) {
+                    if (u == null) { batch.remove(tool); tell(w, tool, "fail"); } else ready.put(tool, u);
+                    pump(c, w);
+                    return;
+                }
                 if (u == null) { tell(w, tool, "fail"); return; }
                 tell(w, tool, "done");
                 Intent inst = new Intent(Intent.ACTION_VIEW);
@@ -65,7 +74,29 @@ final class Extra {
         else a.registerReceiver(receiver, f);
     }
 
+    /** 일괄 업데이트: 다음 설치 화면을 연다 (한 번에 하나, 런처는 마지막) */
+    private static void pump(Context c, WebView w) {
+        if (installing || ready.isEmpty()) return;
+        String next = null;
+        for (String id : ready.keySet()) if (!"launcher".equals(id)) { next = id; break; }
+        if (next == null) {
+            for (String id : batch) if (!"launcher".equals(id)) return;   // 다른 앱이 아직 받는 중 → 런처는 그 뒤에
+            next = "launcher";
+        }
+        Uri u = ready.remove(next); batch.remove(next);
+        Intent inst = new Intent(Intent.ACTION_VIEW);
+        inst.setDataAndType(u, "application/vnd.android.package-archive");
+        inst.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            c.startActivity(inst); installing = true; tell(w, next, "done");
+            final int left = ready.size() + batch.size();
+            w.post(() -> w.evaluateJavascript("window.__simBatchLeft&&window.__simBatchLeft(" + left + ")", null));
+        } catch (Exception e) { tell(w, next, "fail"); pump(c, w); }
+    }
+
     static void onResume(Activity a, WebView w) {
+        installing = false;      // 설치 화면에서 돌아옴(설치했든 취소했든) → 다음 앱
+        pump(a, w);
         w.post(() -> w.evaluateJavascript("window.__simRefresh&&window.__simRefresh()", null));
     }
 
@@ -123,27 +154,56 @@ final class Extra {
             if (i != null) a.startActivity(i);
         }
 
+        private long enqueue(String id) {
+            try { new File(a.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), file(id)).delete(); } catch (Exception e) { /* 무시 */ }   // 이전에 받은 같은 파일이 남아 있으면 지운다
+            DownloadManager dm = (DownloadManager) a.getSystemService(Context.DOWNLOAD_SERVICE);
+            DownloadManager.Request r = new DownloadManager.Request(Uri.parse(BASE + file(id)));
+            r.setTitle("SIM 앱 내려받는 중");
+            r.setMimeType("application/vnd.android.package-archive");
+            r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            r.setDestinationInExternalFilesDir(a, Environment.DIRECTORY_DOWNLOADS, file(id));
+            long did = dm.enqueue(r);
+            pending.put(did, id);
+            return did;
+        }
+
+        private boolean installAllowed(String id) {
+            if (Build.VERSION.SDK_INT >= 26 && !a.getPackageManager().canRequestPackageInstalls()) {
+                tell(w, id, "perm");
+                a.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + a.getPackageName())));
+                return false;
+            }
+            return true;
+        }
+
         @JavascriptInterface public void install(final String id) {
             final String p = PKG.get(id); if (p == null) return;
             a.runOnUiThread(() -> {
                 try {
-                    if (Build.VERSION.SDK_INT >= 26 && !a.getPackageManager().canRequestPackageInstalls()) {
-                        tell(w, id, "perm");
-                        a.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + a.getPackageName())));
-                        return;
-                    }
-                    try { new File(a.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), file(id)).delete(); } catch (Exception e) { /* 무시 */ }   // 이전에 받은 같은 파일이 남아 있으면 지운다
-                    DownloadManager dm = (DownloadManager) a.getSystemService(Context.DOWNLOAD_SERVICE);
-                    DownloadManager.Request r = new DownloadManager.Request(Uri.parse(BASE + file(id)));
-                    r.setTitle("SIM 앱 내려받는 중");
-                    r.setMimeType("application/vnd.android.package-archive");
-                    r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                    r.setDestinationInExternalFilesDir(a, Environment.DIRECTORY_DOWNLOADS, file(id));
-                    long did = dm.enqueue(r);
-                    pending.put(did, id);
+                    if (!installAllowed(id)) return;
+                    enqueue(id);
                     tell(w, id, "start");
                 } catch (Exception e) {
                     tell(w, id, "fail");
+                }
+            });
+        }
+
+        /** 업데이트가 필요한 앱 여러 개를 한꺼번에 받아 차례로 설치한다 (ids: JSON 배열) */
+        @JavascriptInterface public void installAll(final String ids) {
+            a.runOnUiThread(() -> {
+                try {
+                    if (!installAllowed("batch")) return;
+                    JSONArray arr = new JSONArray(ids); int n = 0;
+                    for (int i = 0; i < arr.length(); i++) {
+                        String id = arr.getString(i);
+                        if (PKG.get(id) == null || batch.contains(id) || ready.containsKey(id)) continue;
+                        batch.add(id); enqueue(id); n++;
+                    }
+                    final int cnt = n;
+                    w.post(() -> w.evaluateJavascript("window.__simBatch&&window.__simBatch(" + cnt + ")", null));
+                } catch (Exception e) {
+                    tell(w, "batch", "fail");
                 }
             });
         }

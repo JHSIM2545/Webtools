@@ -273,16 +273,26 @@ button.danger{color:#ff8a8a}
     };
     $('appsClose').onclick = () => $('mApps').classList.remove('show');
     $('mApps').addEventListener('click', e => { if (e.target === $('mApps')) $('mApps').classList.remove('show'); });
+    /* 일괄 업데이트: 받기 시작/진행 안내 (설치 화면은 앱마다 한 번씩 차례로 열림) */
+    window.__simBatch = n => toast(n ? n + '개 내려받는 중 — 내려받은 순서대로 설치 화면이 열려요. 각 화면에서 "설치"를 눌러 주세요' : '이미 받는 중이에요');
+    window.__simBatchLeft = n => { if (n) toast('다음 설치 대기 ' + n + '개 — 이 설치가 끝나면 이어서 열려요'); };
     $('appList').addEventListener('click', e => {
       const b = e.target.closest('button[data-act]'); if (!b) return;
       const id = b.dataset.id;
+      if (b.dataset.act === 'getall') {
+        if (typeof APP.installAll !== 'function') { toast('이 런처에는 일괄 업데이트가 없어요 — 위쪽 "SIM Tools 런처"를 먼저 업데이트해 주세요'); return; }
+        gotCb = false; APP.installAll(JSON.stringify(UPDATES));
+        setTimeout(() => { if (!gotCb) toast('받기에 반응이 없어요 — 위쪽 "SIM Tools 런처" 업데이트를 먼저 설치한 뒤 다시 눌러 주세요'); }, 1800);
+        return;
+      }
       if (b.dataset.act === 'get') { gotCb = false; APP.install(id); setTimeout(() => { if (!gotCb) toast('받기에 반응이 없어요 — 위쪽 "SIM Tools 런처" 업데이트를 먼저 설치한 뒤 다시 눌러 주세요'); }, 1800); } else if (b.dataset.act === 'open') APP.open(id); else if (b.dataset.act === 'del') APP.uninstall(id);
     });
   }
   function paintApps() {
     readInstalled();
     const self = UPDATES.indexOf('launcher') >= 0 ? '<div class="arow"><img src="icon-192.png" alt=""><div class="t"><b>SIM <span style="color:var(--accent)">Tools</span> 런처</b></div><button class="get" data-act="get" data-id="launcher">업데이트</button></div>' : '<div class="arow"><img src="icon-192.png" alt=""><div class="t"><b>SIM <span style="color:var(--accent)">Tools</span> 런처</b></div><button class="get" data-act="get" data-id="launcher">설치</button></div>';
-    $('appList').innerHTML = self + TOOLS.map(t => {
+    const all = UPDATES.length >= 2 ? '<div class="arow"><div class="t"><b>업데이트 ' + UPDATES.length + '개</b><span>' + esc(UPDATES.map(i => { const t = TOOLS.find(x => x.id === i); return t ? t.name : i === 'launcher' ? '런처' : i; }).join(' · ')) + '</span></div><button class="get" data-act="getall">모두 업데이트</button></div>' : '';
+    $('appList').innerHTML = all + self + TOOLS.map(t => {
       const on = INSTALLED.indexOf(t.id) >= 0;
       return '<div class="arow"><img src="' + esc(t.icon) + '" alt=""><div class="t"><b>' + nameHtml(t) + '</b></div>' +
         (on ? (UPDATES.indexOf(t.id) >= 0 ? '<button class="get" data-act="get" data-id="' + esc(t.id) + '">업데이트</button>' : '') + '<button data-act="open" data-id="' + esc(t.id) + '">열기</button><button class="danger" data-act="del" data-id="' + esc(t.id) + '">제거</button>'

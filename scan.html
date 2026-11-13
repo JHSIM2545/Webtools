@@ -568,31 +568,56 @@ window.addEventListener('resize', () => { if (cur === 'cam') camFit(); else if (
 document.addEventListener('visibilitychange', () => { if (document.hidden) camStop(); else if (cur === 'cam') camStart(); });
 
 /* ═════════════ 사진 불러오기 ═════════════ */
+const dbg = (m) => { try { localStorage.setItem('simscan.dbg', Date.now() + '|' + m); } catch (e) {} };
+async function jpegInfo(file) {                 // 사진을 디코딩하지 않고 머리말만 읽어 크기·회전 방향을 얻는다
+  try {
+    const b = new DataView(await file.slice(0, 262144).arrayBuffer()); if (b.getUint16(0) !== 0xFFD8) return null;
+    let o = 2, ori = 1, w = 0, h = 0;
+    while (o + 4 < b.byteLength) {
+      if (b.getUint8(o) !== 0xFF) { o++; continue; } const m = b.getUint8(o + 1), len = b.getUint16(o + 2);
+      if (m === 0xE1 && b.getUint32(o + 4) === 0x45786966) {           // EXIF 방향
+        const t = o + 10, le = b.getUint16(t) === 0x4949, g16 = x => b.getUint16(x, le), g32 = x => b.getUint32(x, le), ifd = t + g32(t + 4), n = g16(ifd);
+        for (let k = 0; k < n; k++) { const e = ifd + 2 + k * 12; if (g16(e) === 0x0112) ori = g16(e + 8); }
+      }
+      if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) { h = b.getUint16(o + 5); w = b.getUint16(o + 7); break; }
+      o += 2 + len;
+    }
+    if (!w || !h) return null; if (ori >= 5 && ori <= 8) [w, h] = [h, w];
+    return { w, h };
+  } catch (e) { return null; }
+}
 async function loadImageCanvas(file) {
   const cap = (navigator.deviceMemory && navigator.deviceMemory <= 3) ? 2400 : 3000;
-  const url = URL.createObjectURL(file), im = new Image();
-  try { await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('이미지 형식')); im.src = url; }); } catch (e) { URL.revokeObjectURL(url); throw e; }
-  const w = im.naturalWidth, h = im.naturalHeight; if (!w || !h) { URL.revokeObjectURL(url); throw new Error('크기를 알 수 없음'); }
+  dbg('읽기 시작 ' + Math.round(file.size / 1024) + 'KB');
+  const info = await jpegInfo(file); let w = info && info.w, h = info && info.h, url = null, im = null;
+  if (!w) {
+    url = URL.createObjectURL(file); im = new Image();
+    try { await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('이미지 형식')); im.src = url; }); } catch (e) { URL.revokeObjectURL(url); throw e; }
+    w = im.naturalWidth; h = im.naturalHeight; if (!w || !h) { URL.revokeObjectURL(url); throw new Error('크기를 알 수 없음'); }
+  }
+  dbg('크기 ' + w + 'x' + h);
   const k = Math.min(1, cap / Math.max(w, h)), tw = Math.max(1, Math.round(w * k)), th = Math.max(1, Math.round(h * k));
   let src = null;
-  if (k < 1 && window.createImageBitmap) { try { src = await createImageBitmap(file, { resizeWidth: tw, resizeHeight: th, resizeQuality: 'medium' }); } catch (e) { src = null; } }
+  if (window.createImageBitmap) { try { src = await createImageBitmap(file, { resizeWidth: tw, resizeHeight: th, resizeQuality: 'medium' }); } catch (e) { src = null; } }
+  if (!src && !im) { url = URL.createObjectURL(file); im = new Image(); await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('이미지 형식')); im.src = url; }); }
   const c = newCanvas(tw, th), x = c.getContext('2d');
   if (src) { x.drawImage(src, 0, 0, tw, th); if (src.close) src.close(); } else x.drawImage(im, 0, 0, tw, th);
-  im.src = ''; URL.revokeObjectURL(url);
-  return c;
+  if (im) im.src = ''; if (url) URL.revokeObjectURL(url);
+  dbg('디코딩 완료'); return c;
 }
 async function handleFiles(files) {
+  dbg('파일 선택됨 ' + files.length + '개');
   files = [...files]; if (!files.length) return;
   try {
-    if (files.length === 1) { busy('사진을 읽는 중…'); const c = await loadImageCanvas(files[0]); await nextFrame(); const q = detectFromCanvas(c, 640); unbusy(); openEditor({ src: c, pts: q || insetQuad(c.width, c.height, 0.04), from: cur === 'pages' ? 'pages' : 'cam', found: !!q }); return; }
+    if (files.length === 1) { busy('사진을 읽는 중…'); const c = await loadImageCanvas(files[0]); await nextFrame(); dbg('모서리 찾는 중'); const q = detectFromCanvas(c, 640); dbg('편집 화면'); unbusy(); openEditor({ src: c, pts: q || insetQuad(c.width, c.height, 0.04), from: cur === 'pages' ? 'pages' : 'cam', found: !!q }); return; }
     for (let i = 0; i < files.length; i++) {
       busy('사진 보정 중… ' + (i + 1) + ' / ' + files.length); await nextFrame();
       const c = await loadImageCanvas(files[i]); await addPageFrom(c, detectFromCanvas(c, 640) || insetQuad(c.width, c.height, 0.03));
     }
-    unbusy(); toast(files.length + '장 추가'); show('pages');
+    dbg('완료'); unbusy(); toast(files.length + '장 추가'); show('pages');
   } catch (e) { unbusy(); toast('사진을 읽을 수 없어요' + (e && e.message ? ' (' + e.message + ')' : '')); }
 }
-[$('fileCam'), $('fileGal')].forEach(inp => inp.addEventListener('change', e => { const f = e.target.files; const arr = [...f]; e.target.value = ''; if (arr.length) handleFiles(arr); }));
+[$('fileCam'), $('fileGal')].forEach(inp => inp.addEventListener('change', e => { const inp2 = e.target, arr = [...inp2.files]; if (arr.length) handleFiles(arr).finally(() => { try { inp2.value = ''; } catch (er) {} }); }));
 
 /* ═════════════ 보정 엔진 (원근 펴기 · 조명 얼룩 제거 · 선명화) ═════════════ */
 function quadMap(P) {      // 단위 정사각형 → 사각형 호모그래피 (Heckbert)
@@ -1077,6 +1102,7 @@ async function runExport(kind) {
 $('dPrint').onclick = () => runExport('print'); $('dNote').onclick = () => runExport('note'); $('dDevice').onclick = () => runExport('device'); $('dFolder').onclick = () => runExport('folder'); $('dShare').onclick = () => runExport('share');
 
 paintQuick(); updCounts(); show('cam');
+(() => { const d = lget('simscan.dbg'); if (!d) return; const [t, m] = d.split('|'); if (m && !/^(편집 화면|완료)/.test(m) && Date.now() - (+t) < 600000) setTimeout(() => toast('직전 사진 처리가 중간에 멈췄어요 (' + m + '). 다시 시도해 주세요', 6000), 800); try { localStorage.removeItem('simscan.dbg'); } catch (e) {} })();
 window.__scan = { pages, detectFromCanvas, detectQuad, quadFromHull, hull, orderQuad, targetSize, warp, enhance, buildPdf, renderResult, aspectZhang, S };   // 점검용
 })();
 </script>

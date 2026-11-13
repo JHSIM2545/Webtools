@@ -10,6 +10,9 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="${contactsPerm}" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 도착 시간 맞춤 출발 알림: 앱을 꺼도 위치를 확인하며 대기 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- 각 앱이 ⋯ 메뉴에서 스스로 새 버전 APK 를 설치할 수 있게 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
@@ -36,6 +39,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service android:name=".TripService" android:exported="false" android:foregroundServiceType="location" />
 
         <!-- 연락처 앱 '공유' 목록에 SIM Phone 이 나오게 한다 (SIM Phone 앱 빌드에서만 켜짐) -->
         <activity-alias

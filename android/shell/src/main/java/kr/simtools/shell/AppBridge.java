@@ -176,6 +176,27 @@ final class AppBridge {
         });
     }
 
+    /** 출발 알림 시작(앱을 꺼도 계속 확인): ok / noloc(위치 권한 필요) / nonotif(알림 권한 필요) / err:... */
+    @JavascriptInterface public String tripStart(String json) {
+        try {
+            if (!can(Manifest.permission.ACCESS_FINE_LOCATION)) return "noloc";
+            if (Build.VERSION.SDK_INT >= 33 && !can("android.permission.POST_NOTIFICATIONS")) return "nonotif";
+            Intent i = new Intent(a, TripService.class).putExtra("trip", json);
+            a.startForegroundService(i);
+            return "ok";
+        } catch (Exception e) { return "err:" + e.getMessage(); }
+    }
+
+    @JavascriptInterface public void tripStop() {
+        try { a.stopService(new Intent(a, TripService.class)); } catch (Exception e) { /* 무시 */ }
+        a.getSharedPreferences("simtrip", Context.MODE_PRIVATE).edit().remove("trip").apply();
+    }
+
+    /** 대기 중인 출발 알림(JSON, 없으면 빈 문자열) */
+    @JavascriptInterface public String tripActive() {
+        return a.getSharedPreferences("simtrip", Context.MODE_PRIVATE).getString("trip", "");
+    }
+
     /** 요청창 결과 (MainActivity 가 넘겨 준다) */
     void onPermResult(String[] perms, int[] res) {
         String id = "";

@@ -1203,14 +1203,15 @@ async function tripAlert(t, eta, late) {
   const msg = late ? t.name + '까지 약 ' + fmtDur(eta) + ' 걸려요. ' + fmtHM(arrive) + '에 도착하려면 지금 출발하세요.' : t.name + '까지 약 ' + fmtDur(eta) + ' 걸려요. ' + fmtHM(arrive) + '에 도착하려면 약 ' + mins + '분 뒤인 ' + fmtHM(leave) + '에 출발하세요.';
   bot('🚗 곧 출발할 시간이에요. ' + msg, { html: '<b>🚗 곧 출발할 시간이에요</b>' + kvRows([['목적지', t.name], ['도착 예정', fmtHM(arrive)], ['예상 소요', fmtDur(eta)], ['출발', late ? '지금' : fmtHM(leave)]]), btns: [{ label: '🧭 내비 시작', primary: true, href: launchHref(nmapUrl.nav({ lat: t.lat, lng: t.lng, name: t.name })), fn: iosStoreFallback }] });
   speakNow(msg); notifyOS('🚗 곧 출발할 시간이에요', msg, 'trip-' + (t.sid || t.id));
-  t.done = true; tripSave(); if (t.sid) tripApi({ a: 'cancel', id: t.sid }).catch(() => {});   // 서버 푸시가 또 가지 않게
+  t.done = true; tripSave(); try { window.SimApp && window.SimApp.tripStop && window.SimApp.tripStop(); } catch (e) {} if (t.sid) tripApi({ a: 'cancel', id: t.sid }).catch(() => {});   // 서버 푸시가 또 가지 않게
 }
 let tripBusy = false;
 async function tripTick() {
   if (tripBusy || !TRIPS.length) return; tripBusy = true;
   try {
     const now = Date.now();
-    for (let i = TRIPS.length - 1; i >= 0; i--) { const t = TRIPS[i]; if (t.done || now > Date.parse(t.arrive) + 30 * 60e3) TRIPS.splice(i, 1); }
+    const natLive = (window.SimApp && window.SimApp.tripActive) ? !!String(window.SimApp.tripActive() || '') : null;
+    for (let i = TRIPS.length - 1; i >= 0; i--) { const t = TRIPS[i]; if (t.done || now > Date.parse(t.arrive) + 30 * 60e3 || (t.native && natLive === false && now - (t.chk || 0) > 5000)) TRIPS.splice(i, 1); }
     tripSave();
     for (const t of TRIPS) {
       const arrive = Date.parse(t.arrive), rem = (t.leaveAt || arrive) - now - t.lead * 60e3;
@@ -1230,16 +1231,23 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) trip
 async function tripAdd(dest, at) {
   const { d, o, r } = await tripEta(dest);
   const arrive = at, leave = new Date(arrive.getTime() - r.sec * 1000), lead = 10, notifyAt = new Date(leave.getTime() - lead * 60e3);
-  const ps = await tripSub();
-  let sid = ''; try { const j = await tripApi({ a: 'add', name: d.name, d, o, arrive_at: arrive.toISOString(), lead, sub: ps.sub }); sid = j.id; } catch (e) {}
+  const nat = !!(window.SimApp && typeof window.SimApp.tripStart === 'function');
+  let nres = '', ps = { sub: null, why: '' };
+  if (nat) {
+    nres = String(window.SimApp.tripStart(JSON.stringify({ id: 'cur', name: d.name, dlat: d.lat, dlng: d.lng, arrive: arrive.getTime(), lead, phone: gKey() })) || '');
+    if (nres === 'noloc') { try { window.SimApp.requestPerm('location'); } catch (e) {} ps.why = '앱을 꺼도 알리려면 위치 권한이 필요해요. 허용한 뒤 다시 말씀해 주세요'; }
+    else if (nres === 'nonotif') { try { window.SimApp.requestPerm('notif'); } catch (e) {} ps.why = '알림 권한이 필요해요. 허용한 뒤 다시 말씀해 주세요'; }
+    else if (nres !== 'ok') ps.why = '백그라운드 알림을 시작하지 못했어요(' + nres + ')';
+  } else ps = await tripSub();
+  let sid = ''; try { const j = await tripApi({ a: 'add', name: d.name, d, o, arrive_at: arrive.toISOString(), lead, sub: nat ? null : ps.sub }); sid = j.id; } catch (e) {}
   for (let i = TRIPS.length - 1; i >= 0; i--) if (TRIPS[i].name === d.name) TRIPS.splice(i, 1);
-  const t = { id: rid(), sid, name: d.name, lat: d.lat, lng: d.lng, arrive: arrive.toISOString(), lead, eta: r.sec, leaveAt: leave.getTime(), chk: Date.now(), done: false }; TRIPS.push(t); tripSave();
-  return { d, r, arrive, leave, notifyAt, push: !!(ps.sub && sid), why: ps.sub ? '' : ps.why, late: notifyAt.getTime() <= Date.now() };
+  const t = { id: rid(), sid, native: nres === 'ok', name: d.name, lat: d.lat, lng: d.lng, arrive: arrive.toISOString(), lead, eta: r.sec, leaveAt: leave.getTime(), chk: Date.now(), done: false }; TRIPS.push(t); tripSave();
+  return { d, r, arrive, leave, notifyAt, push: nres === 'ok' || !!(ps.sub && sid), why: (nres === 'ok' || ps.sub) ? '' : ps.why, late: notifyAt.getTime() <= Date.now() };
 }
 const tripNote = r => r.traffic ? '실시간 교통을 반영했어요' : '※ 교통 상황은 반영하지 못한 예상 시간이에요';
 async function tripHandle(m) {
   if (m.k === 'tripcancel') {
-    const n = TRIPS.length; TRIPS.length = 0; tripSave(); try { await tripApi({ a: 'cancel' }); } catch (e) {}
+    const n = TRIPS.length; TRIPS.length = 0; tripSave(); try { window.SimApp && window.SimApp.tripStop && window.SimApp.tripStop(); } catch (e) {} try { await tripApi({ a: 'cancel' }); } catch (e) {}
     return bot(n ? '도착 시간 출발 알림을 모두 취소했어요.' : '설정된 출발 알림이 없어요.');
   }
   if (m.k === 'eta') {
@@ -1257,7 +1265,7 @@ async function tripHandle(m) {
       const x = await tripAdd(m.dest, m.at);
       const head = x.d.name + '에 ' + fmtHM(x.arrive) + '까지 도착하려면 ' + (x.late ? '지금 바로 출발해야 해요.' : fmtHM(x.leave) + '에 출발해야 해요.') + ' (현재 기준 약 ' + fmtDur(x.r.sec) + ')';
       const tail = x.late ? '' : ' 출발 10분 전인 ' + fmtHM(x.notifyAt) + ' 무렵에 알려 드릴게요.';
-      return bot(head + tail + (x.push ? '' : ' ' + (x.why ? x.why + '. ' : '') + '앱이 켜져 있을 때만 음성으로 알려 드려요.'), { html: '<b>⏰ 도착 시간 맞춤 출발 알림</b>' + kvRows([['목적지', x.d.name], ['도착 예정', fmtHM(x.arrive)], ['예상 소요', fmtDur(x.r.sec)], ['출발 시각', x.late ? '지금' : fmtHM(x.leave)], ['알림', x.late ? '곧바로' : fmtHM(x.notifyAt)]]) + '<span class="sub">' + esc(tripNote(x.r)) + '. 출발 시각은 교통 상황에 따라 계속 다시 계산해요. ' + (x.push ? '앱을 꺼도 푸시로 알려요(마지막으로 확인한 위치 기준).' : esc(x.why || '') + ' 앱이 켜져 있으면 음성으로 알려요.') + '</span>', btns: [{ label: '알림 취소', fn: () => { TRIPS.length = 0; tripSave(); tripApi({ a: 'cancel' }).catch(() => {}); bot('출발 알림을 취소했어요.'); } }] });
+      return bot(head + tail + (x.push ? '' : ' ' + (x.why ? x.why + '. ' : '') + '앱이 켜져 있을 때만 음성으로 알려 드려요.'), { html: '<b>⏰ 도착 시간 맞춤 출발 알림</b>' + kvRows([['목적지', x.d.name], ['도착 예정', fmtHM(x.arrive)], ['예상 소요', fmtDur(x.r.sec)], ['출발 시각', x.late ? '지금' : fmtHM(x.leave)], ['알림', x.late ? '곧바로' : fmtHM(x.notifyAt)]]) + '<span class="sub">' + esc(tripNote(x.r)) + '. 출발 시각은 교통 상황에 따라 계속 다시 계산해요. ' + (x.push ? '앱을 꺼도 알려요(알림창에 "출발 알림 대기 중"이 떠 있는 동안, 현재 위치를 계속 확인해요).' : esc(x.why || '') + ' 앱이 켜져 있으면 음성으로 알려요.') + '</span>', btns: [{ label: '알림 취소', fn: () => { TRIPS.length = 0; tripSave(); try { window.SimApp && window.SimApp.tripStop && window.SimApp.tripStop(); } catch (e) {} tripApi({ a: 'cancel' }).catch(() => {}); bot('출발 알림을 취소했어요.'); } }] });
     } catch (e) { return bot('출발 알림을 설정하지 못했어요. ' + (e && e.message || '')); }
   }
 }
@@ -1480,10 +1488,10 @@ const LTOOLS = {
     if (!a.date) { d.setHours(+hm[1], +hm[2], 0, 0); if (d.getTime() <= Date.now()) d = new Date(d.getTime() + 864e5); }
     try { const x = await tripAdd(q, d);
       liveCard('<b>⏰ ' + esc(x.d.name) + ' ' + esc(fmtHM(x.arrive)) + ' 도착</b>' + kvRows([['출발', x.late ? '지금' : fmtHM(x.leave)], ['알림', x.late ? '곧바로' : fmtHM(x.notifyAt)], ['예상 소요', fmtDur(x.r.sec)]]));
-      return { ok: true, destination: x.d.name, depart_at: x.late ? '지금 바로' : fmtHM(x.leave), notify_at: x.late ? '지금' : fmtHM(x.notifyAt), minutes: Math.round(x.r.sec / 60), traffic_reflected: x.r.traffic, background_push: x.push, note: x.push ? '앱을 꺼도 푸시로 알려요' : '앱이 켜져 있을 때만 음성으로 알려요. ' + (x.why || '') }; }
+      return { ok: true, destination: x.d.name, depart_at: x.late ? '지금 바로' : fmtHM(x.leave), notify_at: x.late ? '지금' : fmtHM(x.notifyAt), minutes: Math.round(x.r.sec / 60), traffic_reflected: x.r.traffic, background_push: x.push, note: x.push ? '앱을 꺼도 알려요(알림창에 출발 알림 대기 중 표시)' : '앱이 켜져 있을 때만 음성으로 알려요. ' + (x.why || '') }; }
     catch (e) { return { ok: false, error: String(e && e.message || e) }; }
   },
-  async cancel_arrival() { TRIPS.length = 0; tripSave(); try { await tripApi({ a: 'cancel' }); } catch (e) {} return { ok: true }; },
+  async cancel_arrival() { TRIPS.length = 0; tripSave(); try { window.SimApp && window.SimApp.tripStop && window.SimApp.tripStop(); } catch (e) {} try { await tripApi({ a: 'cancel' }); } catch (e) {} return { ok: true }; },
   async start_navigation(a) {
     const c = LIVE.cands[(+a.index || 0) - 1]; if (!c) return { ok: false, error: '그 번호의 후보가 없어요' };
     liveCard('<b>네이버 내비를 실행해요</b><span class="sub">' + esc(c.name) + ' · ' + esc(c.addr || '') + '</span>' + noNaverApp(), [{ label: '🧭 네이버 내비 시작', primary: true, href: launchHref(nmapUrl.nav(c)), fn: iosStoreFallback }]);

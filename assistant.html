@@ -111,7 +111,6 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 <div class="bar">
   <a class="back" href="index.html" title="SIM Tools">‹</a>
   <h1>SIM <span>Assistant</span></h1>
-  <button class="iconbtn" id="btnTts" title="음성 답변 켜기/끄기">🔊</button>
 </div>
 <div class="tabs" id="tabs">
   <button data-t="chat" class="on">대화</button>
@@ -621,8 +620,12 @@ document.addEventListener('change', async e => {
 /* ───────── 음성 출력·입력 ───────── */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let ttsOn = ls.get('SIMAS_TTS', '1') === '1', lastVoice = false, listening = false, rec = null, autoTried = false, speaking = false, bargeN = 0;
-function setTtsBtn() { $('btnTts').classList.toggle('off', !ttsOn); $('btnTts').textContent = ttsOn ? '🔊' : '🔇'; }
-$('btnTts').onclick = () => { ttsOn = !ttsOn; ls.set('SIMAS_TTS', ttsOn ? '1' : '0'); if (!ttsOn) stopSpeak(); setTtsBtn(); toast(ttsOn ? '음성 입력으로 말하면 음성으로 답해요' : '음성 답변을 껐어요'); };
+function setTtsBtn() {}   // 상단 🔊 버튼은 ⋯ 메뉴의 '음성 답변' 스위치로 옮겼다
+(window.simAppMenuExtra = window.simAppMenuExtra || []).push({
+  icon: '🔊', label: '음성 답변', hint: '음성으로 물으면 음성으로 답해요',
+  get: () => ttsOn,
+  set: v => { ttsOn = !!v; ls.set('SIMAS_TTS', ttsOn ? '1' : '0'); if (!ttsOn) stopSpeak(); toast(ttsOn ? '음성 입력으로 말하면 음성으로 답해요' : '음성 답변을 껐어요'); }
+});
 let koVoice = null;
 function pickVoice() { try { koVoice = (speechSynthesis.getVoices() || []).find(v => /^ko/i.test(v.lang)) || null; } catch (e) {} }
 if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }

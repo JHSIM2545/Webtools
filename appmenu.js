@@ -36,6 +36,7 @@
       '.simvm-pr .tx{flex:1;min-width:0}.simvm-pr .tx b{display:block;font-size:15px}.simvm-pr .tx small{display:block;color:var(--sub,#9aa3b5);font-size:12.5px;margin-top:2px}' +
       '.simvm-sw{position:relative;flex:none;width:46px;height:26px;border-radius:99px;border:0;padding:0;background:#3a4056;cursor:pointer;transition:background .15s}.simvm-sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s}' +
       '.simvm-sw.on{background:var(--ok,#30be6e)}.simvm-sw.on::after{left:23px}.simvm-sw[disabled]{opacity:.5;cursor:default}' +
+      'i.simvm-sw{display:inline-block;flex:none;pointer-events:none}' +
       '.simvm-note{margin-top:10px;color:var(--sub,#9aa3b5);font-size:12.5px;line-height:1.55}' +
       '.simvm-toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:2147483200;max-width:86vw;background:rgba(20,22,30,.95);color:#fff;border:1px solid #3b4258;border-radius:12px;padding:11px 16px;font-size:14px;text-align:center}';
     document.head.appendChild(st);
@@ -171,11 +172,18 @@
     const r = btn.getBoundingClientRect();
     pop = document.createElement('div'); pop.className = 'simvm-pop'; pop.setAttribute('role', 'menu');
     pop.style.top = Math.round(r.bottom + 6) + 'px'; pop.style.right = Math.max(8, Math.round(innerWidth - r.right)) + 'px';
-    // 화면(페이지)이 자기 항목을 더하려면: (window.simAppMenuExtra = window.simAppMenuExtra || []).push({ icon:'📡', label:'이름', run(){...} })  (불러오는 순서와 무관)
-    const ex = Array.isArray(window.simAppMenuExtra) ? window.simAppMenuExtra.filter(x => x && x.label && typeof x.run === 'function') : [];
-    pop.innerHTML = '<button role="menuitem" data-k="ver"><span>ⓘ</span><span>버전 정보</span></button><button role="menuitem" data-k="perm"><span>🔐</span><span>권한 정보</span></button>' +
+    // 화면(페이지)이 자기 항목을 더하려면(불러오는 순서와 무관):
+    //   누르면 실행:  (window.simAppMenuExtra = window.simAppMenuExtra || []).push({ icon:'📡', label:'이름', run(){...} })
+    //   스위치형:     (window.simAppMenuExtra = window.simAppMenuExtra || []).push({ icon:'🔊', label:'이름', get(){return true}, set(v){...} })
+    const all = Array.isArray(window.simAppMenuExtra) ? window.simAppMenuExtra.filter(x => x && x.label) : [];
+    const sws = all.filter(x => typeof x.get === 'function' && typeof x.set === 'function'), ex = all.filter(x => typeof x.run === 'function');
+    pop.innerHTML = sws.map((x, i) => '<button role="menuitemcheckbox" data-s="' + i + '" aria-checked="' + !!x.get() + '"><span>' + esc(x.icon || '•') + '</span><span style="flex:1">' + esc(x.label) + '</span><i class="simvm-sw' + (x.get() ? ' on' : '') + '"></i></button>').join('') +
+      (sws.length ? '<div style="height:1px;background:var(--line,#333a4d);margin:4px 6px"></div>' : '') +
+      '<button role="menuitem" data-k="ver"><span>ⓘ</span><span>버전 정보</span></button><button role="menuitem" data-k="perm"><span>🔐</span><span>권한 정보</span></button>' +
       ex.map((x, i) => '<button role="menuitem" data-x="' + i + '"><span>' + esc(x.icon || '•') + '</span><span>' + esc(x.label) + '</span></button>').join('');
     pop.addEventListener('click', e => {
+      const sx = e.target.closest('button[data-s]');
+      if (sx) { const x = sws[+sx.dataset.s]; try { x.set(!x.get()); } catch (err) {} const on = !!x.get(); sx.setAttribute('aria-checked', on); sx.querySelector('.simvm-sw').classList.toggle('on', on); return; }   // 메뉴는 닫지 않고 그 자리에서 바뀐다
       const x = e.target.closest('button[data-x]'); if (x) { closePop(); try { ex[+x.dataset.x].run(); } catch (err) {} return; }
       const b = e.target.closest('button[data-k]'); if (!b) return; closePop(); open(b.dataset.k);
     });

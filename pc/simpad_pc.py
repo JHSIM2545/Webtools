@@ -259,6 +259,11 @@ class MiniWS:
 
     @staticmethod
     def _proxy():
+        man = os.environ.get('SIMPAD_PROXY', '').strip()      # 수동 지정: host:port
+        if man:
+            man = man.replace('http://', '').replace('https://', '').rstrip('/')
+            h, _, pt = man.partition(':')
+            return h, int(pt or 8080)
         try:
             pr = urllib.request.getproxies()          # 환경변수 + Windows 인터넷 옵션의 프록시
         except Exception:
@@ -360,13 +365,39 @@ class MiniWS:
 
 
 # ───────────────────────── Realtime 연결 ─────────────────────────
+def diagnose(url):
+    u = urlparse(url)
+    host, port = u.hostname, u.port or 443
+    log('── 네트워크 진단 ──')
+    px = MiniWS._proxy()
+    log('감지된 프록시:', ('%s:%s' % px) if px else '없음 (직접 연결)')
+    try:
+        log('주소 조회 OK:', socket.gethostbyname(host))
+    except Exception as e:
+        log('주소 조회 실패:', e, '→ DNS가 막혀 있습니다.')
+        return
+    try:
+        s = MiniWS._open(MiniWS, host, port, 8)
+        s.close()
+        log('%s:%d 연결 OK → 웹소켓(wss)만 막혔을 가능성' % (host, port))
+    except Exception as e:
+        log('%s:%d 연결 실패:' % (host, port), e)
+        log('→ 이 PC에서 supabase.co 접속이 차단되어 있습니다.')
+    log('해결: ① 폰 핫스팟에 PC를 연결해 시험 ② IT팀에 *.supabase.co 허용 요청')
+    log('      ③ 프록시 주소를 알면  SIM-PAD-PC.bat 대신  py -3 simpad_pc.py --proxy 주소:포트')
+    log('────────────────')
+
+
 def main():
     ap = argparse.ArgumentParser(description='SIM PAD PC 프로그램')
     ap.add_argument('--new-code', action='store_true', help='연결 코드를 새로 만든다')
     ap.add_argument('--dry-run', action='store_true', help='실제 입력 없이 받은 동작만 표시')
     ap.add_argument('--url', default=WS_URL, help=argparse.SUPPRESS)
     ap.add_argument('--code', default='', help=argparse.SUPPRESS)
+    ap.add_argument('--proxy', default='', help='회사 프록시 주소 (예: 10.0.0.1:8080)')
     a = ap.parse_args()
+    if a.proxy:
+        os.environ['SIMPAD_PROXY'] = a.proxy
 
     log('SIM PAD PC 프로그램을 시작합니다…')
     if a.dry_run or platform.system() != 'Windows':
@@ -482,7 +513,7 @@ def main():
         except Exception as e:
             log('연결 실패/끊김:', e)
             if wait == 1:
-                log('회사 네트워크가 웹소켓(wss)을 막고 있으면 이 오류가 반복됩니다. 폰 핫스팟으로 시험해 보세요.')
+                diagnose(a.url)
         finally:
             state['joined'] = False
             state['ws'] = None

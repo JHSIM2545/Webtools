@@ -355,42 +355,82 @@ function goodQuad(Q) {                              // 각이 너무 찌그러�
   }
   return true;
 }
+function otsuOf(vals, N, pred, bins) {              // pred 를 만족하는 값들만으로 대비가 가장 큰 경계값(오츠)
+  const hist = new Float64Array(bins); let n = 0, sumAll = 0;
+  for (let i = 0; i < N; i++) { if (pred && !pred(i)) continue; const b = Math.min(bins - 1, Math.max(0, vals[i] | 0)); hist[b]++; n++; sumAll += b; }
+  if (n < 50) return -1;
+  let wB = 0, sumB = 0, best = -1, thr = -1;
+  for (let t = 0; t < bins; t++) { wB += hist[t]; if (!wB) continue; const wF = n - wB; if (!wF) break; sumB += t * hist[t]; const mB = sumB / wB, mF = (sumAll - sumB) / wF, v = wB * wF * (mB - mF) * (mB - mF); if (v > best) { best = v; thr = t; } }
+  return thr;
+}
 function detectQuad(d, W, H) {                      // d: RGBA. 반환: 네 점(왼위·오른위·오른아래·왼아래) 또는 null
   try {
     const N = W * H, g = new Float32Array(N);
     for (let i = 0; i < N; i++) g[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
-    const a = boxBlur(g, W, H, 2, 2), hist = new Float64Array(256);
-    for (let i = 0; i < N; i++) hist[Math.min(255, a[i] | 0)]++;
-    let sumAll = 0; for (let i = 0; i < 256; i++) sumAll += i * hist[i];
-    let wB = 0, sumB = 0, best = -1, thr = 128;
-    for (let t = 0; t < 256; t++) { wB += hist[t]; if (!wB) continue; const wF = N - wB; if (!wF) break; sumB += t * hist[t]; const mB = sumB / wB, mF = (sumAll - sumB) / wF, v = wB * wF * (mB - mF) * (mB - mF); if (v > best) { best = v; thr = t; } }
-    const tryPol = bright => {
-      const on = i => bright ? a[i] > thr : a[i] <= thr, lab = new Int32Array(N), stack = new Int32Array(N);
-      let bestC = null, id = 0;
+    const a = boxBlur(g, W, H, 2, 2), gb = boxBlur(g, W, H, 1, 1), gm = new Float32Array(N);
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x, gx = (gb[i - W + 1] + 2 * gb[i + 1] + gb[i + W + 1]) - (gb[i - W - 1] + 2 * gb[i - 1] + gb[i + W - 1]), gy = (gb[i + W - 1] + 2 * gb[i + W] + gb[i + W + 1]) - (gb[i - W - 1] + 2 * gb[i - W] + gb[i - W + 1]);
+      gm[i] = Math.sqrt(gx * gx + gy * gy) / 8;
+    }
+    const gmx = maxFilter(gm, W, H, 1), gh = new Float64Array(256);
+    for (let i = 0; i < N; i++) gh[Math.min(255, gm[i] | 0)]++;
+    let acc = 0, p99 = 1; for (let t = 0; t < 256; t++) { acc += gh[t]; if (acc >= N * 0.99) { p99 = t; break; } }
+    const T = Math.max(3, p99 * 0.05);
+    // ── 후보 마스크들: 밝기 경계값(여러 단계)·가장자리 색과의 차이·강한 가장자리
+    const masks = [], t0 = otsuOf(a, N, null, 256);
+    const ths = [t0, otsuOf(a, N, i => a[i] > t0, 256), otsuOf(a, N, i => a[i] <= t0, 256)].filter(t => t >= 0);
+    ths.forEach(t => { [true, false].forEach(br => { const m = new Uint8Array(N); for (let i = 0; i < N; i++) m[i] = br ? (a[i] > t ? 1 : 0) : (a[i] <= t ? 1 : 0); masks.push(m); }); });
+    const ring = [], mg = Math.max(2, Math.round(Math.min(W, H) * 0.04));
+    for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += (y < mg || y >= H - mg) ? 2 : 1) { if (y >= mg && y < H - mg && x >= mg && x < W - mg) { x = W - mg - 1; continue; } ring.push((y * W + x) * 4); }
+    if (ring.length > 20) {
+      const med = ch => { const v = ring.map(k => d[k + ch]).sort((p, q) => p - q); return v[v.length >> 1]; }, bc = [med(0), med(1), med(2)], dist = new Float32Array(N);
+      for (let i = 0; i < N; i++) dist[i] = Math.sqrt((d[i * 4] - bc[0]) ** 2 + (d[i * 4 + 1] - bc[1]) ** 2 + (d[i * 4 + 2] - bc[2]) ** 2);
+      const db = boxBlur(dist, W, H, 2, 2), td = otsuOf(db, N, null, 256);
+      if (td > 0) [1, 0.6].forEach(f => { const m = new Uint8Array(N); for (let i = 0; i < N; i++) m[i] = db[i] > td * f ? 1 : 0; masks.push(m); });
+    }
+    { const ef = new Float32Array(N); for (let i = 0; i < N; i++) ef[i] = gm[i] > T * 2 ? 1 : 0; const eb = boxBlur(ef, W, H, 3, 1), m = new Uint8Array(N); for (let i = 0; i < N; i++) m[i] = eb[i] > 0.02 ? 1 : 0; masks.push(m); }
+    // ── 후보 → 사각형 → 변이 실제 가장자리에 얼마나 붙어 있는지로 점수
+    const lab = new Int32Array(N), stack = new Int32Array(N);
+    const support = Q => {
+      let tot = 0, ok = 0, mn = 1;
+      for (let s = 0; s < 4; s++) {
+        const A = Q[s], B = Q[(s + 1) % 4], len = dist(A, B), n = Math.max(8, Math.floor(len / 2)); let t0c = 0, k0 = 0;
+        for (let k = 1; k < n; k++) {
+          const f = k / n, x = Math.round(A[0] + (B[0] - A[0]) * f), y = Math.round(A[1] + (B[1] - A[1]) * f); t0c++;
+          if (x <= 2 || y <= 2 || x >= W - 3 || y >= H - 3 || gmx[clamp(y, 0, H - 1) * W + clamp(x, 0, W - 1)] > T) k0++;
+        }
+        tot += t0c; ok += k0; mn = Math.min(mn, k0 / (t0c || 1));
+      }
+      return 0.6 * (ok / (tot || 1)) + 0.4 * mn;
+    };
+    let best = null;
+    for (const mask of masks) {
+      lab.fill(0); let bc = null, id = 0;
       for (let s0 = 0; s0 < N; s0++) {
-        if (lab[s0] || !on(s0)) continue;
+        if (lab[s0] || !mask[s0]) continue;
         id++; let sp = 0; stack[sp++] = s0; lab[s0] = id; let area = 0, minx = W, maxx = 0, miny = H, maxy = 0;
         while (sp) {
           const p = stack[--sp], x = p % W, y = (p / W) | 0; area++;
           if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
-          if (x > 0 && !lab[p - 1] && on(p - 1)) { lab[p - 1] = id; stack[sp++] = p - 1; }
-          if (x < W - 1 && !lab[p + 1] && on(p + 1)) { lab[p + 1] = id; stack[sp++] = p + 1; }
-          if (y > 0 && !lab[p - W] && on(p - W)) { lab[p - W] = id; stack[sp++] = p - W; }
-          if (y < H - 1 && !lab[p + W] && on(p + W)) { lab[p + W] = id; stack[sp++] = p + W; }
+          if (x > 0 && !lab[p - 1] && mask[p - 1]) { lab[p - 1] = id; stack[sp++] = p - 1; }
+          if (x < W - 1 && !lab[p + 1] && mask[p + 1]) { lab[p + 1] = id; stack[sp++] = p + 1; }
+          if (y > 0 && !lab[p - W] && mask[p - W]) { lab[p - W] = id; stack[sp++] = p - W; }
+          if (y < H - 1 && !lab[p + W] && mask[p + W]) { lab[p + W] = id; stack[sp++] = p + W; }
         }
         const full = (maxx - minx) >= W * 0.98 && (maxy - miny) >= H * 0.98;
-        if (!full && area > N * 0.08 && (!bestC || area > bestC.area)) bestC = { area, id };
+        if (!full && area > N * 0.08 && (!bc || area > bc.area)) bc = { area, id };
       }
-      if (!bestC) return null;
-      const pts = [];                                // 덩어리의 가장자리 점 (행·열마다 양 끝)
-      for (let y = 0; y < H; y++) { let l = -1, r = -1; for (let x = 0; x < W; x++) if (lab[y * W + x] === bestC.id) { if (l < 0) l = x; r = x; } if (l >= 0) { pts.push([l, y]); pts.push([r, y]); } }
-      for (let x = 0; x < W; x++) { let t = -1, b = -1; for (let y = 0; y < H; y++) if (lab[y * W + x] === bestC.id) { if (t < 0) t = y; b = y; } if (t >= 0) { pts.push([x, t]); pts.push([x, b]); } }
-      const q0 = quadFromHull(hull(pts)); if (!q0) return null;
+      if (!bc) continue;
+      const pts = [];
+      for (let y = 0; y < H; y++) { let l = -1, r = -1; for (let x = 0; x < W; x++) if (lab[y * W + x] === bc.id) { if (l < 0) l = x; r = x; } if (l >= 0) { pts.push([l, y]); pts.push([r, y]); } }
+      for (let x = 0; x < W; x++) { let t = -1, b = -1; for (let y = 0; y < H; y++) if (lab[y * W + x] === bc.id) { if (t < 0) t = y; b = y; } if (t >= 0) { pts.push([x, t]); pts.push([x, b]); } }
+      const q0 = quadFromHull(hull(pts)); if (!q0) continue;
       const Q = orderQuad(q0), qa = polyArea(Q);
-      if (qa < N * 0.15 || qa > N * 0.985 || bestC.area / qa < 0.6 || !goodQuad(Q)) return null;
-      return Q;
-    };
-    return tryPol(true) || tryPol(false);
+      if (qa < N * 0.12 || qa > N * 0.985 || bc.area / qa < 0.55 || !goodQuad(Q)) continue;
+      const sc = support(Q) * (0.6 + 0.4 * Math.min(1, qa / (N * 0.5)));
+      if (!best || sc > best.sc) best = { Q, sc };
+    }
+    return best && best.sc > 0.4 ? best.Q : null;
   } catch (e) { return null; }
 }
 function detectFromCanvas(c, long) {                // 큰 그림에서는 줄여서 찾고 좌표를 되돌린다
@@ -493,7 +533,7 @@ $('btnShot').onclick = async () => {
   if (!cam.vw || video.readyState < 2) { toast('카메라 준비 중'); return; }
   const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); try { navigator.vibrate && navigator.vibrate(25); } catch (e) {}
   const c = newCanvas(cam.vw, cam.vh); c.getContext('2d').drawImage(video, 0, 0);
-  const found = detectFromCanvas(c, 900), pts = found && goodQuad(found) ? found : insetQuad(c.width, c.height, 0.04);   // 찍은 뒤 모서리 자동 인식
+  const found = detectFromCanvas(c, 640), pts = found && goodQuad(found) ? found : insetQuad(c.width, c.height, 0.04);   // 찍은 뒤 모서리 자동 인식
   if (S.quick) { busy('보정 중…'); await nextFrame(); try { await addPageFrom(c, pts); toast('📑 ' + pages.length + '쪽 추가'); } catch (e) { toast('보정하지 못했어요.'); } unbusy(); }
   else openEditor({ src: c, pts, from: 'cam', found: !!(found && goodQuad(found)) });
 };
@@ -515,17 +555,17 @@ async function loadImageCanvas(file) {
     await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('img')); im.src = url; });
     URL.revokeObjectURL(url); w = im.naturalWidth; h = im.naturalHeight; src = im;
   }
-  const k = Math.min(1, 4000 / Math.max(w, h)), c = newCanvas(Math.round(w * k), Math.round(h * k));
+  const k = Math.min(1, ((navigator.deviceMemory && navigator.deviceMemory <= 3) ? 2800 : 3600) / Math.max(w, h)), c = newCanvas(Math.round(w * k), Math.round(h * k));
   c.getContext('2d').drawImage(src, 0, 0, c.width, c.height); if (bmp && bmp.close) bmp.close();
   return c;
 }
 async function handleFiles(files) {
   files = [...files]; if (!files.length) return;
   try {
-    if (files.length === 1) { busy('사진을 읽는 중…'); const c = await loadImageCanvas(files[0]); await nextFrame(); const q = detectFromCanvas(c, 900); unbusy(); openEditor({ src: c, pts: q || insetQuad(c.width, c.height, 0.04), from: cur === 'pages' ? 'pages' : 'cam', found: !!q }); return; }
+    if (files.length === 1) { busy('사진을 읽는 중…'); const c = await loadImageCanvas(files[0]); await nextFrame(); const q = detectFromCanvas(c, 640); unbusy(); openEditor({ src: c, pts: q || insetQuad(c.width, c.height, 0.04), from: cur === 'pages' ? 'pages' : 'cam', found: !!q }); return; }
     for (let i = 0; i < files.length; i++) {
       busy('사진 보정 중… ' + (i + 1) + ' / ' + files.length); await nextFrame();
-      const c = await loadImageCanvas(files[i]); await addPageFrom(c, detectFromCanvas(c, 900) || insetQuad(c.width, c.height, 0.03));
+      const c = await loadImageCanvas(files[i]); await addPageFrom(c, detectFromCanvas(c, 640) || insetQuad(c.width, c.height, 0.03));
     }
     unbusy(); toast(files.length + '장 추가'); show('pages');
   } catch (e) { unbusy(); toast('사진을 읽을 수 없어요' + (e && e.message ? ' (' + e.message + ')' : '')); }
@@ -1015,7 +1055,7 @@ async function runExport(kind) {
 $('dPrint').onclick = () => runExport('print'); $('dNote').onclick = () => runExport('note'); $('dDevice').onclick = () => runExport('device'); $('dFolder').onclick = () => runExport('folder'); $('dShare').onclick = () => runExport('share');
 
 paintQuick(); updCounts(); show('cam');
-window.__scan = { pages, detectQuad, quadFromHull, hull, orderQuad, targetSize, warp, enhance, buildPdf, renderResult, aspectZhang, S };   // 점검용
+window.__scan = { pages, detectFromCanvas, detectQuad, quadFromHull, hull, orderQuad, targetSize, warp, enhance, buildPdf, renderResult, aspectZhang, S };   // 점검용
 })();
 </script>
 <script src="ui-guard.js" defer></script>

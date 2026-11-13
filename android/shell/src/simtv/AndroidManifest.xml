@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SIM TV 앱 전용: 안드로이드 PIP(화면 속 화면) 허용. 다른 앱의 매니페스트에는 들어가지 않는다. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name="kr.simtools.shell.MainActivity"
+            android:supportsPictureInPicture="true" />
+    </application>
+</manifest>

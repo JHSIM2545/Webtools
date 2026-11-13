@@ -45,6 +45,11 @@ android {
         sourceSets { tool { java.srcDirs = ['src/scan/java'] } }
     }
 
+    // SIM TV 앱만: 안드로이드 PIP(화면 속 화면)용 전용 Extra 와 매니페스트 속성. 다른 앱의 APK 내용에는 영향이 없다.
+    if (appKey == 'simtv') {
+        sourceSets { tool { java.srcDirs = ['src/simtv/java']; manifest.srcFile 'src/simtv/AndroidManifest.xml' } }
+    }
+
     signingConfigs {
         sim {
             storeFile file('../sim-release.jks')

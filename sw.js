@@ -1,6 +1,6 @@
 // SIM Tools service worker: 앱 껍데기(HTML·아이콘)만 캐시. 방송 스트림 등 외부 요청은 건드리지 않음.
 // 새 툴 파일을 추가하면 SHELL 목록에 넣고 CACHE 숫자를 올리세요.
-const CACHE = 'simwebtools-shell-v160';
+const CACHE = 'simwebtools-shell-v161';
 const SHELL = ['./', './index.html', './ui-guard.js', './tv.html', './note.html', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './tv-icon-192.png', './note-icon-192.png', './phone.html', './phone-icon-192.png', './aitel.html', './aitel-icon-192.png', './assistant.html', './qr.min.js', './sync.js', './appmenu.js', './assistant-icon-192.png', './calendar.html', './calendar.webmanifest', './calendar-icon-192.png', './calendar-icon-512.png', './calendar-icon-maskable-512.png', './pin-icon.svg', './folder.html', './folder-icon-192.png', './message.html', './message-icon-192.png', './orchestra.html', './orchestra-icon-192.png', './radio.html', './radio-icon-192.png', './calc.html', './calc-icon-192.png', './kbo.html', './kbo-icon-192.png', './kbo-bg.png', './ai-gemini.png', './ai-groq.png', './map.html', './map-icon-192.png', './pad.html', './pad-icon-192.png', './teams.html', './teams-icon-192.png', './scan.html', './scan-icon-192.png'];
 
@@ -48,4 +48,14 @@ self.addEventListener('fetch', e => {
   e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(res => {
     const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return res;
   })));
+});
+
+/* 출발 알림(웹푸시): assistant-trip 함수가 보낸다 */
+self.addEventListener('push', e => {
+  let d = {}; try { d = e.data.json(); } catch (_) { d = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'SIM Assistant', { body: d.body || '', tag: d.tag, icon: 'assistant-icon-192.png', requireInteraction: true, vibrate: [300, 150, 300], data: { url: d.url || 'assistant.html' } }));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close(); const u = (e.notification.data && e.notification.data.url) || 'assistant.html';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(l => { for (const c of l) if ('focus' in c) return c.focus(); return self.clients.openWindow(u); }));
 });

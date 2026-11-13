@@ -1131,6 +1131,136 @@ async function mapFind(q) {
   return keep.slice(0, 4).map(x => x.p);
 }
 const mapCand = p => ({ lat: +p.lat, lng: +p.lng, name: p.name, addr: p.addr || '', src: 'SIM Map', approx: false, mapId: p.id });
+/* ───── 이동시간(차) · 도착시간 맞춤 출발 알림 ───── */
+const TRIPURL = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-trip';
+async function tripApi(o) {
+  const r = await fetch(TRIPURL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ phone: gKey() }, o)), signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined });
+  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error === 'forbidden' ? '등록되지 않은 전화번호예요(✨에서 확인)' : (j.error || r.status)); return j;
+}
+const curPos = () => new Promise((res, rej) => {
+  if (!navigator.geolocation) return rej(new Error('이 기기에서는 현재 위치를 쓸 수 없어요'));
+  navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lng: p.coords.longitude }), e => rej(new Error(e && e.code === 1 ? '위치 권한이 꺼져 있어요. 권한 정보에서 위치를 켜 주세요' : '현재 위치를 확인하지 못했어요')), { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 });
+});
+async function tripDest(q) {
+  const mp = await mapFind(q); if (mp.length) return { lat: +mp[0].lat, lng: +mp[0].lng, name: mp[0].name, src: 'SIM Map' };
+  const kp = kbPlace(q);
+  if (kp) { let c = kp.lat != null ? kbPlaceCand(kp) : null; if (!c) { try { const r0 = await kbGeo(kp.q || kp.addr); if (r0) { kp.lat = r0.lat; kp.lng = r0.lng; kbSave(); c = kbPlaceCand(kp); } } catch (e) {} } if (c) return { lat: +c.lat, lng: +c.lng, name: kp.name, src: '기억한 장소' }; }
+  const r = await searchPlaces(q); if (r && r[0]) return { lat: +r[0].lat, lng: +r[0].lng, name: r[0].name || q, src: r[0].src || '지도' };
+  return null;
+}
+const fmtDur = s => { const m = Math.max(1, Math.round(s / 60)); return m < 60 ? m + '분' : Math.floor(m / 60) + '시간' + (m % 60 ? ' ' + (m % 60) + '분' : ''); };
+const fmtKm = m => m >= 1000 ? (m / 1000).toFixed(m >= 10000 ? 0 : 1) + 'km' : m + 'm';
+const fmtHM = d => { const h = d.getHours(), m = d.getMinutes(); return (h < 12 ? '오전 ' : '오후 ') + (h % 12 || 12) + '시' + (m ? ' ' + m + '분' : ''); };
+async function tripEta(q) {
+  const d = await tripDest(q); if (!d) throw new Error('"' + q + '" 위치를 찾지 못했어요');
+  const o = await curPos(); const r = await tripApi({ a: 'eta', o, d }); return { d, o, r };
+}
+const TRIP_TIME = /(오전|오후|아침|저녁|밤|새벽)?\s*(\d{1,2})\s*시\s*(반|(\d{1,2})\s*분)?|(\d{1,2}):(\d{2})/;
+function parseArrive(t) {
+  const m = TRIP_TIME.exec(t); if (!m) return null;
+  let ap = m[1] || '', h = m[2] != null ? +m[2] : +m[5], mi = m[2] != null ? (m[3] === '반' ? 30 : (m[4] ? +m[4] : 0)) : +m[6];
+  if (h > 24 || mi > 59) return null;
+  const now = new Date(), day = /모레/.test(t) ? 2 : /내일/.test(t) ? 1 : 0, base = new Date(now.getFullYear(), now.getMonth(), now.getDate() + day, 0, 0, 0, 0);
+  const at = hh => { const d = new Date(base); d.setHours(hh, mi, 0, 0); return d; };
+  if (/오후|저녁|밤/.test(ap) && h < 12) h += 12; else if (/오전|아침|새벽/.test(ap) && h === 12) h = 0;
+  let d = at(h % 24);
+  if (!ap && m[2] != null && h <= 12 && !day) { const c = [at(h % 12), at((h % 12) + 12)].filter(x => x.getTime() > now.getTime() + 60e3).sort((a, b) => a - b); d = c[0] || at(h % 24); }
+  if (d.getTime() <= now.getTime() && !day) d = new Date(d.getTime() + 864e5);
+  return d;
+}
+const TRIP_JUNK = /(현재\s*위치|지금|여기|내\s*위치)(에서|서)?|차로|자동차로|운전(해서)?|내비(로|게이션)?|(도착|출발)\s*(해야|해야해|해야돼|해야\s*해|예정|할\s*거야|할거야|하려고|하게|하도록)?|가야\s*(해|돼|되|한다|함|해요|합니다)?|갈\s*거야|갈거야|가려고|늦지\s*않게|맞춰(서)?|알려\s*줘|알려줘|알려|말해\s*줘|얼마나|몇\s*(분|시간)|걸려요?|걸리(나|지|는데|는\s*데|니|냐|나요|죠)?|걸릴(까|지)?|소요(시간)?|시간(이)?|까지|좀|한테|출발\s*시간|(?:^|\s)(?:이야|예요|이에요|야|해|돼|함)(?=\s|$)|\?/g;
+function tripDestOf(t) {
+  let s = String(t).replace(TRIP_TIME, ' ').replace(/내일|모레|오늘|오전|오후|아침|저녁|밤|새벽/g, ' ').replace(MAP_WORDS, ' ').replace(TRIP_JUNK, ' ').replace(TRIP_JUNK, ' ').replace(/\s+/g, ' ').trim();
+  s = s.replace(/\s*(에서|으로|로|에|을|를|은|는|이|가|도)$/, '').trim(); return s;
+}
+function tripIntent(t) {
+  if (/(도착|출발)\s*(알림|예약|알람).{0,8}(취소|꺼|삭제|해제|없애)|(취소|삭제).{0,6}(도착|출발)\s*(알림|예약)/.test(t)) return { k: 'tripcancel' };
+  const hasT = TRIP_TIME.test(t), dest = tripDestOf(t);
+  if (hasT && /(도착|가야|출발|맞춰|늦지)/.test(t) && !/(알람|일정|캘린더|전화|문자|메모)/.test(t) && dest.length >= 1) return { k: 'arrive', dest, at: parseArrive(t), raw: t };
+  if (/(얼마나|몇\s*(분|시간)|시간).{0,8}(걸려|걸리|걸릴|소요)|(걸리는|소요)\s*시간|도착.{0,4}(얼마|몇\s*분)|까지\s*(의\s*)?시간\s*(좀\s*)?(알려|얼마|이\s*얼마)/.test(t) && !hasT && dest.length >= 1) return { k: 'eta', dest };
+  return null;
+}
+/* 앱이 켜져 있는 동안: 주기적으로 현재 위치·이동시간을 확인해 출발 10분 전에 음성+알림 */
+const TRIPS = (() => { try { return JSON.parse(ls.get('SIMAS_TRIPS', '[]')) || []; } catch (e) { return []; } })();
+const tripSave = () => ls.set('SIMAS_TRIPS', JSON.stringify(TRIPS));
+const b64u = s => { const p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+async function tripSub() {
+  try {
+    if (!('PushManager' in window) || !('Notification' in window) || !navigator.serviceWorker) return { sub: null, why: '이 앱(브라우저)은 앱이 꺼진 상태의 푸시를 지원하지 않아요' };
+    if (Notification.permission === 'default') await Notification.requestPermission();
+    if (Notification.permission !== 'granted') return { sub: null, why: '알림 권한이 꺼져 있어요' };
+    const reg = await navigator.serviceWorker.getRegistration(); if (!reg) return { sub: null, why: '서비스 워커가 아직 준비되지 않았어요' };
+    let s = await reg.pushManager.getSubscription();
+    if (!s) { const v = await tripApi({ a: 'vapid' }); if (!v.key) return { sub: null, why: '푸시 키가 서버에 없어요' }; s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(v.key) }); }
+    return { sub: s.toJSON() };
+  } catch (e) { return { sub: null, why: '푸시 등록 실패: ' + (e && e.message || e) }; }
+}
+function speakNow(text) {
+  try { if (!ttsOn || !('speechSynthesis' in window)) return; try { speechSynthesis.resume(); } catch (e) {} const u = new SpeechSynthesisUtterance(text); u.lang = 'ko-KR'; if (koVoice) u.voice = koVoice; speechSynthesis.speak(u); } catch (e) {}
+}
+async function tripAlert(t, eta, late) {
+  const arrive = new Date(t.arrive), leave = new Date(arrive.getTime() - eta * 1000), mins = Math.max(0, Math.round((leave - Date.now()) / 60000));
+  const msg = late ? t.name + '까지 약 ' + fmtDur(eta) + ' 걸려요. ' + fmtHM(arrive) + '에 도착하려면 지금 출발하세요.' : t.name + '까지 약 ' + fmtDur(eta) + ' 걸려요. ' + fmtHM(arrive) + '에 도착하려면 약 ' + mins + '분 뒤인 ' + fmtHM(leave) + '에 출발하세요.';
+  bot('🚗 곧 출발할 시간이에요. ' + msg, { html: '<b>🚗 곧 출발할 시간이에요</b>' + kvRows([['목적지', t.name], ['도착 예정', fmtHM(arrive)], ['예상 소요', fmtDur(eta)], ['출발', late ? '지금' : fmtHM(leave)]]), btns: [{ label: '🧭 내비 시작', primary: true, href: launchHref(nmapUrl.nav({ lat: t.lat, lng: t.lng, name: t.name })), fn: iosStoreFallback }] });
+  speakNow(msg); notifyOS('🚗 곧 출발할 시간이에요', msg, 'trip-' + (t.sid || t.id));
+  t.done = true; tripSave(); if (t.sid) tripApi({ a: 'cancel', id: t.sid }).catch(() => {});   // 서버 푸시가 또 가지 않게
+}
+let tripBusy = false;
+async function tripTick() {
+  if (tripBusy || !TRIPS.length) return; tripBusy = true;
+  try {
+    const now = Date.now();
+    for (let i = TRIPS.length - 1; i >= 0; i--) { const t = TRIPS[i]; if (t.done || now > Date.parse(t.arrive) + 30 * 60e3) TRIPS.splice(i, 1); }
+    tripSave();
+    for (const t of TRIPS) {
+      const arrive = Date.parse(t.arrive), rem = (t.leaveAt || arrive) - now - t.lead * 60e3;
+      const every = rem > 60 * 60e3 ? 10 * 60e3 : rem > 20 * 60e3 ? 3 * 60e3 : 60e3;
+      if (t.chk && now - t.chk < every && !(t.leaveAt && now >= t.leaveAt - t.lead * 60e3)) continue;
+      t.chk = now;
+      let o; try { o = await curPos(); } catch (e) { continue; }
+      let r; try { r = await tripApi({ a: 'eta', o, d: { lat: t.lat, lng: t.lng } }); } catch (e) { continue; }
+      t.eta = r.sec; t.leaveAt = arrive - r.sec * 1000; tripSave();
+      if (t.sid) tripApi({ a: 'origin', id: t.sid, o }).catch(() => {});
+      if (Date.now() >= t.leaveAt - t.lead * 60e3) { await tripAlert(t, r.sec, Date.now() >= t.leaveAt); }
+    }
+  } finally { tripBusy = false; }
+}
+setInterval(tripTick, 30000); setTimeout(tripTick, 4000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) tripTick(); });
+async function tripAdd(dest, at) {
+  const { d, o, r } = await tripEta(dest);
+  const arrive = at, leave = new Date(arrive.getTime() - r.sec * 1000), lead = 10, notifyAt = new Date(leave.getTime() - lead * 60e3);
+  const ps = await tripSub();
+  let sid = ''; try { const j = await tripApi({ a: 'add', name: d.name, d, o, arrive_at: arrive.toISOString(), lead, sub: ps.sub }); sid = j.id; } catch (e) {}
+  for (let i = TRIPS.length - 1; i >= 0; i--) if (TRIPS[i].name === d.name) TRIPS.splice(i, 1);
+  const t = { id: rid(), sid, name: d.name, lat: d.lat, lng: d.lng, arrive: arrive.toISOString(), lead, eta: r.sec, leaveAt: leave.getTime(), chk: Date.now(), done: false }; TRIPS.push(t); tripSave();
+  return { d, r, arrive, leave, notifyAt, push: !!(ps.sub && sid), why: ps.sub ? '' : ps.why, late: notifyAt.getTime() <= Date.now() };
+}
+const tripNote = r => r.traffic ? '실시간 교통을 반영했어요' : '※ 교통 상황은 반영하지 못한 예상 시간이에요';
+async function tripHandle(m) {
+  if (m.k === 'tripcancel') {
+    const n = TRIPS.length; TRIPS.length = 0; tripSave(); try { await tripApi({ a: 'cancel' }); } catch (e) {}
+    return bot(n ? '도착 시간 출발 알림을 모두 취소했어요.' : '설정된 출발 알림이 없어요.');
+  }
+  if (m.k === 'eta') {
+    sys('현재 위치에서 "' + m.dest + '"까지 계산하는 중…');
+    try {
+      const { d, r } = await tripEta(m.dest);
+      const say = d.name + '까지 현재 위치에서 차로 약 ' + fmtDur(r.sec) + ' 걸려요. 거리는 ' + fmtKm(r.m) + '이에요.' + (r.traffic ? '' : ' 다만 교통 상황은 반영하지 못했어요.');
+      return bot(say, { html: '<b>🚗 ' + esc(d.name) + '까지 약 ' + esc(fmtDur(r.sec)) + '</b>' + kvRows([['거리', fmtKm(r.m)], ['출처', d.src], ['교통', r.traffic ? '실시간 반영' : '미반영(예상)']]) + '<span class="sub">' + esc(tripNote(r)) + '</span>', btns: [{ label: '🧭 네이버 내비 시작', primary: true, href: launchHref(nmapUrl.nav(d)), fn: iosStoreFallback }] });
+    } catch (e) { return bot('이동시간을 확인하지 못했어요. ' + (e && e.message || '')); }
+  }
+  if (m.k === 'arrive') {
+    if (!m.at) return bot('도착할 시각을 알려 주세요. 예: "강남역 오후 3시까지 도착해야 해"');
+    sys('"' + m.dest + '" 이동시간을 확인하는 중…');
+    try {
+      const x = await tripAdd(m.dest, m.at);
+      const head = x.d.name + '에 ' + fmtHM(x.arrive) + '까지 도착하려면 ' + (x.late ? '지금 바로 출발해야 해요.' : fmtHM(x.leave) + '에 출발해야 해요.') + ' (현재 기준 약 ' + fmtDur(x.r.sec) + ')';
+      const tail = x.late ? '' : ' 출발 10분 전인 ' + fmtHM(x.notifyAt) + ' 무렵에 알려 드릴게요.';
+      return bot(head + tail + (x.push ? '' : ' ' + (x.why ? x.why + '. ' : '') + '앱이 켜져 있을 때만 음성으로 알려 드려요.'), { html: '<b>⏰ 도착 시간 맞춤 출발 알림</b>' + kvRows([['목적지', x.d.name], ['도착 예정', fmtHM(x.arrive)], ['예상 소요', fmtDur(x.r.sec)], ['출발 시각', x.late ? '지금' : fmtHM(x.leave)], ['알림', x.late ? '곧바로' : fmtHM(x.notifyAt)]]) + '<span class="sub">' + esc(tripNote(x.r)) + '. 출발 시각은 교통 상황에 따라 계속 다시 계산해요. ' + (x.push ? '앱을 꺼도 푸시로 알려요(마지막으로 확인한 위치 기준).' : esc(x.why || '') + ' 앱이 켜져 있으면 음성으로 알려요.') + '</span>', btns: [{ label: '알림 취소', fn: () => { TRIPS.length = 0; tripSave(); tripApi({ a: 'cancel' }).catch(() => {}); bot('출발 알림을 취소했어요.'); } }] });
+    } catch (e) { return bot('출발 알림을 설정하지 못했어요. ' + (e && e.message || '')); }
+  }
+}
 async function navFlow(sl) {
   if (sl.dest && !sl.noAlias) {   // 기억한 장소(집·사무실·어머니댁…)면 저장된 주소로 바로
     const kp = kbPlace(sl.dest);
@@ -1338,6 +1468,22 @@ const LTOOLS = {
     liveCard('<b>' + esc(q) + ' — 후보 ' + LIVE.cands.length + '곳</b>' + LIVE.cands.map((c, i) => '<div class="who" style="margin-top:6px"><div class="av" style="background:#0ea5e9">' + (i + 1) + '</div><div><b>' + esc(c.name) + '</b><small>' + esc(c.addr || '') + (c.approx ? ' · ⚠ 번지 미확인' : '') + '</small></div></div>').join(''));
     return { ok: true, candidates: LIVE.cands.map((c, i) => ({ index: i + 1, name: c.name, address: c.addr, exact_number_matched: !c.approx })) };
   },
+  async get_eta(a) {
+    const q = String(a.query || '').trim(); if (!q) return { ok: false, error: '목적지가 비었어요' };
+    try { const { d, r } = await tripEta(q); liveCard('<b>🚗 ' + esc(d.name) + '까지 약 ' + esc(fmtDur(r.sec)) + '</b>' + kvRows([['거리', fmtKm(r.m)], ['교통', r.traffic ? '실시간 반영' : '미반영(예상)']]));
+      return { ok: true, destination: d.name, minutes: Math.round(r.sec / 60), duration_text: fmtDur(r.sec), distance_km: +(r.m / 1000).toFixed(1), traffic_reflected: r.traffic, note: r.traffic ? '현재 위치에서 차로, 실시간 교통 반영' : '현재 위치에서 차로. 교통 상황은 반영하지 못한 예상 시간이라고 함께 알려 주세요' }; }
+    catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+  },
+  async set_arrival(a) {
+    const q = String(a.query || '').trim(), hm = /^(\d{1,2}):(\d{2})/.exec(String(a.time || '')); if (!q || !hm) return { ok: false, error: '목적지와 도착 시각(HH:MM)이 필요해요' };
+    let d = a.date ? L_DT(a.date, a.time) : new Date(); if (!d) return { ok: false, error: '날짜 형식이 맞지 않아요' };
+    if (!a.date) { d.setHours(+hm[1], +hm[2], 0, 0); if (d.getTime() <= Date.now()) d = new Date(d.getTime() + 864e5); }
+    try { const x = await tripAdd(q, d);
+      liveCard('<b>⏰ ' + esc(x.d.name) + ' ' + esc(fmtHM(x.arrive)) + ' 도착</b>' + kvRows([['출발', x.late ? '지금' : fmtHM(x.leave)], ['알림', x.late ? '곧바로' : fmtHM(x.notifyAt)], ['예상 소요', fmtDur(x.r.sec)]]));
+      return { ok: true, destination: x.d.name, depart_at: x.late ? '지금 바로' : fmtHM(x.leave), notify_at: x.late ? '지금' : fmtHM(x.notifyAt), minutes: Math.round(x.r.sec / 60), traffic_reflected: x.r.traffic, background_push: x.push, note: x.push ? '앱을 꺼도 푸시로 알려요' : '앱이 켜져 있을 때만 음성으로 알려요. ' + (x.why || '') }; }
+    catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+  },
+  async cancel_arrival() { TRIPS.length = 0; tripSave(); try { await tripApi({ a: 'cancel' }); } catch (e) {} return { ok: true }; },
   async start_navigation(a) {
     const c = LIVE.cands[(+a.index || 0) - 1]; if (!c) return { ok: false, error: '그 번호의 후보가 없어요' };
     liveCard('<b>네이버 내비를 실행해요</b><span class="sub">' + esc(c.name) + ' · ' + esc(c.addr || '') + '</span>' + noNaverApp(), [{ label: '🧭 네이버 내비 시작', primary: true, href: launchHref(nmapUrl.nav(c)), fn: iosStoreFallback }]);
@@ -1708,6 +1854,7 @@ function kbSearch(t) {
 const KB_PLACEWORD = /^(?:우리\s*)?(집|사무실|회사|직장|본가|친정(?:집)?|어머니\s*댁|어머님\s*댁|엄마\s*집|엄마네|아버지\s*댁|아빠\s*집|부모님\s*댁|처갓집|시댁)$/;
 function memIntent(text) {
   const t = String(text).trim();
+  { const ti = tripIntent(t); if (ti) return ti; }
   // 1) 잊기
   if (/잊어|기억.{0,8}(삭제|지워|초기화)/.test(t)) {
     const q = t.replace(/(잊어버려|잊어\s*줘|잊어줘|잊어|지워\s*줘|지워줘|지워|삭제\s*해?\s*줘|삭제해줘|삭제|초기화)\S*/g, '').replace(/기억(한|해\s*둔|해둔)?\s*(거|것|내용|들)?/g, '').replace(/(을|를|은|는|도)\s*$/, '').replace(/(주소|위치)\s*$/, '').trim();
@@ -1761,6 +1908,7 @@ function kbDel(it) {
   kbSave();
 }
 async function memHandle(m) {
+  if (m.k === 'eta' || m.k === 'arrive' || m.k === 'tripcancel') return tripHandle(m);
   if (m.k === 'nav') return navFlow(m.sl);
   if (m.k === 'mapfind') {
     const mp = await mapFind(m.q);

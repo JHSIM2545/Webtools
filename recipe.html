@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#14110f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SIM Recipe">
+<link rel="icon" type="image/png" sizes="192x192" href="recipe-icon-192.png">
+<title>SIM Recipe</title>
+<style>
+:root{--bg:#14110f;--panel:#1e1a17;--panel2:#2a2420;--line:#3a322c;--text:#f3ece6;--sub:#a79a8f;--accent:#ff6b4a;--accent2:#e8512f;--ink:#2a0d05;--ok:#3ecf8e;--warn:#ffc46b;--danger:#ff5d5d}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));background:var(--panel);border-bottom:1px solid var(--line);flex:none;z-index:5}
+header h1{font-size:17px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:8px}
+header h1 span{color:var(--accent);margin-left:-5px}
+.appicon{width:30px;height:30px;border-radius:8px;display:block}
+.back{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:20px;line-height:1}
+.spacer{flex:1}
+button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:9px 14px;cursor:pointer;touch-action:manipulation}
+button:active{filter:brightness(1.2)}
+button{white-space:nowrap}
+button.pri{background:var(--accent);border-color:var(--accent);color:var(--ink);font-weight:800}
+button.dng{color:var(--danger)}
+button:disabled{opacity:.45}
+input,textarea,select{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;outline:none;width:100%}
+input:focus,textarea:focus{border-color:var(--accent)}
+textarea{resize:none}
+main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:12px 12px 20px}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+nav#tabs{flex:none;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line)}
+nav#tabs button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 4px;border-radius:14px;background:transparent;border-color:transparent;font-size:11.5px;color:var(--sub);font-weight:700}
+nav#tabs button i{font-style:normal;font-size:21px}
+nav#tabs button.on{background:#3a1c13;color:var(--accent);border-color:#5a2a1c}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.rc{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
+.rc .im{aspect-ratio:4/3;background:var(--panel2) center/cover;display:flex;align-items:center;justify-content:center;font-size:34px;position:relative}
+.rc .im img{width:100%;height:100%;object-fit:cover;display:block}
+.rc .tt{padding:9px 11px 3px;font-weight:700;font-size:14.5px;line-height:1.3}
+.rc .mt{padding:0 11px 10px;font-size:12px;color:var(--sub);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.badge{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:99px;background:#3a1c13;color:var(--accent);border:1px solid #5a2a1c}
+.empty{padding:50px 10px;text-align:center;color:var(--sub);font-size:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.card h3{font-size:15px}
+label.l{font-size:12.5px;color:var(--sub)}
+.row{display:flex;gap:8px;align-items:center}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:12.5px;padding:5px 10px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);display:inline-flex;align-items:center;gap:6px}
+.chip button{padding:0 2px;border:0;background:transparent;color:var(--sub)}
+/* 상세 */
+.hero{aspect-ratio:16/10;border-radius:18px;overflow:hidden;background:var(--panel2);position:relative;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--sub)}
+.hero img{width:100%;height:100%;object-fit:cover;display:block}
+.dt h2{font-size:21px;line-height:1.3}
+.dt p{color:var(--sub);font-size:14px;margin-top:4px;line-height:1.5}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.acts .pri{flex:1;min-width:140px;padding:12px;font-size:16px}
+.ing{display:grid;grid-template-columns:1fr auto auto;gap:8px 10px;align-items:center}
+.ing .nm{font-size:15px}
+.ing .nm small{color:var(--sub);display:block;font-size:12px}
+.ing input{width:84px;text-align:right;padding:7px 9px}
+.ing .un{color:var(--sub);font-size:14px;min-width:30px}
+.unv{font-size:10.5px;color:var(--warn);border:1px solid #6b4f1c;border-radius:99px;padding:1px 6px;margin-left:5px;font-weight:700}
+.stp{display:flex;gap:12px;align-items:flex-start}
+.stp .no{flex:none;width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--ink);font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px;margin-top:2px}
+.stp .bd{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.stp h4{font-size:15.5px}
+.stp .tx{font-size:15px;line-height:1.6}
+b.q{color:var(--accent);font-weight:800}
+.tm{font-size:12.5px;color:var(--warn);font-weight:700}
+.pic{aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:var(--panel2);position:relative;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:13px}
+.pic img{width:100%;height:100%;object-fit:cover;display:block}
+.pic.ld::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.08) 50%,transparent 70%);background-size:200% 100%;animation:sh 1.2s linear infinite}
+@keyframes sh{from{background-position:200% 0}to{background-position:-200% 0}}
+.pic .rg{position:absolute;right:8px;bottom:8px;padding:5px 9px;font-size:12px;background:rgba(0,0,0,.6);border-color:transparent;border-radius:99px}
+.ph{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ph img{width:76px;height:76px;object-fit:cover;border-radius:10px;border:1px solid var(--line);cursor:pointer}
+.ph .add{width:76px;height:76px;border-style:dashed;color:var(--sub);font-size:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0}
+.ph .add.s{width:auto;height:auto;flex-direction:row;padding:5px 11px;border-radius:99px}
+.tip{font-size:14px;line-height:1.55;padding-left:2px}
+.cm{display:flex;flex-direction:column;gap:3px;padding:9px 0;border-bottom:1px solid var(--line)}
+.cm:last-child{border:0}
+.cm .h{font-size:12px;color:var(--sub);display:flex;gap:8px;align-items:center}
+.cm .h b{color:var(--text)}
+.cm .h button{margin-left:auto;padding:0 6px;border:0;background:transparent;color:var(--sub);font-size:16px}
+.cm .b{font-size:14.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.tag{font-size:12px;color:var(--sub)}
+.sw{display:flex;align-items:center;gap:8px;font-size:14px}
+.sw input{width:auto}
+.step-r{display:inline-flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.step-r button{border:0;border-radius:0;padding:7px 13px;font-size:17px;background:var(--panel2)}
+.step-r span{padding:0 12px;font-weight:800;font-size:14.5px;min-width:78px;text-align:center}
+/* 팝업 */
+.ov{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:14px}
+.ov .box{width:min(520px,100%);max-height:calc(100dvh - 28px);overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.ov .box h3{font-size:16px}
+#busy{z-index:90;flex-direction:column;gap:14px;color:#fff;text-align:center}
+.spin{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.2);border-top-color:var(--accent);animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+#viewer{z-index:80;background:rgba(0,0,0,.92);flex-direction:column;gap:12px}
+#viewer img{max-width:100%;max-height:78dvh;border-radius:10px}
+/* 요리 모드 */
+#cook{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column}
+#cook .top{flex:none;display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top));background:var(--panel);border-bottom:1px solid var(--line)}
+#cook .top .pg{flex:1;height:6px;background:var(--panel2);border-radius:9px;overflow:hidden}
+#cook .top .pg i{display:block;height:100%;background:var(--accent);width:0;transition:width .4s}
+#cook .top .ct{font-size:13px;color:var(--sub);font-weight:700;min-width:46px;text-align:right}
+#pages{flex:1;min-height:0;overflow-y:auto;scroll-snap-type:y mandatory;overscroll-behavior:contain}
+.page{height:100%;min-height:100%;scroll-snap-align:start;scroll-snap-stop:always;padding:14px 16px;display:flex;flex-direction:column;gap:12px;max-width:760px;margin:0 auto;overflow-y:auto}
+.page .pic{flex:none;max-height:38%;aspect-ratio:auto;min-height:130px}
+.page .big{font-size:21px;line-height:1.65;font-weight:600}
+.page h2{font-size:15px;color:var(--accent)}
+.page .tmr{align-self:flex-start;font-size:26px;font-weight:800;color:var(--warn);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px 14px;font-variant-numeric:tabular-nums}
+.page .tmr.run{border-color:var(--warn)}
+.page .ingl{display:flex;flex-direction:column;gap:6px;font-size:18px}
+.page .ingl label{display:flex;gap:10px;align-items:center}
+.page .ingl input{width:20px;height:20px;accent-color:var(--accent)}
+#cook .bot{flex:none;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+#cook .ctl{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap}
+#cook .ctl button{padding:9px 13px;font-size:15px}
+#cook .ctl button.on{background:#3a1c13;border-color:var(--accent);color:var(--accent)}
+#ans{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14.5px;line-height:1.5}
+#ans .a2{margin-top:8px;display:flex;gap:8px}
+.toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#000c;color:#fff;padding:10px 16px;border-radius:99px;font-size:14px;z-index:100;max-width:90vw;text-align:center}
+@media (max-height:480px) and (min-width:640px){
+  #cook .page{flex-direction:row;align-items:flex-start}
+  #cook .page .pic{max-height:none;width:42%;flex:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html" aria-label="런처">‹</a>
+  <h1><img class="appicon" src="recipe-icon-192.png" alt="">SIM <span>Recipe</span></h1>
+  <div class="spacer"></div>
+</header>
+<main id="main"><div class="wrap" id="view"></div></main>
+<nav id="tabs">
+  <button data-t="mine" class="on"><i>📖</i>내 레시피</button>
+  <button data-t="shared"><i>👥</i>공유 레시피</button>
+  <button data-t="new"><i>✨</i>새 레시피</button>
+</nav>
+
+<div class="ov" id="busy" hidden><div class="spin"></div><div id="busyTx">처리 중…</div><button id="busyX" hidden>취소</button></div>
+<div class="ov" id="viewer" hidden><img id="vimg" alt=""><div class="row"><button id="vdel" class="dng" hidden>사진 삭제</button><button id="vclose">닫기</button></div></div>
+<div class="ov" id="editov" hidden>
+  <div class="box">
+    <h3>레시피 수정 요청</h3>
+    <textarea id="editTx" rows="4" placeholder="예) 2번과 3번 순서를 바꿔줘 / 양파 대신 대파를 넣어줘 / 소금을 1작은술로 / 4인분으로 바꿔줘"></textarea>
+    <div class="row"><button id="editMic">🎤 말로 입력</button><div class="spacer"></div><button id="editX">취소</button><button class="pri" id="editGo">수정하기</button></div>
+  </div>
+</div>
+<div id="cook" hidden>
+  <div class="top"><button id="cX">✕</button><div class="pg"><i id="cPg"></i></div><div class="ct" id="cCt"></div></div>
+  <div id="pages"></div>
+  <div class="bot">
+    <div id="ans" hidden></div>
+    <div class="ctl">
+      <button id="cPrev">⏮</button><button id="cPause">⏸</button><button id="cNext">⏭</button>
+      <button id="cMore">+1분</button><button id="cDone">다 됐어요</button>
+      <button id="cAuto" class="on">자동</button><button id="cVoice" class="on">🔊</button>
+    </div>
+    <div class="row"><button id="cMic">🎤</button><input id="cQ" placeholder="질문하기 (예: 소금이 없는데 빼도 돼?)"><button id="cSend" class="pri">전송</button></div>
+  </div>
+</div>
+<input type="file" id="fPhoto" accept="image/*" multiple hidden>
+<input type="file" id="fSrc" accept="application/pdf,image/*" multiple hidden>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ═══════ 설정 ═══════ */
+const SB_URL = 'https://rgamgjdnhunzzwzsbnbs.supabase.co', SB_KEY = 'sb_publishable_hnBcVEuMXFRdFRqJhOM0OQ_rp72JywU';
+const FN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/recipe-ai';
+const BUCKET = 'recipe-img', LSK = 'simrecipe.v1';
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const rid = () => Math.random().toString(36).slice(2, 9);
+let pref = {}; try { pref = JSON.parse(localStorage.getItem(LSK) || '{}'); } catch (e) {}
+const savePref = () => { try { localStorage.setItem(LSK, JSON.stringify(pref)); } catch (e) {} };
+function toast(t, ms) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), ms || 2600); }
+
+/* ═══════ 로그인 세션 (런처와 공유) ═══════ */
+const NS = window.SimSession || null;
+let sb = null;
+async function client() {
+  if (sb) return sb;
+  sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: !NS, detectSessionInUrl: false } });
+  if (NS) sb.auth.onAuthStateChange((ev, s) => { if (s && ev === 'TOKEN_REFRESHED') { try { NS.put(JSON.stringify({ access_token: s.access_token, refresh_token: s.refresh_token })); } catch (e) {} } });
+  return sb;
+}
+async function session() {
+  const c = await client();
+  if (NS) {
+    let raw = null; try { raw = NS.get(); } catch (e) {}
+    if (raw && raw !== 'NA' && raw !== 'OUT') {
+      let t = null; try { t = JSON.parse(raw); } catch (e) {}
+      const cur = (await c.auth.getSession()).data.session;
+      if (t && t.refresh_token && (!cur || cur.refresh_token !== t.refresh_token)) { try { await c.auth.setSession({ access_token: t.access_token, refresh_token: t.refresh_token }); } catch (e) {} }
+    }
+  }
+  return (await c.auth.getSession()).data.session;
+}
+const S = { uid: '', name: '', tab: 'mine', mine: [], shared: [], row: null, ro: false, scale: 1, prev: null, cache: {} };
+const userName = u => { const m = (u && u.user_metadata) || {}; return m.full_name || m.name || (u.email || '').split('@')[0] || '익명'; };
+
+/* ═══════ 표시 도우미 ═══════ */
+const FR = [[.25, '¼'], [1 / 3, '⅓'], [.5, '½'], [2 / 3, '⅔'], [.75, '¾']];
+function fmtNum(n, speak) {
+  if (n >= 100) return String(Math.round(n));
+  if (n >= 10) return String(Math.round(n * 2) / 2);
+  const w = Math.floor(n), f = n - w;
+  if (f < .04) return String(w || 0);
+  if (f > .96) return String(w + 1);
+  if (speak) return f > .45 && f < .55 ? (w ? w + '과 반' : '반') : String(Math.round(n * 10) / 10);
+  for (const [v, s] of FR) if (Math.abs(f - v) < .04) return (w ? w : '') + s;
+  return String(Math.round(n * 10) / 10);
+}
+const SPK = { g: '그램', kg: '킬로그램', ml: '밀리리터', L: '리터', l: '리터' };
+function qty(ing, speak) {
+  if (!ing) return '';
+  if (ing.amount == null) return ing.unit || '적당량';
+  const n = fmtNum(ing.amount * S.scale, speak), u = ing.unit || '';
+  return speak ? n + (SPK[u] || u) : n + u;
+}
+const ingById = (rec, id) => (rec.ingredients || []).find(x => x.id === id);
+function stepText(rec, s, speak) {
+  return String(s.text || '').replace(/\{([\w-]+)\}/g, (m, id) => { const g = ingById(rec, id); if (!g) return ''; const q = qty(g, speak); return speak ? q : '<b class="q">' + esc(q) + '</b>'; });
+}
+const plain = (rec, s) => stepText(rec, s, true);
+const stepHtml = (rec, s) => { const parts = String(s.text || '').split(/(\{[\w-]+\})/); return parts.map(p => { const m = /^\{([\w-]+)\}$/.exec(p); if (!m) return esc(p); const g = ingById(rec, m[1]); return g ? '<b class="q">' + esc(qty(g)) + '</b>' : ''; }).join(''); };
+const mmss = s => { s = Math.max(0, Math.round(s)); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+const timeTxt = sec => sec >= 3600 ? Math.floor(sec / 3600) + '시간' + (sec % 3600 >= 60 ? ' ' + Math.round(sec % 3600 / 60) + '분' : '') : sec >= 60 ? Math.round(sec / 60) + '분' : sec + '초';
+const ago = t => { const d = (Date.now() - new Date(t)) / 1000; return d < 60 ? '방금' : d < 3600 ? Math.floor(d / 60) + '분 전' : d < 86400 ? Math.floor(d / 3600) + '시간 전' : new Date(t).toLocaleDateString('ko-KR'); };
+const baseServ = () => S.row.data.servings || 2;
+const curServ = () => Math.round(baseServ() * S.scale * 10) / 10;
+
+function busy(on, tx, cancel) { $('busy').hidden = !on; if (on) { $('busyTx').textContent = tx || '처리 중…'; $('busyX').hidden = !cancel; $('busyX').onclick = cancel || null; } }
+function aiErr(e) { return e && e.message ? e.message : 'AI 연결에 실패했어요'; }
+
+/* ═══════ AI 호출 ═══════ */
+async function ai(payload, ms, signal) {
+  const ss = await session(); if (!ss) throw new Error('먼저 SIM Tools 런처에서 로그인해 주세요');
+  for (let k = 0; k < 4; k++) {
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), ms || 60000);
+    if (signal) signal.addEventListener('abort', () => ctl.abort());
+    try {
+      const r = await fetch(FN, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ss.access_token }, body: JSON.stringify(payload) });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) return j;
+      if (r.status === 429 && j.error === 'rate') { await sleep(900); continue; }
+      const m = { page: '이 주소의 페이지를 읽지 못했어요 (로그인이 필요하거나 막혀 있어요)', empty_page: '페이지에서 읽을 내용이 없어요', quota: 'AI 사용 한도에 도달했어요', forbidden: '로그인이 만료됐어요. 런처에서 다시 로그인해 주세요', ai: 'AI가 레시피를 만들지 못했어요. 잠시 뒤 다시 시도해 주세요' };
+      throw new Error(m[j.error] || 'AI 응답 실패 (' + r.status + ')');
+    } catch (e) { if (e && e.name === 'AbortError') { if (signal && signal.aborted) throw new Error('취소했어요'); throw new Error('응답이 너무 늦어요'); } if (e instanceof TypeError) throw new Error('네트워크 연결 실패'); throw e; }
+    finally { clearTimeout(to); }
+  }
+  throw new Error('잠시 뒤 다시 시도해 주세요');
+}
+
+/* ═══════ 사진 ═══════ */
+async function toJpeg(src, max, q) {
+  const bm = await createImageBitmap(src);
+  const r = Math.min(1, max / Math.max(bm.width, bm.height)), c = document.createElement('canvas');
+  c.width = Math.round(bm.width * r); c.height = Math.round(bm.height * r); c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height);
+  return new Promise(ok => c.toBlob(ok, 'image/jpeg', q || .85));
+}
+const b64Blob = (b64, mime) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: mime }); };
+const blobDataUrl = b => new Promise(ok => { const f = new FileReader(); f.onload = () => ok(f.result); f.readAsDataURL(b); });
+async function upload(blob) {
+  const c = await client(); await session();
+  const path = S.uid + '/' + rid() + rid() + '.jpg';
+  const { error } = await c.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+  if (error) throw error;
+  return c.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+}
+const pathOf = url => { const i = String(url).indexOf('/' + BUCKET + '/'); return i < 0 ? '' : url.slice(i + BUCKET.length + 2); };
+
+/* ═══════ 저장 ═══════ */
+const saveT = {};
+function persist(row) {
+  clearTimeout(saveT[row.id]);
+  saveT[row.id] = setTimeout(async () => {
+    try { const c = await client(); await session(); const { error } = await c.from('recipes').update({ title: row.data.title, data: row.data, shared: row.shared, updated_at: new Date().toISOString() }).eq('id', row.id); if (error) throw error; }
+    catch (e) { toast('저장 실패: ' + aiErr(e)); }
+  }, 500);
+}
+async function loadLists() {
+  const c = await client();
+  const a = await c.from('recipes').select('id,owner,owner_name,title,data,shared,updated_at').eq('owner', S.uid).order('updated_at', { ascending: false });
+  const b = await c.from('recipes').select('id,owner,owner_name,title,data,shared,updated_at').eq('shared', true).order('updated_at', { ascending: false });
+  if (a.error) throw a.error; if (b.error) throw b.error;
+  S.mine = a.data; S.shared = b.data;
+  [...S.mine, ...S.shared].forEach(r => { if (!S.cache[r.id] || r.id !== (S.row && S.row.id)) S.cache[r.id] = r; });
+}
+
+/* ═══════ 이미지 생성 대기열 ═══════ */
+const Q = { jobs: [], run: false, failed: new Set(), active: new Set() };
+const jobKey = (rowId, k) => rowId + ':' + k;
+function queueImages(row) {
+  const d = row.data;
+  if (!d.cover && d.coverPrompt) pushJob(row, 'cover');
+  d.steps.forEach(s => { if (!s.img && s.imgPrompt) pushJob(row, s.k); });
+}
+function pushJob(row, k) { const key = jobKey(row.id, k); if (Q.active.has(key)) return; Q.failed.delete(key); Q.active.add(key); Q.jobs.push({ row, k, key }); if (!Q.run) runQ(); }
+async function runQ() {
+  Q.run = true;
+  while (Q.jobs.length) {
+    const j = Q.jobs.shift(), d = j.row.data;
+    const prompt = j.k === 'cover' ? d.coverPrompt : (d.steps.find(s => s.k === j.k) || {}).imgPrompt;
+    try {
+      if (!prompt) throw new Error('no');
+      const r = await ai({ action: 'image', prompt, dish: d.title }, 70000);
+      const url = await upload(await toJpeg(b64Blob(r.data, r.mime || 'image/png'), 1024, .85));
+      if (j.k === 'cover') d.cover = url; else { const s = d.steps.find(x => x.k === j.k); if (s) s.img = url; }
+      persist(j.row); paintImg(j.row, j.k);
+    } catch (e) { Q.failed.add(j.key); paintImg(j.row, j.k); if (/한도/.test(aiErr(e))) { Q.jobs.forEach(x => { Q.failed.add(x.key); }); Q.jobs.forEach(x => Q.active.delete(x.key)); Q.jobs = []; toast('AI 사용 한도에 도달해 사진 만들기를 멈췄어요'); } }
+    Q.active.delete(j.key);
+    await sleep(450);
+  }
+  Q.run = false;
+}
+function picInner(row, k) {
+  const d = row.data, url = k === 'cover' ? d.cover : (d.steps.find(s => s.k === k) || {}).img, key = jobKey(row.id, k);
+  const alt = k === 'cover' ? (d.coverAlt || '') : '';
+  if (url) return '<img src="' + esc(url) + '" data-alt="' + esc(alt) + '" referrerpolicy="no-referrer" loading="lazy" alt="" onerror="imgErr(this,\'' + row.id + '\',\'' + k + '\')">';
+  if (Q.failed.has(key)) return '<span style="font-size:44px">🍳</span>' + (S.row && S.row.id === row.id && !S.ro ? '<button class="rg" data-rg="' + k + '">사진 만들기</button>' : '');
+  return '<span>사진 만드는 중…</span>';
+}
+function imgErr(el, id, k) {
+  const alt = el.dataset.alt; if (alt && el.src !== alt) { el.dataset.alt = ''; el.src = alt; return; }
+  const row = S.cache[id]; if (!row) return; const d = row.data;
+  if (k === 'cover') d.cover = ''; else { const s = d.steps.find(x => x.k === k); if (s) s.img = ''; }
+  pushJob(row, k); paintImg(row, k);
+}
+function paintImg(row, k) {
+  if (!S.row || S.row.id !== row.id) return;
+  document.querySelectorAll('[data-pic="' + k + '"]').forEach(el => { el.classList.toggle('ld', !Q.failed.has(jobKey(row.id, k)) && !(k === 'cover' ? row.data.cover : (row.data.steps.find(s => s.k === k) || {}).img)); el.innerHTML = picInner(row, k); });
+}
+
+/* ═══════ 화면: 목록 ═══════ */
+function setTab(t) {
+  S.tab = t; document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  if (t === 'new') return viewNew();
+  viewList();
+}
+async function viewList() {
+  const v = $('view'), shared = S.tab === 'shared';
+  v.innerHTML = '<div class="empty">불러오는 중…</div>';
+  try { await loadLists(); } catch (e) { v.innerHTML = '<div class="empty">' + esc(aiErr(e)) + '</div>'; return; }
+  const list = shared ? S.shared : S.mine;
+  if (!list.length) { v.innerHTML = '<div class="empty">' + (shared ? '아직 공유된 레시피가 없어요' : '첫 레시피를 만들어 보세요') + '</div>' + (shared ? '' : '<button class="pri" id="goNew" style="padding:13px">✨ 새 레시피 만들기</button>'); const g = $('goNew'); if (g) g.onclick = () => setTab('new'); return; }
+  v.innerHTML = '<div class="grid">' + list.map(r => '<div class="rc" data-id="' + r.id + '"><div class="im">' + (r.data.cover ? '<img src="' + esc(r.data.cover) + '" data-alt="' + esc(r.data.coverAlt || '') + '" referrerpolicy="no-referrer" loading="lazy" alt="" onerror="if(this.dataset.alt&&this.src!==this.dataset.alt){this.src=this.dataset.alt}else{this.remove()}">' : '🍳') + '</div><div class="tt">' + esc(r.title) + '</div><div class="mt">' + (shared ? '<span>' + esc(r.owner === S.uid ? '내 레시피' : r.owner_name || '익명') + '</span>' : (r.shared ? '<span class="badge">공유 중</span>' : '')) + '<span>' + (r.data.steps || []).length + '단계</span></div></div>').join('') + '</div>';
+  v.querySelectorAll('.rc').forEach(el => el.onclick = () => openRecipe(list.find(r => r.id === el.dataset.id), shared));
+}
+
+/* ═══════ 화면: 새 레시피 ═══════ */
+const src = { files: [] };
+function viewNew() {
+  const v = $('view'); src.files = [];
+  v.innerHTML = '<div class="card"><h3>자료 넣기</h3>' +
+    '<input id="nUrl" type="url" inputmode="url" placeholder="유튜브·웹페이지 주소">' +
+    '<textarea id="nTx" rows="5" placeholder="레시피 글 붙여넣기"></textarea>' +
+    '<div class="row"><button id="nFile">📎 PDF·사진 첨부</button><div class="spacer"></div></div><div class="chips" id="nChips"></div>' +
+    '<button class="pri" id="nGo" style="padding:13px;font-size:16px">레시피 만들기</button></div>';
+  $('nFile').onclick = () => $('fSrc').click();
+  $('nGo').onclick = createRecipe;
+}
+$('fSrc').onchange = e => {
+  for (const f of e.target.files) { if (f.type === 'application/pdf' && src.files.some(x => x.type === 'application/pdf')) { toast('PDF는 한 번에 하나만 넣을 수 있어요'); continue; } if (f.size > 10e6) { toast(f.name + ' 파일이 너무 커요 (10MB 이하)'); continue; } if (src.files.length < 4) src.files.push(f); }
+  e.target.value = ''; const ch = $('nChips'); if (ch) { ch.innerHTML = src.files.map((f, i) => '<span class="chip">' + esc(f.name) + '<button data-i="' + i + '">✕</button></span>').join(''); ch.querySelectorAll('button').forEach(b => b.onclick = () => { src.files.splice(+b.dataset.i, 1); b.parentNode.remove(); }); }
+};
+async function createRecipe() {
+  const url = $('nUrl').value.trim(), text = $('nTx').value.trim();
+  if (!url && !text && !src.files.length) return toast('주소·글·파일 중 하나를 넣어 주세요');
+  const ctl = new AbortController(); busy(true, 'AI가 자료를 읽고 있어요… (영상은 1~2분 걸릴 수 있어요)', () => ctl.abort());
+  try {
+    const p = { action: 'extract', url: url || undefined, text: text || undefined, images: [] };
+    for (const f of src.files) { if (f.type === 'application/pdf') p.pdf = (await blobDataUrl(f)).split(',')[1]; else p.images.push(await blobDataUrl(await toJpeg(f, 1600, .8))); }
+    const r = await ai(p, 130000, ctl.signal), rec = r.recipe;
+    rec.steps.forEach(s => { s.k = 's' + rid(); delete s.regen; }); delete rec.coverRegen; rec.photos = { final: [], steps: {} };
+    const c = await client(); await session();
+    const ins = await c.from('recipes').insert({ owner: S.uid, owner_name: S.name, title: rec.title, data: rec, shared: false }).select().single();
+    if (ins.error) throw ins.error;
+    S.cache[ins.data.id] = ins.data; busy(false);
+    openRecipe(ins.data, false); queueImages(ins.data);
+  } catch (e) { busy(false); toast(aiErr(e), 4000); }
+}
+
+/* ═══════ 화면: 상세 ═══════ */
+const layers = [];
+function pushLayer(name) { layers.push(name); history.pushState({ l: layers.length }, ''); }
+window.addEventListener('popstate', () => { const top = layers.pop(); if (top === 'cook') closeCook(true); else if (top === 'detail') { S.row = null; viewList(); } });
+function openRecipe(row, fromShared) {
+  S.row = S.cache[row.id] = row; S.ro = row.owner !== S.uid; S.scale = 1; S.prev = null;
+  if (!layers.includes('detail')) pushLayer('detail');
+  renderDetail(); $('main').scrollTop = 0; loadComments();
+}
+function closeDetail() { if (layers.includes('detail')) history.back(); else { S.row = null; viewList(); } }
+function renderDetail() {
+  const row = S.row, d = row.data, ro = S.ro, v = $('view');
+  d.photos = d.photos || { final: [], steps: {} };
+  const share = ro ? '' : '<label class="sw"><input type="checkbox" id="dShare"' + (row.shared ? ' checked' : '') + '> 다른 사용자에게 공유</label>';
+  v.innerHTML =
+    '<div class="row"><button id="dBack">‹ 목록</button><div class="spacer"></div>' + (ro ? '<span class="tag">' + esc(row.owner_name || '익명') + ' 님의 레시피</span>' : '<button class="dng" id="dDel">삭제</button>') + '</div>' +
+    '<div class="hero" data-pic="cover">' + picInner(row, 'cover') + '</div>' +
+    '<div class="dt"><h2>' + esc(d.title) + '</h2><p>' + esc(d.desc || '') + '</p></div>' +
+    '<div class="acts"><button class="pri" id="dCook">▶ 요리 시작</button>' + (ro ? '' : '<button id="dEdit">✏️ 수정 요청</button>') + '<button id="dUndo"' + (S.prev ? '' : ' hidden') + '>↩ 되돌리기</button></div>' + share +
+    '<div class="card"><div class="row"><h3>재료</h3><div class="spacer"></div><div class="step-r"><button id="sMinus">−</button><span id="sVal"></span><button id="sPlus">+</button></div></div><div class="ing" id="ingList"></div></div>' +
+    '<div class="card"><h3>조리 순서</h3><div id="stepList" style="display:flex;flex-direction:column;gap:18px"></div></div>' +
+    (d.tips && d.tips.length ? '<div class="card"><h3>팁</h3>' + d.tips.map(t => '<div class="tip">• ' + esc(t) + '</div>').join('') + '</div>' : '') +
+    '<div class="card"><h3>완성 사진</h3><div class="ph" id="phFinal"></div></div>' +
+    (d.source && d.source.url ? '<div class="tag">출처: <a style="color:var(--sub)" href="' + esc(d.source.url) + '" target="_blank" rel="noopener">' + esc(d.source.title || d.source.url) + '</a></div>' : '') +
+    '<div class="card"><h3>댓글</h3><div id="cmList"></div><div class="row"><input id="cmIn" maxlength="1000" placeholder="의견 남기기"><button class="pri" id="cmSend">등록</button></div></div>';
+  $('dBack').onclick = closeDetail;
+  if (!ro) {
+    $('dDel').onclick = delRecipe; $('dEdit').onclick = openEdit;
+    $('dShare').onchange = e => { row.shared = e.target.checked; persist(row); toast(row.shared ? '공유 레시피 탭에 올렸어요' : '공유를 껐어요'); };
+  }
+  $('dUndo').onclick = undoEdit;
+  $('dCook').onclick = startCook;
+  $('sMinus').onclick = () => { setServ(Math.max(1, Math.round(curServ()) - 1)); };
+  $('sPlus').onclick = () => { setServ(Math.round(curServ()) + 1); };
+  paintBody();
+  v.querySelectorAll('[data-pic]').forEach(el => { if (!picHas(row, el.dataset.pic) && !Q.failed.has(jobKey(row.id, el.dataset.pic))) el.classList.add('ld'); });
+  v.onclick = e => { const b = e.target.closest('[data-rg]'); if (b) { pushJob(row, b.dataset.rg); paintImg(row, b.dataset.rg); } };
+  $('cmSend').onclick = sendComment;
+}
+const picHas = (row, k) => k === 'cover' ? row.data.cover : (row.data.steps.find(s => s.k === k) || {}).img;
+function setServ(n) { S.scale = n / baseServ(); paintBody(); }
+function paintBody() {
+  const row = S.row, d = row.data, ro = S.ro;
+  $('sVal').textContent = fmtNum(curServ()) + '인분';
+  $('ingList').innerHTML = d.ingredients.map(g => '<div class="nm">' + esc(g.name) + (g.unverified && g.amount == null ? '<span class="unv">양 미확인</span>' : g.unverified ? '<span class="unv">양 미확인</span>' : '') + (g.note ? '<small>' + esc(g.note) + '</small>' : '') + '</div>' +
+    (g.amount == null ? '<div></div><div class="un">' + esc(g.unit || '적당량') + '</div>' : '<input inputmode="decimal" data-ing="' + esc(g.id) + '" value="' + (Math.round(g.amount * S.scale * 100) / 100) + '"><div class="un">' + esc(g.unit) + '</div>')).join('');
+  $('ingList').querySelectorAll('input').forEach(inp => inp.onchange = () => {
+    const g = ingById(d, inp.dataset.ing), n = parseFloat(String(inp.value).replace(',', '.'));
+    if (!g || !(n > 0)) { paintBody(); return; } S.scale = n / g.amount; paintBody();
+  });
+  $('stepList').innerHTML = d.steps.map((s, i) => '<div class="stp"><div class="no">' + (i + 1) + '</div><div class="bd"><h4>' + esc(s.title) + '</h4><div class="pic" data-pic="' + esc(s.k) + '">' + picInner(row, s.k) + '</div><div class="tx">' + stepHtml(d, s) + '</div>' + (s.timerSec ? '<div class="tm">⏱ ' + timeTxt(s.timerSec) + '</div>' : '') +
+    '<div class="ph" data-sp="' + esc(s.k) + '">' + ((d.photos.steps[s.k] || []).map(u => '<img src="' + esc(u) + '" data-u="' + esc(u) + '" alt="">').join('')) + (ro ? '' : '<button class="add s" data-add="' + esc(s.k) + '">📷 사진 추가</button>') + '</div></div></div>').join('');
+  $('stepList').querySelectorAll('.pic').forEach(el => { if (!picHas(row, el.dataset.pic) && !Q.failed.has(jobKey(row.id, el.dataset.pic))) el.classList.add('ld'); });
+  $('phFinal').innerHTML = (d.photos.final || []).map(u => '<img src="' + esc(u) + '" data-u="' + esc(u) + '" alt="">').join('') + (ro ? (d.photos.final && d.photos.final.length ? '' : '<span class="tag">사진이 없어요</span>') : '<button class="add" data-add="final">📷<span>추가</span></button>');
+  document.querySelectorAll('#view .ph img').forEach(im => im.onclick = () => showPhoto(im.dataset.u));
+  document.querySelectorAll('#view [data-add]').forEach(b => b.onclick = () => { photoTarget = b.dataset.add; $('fPhoto').click(); });
+}
+
+/* 사용자 사진 */
+let photoTarget = '';
+$('fPhoto').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = ''; if (!files.length || !S.row || S.ro) return;
+  busy(true, '사진 올리는 중…');
+  try {
+    const ph = S.row.data.photos = S.row.data.photos || { final: [], steps: {} };
+    for (const f of files.slice(0, 8)) {
+      const url = await upload(await toJpeg(f, 1280, .82));
+      if (photoTarget === 'final') (ph.final = ph.final || []).push(url); else (ph.steps[photoTarget] = ph.steps[photoTarget] || []).push(url);
+    }
+    persist(S.row); paintBody();
+  } catch (er) { toast('사진 올리기 실패: ' + aiErr(er)); }
+  busy(false);
+};
+let viewing = '';
+function showPhoto(u) { viewing = u; $('vimg').src = u; $('vdel').hidden = S.ro; $('viewer').hidden = false; }
+$('vclose').onclick = () => { $('viewer').hidden = true; };
+$('vdel').onclick = async () => {
+  if (!confirm('이 사진을 삭제할까요?')) return; const ph = S.row.data.photos;
+  ph.final = (ph.final || []).filter(x => x !== viewing); for (const k in ph.steps) ph.steps[k] = ph.steps[k].filter(x => x !== viewing);
+  persist(S.row); paintBody(); $('viewer').hidden = true;
+  try { const p = pathOf(viewing); if (p) await (await client()).storage.from(BUCKET).remove([p]); } catch (e) {}
+};
+async function delRecipe() {
+  if (!confirm('이 레시피를 삭제할까요? 사진과 댓글도 함께 지워져요.')) return;
+  try {
+    const c = await client(); await session(); const d = S.row.data;
+    const urls = [d.cover, ...d.steps.map(s => s.img), ...(d.photos ? [...(d.photos.final || []), ...Object.values(d.photos.steps || {}).flat()] : [])].map(pathOf).filter(Boolean);
+    const { error } = await c.from('recipes').delete().eq('id', S.row.id); if (error) throw error;
+    if (urls.length) c.storage.from(BUCKET).remove(urls).catch(() => {});
+    delete S.cache[S.row.id]; toast('삭제했어요'); closeDetail();
+  } catch (e) { toast('삭제 실패: ' + aiErr(e)); }
+}
+
+/* 댓글 */
+async function loadComments() {
+  const id = S.row && S.row.id; if (!id) return; const el = $('cmList'); if (el) el.innerHTML = '<div class="tag">불러오는 중…</div>';
+  try {
+    const c = await client(); await session(); const { data, error } = await c.from('recipe_comments').select('*').eq('recipe_id', id).order('created_at'); if (error) throw error;
+    if (!S.row || S.row.id !== id || !$('cmList')) return;
+    $('cmList').innerHTML = data.length ? data.map(m => '<div class="cm"><div class="h"><b>' + esc(m.user_name || '익명') + '</b>' + ago(m.created_at) + (m.user_id === S.uid ? '<button data-cd="' + m.id + '" aria-label="삭제">✕</button>' : '') + '</div><div class="b">' + esc(m.body) + '</div></div>').join('') : '<div class="tag">아직 댓글이 없어요</div>';
+    $('cmList').querySelectorAll('[data-cd]').forEach(b => b.onclick = async () => { if (!confirm('댓글을 삭제할까요?')) return; await c.from('recipe_comments').delete().eq('id', b.dataset.cd); loadComments(); });
+  } catch (e) { if ($('cmList')) $('cmList').innerHTML = '<div class="tag">댓글을 불러오지 못했어요</div>'; }
+}
+async function sendComment() {
+  const t = $('cmIn').value.trim(); if (!t) return; $('cmSend').disabled = true;
+  try { const c = await client(); await session(); const { error } = await c.from('recipe_comments').insert({ recipe_id: S.row.id, user_id: S.uid, user_name: S.name, body: t }); if (error) throw error; $('cmIn').value = ''; await loadComments(); }
+  catch (e) { toast('등록 실패: ' + aiErr(e)); }
+  $('cmSend').disabled = false;
+}
+
+/* ═══════ 수정 요청 ═══════ */
+function openEdit(text) { $('editTx').value = typeof text === 'string' ? text : ''; $('editov').hidden = false; setTimeout(() => $('editTx').focus(), 50); }
+$('editX').onclick = () => { $('editov').hidden = true; };
+$('editGo').onclick = async () => {
+  const req = $('editTx').value.trim(); if (!req) return toast('수정할 내용을 적어 주세요');
+  $('editov').hidden = true; const ok = await applyEdit(req); if (ok) $('editTx').value = '';
+};
+async function applyEdit(req) {
+  const row = S.row, old = JSON.parse(JSON.stringify(row.data)); const ctl = new AbortController();
+  busy(true, 'AI가 레시피를 고치고 있어요…', () => ctl.abort());
+  try {
+    const cur = JSON.parse(JSON.stringify(old)); cur.steps.forEach(s => { delete s.img; });
+    const r = await ai({ action: 'edit', recipe: cur, request: req }, 90000, ctl.signal), n = r.recipe, byK = new Map(old.steps.map(s => [s.k, s]));
+    const keep = new Set();
+    n.steps = n.steps.map(s => { const o = s.k && byK.get(s.k); if (o && !keep.has(o.k)) { keep.add(o.k); if (!s.regen) return { ...s, img: o.img || '', regen: undefined }; return { ...s, img: '', regen: undefined }; } return { ...s, k: 's' + rid(), img: '', regen: undefined }; });
+    n.cover = old.cover; n.coverAlt = old.coverAlt; n.source = old.source; n.photos = old.photos || { final: [], steps: {} };
+    if (n.coverRegen) { n.cover = ''; n.coverAlt = ''; } else n.coverPrompt = old.coverPrompt || n.coverPrompt; delete n.coverRegen;
+    S.prev = { data: old, title: old.title }; row.data = n; row.title = n.title; S.scale = 1; persist(row); renderDetail(); queueImages(row); busy(false); toast('수정했어요');
+    return true;
+  } catch (e) { busy(false); toast(aiErr(e), 4000); return false; }
+}
+function undoEdit() { if (!S.prev) return; S.row.data = S.prev.data; S.row.title = S.prev.title; S.prev = null; persist(S.row); renderDetail(); toast('되돌렸어요'); }
+
+/* ═══════ 음성 ═══════ */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let koVoice = null;
+function pickVoice() { const vs = speechSynthesis.getVoices ? speechSynthesis.getVoices() : []; koVoice = vs.find(v => /ko[-_]KR/i.test(v.lang)) || vs.find(v => /^ko/i.test(v.lang)) || null; }
+try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
+function cancelSpeech() { try { speechSynthesis.cancel(); } catch (e) {} }
+function speak(text) {
+  return new Promise(ok => {
+    try {
+      cancelSpeech(); const u = new SpeechSynthesisUtterance(text); u.lang = 'ko-KR'; if (koVoice) u.voice = koVoice; u.rate = 1.0;
+      let done = false; const fin = () => { if (!done) { done = true; clearTimeout(t); ok(); } };
+      const t = setTimeout(fin, 3000 + text.length * 260); u.onend = fin; u.onerror = fin; speechSynthesis.speak(u);
+    } catch (e) { ok(); }
+  });
+}
+function listenOnce(onText, onEnd) {
+  if (!SR) return null; const r = new SR(); r.lang = 'ko-KR'; r.interimResults = false; r.maxAlternatives = 1; let got = false;
+  r.onresult = e => { got = true; onText(e.results[0][0].transcript); }; r.onerror = e => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('마이크 권한을 허용해 주세요 (⋯ → 권한 정보)'); }; r.onend = () => onEnd(got);
+  try { r.start(); } catch (e) { return null; } return r;
+}
+$('editMic').onclick = () => { const r = listenOnce(t => { $('editTx').value = ($('editTx').value + ' ' + t).trim(); }, () => { $('editMic').textContent = '🎤 말로 입력'; }); if (!r) return toast('이 기기에서는 음성 입력을 쓸 수 없어요. 글로 적어 주세요'); $('editMic').textContent = '듣는 중…'; };
+
+/* ═══════ 요리 모드 (음성 안내 · 자동 넘김) ═══════ */
+const G = { i: 0, token: 0, left: 0, run: false, paused: false, voice: pref.voice !== false, auto: pref.auto !== false, mic: null, askBusy: false, wake: null, rec: null };
+const pageCount = () => G.rec.steps.length + 2;
+function startCook() {
+  G.rec = S.row.data; G.i = 0; G.paused = false; G.token++; $('cook').hidden = false; if (!layers.includes('cook')) pushLayer('cook');
+  buildPages(); paintCtl(); $('ans').hidden = true;
+  try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => { G.wake = w; }).catch(() => {}); } catch (e) {}
+  goto(0, true);
+}
+function closeCook(fromPop) {
+  G.token++; cancelSpeech(); try { G.mic && G.mic.abort(); } catch (e) {} G.mic = null; $('cook').hidden = true; try { G.wake && G.wake.release(); } catch (e) {} G.wake = null;
+  if (!fromPop && layers[layers.length - 1] === 'cook') history.back();
+  if (S.row) { renderDetail(); loadComments(); }
+}
+function buildPages() {
+  const d = G.rec, row = S.row, steps = d.steps;
+  let h = '<section class="page"><h2>재료 준비</h2><div class="ingl">' + d.ingredients.map(g => '<label><input type="checkbox"><span>' + esc(g.name) + ' <b class="q">' + esc(qty(g)) + '</b></span></label>').join('') + '</div></section>';
+  steps.forEach((s, i) => { h += '<section class="page"><h2>' + (i + 1) + ' / ' + steps.length + ' · ' + esc(s.title) + '</h2><div class="pic" data-pic="' + esc(s.k) + '">' + picInner(row, s.k) + '</div><div class="big">' + stepHtml(d, s) + '</div>' + (s.timerSec ? '<div class="tmr" data-tmr="' + i + '">⏱ ' + mmss(s.timerSec) + '</div>' : '<div class="tmr" data-tmr="' + i + '" hidden></div>') + '</section>'; });
+  h += '<section class="page"><h2>완성!</h2><div class="pic" data-pic="cover">' + picInner(row, 'cover') + '</div><div class="big">맛있게 드세요 🎉</div><button class="pri" id="cPhoto" ' + (S.ro ? 'hidden' : '') + '>📷 완성 사진 남기기</button></section>';
+  $('pages').innerHTML = h;
+  const ph = $('cPhoto'); if (ph) ph.onclick = () => { photoTarget = 'final'; $('fPhoto').click(); };
+  $('pages').onscroll = onScrollEnd;
+}
+let scT = 0;
+function onScrollEnd() { clearTimeout(scT); scT = setTimeout(() => { const pg = $('pages'), idx = Math.round(pg.scrollTop / pg.clientHeight); if (idx !== G.i && idx >= 0 && idx < pageCount()) goto(idx, false); }, 160); }
+function goto(i, scroll) {
+  i = Math.max(0, Math.min(pageCount() - 1, i)); G.i = i; G.paused = false; paintCtl();
+  const pg = $('pages'); if (scroll !== false) pg.scrollTo({ top: i * pg.clientHeight, behavior: scroll === true && i === 0 ? 'auto' : 'smooth' });
+  $('cPg').style.width = ((i + 1) / pageCount() * 100) + '%'; $('cCt').textContent = i === 0 ? '재료' : i > G.rec.steps.length ? '끝' : i + '/' + G.rec.steps.length;
+  runPage(i);
+}
+function say(text, my) { if (!G.voice) return sleep(500); return speak(text).then(() => { if (G.token !== my) return; }); }
+function ingIntro() { return '재료를 준비해 주세요. ' + G.rec.ingredients.map(g => g.name + (g.amount == null ? '' : ' ' + qty(g, true))).join(', ') + '.'; }
+async function runPage(i) {
+  const my = ++G.token, d = G.rec, n = d.steps.length; cancelSpeech(); G.left = 0; G.run = false; setTmr(i);
+  if (i === 0) {
+    await say(d.title + ' 요리를 시작할게요. ' + ingIntro(), my); if (G.token !== my) return;
+    G.left = Math.min(60, 12 + d.ingredients.length * 2);
+  } else if (i > n) {
+    await say('모든 과정이 끝났어요. 맛있게 드세요! 완성 사진도 남겨 보세요.', my); return;
+  } else {
+    const s = d.steps[i - 1];
+    await say((i === 1 ? '첫 번째 단계. ' : i + '번째 단계. ') + s.title + '. ' + plain(d, s) + (s.timerSec ? ' 시간은 ' + timeTxt(s.timerSec) + '이에요.' : ''), my); if (G.token !== my) return;
+    G.left = s.timerSec || Math.min(45, 8 + Math.ceil(plain(d, s).length * .2));
+  }
+  G.run = true; setTmr(i);
+  while (G.left > 0) { await sleep(1000); if (G.token !== my) return; if (!G.paused) { G.left--; setTmr(i); } }
+  if (!G.auto) return;
+  await say(i === n ? '다 되셨나요? 그럼 마무리할게요.' : '다 되셨나요? 그럼 다음으로 넘어갈게요.', my); if (G.token !== my) return;
+  while (G.paused) { await sleep(300); if (G.token !== my) return; }
+  goto(i + 1, true);
+}
+function setTmr(i) {
+  const el = document.querySelector('[data-tmr="' + (i - 1) + '"]'), s = i >= 1 ? G.rec.steps[i - 1] : null;
+  if (el && s) { const show = s.timerSec > 0; el.hidden = !show; if (show) { el.textContent = '⏱ ' + mmss(G.run ? G.left : s.timerSec); el.classList.toggle('run', G.run && G.left > 0 && !G.paused); } }
+}
+function paintCtl() {
+  $('cPause').textContent = G.paused ? '▶' : '⏸'; $('cAuto').classList.toggle('on', G.auto); $('cVoice').classList.toggle('on', G.voice); $('cVoice').textContent = G.voice ? '🔊' : '🔇';
+}
+$('cX').onclick = () => closeCook(false);
+$('cPrev').onclick = () => goto(G.i - 1, true);
+$('cNext').onclick = () => goto(G.i + 1, true);
+$('cPause').onclick = () => { G.paused = !G.paused; if (G.paused) cancelSpeech(); paintCtl(); setTmr(G.i); };
+$('cMore').onclick = () => { G.left += 60; G.run = true; if (G.left > 0) setTmr(G.i); toast('1분 늘렸어요'); if (G.i > 0 && G.i <= G.rec.steps.length && !G.rec.steps[G.i - 1].timerSec) { const el = document.querySelector('[data-tmr="' + (G.i - 1) + '"]'); if (el) { el.hidden = false; } } };
+$('cDone').onclick = () => { G.left = 0; };
+$('cAuto').onclick = () => { G.auto = !G.auto; pref.auto = G.auto; savePref(); paintCtl(); if (G.auto) runPage(G.i); };
+$('cVoice').onclick = () => { G.voice = !G.voice; pref.voice = G.voice; savePref(); if (!G.voice) cancelSpeech(); paintCtl(); };
+
+/* 음성·글 질문 */
+function showAns(text, suggest) {
+  const a = $('ans'); a.hidden = false; a.innerHTML = '<div>' + esc(text) + '</div>' + (suggest && !S.ro ? '<div class="a2"><button class="pri" id="aApply">레시피에 반영</button><button id="aNo">닫기</button></div>' : '');
+  const y = $('aApply'); if (y) y.onclick = async () => { a.hidden = true; closeCookForEdit(); await applyEdit(suggest); };
+  const n = $('aNo'); if (n) n.onclick = () => { a.hidden = true; };
+}
+function closeCookForEdit() { closeCook(false); }
+async function handleVoice(t) {
+  t = String(t || '').trim(); if (!t) return;
+  if (/^(다음|넘어|다 ?(됐|했|되었|끝)|끝났)/.test(t)) return goto(G.i + 1, true);
+  if (/^(이전|앞 ?단계|뒤로|전 단계)/.test(t)) return goto(G.i - 1, true);
+  if (/^(잠깐|멈춰|정지|일시)/.test(t)) { G.paused = true; cancelSpeech(); paintCtl(); return; }
+  if (/^(계속|재개|다시 시작)/.test(t)) { G.paused = false; paintCtl(); return; }
+  if (/(다시|한번 더|한 번 더) ?(읽|말|들려)/.test(t)) return goto(G.i, false);
+  if (G.askBusy) return; G.askBusy = true; const was = G.micPrev != null ? G.micPrev : G.paused; G.micPrev = null; G.paused = true; paintCtl(); showAns('🤔 ' + t + ' — 생각 중…');
+  try {
+    const rec = JSON.parse(JSON.stringify(G.rec)); rec.steps.forEach(s => { delete s.img; });
+    const r = await ai({ action: 'ask', recipe: rec, step: Math.max(0, G.i - 1), question: t, scale: Math.round(S.scale * 100) / 100 }, 40000);
+    showAns(r.answer, r.suggest);
+    if (G.voice) { G.token++; await speak(r.answer); }
+  } catch (e) { showAns('답을 가져오지 못했어요: ' + aiErr(e)); }
+  G.askBusy = false; G.paused = was; paintCtl();
+  if (!$('cook').hidden) runResume();   // 질문 때문에 끊긴 흐름을 이어서 (일시정지 상태면 풀 때까지 대기)
+}
+async function runResume() { const i = G.i; if (i === 0 || i > G.rec.steps.length) return runPage(i); const my = ++G.token; G.run = true; if (G.left <= 0) G.left = 8; while (G.left > 0) { await sleep(1000); if (G.token !== my) return; if (!G.paused) { G.left--; setTmr(i); } } if (!G.auto) return; await say('다 되셨나요? 그럼 다음으로 넘어갈게요.', my); if (G.token !== my) return; goto(i + 1, true); }
+$('cSend').onclick = () => { const t = $('cQ').value; $('cQ').value = ''; handleVoice(t); };
+$('cQ').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('cSend').click(); } };
+$('cMic').onclick = () => {
+  if (G.mic) { try { G.mic.abort(); } catch (e) {} G.mic = null; $('cMic').textContent = '🎤'; return; }
+  cancelSpeech(); G.micPrev = G.paused; G.paused = true; paintCtl();
+  const r = listenOnce(t => handleVoice(t), got => { G.mic = null; $('cMic').textContent = '🎤'; if (!got && !G.askBusy && G.micPrev != null) { G.paused = G.micPrev; G.micPrev = null; paintCtl(); } });
+  if (!r) { G.paused = G.micPrev; G.micPrev = null; paintCtl(); return toast('이 기기에서는 음성 인식을 쓸 수 없어요. 글로 질문해 주세요'); }
+  G.mic = r; $('cMic').textContent = '듣는 중…';
+};
+$('cook').addEventListener('click', e => { const im = e.target.closest('.pic img'); if (im) showPhoto(im.src); });
+
+/* ═══════ 시작 ═══════ */
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { if (S.row) { S.row = null; layers.length = 0; } setTab(b.dataset.t); });
+(async function init() {
+  const v = $('view'); v.innerHTML = '<div class="empty">불러오는 중…</div>';
+  try {
+    const ss = await session();
+    if (!ss) { v.innerHTML = '<div class="empty">SIM Tools 런처에서 로그인한 뒤 열어 주세요</div><a class="back" style="width:auto;padding:12px;align-self:center;font-size:15px" href="index.html">런처로 가기</a>'; return; }
+    S.uid = ss.user.id; S.name = userName(ss.user); setTab('mine');
+  } catch (e) { v.innerHTML = '<div class="empty">' + esc(aiErr(e)) + '</div>'; }
+})();
+</script>
+</body>
+</html>

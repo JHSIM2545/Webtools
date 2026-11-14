@@ -92,15 +92,25 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 #ring h2{font-size:26px}#ring p{color:var(--sub);font-size:15px;line-height:1.6}
 #ring .btns{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;justify-content:center}
 #ring .btns button{padding:14px 22px;font-size:16px;border-radius:14px}
-#live{position:fixed;inset:0;z-index:95;background:#070a10;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center}
-#live.on{display:flex;overflow-y:auto}
-@media (max-height:560px){#live.on{justify-content:flex-start;padding:10px 16px;gap:6px}#liveWave{width:auto!important;max-height:96px}#live h2{font-size:18px}#live .btns{margin-top:0}#live p{min-height:0;font-size:13px}}
-#live .big{font-size:72px}#live.talk .big{animation:pulse2 1s infinite}
+#live{position:fixed;inset:0;z-index:95;background:#070a10;display:none;flex-direction:column;align-items:center;padding:calc(14px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom));text-align:center}
+#live.on{display:flex}
+#liveTop{display:flex;flex-direction:column;align-items:center;gap:6px;min-height:44px}
+#live h2{border:0;background:none;padding:2px 6px;margin:0;font-size:14px;font-weight:600;color:var(--sub);letter-spacing:.02em}
+#liveMic{font-size:13px;color:#ffb36b;max-width:92%}#liveMic:not([data-warn="1"]){display:none}
+#liveDev{max-width:92%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:6px;font:inherit;font-size:13px}
+#liveMid{flex:1;min-height:0;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;overflow-y:auto}
+#liveWave{width:min(220px,60vw);height:auto;aspect-ratio:640/300;flex:none}
+#live .big{font-size:56px}#live.talk .big{animation:pulse2 1s infinite}
 @keyframes pulse2{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
-#live h2{font-size:22px}#live p{color:var(--sub);font-size:15px;line-height:1.6;max-width:92%;min-height:22px}
+#live p{font-size:26px;font-weight:600;line-height:1.5;max-width:94%;min-height:0;word-break:keep-all;overflow-wrap:anywhere}
+#live p:empty{display:none}
 #liveMe{color:var(--text)}#liveBot{color:var(--accent)}
 #liveActs{display:flex;flex-direction:column;gap:8px;align-items:center}
-#live .btns{display:flex;gap:10px;margin-top:6px}#live .btns button{padding:12px 14px;font-size:15px;border-radius:14px;white-space:nowrap}
+#liveBar{display:flex;gap:14px;justify-content:center;align-items:center;flex:none;padding-top:8px}
+#live .ib{width:54px;height:54px;border-radius:50%;padding:0;font-size:22px;line-height:1;display:flex;align-items:center;justify-content:center;background:#161b28;border:1px solid #2a3145;color:var(--text)}
+#live .ib.off{background:#3a1f26;border-color:#7a3340}
+#live .ib.end{background:#c0392b;border-color:#c0392b;color:#fff;font-size:20px}
+@media (max-height:560px){#liveWave{max-height:60px}#live p{font-size:20px}#live .ib{width:46px;height:46px}}
 #aiBusy{position:fixed;left:50%;top:calc(70px + env(safe-area-inset-top));transform:translate(-50%,-14px);z-index:120;display:flex;align-items:center;gap:10px;padding:11px 18px;border-radius:99px;background:rgba(18,24,38,.96);border:1px solid #2b6cff66;color:#e8f0ff;font-size:15px;font-weight:600;box-shadow:0 8px 28px rgba(43,108,255,.35);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;white-space:nowrap}
 #aiBusy.on{opacity:1;transform:translate(-50%,0)}
 #aiBusy .ico{font-size:18px;display:inline-block;animation:abSpin 1.6s ease-in-out infinite}
@@ -153,19 +163,22 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
   <div class="btns"><button id="ringSnooze">5분 뒤 다시</button><button class="primary" id="ringStop">끄기</button></div>
 </div>
 <div id="live">
-  <canvas id="liveWave" width="640" height="300" style="width:min(320px,86vw);height:auto;aspect-ratio:640/300"></canvas>
-  <div class="big" id="liveIco" style="display:none">🎙</div>
-  <h2 id="liveState">연결 중…</h2>
-  <p id="liveMe"></p>
-  <p id="liveBot"></p>
-  <div id="liveActs"></div>
-  <div class="btns"><button id="liveCut">✋ 말 끊기</button><button id="liveMute">🎤 음소거</button><button class="danger" id="liveEnd">대화 종료</button></div>
-  <div class="row" style="align-items:center;max-width:340px;width:100%;margin:4px 0 0"><span class="note" style="flex:none;width:auto">🔊 볼륨</span><input id="liveVol" type="range" min="1" max="4" step="0.5" style="padding:0;border:none;background:none"></div>
-  <button id="liveSpk" style="font-size:13px;padding:7px 12px"></button>
-  <div id="liveMic" class="note" style="max-width:92%"></div>
-  <div style="width:min(300px,80vw);height:6px;border-radius:99px;background:#1f2330;overflow:hidden"><div id="liveLvl" style="height:100%;width:0;background:#4cc9f0"></div></div>
-  <select id="liveDev" style="display:none;max-width:92%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit;font-size:13px"></select>
-  <div class="note" style="margin-top:6px">이어폰을 쓰면 인식이 가장 정확해요</div>
+  <div id="liveTop"><h2 id="liveState">연결 중…</h2><div id="liveMic"></div><select id="liveDev" style="display:none"></select></div>
+  <div id="liveMid">
+    <canvas id="liveWave" width="640" height="300"></canvas>
+    <div class="big" id="liveIco" style="display:none">🎙</div>
+    <p id="liveMe"></p>
+    <p id="liveBot"></p>
+    <div id="liveActs"></div>
+  </div>
+  <div id="liveBar">
+    <button id="liveMute" class="ib" title="음소거">🎤</button>
+    <button id="liveCut" class="ib" title="말 끊기">✋</button>
+    <button id="liveSpk" class="ib" title="스피커폰/이어폰"></button>
+    <button id="liveVolB" class="ib" title="볼륨">🔊</button>
+    <button id="liveEnd" class="ib end" title="대화 종료">✕</button>
+  </div>
+  <input id="liveVol" type="range" min="1" max="4" step="0.5" style="display:none"><i id="liveLvl" style="display:none"></i>
 </div>
 <div id="aiBusy" role="status" aria-live="polite"><span class="ico">🔎</span><span class="txt">AI가 찾아보고 있습니다</span><span class="dots"><i></i><i></i><i></i></span></div>
 <div id="toast"></div>
@@ -1638,10 +1651,10 @@ async function liveStart() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !(window.AudioContext || window.webkitAudioContext) || !window.AudioWorkletNode) { toast('이 브라우저는 실시간 음성 대화를 지원하지 않아요', 4200); return; }
   if (listening) { try { rec.stop(); } catch (e) {} }
   stopSpeak(); unlockAudio(); LIVE.on = true; LIVE.ending = false; LIVE.retries = 0; LIVE.handle = ''; LIVE.muted = false; LIVE.bub = { me: null, bot: null };
-  $('live').classList.add('on'); $('liveMe').textContent = ''; $('liveBot').textContent = ''; $('liveActs').innerHTML = ''; $('liveMute').textContent = '🎤 음소거'; liveSet('연결 중…', '🎙', false); $('liveVol').value = LIVE.vol; spkLabel();
+  $('live').classList.add('on'); $('liveMe').textContent = ''; $('liveBot').textContent = ''; $('liveActs').innerHTML = ''; $('liveMute').textContent = '🎤'; $('liveMute').classList.remove('off'); liveSet('연결 중…', '🎙', false); $('liveVol').value = LIVE.vol; spkLabel();
   try {
     LIVE.autoBt = false; LIVE.stream = await liveAcq(); LIVE.loud = 0; LIVE.readyAt = 0;
-    $('liveMic').textContent = '🎤 ' + (LIVE.label || '기본 마이크') + (LIVE.autoBt ? ' · 차량/블루투스로 인식해 에코 제거를 켰어요' : ''); spkLabel(); liveDevices();
+    $('liveMic').textContent = ''; spkLabel(); liveDevices();
     try { const tr = LIVE.stream.getAudioTracks && LIVE.stream.getAudioTracks()[0]; if (tr) tr.onended = () => { if (LIVE.on) liveFail('마이크 연결이 끊겼어요'); }; } catch (e) {}
     const AC = window.AudioContext || window.webkitAudioContext;
     try { LIVE.ictx = new AC({ sampleRate: 16000 }); } catch (e) { LIVE.ictx = new AC(); } try { await LIVE.ictx.resume(); } catch (e) {}
@@ -1705,8 +1718,8 @@ function liveAnim() {
     sm += (raw - sm) * (raw > sm ? 0.5 : 0.12);
     const lin = lvl(LIVE.an); $('liveLvl').style.width = Math.round(Math.min(1, lin * 1.4) * 100) + '%';
     if (LIVE.ready && !LIVE.readyAt) LIVE.readyAt = now;
-    if (lin > 0.03) { LIVE.loud = now; if ($('liveMic').dataset.warn) { $('liveMic').dataset.warn = ''; $('liveMic').textContent = '🎤 ' + (LIVE.label || '기본 마이크') + (LIVE.autoBt ? ' · 차량/블루투스로 인식해 에코 제거를 켰어요' : ''); $('liveMic').style.color = ''; } }
-    else if (LIVE.readyAt && !LIVE.muted && !speaking && now - Math.max(LIVE.readyAt, LIVE.loud) > 8000 && !$('liveMic').dataset.warn) { $('liveMic').dataset.warn = '1'; $('liveMic').textContent = '⚠ 마이크 소리가 안 들어와요. 말씀해 보시고, 계속 안 되면 아래에서 다른 마이크를 고르거나 폰 마이크로 바꿔 보세요'; $('liveMic').style.color = '#ffb36b'; }
+    if (lin > 0.03) { LIVE.loud = now; if ($('liveMic').dataset.warn) { $('liveMic').dataset.warn = ''; $('liveMic').textContent = ''; } }
+    else if (LIVE.readyAt && !LIVE.muted && !speaking && now - Math.max(LIVE.readyAt, LIVE.loud) > 8000 && !$('liveMic').dataset.warn) { $('liveMic').dataset.warn = '1'; $('liveMic').textContent = '⚠ 마이크 소리가 안 들어와요'; }
     const c1 = speaking ? '186,230,253' : '76,201,240', c2 = speaking ? '125,211,252' : '14,165,233';
     g.clearRect(0, 0, W, H);
     if (!still && (sm > 0.06 || speaking) && now - last > (speaking ? 520 : 380)) { rings.push({ r: 34, a: 0.55 + sm * 0.3 }); last = now; }
@@ -1724,11 +1737,12 @@ function liveAnim() {
   cancelAnimationFrame(LIVE.raf); LIVE.raf = requestAnimationFrame(frame);
 }
 $('liveEnd').onclick = () => liveEnd();
-const spkLabel = () => { $('liveSpk').textContent = LIVE.speaker ? '🔈 스피커폰 모드: 켬 (소리 큼 · 말하는 동안 마이크 꺼짐)' : '🎧 이어폰 모드 (끼어들기 가능)'; };
+const spkLabel = () => { $('liveSpk').textContent = LIVE.speaker ? '📢' : '🎧'; $('liveSpk').title = LIVE.speaker ? '스피커폰 모드 (말하는 동안 마이크 꺼짐)' : '이어폰 모드 (끼어들기 가능)'; };
+$('liveVolB').onclick = () => { const n = LIVE.vol >= 4 ? 1 : LIVE.vol + 1; $('liveVol').value = n; $('liveVol').oninput(); toast('볼륨 ' + n); };
 $('liveVol').oninput = () => { LIVE.vol = +$('liveVol').value; ls.set('SIMAS_LIVE_VOL', String(LIVE.vol)); if (LIVE.gain) LIVE.gain.gain.value = LIVE.vol; };
 $('liveCut').onclick = () => { LIVE.drop = true; liveFlush(); liveSet('듣고 있어요', '🎙', false); };
 $('liveSpk').onclick = async () => { LIVE.speaker = !LIVE.speaker; ls.set('SIMAS_LIVE_SPK', LIVE.speaker ? '1' : '0'); spkLabel(); toast('모드를 바꿔 다시 연결해요'); liveEnd(); await sleep(300); liveStart(); };
-$('liveMute').onclick = () => { LIVE.muted = !LIVE.muted; $('liveMute').textContent = LIVE.muted ? '🔇 음소거 해제' : '🎤 음소거'; };
+$('liveMute').onclick = () => { LIVE.muted = !LIVE.muted; $('liveMute').textContent = LIVE.muted ? '🔇' : '🎤'; $('liveMute').classList.toggle('off', LIVE.muted); };
 
 /* ───────── 입력 처리 ───────── */
 const HELP = ['"11월 말 유증 전망은 얼마야?"', '"계약처명이 OO인 수주 건 있어?"', '"OO 해약 내역 알려줘"', '"이번달 인상 건 얼마야?"', '"11월 9일 동서울지사 수주는 얼마야?"', '"우리집은 OO시 OO구 …야, 기억해줘"', '"주차는 지하 2층 37번에 했어, 기록해둬"', '"주차 어디에 했지?"', '"메모해줘"', '"홍길동 연락처 저장해줘"', '"홍길동 전화번호 찾아줘"', '"홍길동한테 전화해줘"', '"내일 오후 3시 미팅 일정 추가해줘"', '"내일 아침 7시에 알람 맞춰줘"', '"오늘 일정 알려줘"', '"강남역으로 가자"'];

@@ -197,6 +197,25 @@ final class AppBridge {
         return a.getSharedPreferences("simtrip", Context.MODE_PRIVATE).getString("trip", "");
     }
 
+    /** SIM Radio 재생 알림 켜기/갱신: ok / nonotif(알림 권한 필요) / err:... */
+    @JavascriptInterface public String radioStart(String title, String sub) {
+        try {
+            if (Build.VERSION.SDK_INT >= 33 && !can("android.permission.POST_NOTIFICATIONS")) return "nonotif";
+            RadioService.cb = new RadioService.Callback() {
+                @Override public void onCmd(String cmd) { js("window.__simRadioCmd&&window.__simRadioCmd('" + cmd + "')"); }
+            };
+            if (RadioService.update(title, sub)) return "ok";
+            Intent i = new Intent(a, RadioService.class).putExtra("title", title).putExtra("sub", sub);
+            a.startForegroundService(i);
+            return "ok";
+        } catch (Exception e) { return "err:" + e.getMessage(); }
+    }
+
+    /** SIM Radio 재생 알림 끄기 */
+    @JavascriptInterface public void radioStop() {
+        try { a.stopService(new Intent(a, RadioService.class)); } catch (Exception e) { /* 무시 */ }
+    }
+
     /** 요청창 결과 (MainActivity 가 넘겨 준다) */
     void onPermResult(String[] perms, int[] res) {
         String id = "";

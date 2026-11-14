@@ -661,10 +661,27 @@ function stopSpeak() {   // 안드로이드 크롬은 cancel() 한 번으로 안
     setTimeout(() => { if (g === ttsGen) { try { speechSynthesis.cancel(); } catch (e) {} } }, 120);
   } catch (e) {}
 }
+/* 금액을 말로 읽기 좋게: "1,568천 원" → "백오십육만팔천원" */
+function koWon(n) {
+  n = Math.round(n); if (!isFinite(n) || n < 0) return null; if (n === 0) return '영원';
+  const D = ['', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구'], U = ['', '십', '백', '천'], B = ['', '만', '억', '조'];
+  const four = (x, lone) => { let r = ''; for (let i = 3; i >= 0; i--) { const d = Math.floor(x / Math.pow(10, i)) % 10; if (!d) continue; r += (d === 1 && i > 0 ? '' : D[d]) + U[i]; } return r; };
+  let out = '', g = 0, rest = n;
+  const parts = []; while (rest > 0) { parts.push(rest % 10000); rest = Math.floor(rest / 10000); }
+  for (let i = parts.length - 1; i >= 0; i--) { const x = parts[i]; if (!x) continue; out += (x === 1 && i > 0 && i < 2 && parts.length - 1 === i ? '' : four(x)) + B[i]; }
+  return out + '원';
+}
+function koSpeech(t) {
+  return String(t == null ? '' : t).replace(/(\d[\d,]*(?:\.\d+)?)\s*(천|만|억|조)?\s*원/g, (m, num, u) => {
+    const v = parseFloat(num.replace(/,/g, '')); if (isNaN(v)) return m;
+    const mul = { '천': 1e3, '만': 1e4, '억': 1e8, '조': 1e12 }[u] || 1;
+    return koWon(v * mul) || m;
+  });
+}
 function speak(text, then) {
   if (!ttsOn || !lastVoice || !('speechSynthesis' in window)) { then && then(); return; }
   try {
-    stopSpeak(); try { speechSynthesis.resume(); } catch (e) {} ttsGen++; const u = new SpeechSynthesisUtterance(text); u.lang = 'ko-KR'; if (koVoice) u.voice = koVoice; u.rate = 1.02;
+    stopSpeak(); try { speechSynthesis.resume(); } catch (e) {} ttsGen++; const u = new SpeechSynthesisUtterance(koSpeech(text)); u.lang = 'ko-KR'; if (koVoice) u.voice = koVoice; u.rate = 1.02;
     speaking = true; let done = false; const fin = () => { if (!done) { done = true; speaking = false; then && setTimeout(then, 250); } };
     u.onend = fin; u.onerror = fin; setTimeout(fin, Math.min(30000, 2500 + text.length * 260));
     speechSynthesis.speak(u);
@@ -1221,7 +1238,7 @@ async function tripSub() {
   } catch (e) { return { sub: null, why: '푸시 등록 실패: ' + (e && e.message || e) }; }
 }
 function speakNow(text) {
-  try { if (!ttsOn || !('speechSynthesis' in window)) return; try { speechSynthesis.resume(); } catch (e) {} const u = new SpeechSynthesisUtterance(text); u.lang = 'ko-KR'; if (koVoice) u.voice = koVoice; speechSynthesis.speak(u); } catch (e) {}
+  try { if (!ttsOn || !('speechSynthesis' in window)) return; try { speechSynthesis.resume(); } catch (e) {} const u = new SpeechSynthesisUtterance(koSpeech(text)); u.lang = 'ko-KR'; if (koVoice) u.voice = koVoice; speechSynthesis.speak(u); } catch (e) {}
 }
 async function tripAlert(t, eta, late) {
   const arrive = new Date(t.arrive), leave = new Date(arrive.getTime() - eta * 1000), mins = Math.max(0, Math.round((leave - Date.now()) / 60000));
@@ -1567,7 +1584,7 @@ const LTOOLS = {
     const { j, err } = await salesCall(m);
     if (err || !j || !j.text) return { ok: false, error: '일보를 조회하지 못했어요' + (err ? ' (' + err + ')' : '') };
     const html = salesHtml(m, j); if (html) liveCard(html);
-    return { ok: true, answer: j.text, note: '금액 단위는 일보 기준(천원 또는 원)이에요. answer의 숫자와 이름을 바꾸지 말고 핵심만 짧게 읽어 주세요. 건수가 많으면 상위 3건까지만 읽고 나머지는 화면에서 보라고 하세요' };
+    return { ok: true, answer: koSpeech(j.text), note: '금액은 이미 말로 읽는 표기(예: 백오십육만팔천원)로 바꿔 놓았어요. 천 단위 콤마나 "1,568천 원" 같은 숫자 표기로 말하지 말고 answer의 한글 금액 그대로 읽어 주세요. answer의 숫자와 이름을 바꾸지 말고 핵심만 짧게 읽어 주세요. 건수가 많으면 상위 3건까지만 읽고 나머지는 화면에서 보라고 하세요' };
   },
   async start_navigation(a) {
     const c = LIVE.cands[(+a.index || 0) - 1]; if (!c) return { ok: false, error: '그 번호의 후보가 없어요' };

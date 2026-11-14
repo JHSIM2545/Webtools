@@ -6,7 +6,13 @@
     const st = document.createElement('style');
     st.textContent =
       ':is(h1,h2,h3,h4,h5,h6,th,thead,caption,legend,header,.bar,.tabs,[class*="title"],[class*="ttl"]):not(input):not(textarea):not([contenteditable="true"]){-webkit-user-select:none;user-select:none;cursor:default}' +
-      '.modal,.ov,.sheet,#ov,#viewer,#imgov,#busy,#live,#ring,dialog,[role="dialog"]{overscroll-behavior:contain}';
+      '.modal,.ov,.sheet,#ov,#viewer,#imgov,#busy,#live,#ring,dialog,[role="dialog"]{overscroll-behavior:contain}' +
+      /* 전체 창·팝업의 스크롤바를 굵게 직접 그려 항상 보이게(스크롤할 내용이 있을 때). 터치 화면의 기본 스크롤바는 숨겨져 스크롤 가능한지 알 수 없었다 */
+      '::-webkit-scrollbar{width:14px;height:14px}' +
+      '::-webkit-scrollbar-track{background:rgba(127,127,127,.18)}' +
+      '::-webkit-scrollbar-thumb{background:rgba(165,175,195,.7);border-radius:10px;border:3px solid transparent;background-clip:content-box;min-height:44px}' +
+      '::-webkit-scrollbar-corner{background:transparent}' +
+      '[data-simdrag]{cursor:move}';
     document.head.appendChild(st);
   } catch (e) {}
 
@@ -89,4 +95,43 @@
     }
     if (e.cancelable) e.preventDefault();
   }, { passive: false });
+  /* ── 팝업 드래그 이동 ──
+     팝업 윗부분(제목 줄, 위 56px)을 잡아 끌면 팝업이 움직인다(마우스·터치). 가려지거나 잘려 보일 때 원하는 곳으로 옮겨 쓴다.
+     입력칸·버튼·링크는 그대로 동작하고, 팝업이 화면 밖으로 완전히 나가지는 않는다. */
+  const HANDLE = 56, NOHANDLE = 'button,a,input,select,textarea,label,summary,[contenteditable="true"],[role="button"],[role="switch"],canvas,video,svg';
+  const boxOf = top => {
+    const tr = top.getBoundingClientRect();
+    const kid = top.querySelector(':scope > .box, :scope > .card, :scope > .simvm-card') || top.firstElementChild;
+    if (kid && kid.getBoundingClientRect().width > 0 && (kid.getBoundingClientRect().width < tr.width - 2 || kid.getBoundingClientRect().height < tr.height - 2)) return kid;
+    return (tr.width < innerWidth * 0.95 && tr.height < innerHeight * 0.95) ? top : null;
+  };
+  let drag = null;
+  const pt = e => (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
+  function dragStart(e) {
+    if (drag || (e.type === 'mousedown' && e.button !== 0)) return;
+    const top = shown().sort((a, b) => z(b) - z(a))[0]; if (!top || isBusy(top) || !top.contains(e.target)) return;
+    const box = boxOf(top); if (!box || !box.contains(e.target)) return;
+    const p = pt(e), r = box.getBoundingClientRect();
+    if (p.clientY - r.top > HANDLE || (e.target.closest && e.target.closest(NOHANDLE))) return;
+    const m = /translate\(\s*(-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(box.style.transform || '');
+    drag = { box, x0: p.clientX, y0: p.clientY, ox: m ? +m[1] : 0, oy: m ? +m[2] : 0, r };
+    box.setAttribute('data-simdrag', '');
+    if (e.cancelable && e.type === 'touchstart') e.preventDefault();   // 제목 줄을 잡은 터치는 스크롤이 아니라 이동
+  }
+  function dragMove(e) {
+    if (!drag) return;
+    const p = pt(e), r = drag.r;
+    let dx = p.clientX - drag.x0, dy = p.clientY - drag.y0;
+    const vw = innerWidth, vh = (window.visualViewport && window.visualViewport.height) || innerHeight, keep = 48;
+    dx = Math.min(Math.max(dx, keep - r.right), vw - keep - r.left);     // 가로: 팝업이 최소 48px 은 화면에 남게
+    dy = Math.min(Math.max(dy, -r.top), vh - keep - r.top);              // 세로: 윗줄은 화면 위로 못 나가고, 아래로는 윗줄이 보이게
+    drag.box.style.transform = 'translate(' + Math.round(drag.ox + dx) + 'px,' + Math.round(drag.oy + dy) + 'px)';
+    if (e.cancelable) e.preventDefault();
+  }
+  function dragEnd() { drag = null; }
+  document.addEventListener('mousedown', dragStart, true);
+  document.addEventListener('touchstart', dragStart, { capture: true, passive: false });
+  document.addEventListener('mousemove', dragMove, true);
+  document.addEventListener('touchmove', dragMove, { capture: true, passive: false });
+  ['mouseup', 'touchend', 'touchcancel', 'blur'].forEach(t => window.addEventListener(t, dragEnd, true));
 })();

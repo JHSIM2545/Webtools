@@ -977,9 +977,10 @@ async function findFlow(intent, sl) {
   await loadContacts();
   /* 음성으로 말했거나 못 찾았을 때는 이름이 비슷한 연락처도 함께 찾아 확인한다(음성인식 오인식 대비) */
   const fz = (lastVoice || !res.length) ? fuzzyFind(sl, res, devList.concat(contacts)) : [];
-  if (!res.length && !fz.length && !contacts.length && !devList.length) { pending = null; return bot('SIM Phone에 저장된 연락처가 없어요.' + (devDiag ? ' (' + devDiag + ')' : '') + (canDevPick() ? ' 휴대폰 연락처에서 ' + sl.name + '님을 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: 'SIM Phone', href: 'phone.html' }]) }); }
+  if (!res.length && !fz.length && !contacts.length && !devList.length) { pending = null; if (await phoneFallback(sl.name)) return; return bot('SIM Phone에 저장된 연락처가 없어요.' + (devDiag ? ' (' + devDiag + ')' : '') + (canDevPick() ? ' 휴대폰 연락처에서 ' + sl.name + '님을 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: 'SIM Phone', href: 'phone.html' }]) }); }
   if (!res.length && !fz.length) {
     pending = null;
+    if (await phoneFallback(sl.name)) return;
     return bot(sl.name + '님을 찾지 못했어요. (' + (devDiag ? devDiag + ' · ' : '') + 'SIM Phone에도 없음)' + (canDevPick() ? ' 휴대폰 연락처에서 골라 주세요.' : ''), { btns: devPickBtns(intent, sl).concat([{ label: sl.name + ' 저장하기', fn: () => { pending = newP('contact_add', { name: sl.name }); step(); } }]) });
   }
   if (res.length === 1 && !fz.length) return presentContact(intent, sl, res[0]);
@@ -2096,6 +2097,233 @@ async function salesAsk(m) {
   return bot(j.text, html ? { html } : undefined);
 }
 
+/* ───────── SIM Map·SIM Calendar에 등록한 정보 음성 조회 → 길안내·전화 ─────────
+   "맵에 저장한 맛집 알려줘" · "내일 일정 뭐야" · "다음주 골프 일정 어디서 해" 같은 말을 알아듣고,
+   결과마다 🧭 안내(네이버 내비) / 📞 전화 버튼을 달고, "1번 안내해줘" · "2번 전화해줘" 로 이어서 시킬 수 있다.
+   전화번호는 SIM Map 장소의 전화번호 칸, 일정·장소 메모에 적힌 번호, 없으면 SIM Phone 연락처(이름·회사가 제목에 있을 때)에서 찾는다. */
+const LK = { items: [], at: 0 };
+const sodA = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addD = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const PHONE_RE = /(?<!\d)(?:\+?82[-\s]?)?0\d{1,2}[-\s.]?\d{3,4}[-\s.]?\d{4}(?!\d)|(?<!\d)1[5-9]\d{2}[-\s.]?\d{4}(?!\d)/g;
+function phonesIn(s) { const o = []; String(s || '').replace(PHONE_RE, m => { m = m.trim(); if (!o.some(y => NLU.digits(y) === NLU.digits(m))) o.push(m); return m; }); return o; }
+function placePhones(p) { const o = []; if (p.phone) o.push(String(p.phone).trim()); phonesIn(p.memo).forEach(x => { if (!o.some(y => NLU.digits(y) === NLU.digits(x))) o.push(x); }); return o; }
+const roOpen = name => new Promise(res => {
+  let r; try { r = indexedDB.open(name); } catch (e) { return res(null); }
+  r.onupgradeneeded = () => { try { r.transaction.abort(); } catch (e) {} };
+  r.onsuccess = () => res(r.result); r.onerror = () => res(null); r.onblocked = () => res(null);
+});
+async function roAll(name, store) {
+  const db = await roOpen(name); if (!db) return [];
+  try {
+    if (!db.objectStoreNames.contains(store)) return [];
+    return await new Promise(res => { const q = db.transaction(store, 'readonly').objectStore(store).getAll(); q.onsuccess = () => res(q.result || []); q.onerror = () => res([]); });
+  } catch (e) { return []; } finally { try { db.close(); } catch (e) {} }
+}
+const calTypeList = () => { try { const j = JSON.parse(localStorage.getItem('simcal_types') || 'null'); if (Array.isArray(j)) return j; } catch (e) {} return []; };
+async function calEvs() {   // SIM Calendar 일정(simcalendar) + 음성비서로 등록한 일정(simassistant)
+  const own = await roAll('simcalendar', 'events'), ty = calTypeList();
+  return own.map(r => ({ r, src: 'cal' })).concat((MEM.events || []).map(r => ({ r, src: 'asst' })))
+    .filter(x => x.r && x.r.start && !isNaN(new Date(x.r.start)))
+    .map(x => { const t = ty.find(o => o.id === x.r.type); return Object.assign(x, { typeName: t ? t.name : '', emoji: t ? t.emoji : '' }); });
+}
+function occIn(r, from, to) {   // 일정 하나가 [from,to) 안에 오는 날짜들 (반복 일정 펼침, 삭제해 둔 회차 제외)
+  const s = new Date(r.start), res = [];
+  if (!r.rep) {
+    const e = r.allDay ? new Date(sodA(new Date(r.end || r.start)).getTime() + 864e5 - 1) : (r.end && new Date(r.end) > s ? new Date(r.end) : new Date(s.getTime() + 36e5));
+    if (s < to && e >= from) res.push(s); return res;
+  }
+  const ex = new Set((r.ex || []).map(Number)), until = r.until != null ? +r.until : null, first = sodA(s);
+  for (let d = new Date(from); d < to; d = addD(d, 1)) {
+    if (d < first) continue; if (until != null && d.getTime() > until) break;
+    const ok = r.rep === 'daily' || (r.rep === 'weekly' && d.getDay() === s.getDay()) || (r.rep === 'monthly' && d.getDate() === s.getDate()) || (r.rep === 'yearly' && d.getMonth() === s.getMonth() && d.getDate() === s.getDate());
+    if (!ok) continue;
+    const o = new Date(d.getFullYear(), d.getMonth(), d.getDate(), s.getHours(), s.getMinutes());
+    if (ex.has(+o) || ex.has(+sodA(o))) continue; res.push(o);
+  }
+  return res;
+}
+function calRange(t, now) {   // 말에서 조회 기간 뽑기 → {from,to,label,dflt}. 말이 없으면 앞으로 90일
+  const base = sodA(now), md = d => (d.getMonth() + 1) + '월 ' + d.getDate() + '일', R = (a, b, label) => ({ from: a, to: b, label });
+  let m;
+  if ((m = t.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/))) { const d = new Date(base.getFullYear(), +m[1] - 1, +m[2]); return R(d, addD(d, 1), md(d)); }
+  if ((m = t.match(/(이번|이|다음|담|지난|저번)\s*달/))) { const off = /다음|담/.test(m[1]) ? 1 : /지난|저번/.test(m[1]) ? -1 : 0, a = new Date(base.getFullYear(), base.getMonth() + off, 1); return R(a, new Date(a.getFullYear(), a.getMonth() + 1, 1), (a.getMonth() + 1) + '월'); }
+  if ((m = t.match(/(\d{1,2})\s*월/)) && +m[1] >= 1 && +m[1] <= 12) { const y = base.getFullYear(); return R(new Date(y, +m[1] - 1, 1), new Date(y, +m[1], 1), m[1] + '월'); }
+  if ((m = t.match(/(다다음|지지난|지난|저번|이번|다음|담)\s*주\s*(말)?\s*(?:([월화수목금토일])요일)?/))) {
+    const off = { 다다음: 2, 지지난: -2, 지난: -1, 저번: -1, 이번: 0, 다음: 1, 담: 1 }[m[1]], mon = addD(base, -((base.getDay() + 6) % 7) + 7 * off);
+    if (m[3]) { const wd = SB_WD[m[3]], d = addD(mon, wd === 0 ? 6 : wd - 1); return R(d, addD(d, 1), m[1] + '주 ' + m[3] + '요일'); }
+    if (m[2]) return R(addD(mon, 5), addD(mon, 7), m[1] + '주 주말');
+    return R(mon, addD(mon, 7), m[1] + '주');
+  }
+  if (/주말/.test(t)) { const sat = addD(base, (6 - base.getDay() + 7) % 7); return R(base.getDay() === 0 ? base : sat, addD(base.getDay() === 0 ? base : sat, base.getDay() === 0 ? 1 : 2), '이번 주말'); }
+  if ((m = t.match(/(이번|다음|담)?\s*([월화수목금토일])요일/))) {
+    const wd = SB_WD[m[2]]; let d = new Date(base); while (d.getDay() !== wd) d = addD(d, 1);
+    if (/다음|담/.test(m[1] || '')) d = addD(d, 7);
+    return R(d, addD(d, 1), (m[1] ? m[1] + ' ' : '') + m[2] + '요일');
+  }
+  if (/글피/.test(t)) return R(addD(base, 3), addD(base, 4), '글피');
+  if (/모레/.test(t)) return R(addD(base, 2), addD(base, 3), '모레');
+  if (/내일/.test(t)) return R(addD(base, 1), addD(base, 2), '내일');
+  if (/그저께|그제/.test(t)) return R(addD(base, -2), addD(base, -1), '그저께');
+  if (/어제/.test(t)) return R(addD(base, -1), base, '어제');
+  if (/오늘|금일/.test(t)) return R(base, addD(base, 1), '오늘');
+  if ((m = t.match(/(\d+)\s*일\s*(후|뒤)/))) { const d = addD(base, +m[1]); return R(d, addD(d, 1), m[1] + '일 후'); }
+  if ((m = t.match(/(\d+)\s*주\s*(후|뒤)/))) { const d = addD(base, 7 * +m[1]); return R(d, addD(d, 1), m[1] + '주 후'); }
+  const r = R(base, addD(base, 90), '앞으로 다가오는'); r.dflt = true; return r;
+}
+const LK_DROP = new Set(('일정 스케줄 약속 캘린더 달력 알려줘 알려줄래 알려줘요 알려주세요 알려 뭐 뭐야 뭐가 뭐지 뭐있어 뭐있지 뭐있나 뭐였지 있어 있어요 있나 있니 있지 있는 있던 있었던 언제 언제야 언제지 어디 어디야 어디지 어디서 어디에 보여줘 보여 확인 확인해줘 조회 조회해줘 읽어줘 말해줘 찾아줘 찾아 목록 리스트 전체 모두 전부 좀 한번 저장한 저장된 저장해둔 저장해 등록한 등록된 등록해둔 맵 지도 지도앱 내 장소 장소들 인근 근처 주변 가까운 근방 전화번호 번호 주소 위치 전화 연락처 몇시 시간 그 이 저 다른 하는 할 무슨 무엇 어떤 어떻게 해줘 해 줘 앞으로 다가오는 곧 이번 다음 에서 에는 에도 사이 중에 중에서 곳 곳이 곳을 SIM sim 심 MAP map').split(/\s+/));
+const LK_SYN = { 식당: '맛집', 밥집: '맛집', 음식점: '맛집', 커피: '카페', 커피숍: '카페', 관광: '명소', 여행지: '명소', 골프장: '골프', 호텔: '숙소', 펜션: '숙소', 리조트: '숙소' };
+function lkTokens(t) {
+  let s = String(t).replace(/SIM\s*MAP|심\s*맵|지도\s*앱/ig, ' ')
+    .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*월|\d+\s*(일|주)\s*(후|뒤|전)/g, ' ')
+    .replace(/(지지난|다다음|지난|저번|이번|다음|담|이)\s*(주말|주|달)|(이번|다음|담)?\s*[월화수목금토일]요일|내일\s*모레|글피|모레|내일|오늘|어제|그저께|그제|주말|앞으로|다가오는|곧/g, ' ')
+    .replace(/[?!.,~]/g, ' ');
+  return s.split(/\s+/).map(w => { const x = w.replace(/(에서|에게|한테|으로|로|은|는|이|가|을|를|에|의|도|만|과|와)$/, ''); return x.length >= 2 ? x : w; })
+    .filter(w => w.length >= 2 && !LK_DROP.has(w)).map(w => LK_SYN[w] || w);
+}
+const lkHay = (...a) => a.filter(Boolean).join(' ').replace(/\s/g, '').toLowerCase();
+function lkMatch(hay, toks) {   // 말 속 낱말이 모두 들어 있는 것 → 없으면 하나라도 들어 있는 것
+  if (!toks.length) return true;
+  const ks = toks.map(w => w.replace(/\s/g, '').toLowerCase());
+  return ks.every(k => hay.includes(k));
+}
+const spokenDT = (d, allDay) => fmtDT(d, allDay).replace(/(\d+):(\d+)/, (m, h, mi) => h + '시' + (+mi ? ' ' + (+mi) + '분' : ''));
+const LK_QRY = /(알려|뭐|뭔|무슨|있어|있나|있니|있지|언제|어디|보여|확인|조회|읽어|말해|목록|리스트|몇\s*시|어떻게|찾아)/;
+const LK_ADD = /(등록|추가|잡아|넣어|저장해|삭제|지워|변경|수정|취소|옮겨|알람|깨워|메모)/;
+const LK_DATEW = /(오늘|내일|모레|글피|어제|이번|다음|담|주말|\d{1,2}\s*월|[월화수목금토일]요일)/;
+function lookIntent(raw) {
+  const t = String(raw || '').trim(); if (t.length < 3) return null;
+  if (LK_ADD.test(t) && !/(알려|뭐|보여)/.test(t)) return null;
+  if (/(안내|내비|네비|가자|가줘|출발|도착)/.test(t)) return null;      // 길안내 요청은 기존 흐름(저장한 장소 우선)이 처리
+  const isMap = /(SIM\s*MAP|심\s*맵|지도\s*앱|(^|\s)맵(에|에서|의|에는)?(\s|$)|내\s*장소|저장\s*(한|된|해\s*둔|해둔)\s*(장소|곳|맛집|명소|카페|골프장|숙소|식당))/i.test(t);
+  const isCal = /(일정|스케줄|캘린더|달력|약속)/.test(t);
+  if (isMap && LK_QRY.test(t)) return { k: 'map', t };
+  if (isCal && (LK_QRY.test(t) || LK_DATEW.test(t) || /다가오는/.test(t))) return { k: 'cal', t };
+  if (/(어디|주소|위치|전화\s*번호|번호|언제|몇\s*시)/.test(t) && /(알려|뭐|어디|있어|언제|몇\s*시)/.test(t)) return { k: 'soft', t };
+  return null;
+}
+async function lookHandle(it) {
+  if (it.k === 'cal') return lookCal(it.t, false);
+  if (it.k === 'map') return lookMap(it.t);
+  if (await lookSoftMap(it.t)) return true;
+  if (/(언제|몇\s*시|어디서)/.test(it.t)) return lookCal(it.t, true);
+  return false;
+}
+const mapItem = (p, ph, dist) => ({ kind: 'map', title: p.name, cat: p.cat || '', addr: p.addr || '', memo: p.memo || '', phones: ph || placePhones(p), cand: isFinite(p.lat) && isFinite(p.lng) ? mapCand(p) : null, dist: dist == null ? null : dist });
+const dist2 = (a, b) => { const R = 6371000, r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLn = r(b.lng - a.lng), s = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(s)); };
+async function lookMap(t) {
+  const all = (await mapPlaces()).filter(p => p && p.name);
+  if (!all.length) return lkSay('SIM Map에 저장한 장소가 아직 없어요.', '<b>SIM Map에 저장한 장소가 없어요</b><span class="sub">SIM Map에서 맛집·명소를 저장해 두면 여기서 조회할 수 있어요.</span>');
+  const near = /(인근|근처|주변|가까운|근방)/.test(t), flat = t.replace(/\s/g, '').toLowerCase();
+  let base = null, origin = null, toks = lkTokens(t), label = '';
+  if (near && /(내\s*(주변|근처)|현재\s*위치|여기|지금)/.test(t)) { try { origin = await curPos(); label = '내 주변'; } catch (e) { return lkSay(e.message || '현재 위치를 확인하지 못했어요', null); } }
+  else if (near) { base = all.filter(p => isFinite(p.lat) && flat.includes(String(p.name).replace(/\s/g, '').toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0] || null; if (base) { origin = { lat: +base.lat, lng: +base.lng }; label = base.name + ' 인근'; const bn = String(base.name).replace(/\s/g, '').toLowerCase(); toks = toks.filter(w => !bn.includes(w.replace(/\s/g, '').toLowerCase())); } }
+  let L = all.filter(p => (!base || p.id !== base.id) && lkMatch(lkHay(p.name, p.cat, p.addr, p.memo), toks));
+  if (origin) L = L.filter(p => isFinite(p.lat) && isFinite(p.lng)).map(p => ({ p, d: dist2(origin, { lat: +p.lat, lng: +p.lng }) })).filter(x => x.d <= 5000).sort((a, b) => a.d - b.d).map(x => mapItem(x.p, null, x.d));
+  else L = L.sort((a, b) => String(b.updated || b.created || '').localeCompare(String(a.updated || a.created || ''))).map(p => mapItem(p));
+  const what = (label ? label + ' ' : '') + (toks.length ? '"' + toks.join(' ') + '" ' : '');
+  if (!L.length) return lkSay((what || '조건에 맞는 ') + '저장한 장소를 찾지 못했어요.', '<b>' + esc(what) + '저장한 장소가 없어요</b>' + (origin ? '<span class="sub">반경 5km 안에 저장한 곳이 없어요.</span>' : ''));
+  return lkShow(what + '저장한 장소 ' + L.length + '곳', L.slice(0, 6), L.length > 6 ? ' 앞의 6곳만 알려드려요.' : '');
+}
+async function lookSoftMap(t) {   // "OO 어디야 / OO 전화번호" — SIM Map에 같은 이름의 장소가 있고 연락처에는 없을 때만
+  if (!/(어디|주소|위치|전화\s*번호|번호)/.test(t)) return false;
+  const q = lkTokens(t).join(' '); if (q.length < 2) return false;
+  let mp = []; try { mp = await mapFind(q); } catch (e) {}
+  const k = q.replace(/\s/g, '').toLowerCase(), strong = mp.filter(p => { const n = String(p.name).replace(/\s/g, '').toLowerCase(); return n === k || n.includes(k) || k.includes(n); });
+  if (!strong.length) return false;
+  try { await loadContacts(); if (searchContacts({ name: q }).length) return false; } catch (e) {}
+  return lkShow('SIM Map에서 ' + strong.length + '곳을 찾았어요', strong.slice(0, 4).map(p => mapItem(p)), '');
+}
+async function lookCal(t, soft) {
+  const now = new Date(), rg = calRange(t, now), toks = lkTokens(t);
+  if (soft && !toks.length) return false;
+  const evs = await calEvs(), items = [];
+  for (const x of evs) {
+    const r = x.r;
+    for (const o of occIn(r, rg.from, rg.to)) {
+      const hay = lkHay(r.title, r.loc, r.addr, r.memo, x.typeName); if (!lkMatch(hay, toks)) continue;
+      const ok = r.lat != null && r.lng != null && r.lat !== '' && r.lng !== '' && isFinite(+r.lat) && isFinite(+r.lng);
+      items.push({ kind: 'cal', title: r.title || '(제목 없음)', at: o, allDay: !!r.allDay, loc: r.loc || '', addr: r.addr || '', memo: r.memo || '', typeName: x.typeName, emoji: x.emoji, phones: phonesIn([r.memo, r.loc, r.addr, r.title].join(' ')), cand: ok ? { lat: +r.lat, lng: +r.lng, name: r.geoName || r.loc || r.addr || r.title, addr: r.addr || '', src: 'SIM 캘린더', approx: false } : null });
+    }
+  }
+  items.sort((a, b) => a.at - b.at);
+  const upc = rg.dflt ? items.filter(x => x.allDay ? sodA(x.at) >= sodA(now) : x.at.getTime() >= now.getTime() - 36e5) : items;   // 기간을 말하지 않으면 지난 일정은 뺀다
+  const what = (rg.dflt ? '' : rg.label + ' ') + (toks.length ? '"' + toks.join(' ') + '" ' : '');
+  if (!upc.length) { if (soft) return false; return lkSay((what || rg.label + ' ') + '일정이 없어요.', '<b>' + esc((what || rg.label + ' ') + '일정이 없어요') + '</b>'); }
+  return lkShow((rg.dflt ? '다가오는 ' : what) + '일정 ' + upc.length + '개', upc.slice(0, 6), upc.length > 6 ? ' 앞의 6개만 알려드려요.' : '');
+}
+function lkSay(say, html) { addMsg('bot', html || esc(say)); autoTried = false; speak(say); return true; }
+function lkShow(head, items, tail) {
+  LK.items = items; LK.at = Date.now();
+  const n = items.length, nm = i => (n > 1 ? (i + 1) + '번 ' : '');
+  const canNav = x => !!(x.cand || x.addr || x.loc), anyNav = items.some(canNav), anyTel = items.some(x => x.phones.length);
+  const html = '<b>' + esc(head) + '</b>' + items.map((x, i) => {
+    const sub = x.kind === 'cal' ? [fmtDT(x.at, x.allDay), x.loc || x.addr, x.typeName, x.phones[0] ? '☎ ' + x.phones[0] : ''] : [x.cat, x.addr, x.dist != null ? fmtKm(Math.round(x.dist)) : '', x.phones[0] ? '☎ ' + x.phones[0] : ''];
+    return '<div style="margin-top:8px"><b>' + (n > 1 ? (i + 1) + '. ' : '') + esc((x.emoji ? x.emoji + ' ' : '') + x.title) + '</b><span class="sub">' + esc(sub.filter(Boolean).join(' · ')) + '</span>' + (x.memo && x.kind === 'map' ? '<span class="sub">' + esc(x.memo.slice(0, 60)) + '</span>' : '') + '</div>';
+  }).join('');
+  const btns = [];
+  items.forEach((x, i) => {
+    if (canNav(x)) btns.push({ label: nm(i) + '🧭 안내', primary: i === 0, fn: () => lkNav(x) });
+    if (x.phones[0]) btns.push({ label: nm(i) + '📞 ' + x.phones[0], href: 'tel:' + x.phones[0].replace(/[^0-9+]/g, '') });
+  });
+  const say = head + '예요. ' + items.slice(0, 5).map((x, i) => (n > 1 ? (i + 1) + '번, ' : '') + (x.kind === 'cal' ? spokenDT(x.at, x.allDay) + ', ' + x.title + (x.loc ? ', 장소는 ' + x.loc : '') : x.title + (x.cat ? ', ' + x.cat : '') + (x.addr ? ', ' + x.addr : ''))).join('. ') + '.' + (tail || '') +
+    (anyNav || anyTel ? (n > 1 ? ' 안내나 전화가 필요하면 "1번 안내해줘", "2번 전화해줘"처럼 말씀하세요.' : ' ' + [anyNav ? '안내해줘' : '', anyTel ? '전화해줘' : ''].filter(Boolean).join(', ') + '라고 말씀하시면 이어서 해드려요.') : '');
+  addMsg('bot', html, btns); autoTried = false;
+  speak(say, () => { if (lastVoice && !autoTried && !listening && SR) { autoTried = true; startListen(); } });
+  return true;
+}
+async function lkNav(x) {
+  let c = x.cand;
+  if (!c) {
+    const q = x.addr || x.loc; if (!q) return bot('"' + x.title + '"에는 장소가 등록돼 있지 않아요.');
+    sys('"' + q + '" 위치를 확인하는 중…'); let r = []; try { r = await searchPlaces(q); } catch (e) {}
+    if (!r || !r.length) return bot('"' + q + '" 위치를 지도에서 찾지 못했어요. 네이버 지도에서 직접 검색해 보세요.', { btns: [{ label: '🔎 네이버 지도에서 검색', primary: true, href: launchHref(nmapUrl.search(q)), fn: () => iosStoreFallback() }] });
+    if (r.length > 1) { pending = newP('navigate', { dest: q }); return pickNav(pending, r.slice(0, 4)); }
+    c = r[0];
+  }
+  pending = newP('navigate', { dest: x.title, noAlias: true }); return confirmNav(pending, c);
+}
+async function lkCall(x) {
+  const ph = x.phones || [];
+  if (!ph.length) {
+    try { await loadContacts(); } catch (e) {}
+    const key = lkHay(x.title, x.memo, x.loc), c = contacts.find(o => [o.name, o.company].some(nm => nm && String(nm).replace(/\s/g, '').length >= 2 && key.includes(String(nm).replace(/\s/g, '').toLowerCase())) && dial(o));
+    if (c) { sys('SIM Phone 연락처 "' + (c.name || c.company) + '"에서 번호를 찾았어요.'); return presentContact('call', { name: c.name }, c); }
+    return bot('"' + x.title + '"에 등록된 전화번호가 없어요. ' + (x.kind === 'map' ? 'SIM Map에서 이 장소를 열어 전화번호를 적어 두면 다음부터 바로 걸어드려요.' : '일정 메모에 전화번호를 적어 두면 다음부터 바로 걸어드려요.'));
+  }
+  return presentContact('call', { name: x.title }, { name: x.title, company: x.kind === 'map' ? (x.cat || '') : '', title: '', mobile: ph[0], tel: ph[1] || '', email: '', address: x.addr || '', memo: '' });
+}
+async function lkFollow(text) {
+  if (!LK.items.length || Date.now() - LK.at > 300000) return false;   // 조회 결과가 떠 있는 동안 "1번 안내해줘", "거기 전화해줘"
+  const t = String(text), nav = /(안내|내비|네비|가자|가줘|길\s*찾|출발|데려다)/.test(t), call = /(전화|걸어|연락)/.test(t);
+  if (!nav && !call) return false;
+  const n = LK.items.length; let i = -1;
+  const m = t.match(/(\d)\s*(번|째)/);
+  if (m && +m[1] >= 1 && +m[1] <= n) i = +m[1] - 1;
+  else if (/(첫|둘|두|셋|세|넷|네|다섯|여섯)\s*(번|째)|[일이삼사오육]\s*번/.test(t)) i = pickIndex(t, n);
+  if (i < 0) { if (n === 1 || /(거기|그곳|그\s*곳|방금|그거|그쪽|첫)/.test(t)) i = 0; else return false; }
+  if (i >= n) return false;
+  const x = LK.items[i]; if (call && !nav) { await lkCall(x); } else { await lkNav(x); } return true;
+}
+async function phoneFallback(name) {   // 연락처에 없을 때: SIM Map 장소의 전화번호 / 일정에 적힌 번호
+  const q = String(name || '').trim(); if (q.length < 2) return false;
+  const items = [], k = q.replace(/\s/g, '').toLowerCase();
+  try { for (const p of await mapFind(q)) { const ph = placePhones(p); if (ph.length) items.push(mapItem(p, ph)); } } catch (e) {}
+  try {
+    const now = sodA(new Date()), seen = new Set(items.flatMap(x => x.phones.map(NLU.digits)));
+    for (const x of await calEvs()) {
+      const r = x.r; if (!lkHay(r.title, r.loc, r.memo).includes(k)) continue;
+      const ph = phonesIn([r.memo, r.loc, r.addr, r.title].join(' ')).filter(o => !seen.has(NLU.digits(o))); if (!ph.length) continue;
+      ph.forEach(o => seen.add(NLU.digits(o)));
+      items.push({ kind: 'cal', title: r.title || '(제목 없음)', at: new Date(r.start), allDay: !!r.allDay, loc: r.loc || '', addr: r.addr || '', memo: r.memo || '', typeName: x.typeName, emoji: x.emoji, phones: ph, cand: null });
+      if (items.length >= 4) break;
+    }
+  } catch (e) {}
+  if (!items.length) return false;
+  sys('연락처에는 없지만 SIM ' + (items[0].kind === 'map' ? 'Map' : '캘린더') + '에 등록된 번호가 있어요.');
+  if (items.length === 1) { await lkCall(items[0]); return true; }
+  return lkShow('전화번호가 등록된 곳 ' + items.length + '곳', items, '');
+}
+
 async function handleText(raw, viaAI) {
   const text = String(raw || '').trim(); if (!text) return;
   if (!viaAI) addMsg('me', esc(text)); const n = NLU.normalize(text);
@@ -2109,6 +2337,8 @@ async function handleText(raw, viaAI) {
   }
   if (!viaAI && /(기기|폰|핸드폰|모바일|PC|피씨|컴퓨터).{0,6}동기화|동기화\s*(하자|해줘|해|시작|할래)|^동기화$/i.test(text)) return void (location.href = 'index.html?sync=1');
   if (!viaAI) { const mi = memIntent(text); if (mi) return memHandle(mi); }
+  if (!viaAI && !pending && await lkFollow(text)) return;   // 조회 결과에 이어 "1번 안내해줘"
+  if (!viaAI) { const li = lookIntent(text); if (li && await lookHandle(li)) return; }   // SIM Map·캘린더 등록 정보 조회
   if (!viaAI && window.simAuth && window.simAuth.isOwner()) { const ai = await salesAI(text); if (ai && ai.none) { /* AI: 일보 질문 아님 → 아래 일반 처리 */ } else { const si = ai || salesIntent(text); if (si) return salesAsk(si); } }   // 영업일보 조회   // 기억 저장·조회·삭제 (기기 안에서만 처리)
   if (!viaAI && looksLikeMessage(text) && await importMessage(text)) return;   // 문자 붙여넣기 → 일정 자동 등록
   if (!viaAI && aiUsable() && await askGemini(text)) return;   // 기본은 AI, 실패하면 아래 로컬 엔진

@@ -204,6 +204,7 @@ label.lb{display:block;font-size:12px;color:var(--sub);margin-bottom:5px}
       </div>
       <div class="fld"><label class="lb">주소</label><input id="eAddr" placeholder="주소 (위치를 잡으면 자동 입력)"></div>
       <div class="fld"><label class="lb">별점</label><div class="stars" id="eStars"></div></div>
+      <div class="fld"><label class="lb">전화번호</label><input id="ePhone" type="tel" inputmode="tel" placeholder="전화번호 (음성비서가 전화를 걸 때 써요)" maxlength="40"></div>
       <div class="fld"><label class="lb">메모</label><textarea id="eMemo" placeholder="메뉴, 분위기, 주차, 같이 간 사람 등"></textarea></div>
       <div class="fld"><label class="lb">사진</label><div class="photos" id="ePhotos"></div></div>
       <div class="fld"><label class="lb">음성 메모</label>
@@ -593,12 +594,12 @@ $('rad').onchange = () => { if (RES.raw && !searching) runSearch(RES.raw); };
 
 /* ───────── 장소 등록·수정 ───────── */
 let ED = null, PICK = false;
-const blank = () => ({ id: '', name: '', cat: '맛집', addr: '', lat: null, lng: null, memo: '', rating: 0, photos: [], audio: [], kakaoId: '', url: '', acc: null, isNew: true });
-const fromResult = r => Object.assign(blank(), { name: r.name, cat: r.cat, addr: r.addr, lat: r.lat, lng: r.lng, kakaoId: r.id || '', url: r.url || '' });
+const blank = () => ({ id: '', name: '', cat: '맛집', addr: '', phone: '', lat: null, lng: null, memo: '', rating: 0, photos: [], audio: [], kakaoId: '', url: '', acc: null, isNew: true });
+const fromResult = r => Object.assign(blank(), { name: r.name, cat: r.cat, addr: r.addr, phone: r.phone || '', lat: r.lat, lng: r.lng, kakaoId: r.id || '', url: r.url || '' });
 function openEdit(p, auto) {
   ED = p && p.id ? Object.assign(blank(), JSON.parse(JSON.stringify(p)), { isNew: false }) : Object.assign(blank(), p || {});
   $('eTitle').textContent = ED.isNew ? '장소 등록' : '장소 수정';
-  $('eName').value = ED.name; $('eAddr').value = ED.addr; $('eMemo').value = ED.memo;
+  $('eName').value = ED.name; $('eAddr').value = ED.addr; $('ePhone').value = ED.phone || ''; $('eMemo').value = ED.memo;
   $('eDel').hidden = ED.isNew; $('eCands').innerHTML = '';
   renderEditCats(); renderStars(); renderGps(); renderMedia();
   $('ovDetail').classList.remove('on'); $('ovEdit').classList.add('on');
@@ -748,7 +749,7 @@ $('eSave').onclick = async () => {
   if (ED.lat == null || ED.lng == null) { toast('위치를 지정해 주세요 (현재 위치·지도·이름 찾기)'); return; }
   if (MR) { toast('녹음을 먼저 끝내 주세요'); return; }
   const now = new Date().toISOString(), old = places.find(x => x.id === ED.id);
-  const p = { id: ED.id || uid(), name, cat: ED.cat, addr: $('eAddr').value.trim(), lat: +ED.lat, lng: +ED.lng, memo: $('eMemo').value.trim(), rating: ED.rating || 0, photos: ED.photos, audio: ED.audio, kakaoId: ED.kakaoId || '', url: ED.url || '', created: (old && old.created) || now, updated: now };
+  const p = { id: ED.id || uid(), name, cat: ED.cat, addr: $('eAddr').value.trim(), phone: $('ePhone').value.trim(), lat: +ED.lat, lng: +ED.lng, memo: $('eMemo').value.trim(), rating: ED.rating || 0, photos: ED.photos, audio: ED.audio, kakaoId: ED.kakaoId || '', url: ED.url || '', created: (old && old.created) || now, updated: now };
   await savePlace(p); closeEdit(); refreshAll(); toast('저장했어요');
   if (map && isFinite(p.lat)) map.panTo(LL(p.lat, p.lng));
 };
@@ -766,6 +767,7 @@ function openDetail(id) {
   let h = '';
   if ((p.photos || []).length) h += '<div id="dPhotos">' + p.photos.map((s, i) => '<img src="' + esc(s) + '" data-big="' + i + '" alt="">').join('') + '</div>';
   h += '<div class="dline">' + (stars(p.rating) ? stars(p.rating) + '\n' : '') + esc(p.addr || '주소 없음') + (d ? ' · 내 위치에서 ' + d : '') + '</div>';
+  if (p.phone) h += '<div class="dline"><a href="tel:' + esc(String(p.phone).replace(/[^0-9+]/g, '')) + '" style="color:var(--accent);font-weight:700;text-decoration:none">📞 ' + esc(p.phone) + '</a></div>';
   if (p.memo) h += '<div class="dline">' + esc(p.memo) + '</div>';
   if ((p.audio || []).length) h += '<div style="display:flex;flex-direction:column;gap:8px">' + p.audio.map(a => '<div class="au"><audio controls preload="none" src="' + esc(a.url) + '"></audio><span class="gps" style="flex:none">' + fmtSec(a.dur || 0) + '</span></div>').join('') + '</div>';
   h += '<div class="btns"><a class="lnk navi" href="' + esc(naviHref(p.lat, p.lng, p.name)) + '"' + naviAttrs() + '>' + (MOBILE ? '🧭 네이버 내비' : '🔎 네이버 지도') + '</a><a class="lnk kakao" href="' + esc(kakaoRoute(p.lat, p.lng, p.name)) + '" target="_blank" rel="noopener">카카오 길찾기</a><a class="lnk" href="' + esc(p.url || kakaoView(p.lat, p.lng, p.name)) + '" target="_blank" rel="noopener">카카오맵 상세</a></div>';

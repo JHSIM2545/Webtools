@@ -1493,6 +1493,20 @@ const LTOOLS = {
     catch (e) { return { ok: false, error: String(e && e.message || e) }; }
   },
   async cancel_arrival() { TRIPS.length = 0; tripSave(); try { window.SimApp && window.SimApp.tripStop && window.SimApp.tripStop(); } catch (e) {} try { await tripApi({ a: 'cancel' }); } catch (e) {} return { ok: true }; },
+  async ask_sales(a) {
+    if (!(window.simAuth && window.simAuth.isOwner())) return { ok: false, error: '영업일보 조회는 심정환 계정으로 로그인했을 때만 쓸 수 있어요' };
+    const q = String(a.question || '').trim(); if (!q) return { ok: false, error: '질문이 비었어요' };
+    if (!gKey()) return { ok: false, error: '일보를 조회하려면 등록된 전화번호가 필요해요' };
+    let m = null;
+    try { const ai = await salesAI(q, true); if (ai && ai.none) m = null; else m = ai; } catch (e) {}
+    if (!m) m = salesIntent(q);
+    if (!m) return { ok: false, error: '일보에서 무엇을 조회할지 알아듣지 못했어요. 계약처 이름, 기간(이번 달·어제), 항목(수주·개시·해약·인상·인하·재개시·유지증가) 중 어떤 걸 알고 싶은지 다시 물어보세요' };
+    if (m.k === 'lookup' && !m.q && !m.kind) return { ok: false, error: '어떤 계약처를 조회할지 물어보세요' };
+    const { j, err } = await salesCall(m);
+    if (err || !j || !j.text) return { ok: false, error: '일보를 조회하지 못했어요' + (err ? ' (' + err + ')' : '') };
+    const html = salesHtml(m, j); if (html) liveCard(html);
+    return { ok: true, answer: j.text, note: '금액 단위는 일보 기준(천원 또는 원)이에요. answer의 숫자와 이름을 바꾸지 말고 핵심만 짧게 읽어 주세요. 건수가 많으면 상위 3건까지만 읽고 나머지는 화면에서 보라고 하세요' };
+  },
   async start_navigation(a) {
     const c = LIVE.cands[(+a.index || 0) - 1]; if (!c) return { ok: false, error: '그 번호의 후보가 없어요' };
     liveCard('<b>네이버 내비를 실행해요</b><span class="sub">' + esc(c.name) + ' · ' + esc(c.addr || '') + '</span>' + noNaverApp(), [{ label: '🧭 네이버 내비 시작', primary: true, href: launchHref(nmapUrl.nav(c)), fn: iosStoreFallback }]);
@@ -2048,9 +2062,9 @@ function salesIntent(raw) {
 }
 const SAURL = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-sales-ai';
 const SB_GATE = /(수주|계약|개시|기산|해약|인상|인하|재개시|재개|중지|유증|유지증가|유감|유지감소|유지금액|유지건수|상품\s*일보|안전\s*상품|계약처|계야처|거래처|고객사|전망)/;
-async function salesAI(text) {   // AI가 말을 조회 조건으로 해석 → salesIntent 와 같은 모양. null = AI 못 씀(규칙으로), {none:true} = 일보 질문 아님
+async function salesAI(text, force) {   // AI가 말을 조회 조건으로 해석 → salesIntent 와 같은 모양. null = AI 못 씀(규칙으로), {none:true} = 일보 질문 아님
   const t = String(text);
-  if (!SB_GATE.test(t) || /(전화|연락처|번호|일정|알람|메모|내비|가자|길안내)/.test(t.replace(/알람\s*\+\s*휴엔/, ''))) return null;
+  if (!force && (!SB_GATE.test(t) || /(전화|연락처|번호|일정|알람|메모|내비|가자|길안내)/.test(t.replace(/알람\s*\+\s*휴엔/, '')))) return null;
   const phone = gKey(); if (!phone || !aiUsable()) return null;
   const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 14000);
   try {
@@ -2072,12 +2086,8 @@ async function salesAI(text) {   // AI가 말을 조회 조건으로 해석 → 
   } catch (e) { return null; } finally { clearTimeout(to); }
 }
 const fdK = d => { if (!d) return '미정'; const s0 = String(d), y = s0.slice(0, 4), cy = String(new Date().getFullYear()); return (y !== cy ? y + '년 ' : '') + (+s0.slice(5, 7)) + '월 ' + (+s0.slice(8, 10)) + '일'; };
-async function salesAsk(m) {
-  if (!(window.simAuth && window.simAuth.isOwner())) return bot('영업일보 조회는 심정환 계정으로 로그인했을 때만 쓸 수 있어요.');
+async function salesCall(m) {   // 서버 함수 assistant-sales 호출 → { j, err }
   const phone = gKey();
-  if (!phone) return bot('일보를 조회하려면 등록된 전화번호가 필요해요. 런처의 AI 설정에서 전화번호를 등록해 주세요.', { btns: [{ label: 'AI 설정 열기', primary: true, fn: openAi }] });
-  if (m.k === 'lookup' && !m.q && !m.kind) { pending = newP('sales', {}); pending.ask = 'salescust'; return bot('어떤 계약처를 조회할까요? 이름의 일부만 말씀하셔도 돼요.', { tok: pending.tok, btns: [{ label: '취소', fn: () => cancelP('취소했어요.') }] }); }
-  sys('영업일보를 조회하는 중…');
   const body = { phone, op: m.k };
   if (m.k === 'lookup') Object.assign(body, { q: m.q, kind: m.kind || 'any', month: m.month || undefined, day: m.day || undefined, from: m.from || undefined, to: m.to || undefined, label: m.label || undefined, upcoming: m.upcoming || undefined });
   else if (m.k === 'branch') Object.assign(body, { branch: m.branch, month: m.month || undefined, day: m.day || undefined, metric: m.metric });
@@ -2089,11 +2099,24 @@ async function salesAsk(m) {
     j = await r.json().catch(() => ({}));
     if (!r.ok) err = r.status === 403 ? '등록되지 않은 전화번호예요' : '응답 실패 (' + r.status + (j.detail ? ' · ' + j.detail : '') + ')';
   } catch (e) { err = e && e.name === 'AbortError' ? '응답이 늦어요' : '연결 실패'; } finally { clearTimeout(to); }
-  if (err || !j || !j.text) return bot('일보를 조회하지 못했어요' + (err ? ' (' + err + ')' : '') + '. 잠시 뒤 다시 시도해 주세요.');
+  return { j, err };
+}
+function salesHtml(m, j) {
   let html = '';
   if (m.k === 'lookup' && Array.isArray(j.groups)) {
     html = j.groups.filter(g => g.count).map(g => '<b>' + esc(g.label) + ' ' + g.count + '건' + (g.sum ? ' · ' + esc(g.amtLabel) + ' 합계 ' + g.sum.toLocaleString('ko-KR') + '원' : '') + (m.q ? ' · ' + esc(m.q) : '') + '</b>' + g.rows.map(r => '<div style="margin-top:8px"><b>' + esc(r.name) + '</b>' + kvRows(r.items) + '</div>').join('') + (g.count > g.rows.length ? '<span class="sub">외 ' + (g.count - g.rows.length) + '건 — 이름이나 날짜로 좁혀 물어보세요</span>' : '')).join('<hr style="border:0;border-top:1px solid var(--line,#ffffff22);margin:10px 0">');
   } else if (Array.isArray(j.rows) && j.rows.length) html = '<b>' + (m.k === 'forecast' ? '월말 전망 (북서울)' : '사업팀 일보 · ' + esc(m.branch) + (j.date ? ' · ' + fdK(j.date) : '')) + '</b>' + kvRows(j.rows.map(r => [r.label, r.value])) + '<span class="sub">금액 단위: 천원 · 영업일보 DB 기준</span>';
+  return html;
+}
+async function salesAsk(m) {
+  if (!(window.simAuth && window.simAuth.isOwner())) return bot('영업일보 조회는 심정환 계정으로 로그인했을 때만 쓸 수 있어요.');
+  const phone = gKey();
+  if (!phone) return bot('일보를 조회하려면 등록된 전화번호가 필요해요. 런처의 AI 설정에서 전화번호를 등록해 주세요.', { btns: [{ label: 'AI 설정 열기', primary: true, fn: openAi }] });
+  if (m.k === 'lookup' && !m.q && !m.kind) { pending = newP('sales', {}); pending.ask = 'salescust'; return bot('어떤 계약처를 조회할까요? 이름의 일부만 말씀하셔도 돼요.', { tok: pending.tok, btns: [{ label: '취소', fn: () => cancelP('취소했어요.') }] }); }
+  sys('영업일보를 조회하는 중…');
+  const { j, err } = await salesCall(m);
+  if (err || !j || !j.text) return bot('일보를 조회하지 못했어요' + (err ? ' (' + err + ')' : '') + '. 잠시 뒤 다시 시도해 주세요.');
+  const html = salesHtml(m, j);
   return bot(j.text, html ? { html } : undefined);
 }
 

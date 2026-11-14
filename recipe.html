@@ -527,15 +527,53 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let koVoice = null;
 function pickVoice() { const vs = speechSynthesis.getVoices ? speechSynthesis.getVoices() : []; koVoice = vs.find(v => /ko[-_]KR/i.test(v.lang)) || vs.find(v => /^ko/i.test(v.lang)) || null; }
 try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
-function cancelSpeech() { try { speechSynthesis.cancel(); } catch (e) {} }
-function speak(text) {
+let aud = null, audDone = null, ttsBad = false, ttsWarned = false, spkGen = 0;
+const ttsCache = new Map();
+function cancelSpeech() {
+  spkGen++;
+  try { speechSynthesis.cancel(); } catch (e) {}
+  if (aud) { try { aud.pause(); } catch (e) {} aud = null; } if (audDone) { const f = audDone; audDone = null; f(); }
+}
+/* 1) 기기 내장 음성 — 실제로 소리가 시작되지 않으면 'nostart' 로 알려 AI 음성으로 넘어간다 */
+function speakNative(text) {
   return new Promise(ok => {
     try {
-      cancelSpeech(); const u = new SpeechSynthesisUtterance(text); u.lang = 'ko-KR'; if (koVoice) u.voice = koVoice; u.rate = 1.0;
-      let done = false; const fin = () => { if (!done) { done = true; clearTimeout(t); ok(); } };
-      const t = setTimeout(fin, 3000 + text.length * 260); u.onend = fin; u.onerror = fin; speechSynthesis.speak(u);
-    } catch (e) { ok(); }
+      if (!('speechSynthesis' in window)) return ok('nostart');
+      speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'ko-KR'; if (koVoice) u.voice = koVoice; u.rate = 1.0;
+      let started = false, done = false; const fin = r => { if (!done) { done = true; clearTimeout(t1); clearTimeout(t2); ok(r); } };
+      const t1 = setTimeout(() => { if (!started) { try { speechSynthesis.cancel(); } catch (e) {} fin('nostart'); } }, 2500);
+      const t2 = setTimeout(() => fin('ok'), 4000 + text.length * 300);
+      u.onstart = () => { started = true; clearTimeout(t1); }; u.onend = () => fin(started ? 'ok' : 'nostart'); u.onerror = () => fin(started ? 'ok' : 'nostart');
+      setTimeout(() => speechSynthesis.speak(u), 60);
+    } catch (e) { ok('nostart'); }
   });
+}
+/* 2) AI 음성(Gemini) — 소리 파일을 받아 재생 */
+async function speakAI(text, gen) {
+  text = text.slice(0, 700);
+  let url = ttsCache.get(text);
+  if (!url) {
+    const ss = await session(); if (!ss) return;
+    let r, j = {};
+    for (let k = 0; k < 3; k++) {
+      try { r = await fetch(FN.replace('recipe-ai', 'recipe-tts'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ss.access_token }, body: JSON.stringify({ text, voice: 'Kore' }) }); j = await r.json().catch(() => ({})); } catch (e) { r = null; }
+      if (r && r.ok) break; if (r && r.status === 429 && j.error !== 'quota') { await sleep(1000); continue; } break;
+    }
+    if (!r || !r.ok || !j.data) { if (!ttsWarned) { ttsWarned = true; toast('음성을 가져오지 못했어요 (' + (j.error === 'quota' ? 'AI 한도' : '네트워크') + '). 화면 글을 따라가 주세요', 4000); } return; }
+    url = URL.createObjectURL(b64Blob(j.data, j.mime || 'audio/wav')); if (ttsCache.size > 40) ttsCache.clear(); ttsCache.set(text, url);
+  }
+  if (gen !== spkGen) return;   // 기다리는 사이 다른 안내로 넘어갔으면 재생하지 않는다
+  await new Promise(ok => {
+    const a = new Audio(url); aud = a; audDone = ok;
+    const fin = () => { if (aud === a) { aud = null; audDone = null; } ok(); };
+    a.onended = fin; a.onerror = fin;
+    a.play().catch(() => { if (!ttsWarned) { ttsWarned = true; toast('소리가 막혔어요. 화면을 한 번 눌러 주세요', 4000); } fin(); });
+  });
+}
+async function speak(text) {
+  const gen = spkGen;
+  if (!ttsBad) { const r = await speakNative(text); if (r === 'ok' || gen !== spkGen) return; ttsBad = true; }
+  await speakAI(text, gen);
 }
 function listenOnce(onText, onEnd) {
   if (!SR) return null; const r = new SR(); r.lang = 'ko-KR'; r.interimResults = false; r.maxAlternatives = 1; let got = false;

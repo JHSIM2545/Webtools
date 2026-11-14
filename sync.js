@@ -146,8 +146,8 @@
   const close = () => { if (abort) { abort(); abort = null; } if (ov) { ov.remove(); ov = null; } };
   function modal(title, html) {
     if (abort) { abort(); abort = null; }
-    if (!ov) { ov = document.createElement('div'); ov.style.cssText = 'position:fixed;inset:0;z-index:99;background:#000a;display:flex;align-items:center;justify-content:center;padding:16px'; document.body.appendChild(ov); }
-    ov.innerHTML = '<div style="background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;max-width:400px;width:100%;max-height:92vh;overflow:auto"><b style="font-size:16px">' + esc(title) + '</b><div id="syBody" style="margin-top:10px;font-size:14px;line-height:1.6">' + html + '</div></div>';
+    if (!ov) { ov = document.createElement('div'); ov.style.cssText = 'position:fixed;inset:0;z-index:99;background:#000a;display:flex;justify-content:center;padding:16px;overflow-y:auto;overscroll-behavior:contain'; document.body.appendChild(ov); }
+    ov.innerHTML = '<div style="background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;max-width:400px;width:100%;margin:auto"><b style="font-size:16px">' + esc(title) + '</b><div id="syBody" style="margin-top:10px;font-size:14px;line-height:1.6">' + html + '</div></div>';
     return ov.querySelector('#syBody');
   }
   const sub = 'color:var(--sub);font-size:12.5px';
@@ -242,7 +242,15 @@
       const hr = document.createElement('div'); hr.style.cssText = 'height:1px;background:var(--line);margin:4px 6px'; pop.appendChild(hr);
       const it = mk('btnSync', '<span>🔄 기기 동기화</span>', () => { pop.style.display = 'none'; menu(); });
       paintMv();
-      mb.onclick = e => { e.stopPropagation(); pop.style.display = pop.style.display === 'block' ? 'none' : 'block'; };
+      mb.onclick = e => {
+        e.stopPropagation();
+        if (pop.style.display === 'block') { pop.style.display = 'none'; return; }
+        pop.style.display = 'block';
+        /* 세로가 짧은 화면(차량 디스플레이 등)에서 메뉴 아래쪽이 잘리지 않게: 버튼 아래에 고정 위치로 띄우고, 남는 높이만큼만 보이게 하고 넘치면 스크롤 */
+        const r = mb.getBoundingClientRect(), vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+        pop.style.position = 'fixed'; pop.style.top = Math.round(r.bottom + 6) + 'px'; pop.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px'; pop.style.left = 'auto';
+        pop.style.maxHeight = Math.max(120, Math.round(vh - r.bottom - 14)) + 'px'; pop.style.overflowY = 'auto'; pop.style.webkitOverflowScrolling = 'touch'; pop.style.overscrollBehavior = 'contain';
+      };
       document.addEventListener('click', e => { if (!w.contains(e.target)) pop.style.display = 'none'; });
       w.appendChild(mb); w.appendChild(pop);
       hd.appendChild(w);

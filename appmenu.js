@@ -21,7 +21,7 @@
       '.simvm-pop button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:transparent;color:inherit;font:inherit;font-size:15px;padding:11px 12px;border-radius:8px;cursor:pointer;white-space:nowrap}' +
       '.simvm-pop button:active{background:rgba(127,127,127,.22)}' +
       '.simvm-ov{position:fixed;inset:0;z-index:2147482500;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px}' +
-      '.simvm-card{width:min(420px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;background:var(--panel,#1c1f2a);color:var(--text,#fff);border:1px solid var(--line,#333a4d);border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.6);overflow:hidden}' +
+      '.simvm-card{width:min(420px,100%);max-height:calc(100dvh - 32px);display:flex;flex-direction:column;background:var(--panel,#1c1f2a);color:var(--text,#fff);border:1px solid var(--line,#333a4d);border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.6);overflow:hidden}' +
       '.simvm-hd{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--line,#333a4d)}.simvm-hd b{flex:1;font-size:17px}' +
       '.simvm-x{border:0;background:transparent;color:var(--sub,#9aa3b5);font-size:20px;line-height:1;padding:4px 8px;cursor:pointer}' +
       '.simvm-bd{padding:6px 16px 14px;overflow:auto;-webkit-overflow-scrolling:touch}' +
@@ -188,6 +188,9 @@
       const b = e.target.closest('button[data-k]'); if (!b) return; closePop(); open(b.dataset.k);
     });
     document.body.appendChild(pop);
+    /* 세로가 짧은 화면(차량 디스플레이 등)에서 메뉴 아래쪽이 잘리지 않게: 남는 높이만큼만 보이게 하고 넘치면 스크롤 */
+    const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    pop.style.maxHeight = Math.max(120, Math.round(vh - r.bottom - 14)) + 'px'; pop.style.overflowY = 'auto'; pop.style.overscrollBehavior = 'contain';
   }
   function open(kind) { closePop(); return kind === 'perm' ? openPerm() : openVer(); }
   document.addEventListener('click', e => { if (pop && !pop.contains(e.target) && !(e.target.closest && e.target.closest('.simvm-btn'))) closePop(); }, true);

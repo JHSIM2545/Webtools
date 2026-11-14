@@ -114,7 +114,6 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;p
 .ps b{font-size:15px;font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--accent)}
 .ps span{font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .ps.cur{border-color:var(--accent);background:#17243f}
-.ps.hot{outline:1px dashed #ffb04a}
 .note{width:min(100%,560px);font-size:11.5px;color:var(--sub);line-height:1.55;padding:0 4px}
 .note b{color:#c4c9d8}
 /* ── 가로로 길고 세로가 짧은 화면(차량 디스플레이·가로 모드 폰): 좌우 배치 ──
@@ -325,7 +324,7 @@ audio{display:none}
   const leds = (air, st) => { $('ledAir').classList.toggle('on', !!air); $('ledSt').classList.toggle('on', !!st); };
 
   /* 프리셋 버튼 */
-  $('grid').innerHTML = ST.map(s => '<button class="ps' + (s.sure === false ? ' hot' : '') + '" data-f="' + s.f + '" title="' + (s.sure === false ? '스트림 주소 확인이 덜 된 방송국' : '') + '"><b>' + s.f.toFixed(1) + '</b><span>' + s.n + '</span></button>').join('');
+  $('grid').innerHTML = ST.map(s => '<button class="ps' + '' + '" data-f="' + s.f + '" title="' + (s.sure === false ? '스트림 주소 확인이 덜 된 방송국' : '') + '"><b>' + s.f.toFixed(1) + '</b><span>' + s.n + '</span></button>').join('');
   $('grid').addEventListener('click', e => { const b = e.target.closest('.ps'); if (!b) return; if (!power) setPower(true); tuneTo(+b.dataset.f, true); });
 
   /* ── 잡음 (방송국 사이를 지날 때 치직거림) ── */

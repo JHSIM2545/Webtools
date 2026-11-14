@@ -71,6 +71,8 @@ header h1 span{color:var(--accent);margin-left:-5px}
 .row:last-child{border-bottom:0}
 .thumb{width:52px;height:52px;border-radius:10px;background:var(--panel2);flex:none;display:flex;align-items:center;justify-content:center;font-size:22px;overflow:hidden;position:relative}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb img.ci{width:70%;height:70%;object-fit:contain}
+img.ci{width:1.25em;height:1.25em;object-fit:contain;vertical-align:-.25em}
 .thumb.n{background:var(--accent);color:#fff;font-weight:800;font-size:17px;border-radius:50%;width:34px;height:34px}
 .rt{flex:1;min-width:0}
 .rt b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -249,10 +251,11 @@ const lset = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 function toast(msg, ms) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), ms || 2400); }
 const uid = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
-const CATS = [{ k: '맛집', e: '🍽️' }, { k: '카페', e: '☕' }, { k: '명소', e: '🏞️' }, { k: '골프', e: '⛳' }, { k: '숙소', e: '🛏️' }, { k: '기타', e: '📍' }];
-const catEmoji = k => (CATS.find(c => c.k === k) || CATS[5]).e;
-const GROUP_CAT = { FD6: '맛집', CE7: '카페', AT4: '명소', AD5: '숙소', CT1: '명소' };
-const guessCat = r => { const t = (r.category_name || '') + ' ' + (r.place_name || ''); if (/골프/.test(t)) return '골프'; return GROUP_CAT[r.category_group_code] || '기타'; };
+const CATS = [{ k: '맛집', e: '🍽️', img: 'cat-food.png' }, { k: '병원', e: '🏥', img: 'cat-hospital.png' }, { k: '카페', e: '☕' }, { k: '명소', e: '🏞️' }, { k: '골프', e: '⛳' }, { k: '숙소', e: '🛏️' }, { k: '기타', e: '📍' }];
+const catDef = k => CATS.find(c => c.k === k) || CATS[CATS.length - 1];
+const catEmoji = k => { const c = catDef(k); return c.img ? '<img class="ci" src="' + c.img + '" alt="">' : c.e; };   // 맛집·병원은 전용 아이콘 이미지
+const GROUP_CAT = { FD6: '맛집', CE7: '카페', AT4: '명소', AD5: '숙소', CT1: '명소', HP8: '병원', PM9: '병원' };
+const guessCat = r => { const t = (r.category_name || '') + ' ' + (r.place_name || ''); if (/골프/.test(t)) return '골프'; if (/병원|의원|클리닉|약국/.test(t)) return '병원'; return GROUP_CAT[r.category_group_code] || '기타'; };
 
 /* ───────── 저장소 (IndexedDB 'simmap' — sync.js 가 계정으로 동기화) ───────── */
 let db = null, memOnly = false, places = [];
@@ -524,7 +527,7 @@ function renderMy() {
   if (sortBy === 'dist' && myPos) list = list.slice().sort((a, b) => dist(myPos, a) - dist(myPos, b)); else list = list.slice().sort((a, b) => String(b.updated || '').localeCompare(String(a.updated || '')));
   let h = '';
   if (places.length) {
-    h += '<div class="chips"><span class="chip' + (!catFilter ? ' on' : '') + '" data-cat="">전체</span>' + used.map(c => '<span class="chip' + (catFilter === c.k ? ' on' : '') + '" data-cat="' + c.k + '">' + c.e + ' ' + c.k + '</span>').join('') +
+    h += '<div class="chips"><span class="chip' + (!catFilter ? ' on' : '') + '" data-cat="">전체</span>' + used.map(c => '<span class="chip' + (catFilter === c.k ? ' on' : '') + '" data-cat="' + c.k + '">' + catEmoji(c.k) + ' ' + c.k + '</span>').join('') +
       '<span class="chip" id="sortBtn" style="margin-left:auto">' + (sortBy === 'dist' ? '📏 거리순' : '🕘 최근순') + '</span></div>';
   }
   if (!list.length) h += '<div class="empty">' + (places.length ? '이 종류로 저장한 장소가 없어요.' : '아직 저장한 장소가 없어요.<br>오른쪽 아래 <b>＋</b>를 눌러 지금 있는 곳을 등록하거나,<br>위 검색창에서 장소를 찾아 저장해 보세요.') + '</div>';
@@ -606,7 +609,7 @@ function openEdit(p, auto) {
   if (auto && ED.lat == null) doLocate();
 }
 function closeEdit() { if (MR) stopRec(true); $('ovEdit').classList.remove('on'); ED = null; }
-function renderEditCats() { $('eCats').innerHTML = CATS.map(c => '<span class="chip' + (ED.cat === c.k ? ' on' : '') + '" data-c="' + c.k + '">' + c.e + ' ' + c.k + '</span>').join(''); }
+function renderEditCats() { $('eCats').innerHTML = CATS.map(c => '<span class="chip' + (ED.cat === c.k ? ' on' : '') + '" data-c="' + c.k + '">' + catEmoji(c.k) + ' ' + c.k + '</span>').join(''); }
 function renderStars() { $('eStars').innerHTML = [1, 2, 3, 4, 5].map(n => '<button type="button" data-s="' + n + '" class="' + (n <= ED.rating ? 'on' : '') + '" aria-label="' + n + '점">★</button>').join(''); }
 function renderGps() {
   if (ED.lat == null) { $('eGps').textContent = '위치를 지정해 주세요.'; return; }
@@ -762,7 +765,7 @@ $('eDel').onclick = async () => {
 let DID = '';
 function openDetail(id) {
   const p = places.find(x => x.id === id); if (!p) return; DID = id;
-  $('dName').textContent = catEmoji(p.cat) + ' ' + p.name;
+  $('dName').innerHTML = catEmoji(p.cat) + ' ' + esc(p.name);
   const d = myPos && isFinite(p.lat) ? fmtDist(dist(myPos, p)) : '';
   let h = '';
   if ((p.photos || []).length) h += '<div id="dPhotos">' + p.photos.map((s, i) => '<img src="' + esc(s) + '" data-big="' + i + '" alt="">').join('') + '</div>';

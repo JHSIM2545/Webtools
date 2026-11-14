@@ -101,6 +101,16 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 #liveMe{color:var(--text)}#liveBot{color:var(--accent)}
 #liveActs{display:flex;flex-direction:column;gap:8px;align-items:center}
 #live .btns{display:flex;gap:10px;margin-top:6px}#live .btns button{padding:12px 14px;font-size:15px;border-radius:14px;white-space:nowrap}
+#aiBusy{position:fixed;left:50%;top:calc(70px + env(safe-area-inset-top));transform:translate(-50%,-14px);z-index:120;display:flex;align-items:center;gap:10px;padding:11px 18px;border-radius:99px;background:rgba(18,24,38,.96);border:1px solid #2b6cff66;color:#e8f0ff;font-size:15px;font-weight:600;box-shadow:0 8px 28px rgba(43,108,255,.35);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;white-space:nowrap}
+#aiBusy.on{opacity:1;transform:translate(-50%,0)}
+#aiBusy .ico{font-size:18px;display:inline-block;animation:abSpin 1.6s ease-in-out infinite}
+#aiBusy .dots{display:inline-flex;gap:4px;margin-left:2px}
+#aiBusy .dots i{width:7px;height:7px;border-radius:50%;background:#6aa6ff;display:block;animation:abDot 1s infinite ease-in-out}
+#aiBusy .dots i:nth-child(2){animation-delay:.16s}#aiBusy .dots i:nth-child(3){animation-delay:.32s}
+@keyframes abDot{0%,70%,100%{transform:translateY(0);opacity:.45}35%{transform:translateY(-7px);opacity:1}}
+@keyframes abSpin{0%{transform:rotate(-14deg) scale(1)}50%{transform:rotate(14deg) scale(1.15)}100%{transform:rotate(-14deg) scale(1)}}
+#aiBusy::after{content:'';position:absolute;left:14px;right:14px;bottom:3px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,#6aa6ff,transparent);background-size:200% 100%;animation:abBar 1.2s linear infinite}
+@keyframes abBar{from{background-position:200% 0}to{background-position:-200% 0}}
 #toast{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#2b2f40;border:1px solid var(--line);padding:9px 15px;border-radius:12px;font-size:13.5px;z-index:50;display:none;max-width:90%;text-align:center}
 </style>
 <script src="ui-guard.js" defer></script>
@@ -157,6 +167,7 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
   <select id="liveDev" style="display:none;max-width:92%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit;font-size:13px"></select>
   <div class="note" style="margin-top:6px">이어폰을 쓰면 인식이 가장 정확해요</div>
 </div>
+<div id="aiBusy" role="status" aria-live="polite"><span class="ico">🔎</span><span class="txt">AI가 찾아보고 있습니다</span><span class="dots"><i></i><i></i><i></i></span></div>
 <div id="toast"></div>
 
 <script>
@@ -1337,10 +1348,48 @@ async function geminiCall(phone, text, mode, extra) {
   } catch (e) { throw e && e.name === 'AbortError' ? new Error('응답이 늦어요') : (e instanceof TypeError ? new Error('연결 실패') : e); }
   finally { clearTimeout(to); }
 }
+/* ───── AI 처리 중 표시 + 효과음("뚜둑뚜두 뚜둑뚜두") ───── */
+const Busy = (() => {
+  let n = 0, timer = null, guard = null, nextAt = 0;
+  const on = () => ls.get('SIMAS_BUSYSND', '1') === '1';
+  function click(t, f, v) {   // 나무 두드리는 듯한 짧은 소리 하나
+    const c = actx; if (!c) return;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(f * 1.9, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.025);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.09);
+  }
+  function cycle() {   // 뚜(낮게) 둑(높게) 뚜 두 … 쉬고 반복
+    try {
+      unlockAudio(); const c = actx; if (!c || c.state !== 'running') return;
+      const v = LIVE.on ? 0.07 : 0.16, t = Math.max(c.currentTime + 0.02, nextAt);
+      click(t, 210, v); click(t + 0.13, 380, v * 1.1); click(t + 0.27, 230, v); click(t + 0.39, 170, v * 0.9);
+      nextAt = t + 1.15;
+    } catch (e) {}
+  }
+  function start(txt) {
+    n++; const el = $('aiBusy'); if (txt) el.querySelector('.txt').textContent = txt;
+    if (n > 1) return; el.classList.add('on');
+    if (on()) { cycle(); timer = setInterval(() => { if (!on()) return; cycle(); if (LIVE.on) LIVE.quietUntil = Date.now() + 700; }, 1150); }
+    clearTimeout(guard); guard = setTimeout(() => { n = 1; stop(); }, 60000);
+  }
+  function stop() {
+    if (n > 0) n--; if (n > 0) return;
+    clearInterval(timer); timer = null; clearTimeout(guard); $('aiBusy').classList.remove('on'); $('aiBusy').querySelector('.txt').textContent = 'AI가 찾아보고 있습니다';
+  }
+  const all = () => { n = 1; stop(); };
+  return { start, stop, all, isOn: () => n > 0 };
+})();
+(window.simAppMenuExtra = window.simAppMenuExtra || []).push({
+  icon: '🥁', label: '처리 중 효과음', hint: 'AI가 찾는 동안 뚜둑뚜두 소리를 들려줘요',
+  get: () => ls.get('SIMAS_BUSYSND', '1') === '1',
+  set: v => { ls.set('SIMAS_BUSYSND', v ? '1' : '0'); toast(v ? '처리 중 효과음을 켰어요' : '처리 중 효과음을 껐어요'); }
+});
 async function askGemini(text) {   // true=처리함, false=실패 → 호출한 쪽이 로컬 엔진으로 처리
   sys('Gemini가 해석하는 중…');
+  Busy.start();
   try {
-    const out = await geminiCall(gKey(), text);
+    let out; try { out = await geminiCall(gKey(), text); } finally { Busy.stop(); }
     const line = out.split('\n').map(x => x.trim()).find(x => /^(CMD|SAY)\s*:/i.test(x)) || ('SAY: ' + out.split('\n')[0]);
     const body = line.replace(/^(CMD|SAY)\s*:\s*/i, '').trim();
     if (/^CMD/i.test(line)) {
@@ -1516,7 +1565,7 @@ const LTOOLS = {
   }
 };
 async function liveTools(calls) {
-  liveSet('처리 중…', '⚙️', false); const resp = [];
+  liveSet('AI가 찾아보고 있습니다', '🔎', false); Busy.start(); LIVE.busyOn = true; const resp = [];
   for (const c of calls) {
     let r; try { const f = LTOOLS[c.name]; r = f ? await f(c.args || {}) : { ok: false, error: '지원하지 않는 기능이에요' }; } catch (e) { r = { ok: false, error: String(e && e.message || e).slice(0, 120) }; }
     resp.push({ id: c.id, name: c.name, response: r });
@@ -1533,9 +1582,9 @@ function liveMsg(m) {
   const sc = m.serverContent; if (!sc) return;
   if (sc.interrupted) { LIVE.drop = false; liveFlush(); liveSet('듣고 있어요', '🎙', false); LIVE.bub.bot = null; }
   if (sc.inputTranscription && sc.inputTranscription.text) { if (LIVE.bub.bot) LIVE.bub.bot = null; liveBubble('me', sc.inputTranscription.text); }
-  if (sc.modelTurn && sc.modelTurn.parts) sc.modelTurn.parts.forEach(p => { if (p.inlineData && p.inlineData.data) livePlay(p.inlineData.data); });
+  if (sc.modelTurn && sc.modelTurn.parts) sc.modelTurn.parts.forEach(p => { if (p.inlineData && p.inlineData.data) { if (LIVE.busyOn) { LIVE.busyOn = false; Busy.all(); } livePlay(p.inlineData.data); } });
   if (sc.outputTranscription && sc.outputTranscription.text) liveBubble('bot', sc.outputTranscription.text);
-  if (sc.turnComplete) { LIVE.drop = false; liveTurnEnd(); }
+  if (sc.turnComplete) { LIVE.drop = false; if (LIVE.busyOn) { LIVE.busyOn = false; Busy.all(); } liveTurnEnd(); }
 }
 function liveOpen() {
   const ph = gKey(); LIVE.ready = false;
@@ -1613,6 +1662,7 @@ async function liveStart() {
   } catch (e) { const dn = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError' || e.name === 'PermissionDeniedError'); liveFail(dn ? '마이크 권한' : (e && e.message) || '시작하지 못했어요', dn); }
 }
 function liveEnd(silent) {
+  try { LIVE.busyOn = false; Busy.all(); } catch (e) {}
   if (!LIVE.on && !silent) return; LIVE.ending = true; LIVE.on = false;
   try { LIVE.ws && LIVE.ws.close(1000); } catch (e) {} LIVE.ws = null; LIVE.ready = false; liveFlush();
   try { LIVE.node && (LIVE.node.port.onmessage = null, LIVE.node.disconnect()); } catch (e) {} LIVE.node = null;
@@ -2067,6 +2117,7 @@ async function salesAI(text, force) {   // AI가 말을 조회 조건으로 해�
   if (!force && (!SB_GATE.test(t) || /(전화|연락처|번호|일정|알람|메모|내비|가자|길안내)/.test(t.replace(/알람\s*\+\s*휴엔/, '')))) return null;
   const phone = gKey(); if (!phone || !aiUsable()) return null;
   const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 14000);
+  Busy.start();
   try {
     const r = await fetch(SAURL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, text: t }) });
     const j = await r.json().catch(() => ({}));
@@ -2083,7 +2134,7 @@ async function salesAI(text, force) {   // AI가 말을 조회 조건으로 해�
       return { k: 'lookup', kind, q: a.q || '', month, day: d, from: a.from || '', to: a.to || '', label: a.label || '', upcoming: !!a.upcoming && !a.from };
     }
     return null;
-  } catch (e) { return null; } finally { clearTimeout(to); }
+  } catch (e) { return null; } finally { clearTimeout(to); Busy.stop(); }
 }
 const fdK = d => { if (!d) return '미정'; const s0 = String(d), y = s0.slice(0, 4), cy = String(new Date().getFullYear()); return (y !== cy ? y + '년 ' : '') + (+s0.slice(5, 7)) + '월 ' + (+s0.slice(8, 10)) + '일'; };
 async function salesCall(m) {   // 서버 함수 assistant-sales 호출 → { j, err }
@@ -2094,11 +2145,12 @@ async function salesCall(m) {   // 서버 함수 assistant-sales 호출 → { j,
   else Object.assign(body, { ym: m.ym, metric: m.metric, filter: m.filter || undefined });
   let j, err = '';
   const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 20000);
+  Busy.start('영업일보를 찾아보고 있습니다');
   try {
     const r = await fetch(SURL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     j = await r.json().catch(() => ({}));
     if (!r.ok) err = r.status === 403 ? '등록되지 않은 전화번호예요' : '응답 실패 (' + r.status + (j.detail ? ' · ' + j.detail : '') + ')';
-  } catch (e) { err = e && e.name === 'AbortError' ? '응답이 늦어요' : '연결 실패'; } finally { clearTimeout(to); }
+  } catch (e) { err = e && e.name === 'AbortError' ? '응답이 늦어요' : '연결 실패'; } finally { clearTimeout(to); Busy.stop(); }
   return { j, err };
 }
 function salesHtml(m, j) {

@@ -535,7 +535,7 @@ function renderMy() {
     const th = p.photos && p.photos[0] ? '<img src="' + esc(p.photos[0]) + '" alt="">' : catEmoji(p.cat);
     const d = myPos && isFinite(p.lat) ? fmtDist(dist(myPos, p)) : '';
     const meta = [stars(p.rating), (p.photos || []).length ? '📷' + p.photos.length : '', (p.audio || []).length ? '🎙' + p.audio.length : '', d].filter(Boolean).join(' · ');
-    return '<div class="row" data-id="' + esc(p.id) + '"><div class="thumb">' + th + '</div><div class="rt"><b>' + catEmoji(p.cat) + ' ' + esc(p.name) + '</b><small>' + esc(p.addr || '') + '</small>' + (meta ? '<div class="meta">' + meta + '</div>' : '') + '</div>' +
+    return '<div class="row" data-id="' + esc(p.id) + '"><div class="thumb">' + th + '</div><div class="rt"><b>' + (p.photos && p.photos[0] ? catEmoji(p.cat) + ' ' : '') + esc(p.name) + '</b><small>' + esc(p.addr || '') + '</small>' + (meta ? '<div class="meta">' + meta + '</div>' : '') + '</div>' +
       '<div class="acts"><a class="nv" href="' + esc(naviHref(p.lat, p.lng, p.name)) + '"' + naviAttrs() + ' data-nav>🧭</a></div></div>';
   }).join('');
   $('dbody').innerHTML = h;
@@ -551,7 +551,7 @@ function renderRes() {
   }
   if (RES.note) h += '<div class="hint warn">' + esc(RES.note) + '</div>';
   if (RES.saved.length) {
-    h += '<div class="hint"><b>내가 저장한 장소</b> (근처)</div>' + RES.saved.map(p => '<div class="row" data-id="' + esc(p.id) + '"><div class="thumb">' + (p.photos && p.photos[0] ? '<img src="' + esc(p.photos[0]) + '" alt="">' : catEmoji(p.cat)) + '</div><div class="rt"><b>' + catEmoji(p.cat) + ' ' + esc(p.name) + '</b><small>' + esc(p.addr || '') + '</small><div class="meta">' + stars(p.rating) + ' ' + fmtDist(dist(RES.anchor, p)) + '</div></div></div>').join('');
+    h += '<div class="hint"><b>내가 저장한 장소</b> (근처)</div>' + RES.saved.map(p => '<div class="row" data-id="' + esc(p.id) + '"><div class="thumb">' + (p.photos && p.photos[0] ? '<img src="' + esc(p.photos[0]) + '" alt="">' : catEmoji(p.cat)) + '</div><div class="rt"><b>' + (p.photos && p.photos[0] ? catEmoji(p.cat) + ' ' : '') + esc(p.name) + '</b><small>' + esc(p.addr || '') + '</small><div class="meta">' + stars(p.rating) + ' ' + fmtDist(dist(RES.anchor, p)) + '</div></div></div>').join('');
   }
   if (!RES.items.length) h += '<div class="empty">검색 결과가 없어요.<br>반경을 넓히거나 검색어를 바꿔 보세요.</div>';
   h += RES.items.map((r, i) => '<div class="row' + (i === resHi ? ' hi' : '') + '" data-ri="' + i + '"><div class="thumb n">' + (i + 1) + '</div><div class="rt"><b>' + esc(r.name) + '</b><small>' + esc(r.catName) + (r.addr ? ' · ' + esc(r.addr) : '') + '</small><div class="meta">' + (r.dist != null ? fmtDist(r.dist) + (RES.anchor ? ' (기준에서)' : '') : '') + (r.phone ? ' · ' + esc(r.phone) : '') + '</div></div>' +

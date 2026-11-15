@@ -126,6 +126,23 @@ b.q{color:var(--accent);font-weight:800}
 #ans{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14.5px;line-height:1.5}
 #ans .a2{margin-top:8px;display:flex;gap:8px}
 .toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#000c;color:#fff;padding:10px 16px;border-radius:99px;font-size:14px;z-index:100;max-width:90vw;text-align:center}
+.big .w{color:#fff;transition:color .12s}
+.big .w.on{color:#ffd76a}
+.big b.q .w:not(.on){color:var(--accent)}
+#cEl{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:70;background:rgba(0,0,0,.55);color:#fff;font-weight:800;font-size:17px;padding:6px 12px;border-radius:99px;font-variant-numeric:tabular-nums}
+#cFsX{position:absolute;top:calc(10px + env(safe-area-inset-top));left:12px;z-index:70;width:38px;height:38px;padding:0;border-radius:50%;background:rgba(0,0,0,.55);border-color:transparent;color:#fff;font-size:17px}
+#cPz{position:absolute;inset:0;z-index:65;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:72px;color:#fff;text-shadow:0 2px 18px #000;background:rgba(0,0,0,.28)}
+#cook.fs .top,#cook.fs .bot{display:none}
+#cook.fs #pages{position:absolute;inset:0}
+#cook.fs .page{padding:0;max-width:none;position:relative;justify-content:flex-end;overflow:hidden;background:#000;gap:0}
+#cook.fs .page .pic{position:absolute;inset:0;max-height:none;min-height:0;aspect-ratio:auto;border-radius:0}
+#cook.fs .page::after{content:"";position:absolute;left:0;right:0;bottom:0;height:64%;background:linear-gradient(transparent,rgba(0,0,0,.86));pointer-events:none}
+#cook.fs .page>*:not(.pic){position:relative;z-index:2}
+#cook.fs .page>h2{position:absolute!important;top:calc(18px + env(safe-area-inset-top));left:60px;right:120px;font-size:14px;color:#fff;text-shadow:0 1px 6px #000}
+#cook.fs .page .big{padding:0 22px calc(26px + env(safe-area-inset-bottom));font-size:clamp(22px,5.6vw,36px);line-height:1.55;font-weight:800;text-shadow:0 2px 8px #000,0 0 3px #000;text-align:center}
+#cook.fs .page>.tmr{position:absolute!important;right:14px;top:calc(62px + env(safe-area-inset-top));align-self:auto;background:rgba(0,0,0,.55)}
+#cook.fs .page .ingl{padding:80px 22px 30px;justify-content:center;flex:1;color:#fff}
+#cook.fs .page #cPhoto{margin:0 22px 30px}
 @media (max-height:480px) and (min-width:640px){
   #cook .page{flex-direction:row;align-items:flex-start}
   #cook .page .pic{max-height:none;width:42%;flex:none}
@@ -155,6 +172,7 @@ b.q{color:var(--accent);font-weight:800}
   </div>
 </div>
 <div id="cook" hidden>
+  <div id="cEl" hidden></div><button id="cFsX" hidden aria-label="전체화면 끄기">✕</button><div id="cPz" hidden>⏸</div>
   <div class="top"><button id="cX">✕</button><div class="pg"><i id="cPg"></i></div><div class="ct" id="cCt"></div></div>
   <div id="pages"></div>
   <div class="bot">
@@ -162,7 +180,7 @@ b.q{color:var(--accent);font-weight:800}
     <div class="ctl">
       <button id="cPrev">⏮</button><button id="cPause">⏸</button><button id="cNext">⏭</button>
       <button id="cMore">+1분</button><button id="cDone">다 됐어요</button>
-      <button id="cEasy">간편용량</button><button id="cDev" title="기기 자체 음성만 쓰기 (인터넷 없이도 됨)">기기음성</button><button id="cAuto" class="on">자동</button><button id="cVoice" class="on">🔊</button>
+      <button id="cEasy">간편용량</button><button id="cDev" title="기기 자체 음성만 쓰기 (인터넷 없이도 됨)">기기음성</button><button id="cFs" title="전체화면 자막 모드">⛶</button><button id="cAuto" class="on">자동</button><button id="cVoice" class="on">🔊</button>
     </div>
     <div class="row"><button id="cMic">🎤</button><input id="cQ" placeholder="질문하기 (예: 소금이 없는데 빼도 돼?)"><button id="cSend" class="pri">전송</button></div>
   </div>
@@ -171,6 +189,8 @@ b.q{color:var(--accent);font-weight:800}
 <input type="file" id="fSrc" accept="application/pdf,image/*" multiple hidden>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="ui-guard.js" defer></script>
+<script src="appmenu.js" defer></script>
 <script>
 /* ═══════ 설정 ═══════ */
 const SB_URL = 'https://rgamgjdnhunzzwzsbnbs.supabase.co', SB_KEY = 'sb_publishable_hnBcVEuMXFRdFRqJhOM0OQ_rp72JywU';
@@ -583,7 +603,8 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let koVoice = null;
 function pickVoice() { const vs = speechSynthesis.getVoices ? speechSynthesis.getVoices() : []; koVoice = vs.find(v => /ko[-_]KR/i.test(v.lang)) || vs.find(v => /^ko/i.test(v.lang)) || null; }
 try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
-let aud = null, audDone = null, ttsBad = false, ttsWarned = false, spkGen = 0;
+let aud = null, audDone = null, ttsBad = false, ttsWarned = false, spkGen = 0, speakHook = null;
+function fireHook() { const h = speakHook; speakHook = null; if (h) h(); }
 const ttsCache = new Map();
 function cancelSpeech() {
   spkGen++; try { const T = nTts(); T && T.stop(); } catch (e) {}
@@ -604,7 +625,7 @@ async function speakApp(text) {
     const fin = r => { if (!done) { done = true; delete ttsCb[id]; clearTimeout(t1); clearTimeout(t2); ok(r); } };
     const t1 = setTimeout(() => { if (!started) { try { T.stop(); } catch (e) {} fin('nostart'); } }, 3000);
     const t2 = setTimeout(() => fin('ok'), 6000 + text.length * 350);
-    ttsCb[id] = ev => { if (ev === 'start') { started = true; clearTimeout(t1); } else if (ev === 'done' || ev === 'stop') fin(started ? 'ok' : 'nostart'); else if (ev === 'error') fin(started ? 'ok' : 'nostart'); };
+    ttsCb[id] = ev => { if (ev === 'start') { started = true; clearTimeout(t1); fireHook(); } else if (ev === 'done' || ev === 'stop') fin(started ? 'ok' : 'nostart'); else if (ev === 'error') fin(started ? 'ok' : 'nostart'); };
     let okk = false; try { okk = T.speak(text, id, 1.0); } catch (e) {}
     if (!okk) fin('nostart');
   });
@@ -617,7 +638,7 @@ function speakNative(text) {
       let started = false, done = false; const fin = r => { if (!done) { done = true; clearTimeout(t1); clearTimeout(t2); ok(r); } };
       const t1 = setTimeout(() => { if (!started) { try { speechSynthesis.cancel(); } catch (e) {} fin('nostart'); } }, 2500);
       const t2 = setTimeout(() => fin('ok'), 4000 + text.length * 300);
-      u.onstart = () => { started = true; clearTimeout(t1); }; u.onend = () => fin(started ? 'ok' : 'nostart'); u.onerror = () => fin(started ? 'ok' : 'nostart');
+      u.onstart = () => { started = true; clearTimeout(t1); fireHook(); }; u.onend = () => fin(started ? 'ok' : 'nostart'); u.onerror = () => fin(started ? 'ok' : 'nostart');
       setTimeout(() => speechSynthesis.speak(u), 60);
     } catch (e) { ok('nostart'); }
   });
@@ -656,7 +677,7 @@ function playUrl(url) {
 }
 async function speakAI(text, gen) {
   const ps = ttsChunks(text).map(ttsFetch);
-  for (const p of ps) { const url = await p; if (gen !== spkGen) return; if (!url) return; await playUrl(url); if (gen !== spkGen) return; }
+  for (const p of ps) { const url = await p; if (gen !== spkGen) return; if (!url) return; fireHook(); await playUrl(url); if (gen !== spkGen) return; }
 }
 /* 말할 때 소수·분수를 사람 말로: 1.5큰술→한큰술반, 0.5큰술·1/2큰술→반큰술, 0.25→사분의 일 */
 function spoken(t) {
@@ -697,35 +718,49 @@ const G = { i: 0, token: 0, left: 0, run: false, paused: false, voice: pref.voic
 const pageCount = () => G.rec.steps.length + 2;
 function startCook() {
   ttsBad = false; ttsWarned = false;
-  G.rec = S.row.data; G.i = 0; G.paused = false; G.token++; $('cook').hidden = false; if (!layers.includes('cook')) pushLayer('cook');
-  buildPages(); paintCtl(); $('ans').hidden = true;
+  G.rec = S.row.data; G.i = 0; G.paused = false; G.restart = false; G.token++; G.el = 0; $('cook').hidden = false; clearInterval(G.elT); G.elT = setInterval(() => { if (!G.paused && !$('cook').hidden) { G.el++; paintCt(); } }, 1000); if (!layers.includes('cook')) pushLayer('cook');
+  buildPages(); paintCtl(); $('ans').hidden = true; setFs(!!pref.fs, true);
   try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => { G.wake = w; }).catch(() => {}); } catch (e) {}
   ['네, 잠시만요.', HOLD_MSG, ...TRANS].forEach(ttsPrefetch);
   goto(0, true);
 }
 function closeCook(fromPop) {
-  G.token++; cancelSpeech(); try { G.mic && G.mic.abort(); } catch (e) {} G.mic = null; $('cook').hidden = true; try { G.wake && G.wake.release(); } catch (e) {} G.wake = null;
+  G.token++; cancelSpeech(); clearInterval(G.elT); karaStop(G.i); try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} try { G.mic && G.mic.abort(); } catch (e) {} G.mic = null; $('cook').hidden = true; try { G.wake && G.wake.release(); } catch (e) {} G.wake = null;
   if (!fromPop && layers[layers.length - 1] === 'cook') history.back();
   if (S.row) { renderDetail(); loadComments(); }
 }
 function buildPages() {
   const d = G.rec, row = S.row, steps = d.steps;
   let h = '<section class="page"><h2>재료 준비</h2><div class="ingl">' + d.ingredients.map(g => '<label><input type="checkbox"><span>' + esc(g.name) + ' <b class="q">' + esc(qty(g)) + '</b></span></label>').join('') + '</div></section>';
-  steps.forEach((s, i) => { h += '<section class="page"><h2>' + (i + 1) + ' / ' + steps.length + ' · ' + esc(s.title) + '</h2><div class="pic" data-pic="' + esc(s.k) + '">' + picInner(row, s.k) + '</div><div class="big">' + stepHtml(d, s) + '</div>' + (s.timerSec ? '<div class="tmr" data-tmr="' + i + '">⏱ ' + mmss(s.timerSec) + '</div>' : '<div class="tmr" data-tmr="' + i + '" hidden></div>') + '</section>'; });
+  steps.forEach((s, i) => { h += '<section class="page"><h2>' + (i + 1) + ' / ' + steps.length + ' · ' + esc(s.title) + '</h2><div class="pic" data-pic="' + esc(s.k) + '">' + picInner(row, s.k) + '</div><div class="big" data-k="1">' + stepHtml(d, s) + '</div>' + (s.timerSec ? '<div class="tmr" data-tmr="' + i + '">⏱ ' + mmss(s.timerSec) + '</div>' : '<div class="tmr" data-tmr="' + i + '" hidden></div>') + '</section>'; });
   h += '<section class="page"><h2>완성!</h2><div class="pic" data-pic="cover">' + picInner(row, 'cover') + '</div><div class="big">맛있게 드세요 🎉</div><button class="pri" id="cPhoto" ' + (S.ro ? 'hidden' : '') + '>📷 완성 사진 남기기</button></section>';
-  $('pages').innerHTML = h;
+  $('pages').innerHTML = h; $('pages').querySelectorAll('.big[data-k]').forEach(wrapWords);
   const ph = $('cPhoto'); if (ph) ph.onclick = () => { photoTarget = 'final'; $('fPhoto').click(); };
   $('pages').onscroll = onScrollEnd;
 }
+/* 노래방 자막: 읽는 속도에 맞춰 글자색이 차례로 바뀐다 */
+let kTimer = 0;
+function wrapWords(el) {
+  const walk = n => [...n.childNodes].forEach(c => {
+    if (c.nodeType === 3) { const f = document.createDocumentFragment(); c.textContent.split(/(\s+)/).forEach(t => { if (!t) return; if (/^\s+$/.test(t)) f.appendChild(document.createTextNode(t)); else { const sp = document.createElement('span'); sp.className = 'w'; sp.textContent = t; f.appendChild(sp); } }); c.replaceWith(f); }
+    else if (c.nodeType === 1) walk(c);
+  }); walk(el);
+}
+const pageWords = i => { const pg = $('pages').children[i]; return pg ? [...pg.querySelectorAll('.big .w')] : []; };
+function karaStop(i, full) { clearInterval(kTimer); kTimer = 0; if (full) pageWords(i).forEach(w => w.classList.add('on')); }
+function karaStart(i, my, delay, dur) {
+  if (G.token !== my) return; karaStop(i); const ws = pageWords(i); if (!ws.length) return; ws.forEach(w => w.classList.remove('on')); let t = 0;
+  kTimer = setInterval(() => { if (G.token !== my) return karaStop(i); if (G.paused) return; t += .1; const k = Math.floor((t - delay) / dur * ws.length); for (let j = 0; j < ws.length; j++) ws[j].classList.toggle('on', j < k); if (t - delay >= dur) karaStop(i, true); }, 100);
+}
 let scT = 0;
-function onScrollEnd() { clearTimeout(scT); scT = setTimeout(() => { const pg = $('pages'), idx = Math.round(pg.scrollTop / pg.clientHeight); if (idx !== G.i && idx >= 0 && idx < pageCount()) goto(idx, false); }, 160); }
+function onScrollEnd() { clearTimeout(scT); scT = setTimeout(() => { if (G.lock) return; const pg = $('pages'), idx = Math.round(pg.scrollTop / pg.clientHeight); if (idx !== G.i && idx >= 0 && idx < pageCount()) goto(idx, false); }, 160); }
 function goto(i, scroll) {
-  i = Math.max(0, Math.min(pageCount() - 1, i)); G.i = i; G.paused = false; paintCtl();
+  i = Math.max(0, Math.min(pageCount() - 1, i)); karaStop(G.i); G.i = i; G.paused = false; G.restart = false; $('cPz').hidden = true; paintCtl();
   const pg = $('pages'); if (scroll !== false) pg.scrollTo({ top: i * pg.clientHeight, behavior: scroll === true && i === 0 ? 'auto' : 'smooth' });
-  $('cPg').style.width = ((i + 1) / pageCount() * 100) + '%'; $('cCt').textContent = i === 0 ? '재료' : i > G.rec.steps.length ? '끝' : i + '/' + G.rec.steps.length;
+  $('cPg').style.width = ((i + 1) / pageCount() * 100) + '%'; paintCt();
   runPage(i);
 }
-function say(text, my) { if (!G.voice) return sleep(500); return speak(text).then(() => { if (G.token !== my) return; }); }
+function say(text, my, onStart) { if (!G.voice) { if (onStart) onStart(); return sleep(500); } speakHook = onStart || null; return speak(text).then(() => { speakHook = null; }); }
 function ingIntro() { return '재료를 준비해 주세요. ' + G.rec.ingredients.map(g => g.name + (g.amount == null ? '' : ' ' + qty(g, true))).join(', ') + '.'; }
 const TRANS = ['다 되셨나요? 그럼 다음으로 넘어갈게요.', '다 되셨나요? 그럼 마무리할게요.'];
 function pageText(i) {
@@ -745,8 +780,9 @@ async function runPage(i) {
   } else if (i > n) {
     await say(pageText(i), my); return;
   } else {
-    const s = d.steps[i - 1];
-    await say(pageText(i), my); if (G.token !== my) return;
+    const s = d.steps[i - 1], intro = (i === 1 ? '첫 번째 단계. ' : i + '번째 단계. ') + s.title + '. ', txt = plain(d, s);
+    await say(pageText(i), my, () => karaStart(i, my, intro.length * .19, Math.max(2, txt.length * .19))); if (G.token !== my) return;
+    if (G.voice) karaStop(i, true);
     G.left = s.timerSec || Math.min(45, 8 + Math.ceil(plain(d, s).length * .2));
   }
   G.run = true; setTmr(i);
@@ -774,13 +810,32 @@ function paintCtl() {
 $('cX').onclick = () => closeCook(false);
 $('cPrev').onclick = () => goto(G.i - 1, true);
 $('cNext').onclick = () => goto(G.i + 1, true);
-$('cPause').onclick = () => { G.paused = !G.paused; if (G.paused) cancelSpeech(); paintCtl(); setTmr(G.i); };
+function togglePause() {
+  G.paused = !G.paused; const fs = $('cook').classList.contains('fs');
+  if (G.paused) { if (!G.run) { G.restart = true; G.token++; } cancelSpeech(); }   // 안내를 읽는 도중이면 멈추고, 다시 누르면 그 단계를 처음부터 다시 읽는다
+  else if (G.restart) { G.restart = false; runPage(G.i); }
+  paintCtl(); setTmr(G.i); $('cPz').hidden = !(G.paused && fs);
+}
+$('cPause').onclick = togglePause;
+$('pages').addEventListener('click', e => { if ($('cook').classList.contains('fs')) { if (!e.target.closest('button,input,label,a')) togglePause(); } else { const im = e.target.closest('.pic img'); if (im) showPhoto(im.src); } });
+const fmtEl = t => (t >= 3600 ? Math.floor(t / 3600) + ':' : '') + String(Math.floor(t % 3600 / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
+function paintCt() { const i = G.i, base = i === 0 ? '재료' : i > G.rec.steps.length ? '끝' : i + '/' + G.rec.steps.length; $('cCt').textContent = base + ' · ' + fmtEl(G.el || 0); $('cEl').textContent = '⏱ ' + fmtEl(G.el || 0); }
+function setFs(on, api) {
+  const c = $('cook'); c.classList.toggle('fs', on); $('cEl').hidden = !on; $('cFsX').hidden = !on; $('cPz').hidden = !(on && G.paused); pref.fs = on; savePref();
+  try { if (api) { if (on) { document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => {}); } else if (document.fullscreenElement) document.exitFullscreen(); } } catch (e) {}
+  G.lock = true; setTimeout(() => { const pg = $('pages'); pg.scrollTo({ top: G.i * pg.clientHeight, behavior: 'auto' }); setTimeout(() => { G.lock = false; }, 250); }, 80);
+}
+$('cFs').onclick = () => setFs(true, true);
+$('cFsX').onclick = e => { e.stopPropagation(); setFs(false, true); };
 $('cMore').onclick = () => { G.left += 60; G.run = true; if (G.left > 0) setTmr(G.i); toast('1분 늘렸어요'); if (G.i > 0 && G.i <= G.rec.steps.length && !G.rec.steps[G.i - 1].timerSec) { const el = document.querySelector('[data-tmr="' + (G.i - 1) + '"]'); if (el) { el.hidden = false; } } };
 $('cDone').onclick = () => goto(G.i + 1, true);
 $('cEasy').onclick = () => toggleEasy();
 $('cDev').onclick = () => { pref.devOnly = !pref.devOnly; savePref(); ttsBad = false; ttsWarned = false; paintCtl(); toast(pref.devOnly ? '기기 자체 음성만 써요 (오프라인 가능). 한국어 음성이 설치돼 있어야 해요' : '기기 음성이 안 되면 AI 음성을 써요', 3500); };
 $('cAuto').onclick = () => { G.auto = !G.auto; pref.auto = G.auto; savePref(); paintCtl(); if (G.auto) runPage(G.i); };
 $('cVoice').onclick = () => { G.voice = !G.voice; pref.voice = G.voice; savePref(); if (!G.voice) cancelSpeech(); paintCtl(); };
+
+/* ⋯ 메뉴: 간편용량 스위치 */
+(window.simAppMenuExtra = window.simAppMenuExtra || []).push({ icon: '🥄', label: '간편용량 (밥숟가락·종이컵)', get: () => !!pref.easy, set: v => { if (!!pref.easy !== !!v) toggleEasy(); } });
 
 /* 음성·글 질문 */
 function showAns(text, suggest) {

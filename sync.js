@@ -322,12 +322,19 @@
     } finally { cBusy = false; }
   }
   const getBase_ = () => { try { return JSON.parse(lget(C_BASE) || '{}') || {}; } catch (e) { return {}; } };
-  const photo = u => { const m = (u && u.user_metadata) || {}, p = m.avatar_url || m.picture || ''; return /^https:\/\//.test(p) ? p : ''; };
+  const photo = u => {
+    const m = (u && u.user_metadata) || {}; let p = m.avatar_url || m.picture || '';
+    if (!p && u && Array.isArray(u.identities)) for (const i of u.identities) { const d = i.identity_data || {}; p = d.avatar_url || d.picture || ''; if (p) break; }
+    if (/^http:\/\//.test(p)) p = p.replace(/^http:/, 'https:');
+    if (/googleusercontent\.com/.test(p)) p = p.replace(/=s\d+(-c)?$/, '') + '=s128-c';
+    return /^https:\/\//.test(p) ? p : '';
+  };
   const initial = (u, px) => '<span style="display:inline-flex;align-items:center;justify-content:center;width:' + px + 'px;height:' + px + 'px;border-radius:50%;background:var(--accent,#4f8cff);color:#fff;font-weight:700;font-size:' + Math.round(px * .5) + 'px;vertical-align:middle;flex:none">' + esc((who(u) || '?').charAt(0).toUpperCase()) + '</span>';
   const ring = (inner, px) => '<span style="display:inline-flex;align-items:center;justify-content:center;width:' + (px + 8) + 'px;height:' + (px + 8) + 'px;border-radius:50%;padding:2px;background:linear-gradient(135deg,#3b82f6,#60a5fa 55%,#a5b4fc);vertical-align:middle;flex:none;box-sizing:border-box"><span style="display:inline-flex;width:100%;height:100%;border-radius:50%;background:#111;padding:2px;box-sizing:border-box">' + inner + '</span></span>';
-  const avatar = (u, px) => !u ? '👤' : ring(photo(u) ? '<img src="' + esc(photo(u)) + '" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.outerHTML=window.__simInitial&&window.__simInitial(' + px + ')||\'👤\'">' : initial(u, px).replace(/width:\d+px;height:\d+px/, 'width:100%;height:100%'), px);
+  const avatar = (u, px) => !u ? '👤' : ring(photo(u) ? '<img src="' + esc(photo(u)) + '" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="if(!this.dataset.r){this.dataset.r=1;this.removeAttribute(\'referrerpolicy\');this.src=this.src;return}this.outerHTML=window.__simInitial&&window.__simInitial(' + px + ')||\'👤\'">' : initial(u, px).replace(/width:\d+px;height:\d+px/, 'width:100%;height:100%'), px);
   window.__simInitial = px => cUser ? initial(cUser, px) : '';
-  function acctBtn() { const b = $('btnAcct'); if (!b) return; if (cUser) { b.innerHTML = avatar(cUser, 28) + ' <span style="vertical-align:middle">' + esc(who(cUser)) + '</span>'; } else b.textContent = '👤 로그인'; }
+  let photoTried = false;
+  function acctBtn() { const b = $('btnAcct'); if (!b) return; if (cUser && !photo(cUser) && !photoTried) { photoTried = true; client().then(c => c.auth.getUser()).then(r => { if (r && r.data && r.data.user && photo(r.data.user)) { cUser = r.data.user; acctBtn(); } }).catch(() => {}); } if (cUser) { b.innerHTML = avatar(cUser, 28) + ' <span style="vertical-align:middle">' + esc(who(cUser)) + '</span>'; } else b.textContent = '👤 로그인'; }
   function schedule() { clearInterval(cTimer); if (cUser) cTimer = setInterval(() => { if (!document.hidden) cloudSync().catch(() => {}); }, 5 * 60e3); }
   async function setUser(u, first) {
     cUser = u || null; acctBtn(); schedule();

@@ -62,6 +62,7 @@ label.l{font-size:12.5px;color:var(--sub)}
 .ing .nm{font-size:15px}
 .ing .nm small{color:var(--sub);display:block;font-size:12px}
 .ing input{width:84px;text-align:right;padding:7px 9px}
+.easy{font-size:12px;padding:5px 9px;border-radius:99px;margin-right:6px}.easy.on{background:#3a1c13;border-color:var(--accent);color:var(--accent)}
 .ing .un{color:var(--sub);font-size:14px;min-width:30px}
 .unv{font-size:10.5px;color:var(--warn);border:1px solid #6b4f1c;border-radius:99px;padding:1px 6px;margin-left:5px;font-weight:700}
 .stp{display:flex;gap:12px;align-items:flex-start}
@@ -161,7 +162,7 @@ b.q{color:var(--accent);font-weight:800}
     <div class="ctl">
       <button id="cPrev">⏮</button><button id="cPause">⏸</button><button id="cNext">⏭</button>
       <button id="cMore">+1분</button><button id="cDone">다 됐어요</button>
-      <button id="cAuto" class="on">자동</button><button id="cVoice" class="on">🔊</button>
+      <button id="cEasy">간편용량</button><button id="cAuto" class="on">자동</button><button id="cVoice" class="on">🔊</button>
     </div>
     <div class="row"><button id="cMic">🎤</button><input id="cQ" placeholder="질문하기 (예: 소금이 없는데 빼도 돼?)"><button id="cSend" class="pri">전송</button></div>
   </div>
@@ -220,9 +221,23 @@ function fmtNum(n, speak) {
   return String(Math.round(n * 10) / 10);
 }
 const SPK = { g: '그램', kg: '킬로그램', ml: '밀리리터', L: '리터', l: '리터' };
+/* 간편용량: 모든 용량을 밥숟가락(15ml) · 종이컵(180ml) 기준으로. 무게(g)는 재료별 대략 밀도로 환산, 모르는 재료는 그대로 둔다 */
+const DENS = [[/물엿|올리고당|조청|시럽/, 21], [/꿀/, 21], [/간장|액젓|맛술|미림|청주|소주|술\b|식초|육수|국물|다시|물\b|우유|두유|주스|케첩|케찹/, 15], [/식용유|올리브|참기름|들기름|기름|오일/, 13.5], [/고추장|쌈장/, 20], [/된장|춘장|굴소스|소스/, 18], [/마요네즈|마요/, 14], [/설탕/, 12], [/소금/, 14], [/후추|후춧가루/, 7], [/고춧가루|고추가루/, 6], [/밀가루|부침가루|튀김가루|전분|녹말|빵가루|가루/, 8], [/다진 ?마늘|다진마늘/, 15], [/깨/, 8], [/버터|마가린/, 14], [/쌀|찹쌀|보리/, 13], [/밥/, 12], [/요거트|요구르트|크림|치즈/, 15]];
+function dens(name) { for (const [re, d] of DENS) if (re.test(name || '')) return d; return 0; }
+function easyQty(ing, speak) {
+  const a = ing.amount * S.scale, u = (ing.unit || '').trim(); let sp = null;   // sp = 밥숟가락 수
+  if (u === '큰술') sp = a; else if (u === '작은술') sp = a / 3; else if (u === 'ml' || u === 'mL' || u === 'cc') sp = a / 15; else if (u === 'L' || u === 'l') sp = a * 1000 / 15;
+  else if (u === '컵') sp = a * 12;
+  else if (u === 'g' || u === 'kg') { const d = dens(ing.name); if (d) sp = (u === 'kg' ? a * 1000 : a) / d; }
+  if (sp == null || !isFinite(sp) || sp <= 0) return null;
+  if (sp >= 6) { const c = Math.max(.25, Math.round(sp / 12 * 4) / 4); return fmtNum(c, speak) + '종이컵'; }
+  let t; if (sp < .9) t = [1 / 3, .5, 2 / 3, 1].reduce((b, x) => Math.abs(x - sp) < Math.abs(b - sp) ? x : b); else t = Math.round(sp * 2) / 2;
+  return fmtNum(t, speak) + '밥숟가락';
+}
 function qty(ing, speak) {
   if (!ing) return '';
   if (ing.amount == null) return ing.unit || '적당량';
+  if (pref.easy) { const e = easyQty(ing, speak); if (e) return e; }
   const n = fmtNum(ing.amount * S.scale, speak), u = ing.unit || '';
   return speak ? n + (SPK[u] || u) : n + u;
 }
@@ -230,7 +245,16 @@ const ingById = (rec, id) => (rec.ingredients || []).find(x => x.id === id);
 function stepText(rec, s, speak) {
   return String(s.text || '').replace(/\{([\w-]+)\}/g, (m, id) => { const g = ingById(rec, id); if (!g) return ''; const q = qty(g, speak); return speak ? q : '<b class="q">' + esc(q) + '</b>'; });
 }
-const plain = (rec, s) => stepText(rec, s, true);
+/* 말투: 레시피의 '~한다' 문장을 말할 때는 '~합니다'로 (친다→칩니다, 넣는다→넣습니다, 넣었다→넣었습니다) */
+function polite(t) {
+  return String(t).replace(/([가-힣])다(?=[.!?]|\s|$)/g, (m, c) => {
+    const code = c.charCodeAt(0) - 0xAC00, jong = code % 28; if (jong === 0 || jong === 8) return m;
+    if (c === '는') return '습니다';
+    if (jong === 4) return String.fromCharCode(0xAC00 + code - 4 + 17) + '니다';
+    return c + '습니다';
+  }).replace(/는습니다/g, '습니다');
+}
+const plain = (rec, s) => polite(stepText(rec, s, true));
 const stepHtml = (rec, s) => { const parts = String(s.text || '').split(/(\{[\w-]+\})/); return parts.map(p => { const m = /^\{([\w-]+)\}$/.exec(p); if (!m) return esc(p); const g = ingById(rec, m[1]); return g ? '<b class="q">' + esc(qty(g)) + '</b>' : ''; }).join(''); };
 const mmss = s => { s = Math.max(0, Math.round(s)); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
 const timeTxt = sec => sec >= 3600 ? Math.floor(sec / 3600) + '시간' + (sec % 3600 >= 60 ? ' ' + Math.round(sec % 3600 / 60) + '분' : '') : sec >= 60 ? Math.round(sec / 60) + '분' : sec + '초';
@@ -408,7 +432,7 @@ function renderDetail() {
     '<div class="hero" data-pic="cover">' + picInner(row, 'cover') + '</div>' +
     '<div class="dt"><h2>' + esc(d.title) + '</h2><p>' + esc(d.desc || '') + '</p></div>' +
     '<div class="acts"><button class="pri" id="dCook">▶ 요리 시작</button>' + (ro ? '' : '<button id="dEdit">✏️ 수정 요청</button>') + '<button id="dUndo"' + (S.prev ? '' : ' hidden') + '>↩ 되돌리기</button></div>' + share +
-    '<div class="card"><div class="row"><h3>재료</h3><div class="spacer"></div><div class="step-r"><button id="sMinus">−</button><span id="sVal"></span><button id="sPlus">+</button></div></div><div class="ing" id="ingList"></div></div>' +
+    '<div class="card"><div class="row"><h3>재료</h3><div class="spacer"></div><button id="easyB" class="easy">간편용량</button><div class="step-r"><button id="sMinus">−</button><span id="sVal"></span><button id="sPlus">+</button></div></div><div class="ing" id="ingList"></div></div>' +
     '<div class="card"><h3>조리 순서</h3><div id="stepList" style="display:flex;flex-direction:column;gap:18px"></div></div>' +
     (d.tips && d.tips.length ? '<div class="card"><h3>팁</h3>' + d.tips.map(t => '<div class="tip">• ' + esc(t) + '</div>').join('') + '</div>' : '') +
     '<div class="card"><h3>완성 사진</h3><div class="ph" id="phFinal"></div></div>' +
@@ -423,18 +447,25 @@ function renderDetail() {
   $('dCook').onclick = startCook;
   $('sMinus').onclick = () => { setServ(Math.max(1, Math.round(curServ()) - 1)); };
   $('sPlus').onclick = () => { setServ(Math.round(curServ()) + 1); };
+  $('easyB').onclick = () => toggleEasy();
   paintBody();
   v.querySelectorAll('[data-pic]').forEach(el => { if (!picHas(row, el.dataset.pic) && !Q.failed.has(jobKey(row.id, el.dataset.pic))) el.classList.add('ld'); });
   v.onclick = e => { const b = e.target.closest('[data-rg]'); if (b) { pushJob(row, b.dataset.rg); paintImg(row, b.dataset.rg); } };
   $('cmSend').onclick = sendComment;
 }
 const picHas = (row, k) => k === 'cover' ? row.data.cover : (row.data.steps.find(s => s.k === k) || {}).img;
+function toggleEasy() {
+  pref.easy = !pref.easy; savePref(); toast(pref.easy ? '간편용량: 밥숟가락·종이컵 기준으로 보여줘요 (무게는 대략값)' : '원래 단위로 보여줘요', 3200);
+  if (S.row && $('ingList')) paintBody(); paintEasy();
+  if (S.row && G.rec && !$('cook').hidden) { buildPages(); const pg = $('pages'); pg.scrollTo({ top: G.i * pg.clientHeight, behavior: 'auto' }); }
+}
+function paintEasy() { document.querySelectorAll('#easyB,#cEasy').forEach(b => b.classList.toggle('on', !!pref.easy)); }
 function setServ(n) { S.scale = n / baseServ(); paintBody(); }
 function paintBody() {
-  const row = S.row, d = row.data, ro = S.ro;
+  const row = S.row, d = row.data, ro = S.ro; paintEasy();
   $('sVal').textContent = fmtNum(curServ()) + '인분';
   $('ingList').innerHTML = d.ingredients.map(g => '<div class="nm">' + esc(g.name) + (g.unverified && g.amount == null ? '<span class="unv">양 미확인</span>' : g.unverified ? '<span class="unv">양 미확인</span>' : '') + (g.note ? '<small>' + esc(g.note) + '</small>' : '') + '</div>' +
-    (g.amount == null ? '<div></div><div class="un">' + esc(g.unit || '적당량') + '</div>' : '<input inputmode="decimal" data-ing="' + esc(g.id) + '" value="' + (Math.round(g.amount * S.scale * 100) / 100) + '"><div class="un">' + esc(g.unit) + '</div>')).join('');
+    (g.amount == null ? '<div></div><div class="un">' + esc(g.unit || '적당량') + '</div>' : pref.easy && easyQty(g) ? '<div></div><div class="un" style="color:var(--text);font-weight:600;white-space:nowrap">' + esc(easyQty(g)) + '</div>' : '<input inputmode="decimal" data-ing="' + esc(g.id) + '" value="' + (Math.round(g.amount * S.scale * 100) / 100) + '"><div class="un">' + esc(g.unit) + '</div>')).join('');
   $('ingList').querySelectorAll('input').forEach(inp => inp.onchange = () => {
     const g = ingById(d, inp.dataset.ing), n = parseFloat(String(inp.value).replace(',', '.'));
     if (!g || !(n > 0)) { paintBody(); return; } S.scale = n / g.amount; paintBody();
@@ -548,27 +579,41 @@ function speakNative(text) {
     } catch (e) { ok('nostart'); }
   });
 }
-/* 2) AI 음성(Gemini) — 소리 파일을 받아 재생 */
-async function speakAI(text, gen) {
-  text = text.slice(0, 700);
-  let url = ttsCache.get(text);
-  if (!url) {
-    const ss = await session(); if (!ss) return;
+/* 2) AI 음성(Gemini) — 문장 단위로 나눠 동시에 받고, 첫 문장이 오는 대로 바로 재생. 다음 안내는 미리 받아 둔다 */
+const ttsP = new Map();
+function ttsChunks(text) {
+  text = String(text).replace(/\s+/g, ' ').trim().slice(0, 700); const sen = text.match(/[^.!?。]+[.!?。]?/g) || [text], out = [];
+  for (const x of sen) { const t = x.trim(); if (!t) continue; const last = out[out.length - 1]; if (last && out.length > 1 && last.length + t.length < 70) out[out.length - 1] = last + ' ' + t; else out.push(t); }
+  return out.length ? out : [text];
+}
+function ttsFetch(text) {
+  if (ttsP.has(text)) return ttsP.get(text);
+  const p = (async () => {
+    const ss = await session(); if (!ss) return null;
     let r, j = {};
     for (let k = 0; k < 3; k++) {
       try { r = await fetch(FN.replace('recipe-ai', 'recipe-tts'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ss.access_token }, body: JSON.stringify({ text, voice: 'Kore' }) }); j = await r.json().catch(() => ({})); } catch (e) { r = null; }
       if (r && r.ok) break; if (r && r.status === 429 && j.error !== 'quota') { await sleep(1000); continue; } break;
     }
-    if (!r || !r.ok || !j.data) { if (!ttsWarned) { ttsWarned = true; toast('음성을 가져오지 못했어요 (' + (j.error === 'quota' ? 'AI 한도' : '네트워크') + '). 화면 글을 따라가 주세요', 4000); } return; }
-    url = URL.createObjectURL(b64Blob(j.data, j.mime || 'audio/wav')); if (ttsCache.size > 40) ttsCache.clear(); ttsCache.set(text, url);
-  }
-  if (gen !== spkGen) return;   // 기다리는 사이 다른 안내로 넘어갔으면 재생하지 않는다
-  await new Promise(ok => {
+    if (!r || !r.ok || !j.data) { if (!ttsWarned) { ttsWarned = true; toast('음성을 가져오지 못했어요 (' + (j.error === 'quota' ? 'AI 한도' : '네트워크') + '). 화면 글을 따라가 주세요', 4000); } return null; }
+    return URL.createObjectURL(b64Blob(j.data, j.mime || 'audio/wav'));
+  })();
+  ttsP.set(text, p); p.then(u => { if (!u) ttsP.delete(text); });
+  if (ttsP.size > 60) ttsP.delete(ttsP.keys().next().value);
+  return p;
+}
+function ttsPrefetch(text) { if (!ttsBad || !G.voice || !text) return; try { ttsChunks(text).forEach(ttsFetch); } catch (e) {} }
+function playUrl(url) {
+  return new Promise(ok => {
     const a = new Audio(url); aud = a; audDone = ok;
     const fin = () => { if (aud === a) { aud = null; audDone = null; } ok(); };
     a.onended = fin; a.onerror = fin;
     a.play().catch(() => { if (!ttsWarned) { ttsWarned = true; toast('소리가 막혔어요. 화면을 한 번 눌러 주세요', 4000); } fin(); });
   });
+}
+async function speakAI(text, gen) {
+  const ps = ttsChunks(text).map(ttsFetch);
+  for (const p of ps) { const url = await p; if (gen !== spkGen) return; if (!url) return; await playUrl(url); if (gen !== spkGen) return; }
 }
 async function speak(text) {
   const gen = spkGen;
@@ -589,6 +634,7 @@ function startCook() {
   G.rec = S.row.data; G.i = 0; G.paused = false; G.token++; $('cook').hidden = false; if (!layers.includes('cook')) pushLayer('cook');
   buildPages(); paintCtl(); $('ans').hidden = true;
   try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => { G.wake = w; }).catch(() => {}); } catch (e) {}
+  ['네, 잠시만요.', ...TRANS].forEach(ttsPrefetch);
   goto(0, true);
 }
 function closeCook(fromPop) {
@@ -615,22 +661,32 @@ function goto(i, scroll) {
 }
 function say(text, my) { if (!G.voice) return sleep(500); return speak(text).then(() => { if (G.token !== my) return; }); }
 function ingIntro() { return '재료를 준비해 주세요. ' + G.rec.ingredients.map(g => g.name + (g.amount == null ? '' : ' ' + qty(g, true))).join(', ') + '.'; }
+const TRANS = ['다 되셨나요? 그럼 다음으로 넘어갈게요.', '다 되셨나요? 그럼 마무리할게요.'];
+function pageText(i) {
+  const d = G.rec, n = d.steps.length;
+  if (i === 0) return d.title + ' 요리를 시작할게요. ' + ingIntro();
+  if (i > n) return '모든 과정이 끝났어요. 맛있게 드세요! 완성 사진도 남겨 보세요.';
+  const s = d.steps[i - 1];
+  return (i === 1 ? '첫 번째 단계. ' : i + '번째 단계. ') + s.title + '. ' + plain(d, s) + (s.timerSec ? ' 시간은 ' + timeTxt(s.timerSec) + '이에요.' : '');
+}
+function prefetchAround(i) { if (!ttsBad || !G.voice) return; const n = G.rec.steps.length; if (i + 1 <= n + 1) ttsPrefetch(pageText(i + 1)); ttsPrefetch(i === n ? TRANS[1] : TRANS[0]); }
 async function runPage(i) {
   const my = ++G.token, d = G.rec, n = d.steps.length; cancelSpeech(); G.left = 0; G.run = false; setTmr(i);
+  prefetchAround(i);
   if (i === 0) {
-    await say(d.title + ' 요리를 시작할게요. ' + ingIntro(), my); if (G.token !== my) return;
+    await say(pageText(0), my); if (G.token !== my) return;
     G.left = Math.min(60, 12 + d.ingredients.length * 2);
   } else if (i > n) {
-    await say('모든 과정이 끝났어요. 맛있게 드세요! 완성 사진도 남겨 보세요.', my); return;
+    await say(pageText(i), my); return;
   } else {
     const s = d.steps[i - 1];
-    await say((i === 1 ? '첫 번째 단계. ' : i + '번째 단계. ') + s.title + '. ' + plain(d, s) + (s.timerSec ? ' 시간은 ' + timeTxt(s.timerSec) + '이에요.' : ''), my); if (G.token !== my) return;
+    await say(pageText(i), my); if (G.token !== my) return;
     G.left = s.timerSec || Math.min(45, 8 + Math.ceil(plain(d, s).length * .2));
   }
   G.run = true; setTmr(i);
   while (G.left > 0) { await sleep(1000); if (G.token !== my) return; if (!G.paused) { G.left--; setTmr(i); } }
   if (!G.auto) return;
-  await say(i === n ? '다 되셨나요? 그럼 마무리할게요.' : '다 되셨나요? 그럼 다음으로 넘어갈게요.', my); if (G.token !== my) return;
+  await say(i === n ? TRANS[1] : TRANS[0], my); if (G.token !== my) return;
   while (G.paused) { await sleep(300); if (G.token !== my) return; }
   goto(i + 1, true);
 }
@@ -639,6 +695,7 @@ function setTmr(i) {
   if (el && s) { const show = s.timerSec > 0; el.hidden = !show; if (show) { el.textContent = '⏱ ' + mmss(G.run ? G.left : s.timerSec); el.classList.toggle('run', G.run && G.left > 0 && !G.paused); } }
 }
 function paintCtl() {
+  paintEasy();
   $('cPause').textContent = G.paused ? '▶' : '⏸'; $('cAuto').classList.toggle('on', G.auto); $('cVoice').classList.toggle('on', G.voice); $('cVoice').textContent = G.voice ? '🔊' : '🔇';
 }
 $('cX').onclick = () => closeCook(false);
@@ -647,6 +704,7 @@ $('cNext').onclick = () => goto(G.i + 1, true);
 $('cPause').onclick = () => { G.paused = !G.paused; if (G.paused) cancelSpeech(); paintCtl(); setTmr(G.i); };
 $('cMore').onclick = () => { G.left += 60; G.run = true; if (G.left > 0) setTmr(G.i); toast('1분 늘렸어요'); if (G.i > 0 && G.i <= G.rec.steps.length && !G.rec.steps[G.i - 1].timerSec) { const el = document.querySelector('[data-tmr="' + (G.i - 1) + '"]'); if (el) { el.hidden = false; } } };
 $('cDone').onclick = () => { G.left = 0; };
+$('cEasy').onclick = () => toggleEasy();
 $('cAuto').onclick = () => { G.auto = !G.auto; pref.auto = G.auto; savePref(); paintCtl(); if (G.auto) runPage(G.i); };
 $('cVoice').onclick = () => { G.voice = !G.voice; pref.voice = G.voice; savePref(); if (!G.voice) cancelSpeech(); paintCtl(); };
 
@@ -665,11 +723,12 @@ async function handleVoice(t) {
   if (/^(계속|재개|다시 시작)/.test(t)) { G.paused = false; paintCtl(); return; }
   if (/(다시|한번 더|한 번 더) ?(읽|말|들려)/.test(t)) return goto(G.i, false);
   if (G.askBusy) return; G.askBusy = true; const was = G.micPrev != null ? G.micPrev : G.paused; G.micPrev = null; G.paused = true; paintCtl(); showAns('🤔 ' + t + ' — 생각 중…');
+  let fill = null; if (G.voice) { G.token++; const ph = '네, 잠시만요.'; ttsPrefetch(ph); fill = speak(ph); }
   try {
     const rec = JSON.parse(JSON.stringify(G.rec)); rec.steps.forEach(s => { delete s.img; });
-    const r = await ai({ action: 'ask', recipe: rec, step: Math.max(0, G.i - 1), question: t, scale: Math.round(S.scale * 100) / 100 }, 40000);
+    const r = await ai({ action: 'ask', recipe: rec, step: Math.max(0, G.i - 1), question: t + ' (소리 내어 읽을 거라 1~2문장, 결론부터 짧게, 말하듯 자연스러운 해요체로)', scale: Math.round(S.scale * 100) / 100 }, 40000);
     showAns(r.answer, r.suggest);
-    if (G.voice) { G.token++; await speak(r.answer); }
+    if (G.voice) { G.token++; ttsPrefetch(r.answer); if (fill) await fill; await speak(r.answer); }
   } catch (e) { showAns('답을 가져오지 못했어요: ' + aiErr(e)); }
   G.askBusy = false; G.paused = was; paintCtl();
   if (!$('cook').hidden) runResume();   // 질문 때문에 끊긴 흐름을 이어서 (일시정지 상태면 풀 때까지 대기)

@@ -242,8 +242,15 @@ function qty(ing, speak) {
   return speak ? n + (SPK[u] || u) : n + u;
 }
 const ingById = (rec, id) => (rec.ingredients || []).find(x => x.id === id);
+/* 단계 글의 {재료id}: 앞에 재료 이름이 이미 있으면 양만, 없으면 '이름 + 양' 으로 ("2마리" → "오징어 2마리") */
+function ingLead(g, before) {
+  const base = String(g.name || '').split(/[ (·,]/)[0]; if (!base) return '';
+  const near = String(before || '').slice(-(base.length + 8)).replace(/\s/g, '');
+  return near.indexOf(base) >= 0 ? '' : g.name + ' ';
+}
 function stepText(rec, s, speak) {
-  return String(s.text || '').replace(/\{([\w-]+)\}/g, (m, id) => { const g = ingById(rec, id); if (!g) return ''; const q = qty(g, speak); return speak ? q : '<b class="q">' + esc(q) + '</b>'; });
+  const t = String(s.text || '');
+  return t.replace(/\{([\w-]+)\}/g, (m, id, off) => { const g = ingById(rec, id); if (!g) return ''; const q = qty(g, speak), lead = ingLead(g, t.slice(0, off)); return speak ? lead + q : esc(lead) + '<b class="q">' + esc(q) + '</b>'; });
 }
 /* 말투: 레시피의 '~한다' 문장을 말할 때는 '~합니다'로 (친다→칩니다, 넣는다→넣습니다, 넣었다→넣었습니다) */
 function polite(t) {
@@ -255,7 +262,7 @@ function polite(t) {
   }).replace(/는습니다/g, '습니다');
 }
 const plain = (rec, s) => polite(stepText(rec, s, true));
-const stepHtml = (rec, s) => { const parts = String(s.text || '').split(/(\{[\w-]+\})/); return parts.map(p => { const m = /^\{([\w-]+)\}$/.exec(p); if (!m) return esc(p); const g = ingById(rec, m[1]); return g ? '<b class="q">' + esc(qty(g)) + '</b>' : ''; }).join(''); };
+const stepHtml = (rec, s) => { const parts = String(s.text || '').split(/(\{[\w-]+\})/); let before = ''; return parts.map(p => { const m = /^\{([\w-]+)\}$/.exec(p); if (!m) { before += p; return esc(p); } const g = ingById(rec, m[1]); if (!g) return ''; const lead = ingLead(g, before), q = qty(g); before += lead + q; return esc(lead) + '<b class="q">' + esc(q) + '</b>'; }).join(''); };
 const mmss = s => { s = Math.max(0, Math.round(s)); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
 const timeTxt = sec => sec >= 3600 ? Math.floor(sec / 3600) + '시간' + (sec % 3600 >= 60 ? ' ' + Math.round(sec % 3600 / 60) + '분' : '') : sec >= 60 ? Math.round(sec / 60) + '분' : sec + '초';
 const ago = t => { const d = (Date.now() - new Date(t)) / 1000; return d < 60 ? '방금' : d < 3600 ? Math.floor(d / 60) + '분 전' : d < 86400 ? Math.floor(d / 3600) + '시간 전' : new Date(t).toLocaleDateString('ko-KR'); };
@@ -643,10 +650,19 @@ async function speak(text) {
   }
   await speakAI(text, gen);
 }
-function listenOnce(onText, onEnd) {
+function listenOnce(onText, onEnd, quiet) {
   if (!SR) return null; const r = new SR(); r.lang = 'ko-KR'; r.interimResults = false; r.maxAlternatives = 1; let got = false;
-  r.onresult = e => { got = true; onText(e.results[0][0].transcript); }; r.onerror = e => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('마이크 권한을 허용해 주세요 (⋯ → 권한 정보)'); }; r.onend = () => onEnd(got);
+  r.onresult = e => { got = true; onText(e.results[0][0].transcript); }; r.onerror = e => { if (!quiet && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) toast('마이크 권한을 허용해 주세요 (⋯ → 권한 정보)'); }; r.onend = () => onEnd(got);
   try { r.start(); } catch (e) { return null; } return r;
+}
+/* 질문 없이 잠깐 듣기: '잠깐만'(hold) / '다 됐어요'(done) 만 알아듣는다 */
+function listenIntent(ms) {
+  return new Promise(ok => {
+    if (!SR || G.mic || G.askBusy) return ok(null);
+    let res = '', fin = false; const end = () => { if (!fin) { fin = true; clearTimeout(tm); try { r && r.abort(); } catch (e) {} ok(res); } };
+    const r = listenOnce(t => { res = classify(t); }, () => end(), true); if (!r) return ok(null);
+    const tm = setTimeout(end, ms);
+  });
 }
 $('editMic').onclick = () => { const r = listenOnce(t => { $('editTx').value = ($('editTx').value + ' ' + t).trim(); }, () => { $('editMic').textContent = '🎤 말로 입력'; }); if (!r) return toast('이 기기에서는 음성 입력을 쓸 수 없어요. 글로 적어 주세요'); $('editMic').textContent = '듣는 중…'; };
 
@@ -658,7 +674,7 @@ function startCook() {
   G.rec = S.row.data; G.i = 0; G.paused = false; G.token++; $('cook').hidden = false; if (!layers.includes('cook')) pushLayer('cook');
   buildPages(); paintCtl(); $('ans').hidden = true;
   try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => { G.wake = w; }).catch(() => {}); } catch (e) {}
-  ['네, 잠시만요.', ...TRANS].forEach(ttsPrefetch);
+  ['네, 잠시만요.', HOLD_MSG, ...TRANS].forEach(ttsPrefetch);
   goto(0, true);
 }
 function closeCook(fromPop) {
@@ -711,6 +727,13 @@ async function runPage(i) {
   while (G.left > 0) { await sleep(1000); if (G.token !== my) return; if (!G.paused) { G.left--; setTmr(i); } }
   if (!G.auto) return;
   await say(i === n ? TRANS[1] : TRANS[0], my); if (G.token !== my) return;
+  if (G.voice && !G.paused) {   // 말로 '잠깐만' / '다 됐어요' 를 받는다 (듣기를 못 쓰면 바로 넘어간다)
+    const it = await listenIntent(5000); if (G.token !== my) return;
+    if (it === 'hold') {
+      G.paused = true; paintCtl(); await say(HOLD_MSG, my); if (G.token !== my) return;
+      while (G.paused) { const w = await listenIntent(9000); if (G.token !== my) return; if (w === 'done') { G.paused = false; paintCtl(); } else if (w === null) await sleep(500); else await sleep(150); }
+    }
+  }
   while (G.paused) { await sleep(300); if (G.token !== my) return; }
   goto(i + 1, true);
 }
@@ -727,7 +750,7 @@ $('cPrev').onclick = () => goto(G.i - 1, true);
 $('cNext').onclick = () => goto(G.i + 1, true);
 $('cPause').onclick = () => { G.paused = !G.paused; if (G.paused) cancelSpeech(); paintCtl(); setTmr(G.i); };
 $('cMore').onclick = () => { G.left += 60; G.run = true; if (G.left > 0) setTmr(G.i); toast('1분 늘렸어요'); if (G.i > 0 && G.i <= G.rec.steps.length && !G.rec.steps[G.i - 1].timerSec) { const el = document.querySelector('[data-tmr="' + (G.i - 1) + '"]'); if (el) { el.hidden = false; } } };
-$('cDone').onclick = () => { G.left = 0; };
+$('cDone').onclick = () => goto(G.i + 1, true);
 $('cEasy').onclick = () => toggleEasy();
 $('cDev').onclick = () => { pref.devOnly = !pref.devOnly; savePref(); ttsBad = false; ttsWarned = false; paintCtl(); toast(pref.devOnly ? '기기 자체 음성만 써요 (오프라인 가능). 한국어 음성이 설치돼 있어야 해요' : '기기 음성이 안 되면 AI 음성을 써요', 3500); };
 $('cAuto').onclick = () => { G.auto = !G.auto; pref.auto = G.auto; savePref(); paintCtl(); if (G.auto) runPage(G.i); };
@@ -740,11 +763,19 @@ function showAns(text, suggest) {
   const n = $('aNo'); if (n) n.onclick = () => { a.hidden = true; };
 }
 function closeCookForEdit() { closeCook(false); }
+const HOLD_MSG = '네, 천천히 하시고 다 되시면 다 됐어요라고 말씀해 주세요.';
+function classify(t) {
+  const n = String(t).replace(/[\s.,!?~]/g, ''); if (!n || n.length > 16) return '';
+  if (/(잠깐|잠시|기다|천천히|아직|좀만|조금만|멈춰|정지|일시)/.test(n)) return 'hold';
+  if (/(다됐|다했|다되|다끝|끝났|끝냈|됐어|됐습니다|했어요|했습니다|넘어|다음|^네$|^응$|^예$|^그래$|^계속)/.test(n)) return 'done';
+  return '';
+}
+function holdNow() { G.paused = true; cancelSpeech(); paintCtl(); setTmr(G.i); speak(HOLD_MSG); }
 async function handleVoice(t) {
   t = String(t || '').trim(); if (!t) return;
+  { const c = classify(t); if (c === 'done') return goto(G.i + 1, true); if (c === 'hold') return holdNow(); }
   if (/^(다음|넘어|다 ?(됐|했|되었|끝)|끝났)/.test(t)) return goto(G.i + 1, true);
   if (/^(이전|앞 ?단계|뒤로|전 단계)/.test(t)) return goto(G.i - 1, true);
-  if (/^(잠깐|멈춰|정지|일시)/.test(t)) { G.paused = true; cancelSpeech(); paintCtl(); return; }
   if (/^(계속|재개|다시 시작)/.test(t)) { G.paused = false; paintCtl(); return; }
   if (/(다시|한번 더|한 번 더) ?(읽|말|들려)/.test(t)) return goto(G.i, false);
   if (G.askBusy) return; G.askBusy = true; const was = G.micPrev != null ? G.micPrev : G.paused; G.micPrev = null; G.paused = true; paintCtl(); showAns('🤔 ' + t + ' — 생각 중…');

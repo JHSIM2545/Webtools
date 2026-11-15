@@ -728,7 +728,7 @@ async function speak0(text) {
 }
 function listenOnce(onText, onEnd, quiet) {
   if (!SR) return null; const r = new SR(); r.lang = 'ko-KR'; r.interimResults = false; r.maxAlternatives = 1; let got = false;
-  r.onresult = e => { got = true; onText(e.results[0][0].transcript); }; r.onerror = e => { if (!quiet && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) toast('마이크 권한을 허용해 주세요 (⋯ → 권한 정보)'); }; r.onend = () => onEnd(got);
+  r.onend0 = 0; r.addEventListener('end', () => { [300, 900, 2000].forEach(t => setTimeout(() => bgm.kick(), t)); }); r.onresult = e => { got = true; onText(e.results[0][0].transcript); }; r.onerror = e => { if (!quiet && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) toast('마이크 권한을 허용해 주세요 (⋯ → 권한 정보)'); }; r.onend = () => onEnd(got);
   try { r.start(); } catch (e) { return null; } return r;
 }
 /* 질문 없이 잠깐 듣기: '잠깐만'(hold) / '다 됐어요'(done) 만 알아듣는다 */
@@ -882,6 +882,14 @@ const bgm = (() => {
     if (fast) { try { el.volume = Math.max(0, Math.min(1, to)); } catch (e) {} return; }
     ramp = setInterval(() => { try { const d = to - el.volume; if (Math.abs(d) < 0.02) { el.volume = Math.max(0, Math.min(1, to)); clearInterval(ramp); } else el.volume = Math.max(0, Math.min(1, el.volume + d * 0.15)); } catch (e) { clearInterval(ramp); } }, 60);
   }
+  /* 마이크(음성 인식)가 켜지면 안드로이드가 다른 소리를 멈추게 하므로, 의도하지 않은 멈춤은 계속 되살린다 */
+  let wd = null;
+  function kick() {
+    if (!on) return;
+    try { if (fileMode && el && el.src && el.paused && !el.ended) { const pr = el.play(); if (pr && pr.catch) pr.catch(() => {}); } } catch (e) {}
+    try { if (!fileMode && ctx && ctx.state !== 'running') ctx.resume(); } catch (e) {}
+  }
+  function watch() { clearInterval(wd); wd = setInterval(kick, 700); }
   let bad = 0;
   function nextTrack() {
     if (!on || !fileMode || !el) return; const n = tracks.length; if (bad >= n * 2) { fileMode = false; startSynth(); return; }   // 파일을 못 읽으면 자체 연주로
@@ -889,11 +897,11 @@ const bgm = (() => {
     el.src = 'bgm/' + encodeURIComponent(tracks[i]); const pr = el.play(); if (pr && pr.catch) pr.catch(() => { bad++; setTimeout(nextTrack, 300); });
   }
   function startFiles() {
-    fileMode = true; bad = 0; if (!el) { el = new Audio(); el.preload = 'auto'; el.onended = () => { bad = 0; nextTrack(); }; el.onerror = () => { bad++; setTimeout(nextTrack, 300); }; el.onplaying = () => { bad = 0; }; }
+    fileMode = true; bad = 0; watch(); if (!el) { el = new Audio(); el.preload = 'auto'; el.onended = () => { bad = 0; nextTrack(); }; el.onerror = () => { bad++; setTimeout(nextTrack, 300); }; el.onplaying = () => { bad = 0; }; el.onpause = () => { if (on && !el.ended) setTimeout(kick, 250); }; }
     el.volume = 0; nextTrack(); let t = 0; clearInterval(ramp); ramp = setInterval(() => { t++; fileApply(true); try { el.volume = Math.min(fileLevel(), el.volume + 0.02 * t); } catch (e) {} if (t > 40) clearInterval(ramp); }, 100);
   }
   function startSynth() {
-    if (!ctx && !build()) return; try { ctx.resume(); } catch (e) {} step = 0; nextT = ctx.currentTime + 0.1; sched(); clearInterval(timer); timer = setInterval(sched, 400);
+    if (!ctx && !build()) return; watch(); try { ctx.resume(); ctx.onstatechange = () => { if (on && ctx && ctx.state !== 'running') setTimeout(kick, 250); }; } catch (e) {} step = 0; nextT = ctx.currentTime + 0.1; sched(); clearInterval(timer); timer = setInterval(sched, 400);
     master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setValueAtTime(0, ctx.currentTime); master.gain.setTargetAtTime(level(), ctx.currentTime, 1.2);
   }
   return {
@@ -902,12 +910,12 @@ const bgm = (() => {
       loadList().then(l => { if (!on) return; if (l.length) startFiles(); else startSynth(); });
     },
     stop() {
-      if (!on) return; on = false; preview = false; clearInterval(timer); timer = null; clearInterval(ramp);
+      if (!on) return; on = false; preview = false; clearInterval(timer); timer = null; clearInterval(ramp); clearInterval(wd);
       if (el) { const e = el; let k = 0; ramp = setInterval(() => { k++; try { e.volume = Math.max(0, e.volume - 0.08); } catch (x) {} if (k > 15 || e.volume <= 0.01) { clearInterval(ramp); try { e.pause(); } catch (x) {} } }, 60); }
       if (ctx) { try { master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setTargetAtTime(0, ctx.currentTime, 0.3); } catch (e) {} const c = ctx; setTimeout(() => { if (!on && c === ctx) { try { c.close(); } catch (e) {} ctx = null; master = null; } }, 2500); }
     },
     duck(d) { duckN = Math.max(0, duckN + d); this.update(); },
-    update() { if (!on) return; if (fileMode) fileApply(true); else if (master) apply(true); }, get on() { return on; }, get preview() { return preview; },
+    kick, update() { if (!on) return; if (fileMode) fileApply(true); else if (master) apply(true); }, get on() { return on; }, get preview() { return preview; },
   };
 })();
 function bgmShouldPlay() { return !$('cook').hidden && pref.bgm !== false; }

@@ -327,8 +327,16 @@
     if (!p && u && Array.isArray(u.identities)) for (const i of u.identities) { const d = i.identity_data || {}; p = d.avatar_url || d.picture || ''; if (p) break; }
     if (/^http:\/\//.test(p)) p = p.replace(/^http:/, 'https:');
     if (/googleusercontent\.com/.test(p)) p = p.replace(/=s\d+(-c)?$/, '') + '=s128-c';
+    if (!p && u) p = lget('SIM_PHOTO_' + u.id) || '';
     return /^https:\/\//.test(p) ? p : '';
   };
+  async function grabPhoto(s) {   // 구글 로그인 직후에만 받을 수 있는 토큰으로 프로필 사진 주소를 직접 받아 둔다
+    try {
+      if (!s || !s.provider_token || !s.user) return;
+      const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + s.provider_token } }); if (!r.ok) return;
+      const j = await r.json(); if (j.picture) { lset('SIM_PHOTO_' + s.user.id, j.picture); acctBtn(); }
+    } catch (e) {}
+  }
   const initial = (u, px) => '<span style="display:inline-flex;align-items:center;justify-content:center;width:' + px + 'px;height:' + px + 'px;border-radius:50%;background:var(--accent,#4f8cff);color:#fff;font-weight:700;font-size:' + Math.round(px * .5) + 'px;vertical-align:middle;flex:none">' + esc((who(u) || '?').charAt(0).toUpperCase()) + '</span>';
   const ring = (inner, px) => '<span style="display:inline-flex;align-items:center;justify-content:center;width:' + (px + 8) + 'px;height:' + (px + 8) + 'px;border-radius:50%;padding:2px;background:linear-gradient(135deg,#3b82f6,#60a5fa 55%,#a5b4fc);vertical-align:middle;flex:none;box-sizing:border-box"><span style="display:inline-flex;width:100%;height:100%;border-radius:50%;background:#111;padding:2px;box-sizing:border-box">' + inner + '</span></span>';
   const avatar = (u, px) => !u ? '👤' : ring(photo(u) ? '<img src="' + esc(photo(u)) + '" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="if(!this.dataset.r){this.dataset.r=1;this.removeAttribute(\'referrerpolicy\');this.src=this.src;return}this.outerHTML=window.__simInitial&&window.__simInitial(' + px + ')||\'👤\'">' : initial(u, px).replace(/width:\d+px;height:\d+px/, 'width:100%;height:100%'), px);
@@ -415,7 +423,7 @@
   function acctMenu() {
     if (!cUser) return authView();
     const last = +lget(C_LAST) || 0;
-    const b = modal('내 계정', '<div style="display:flex;align-items:center;gap:12px">' + avatar(cUser, 52) + '<div><b>' + esc(who(cUser)) + '</b><br><span style="' + sub + '">' + esc(cUser.email || '') + '</span></div></div><label style="' + sub + ';display:block;margin-top:8px">표시 이름</label><div style="display:flex;gap:6px;margin-top:4px"><input id="acNm" maxlength="12" value="' + esc(who(cUser)) + '" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit"><button id="acNmSave">변경</button></div><p id="acMsg" style="' + sub + ';margin-top:6px">' + (last ? '마지막 백업: ' + new Date(last).toLocaleString('ko-KR') : '아직 백업 전이에요.') + '<br>데이터는 이 계정으로 자동 백업·복원돼요.</p>' +
+    const b = modal('내 계정', '<div style="display:flex;align-items:center;gap:12px">' + avatar(cUser, 52) + '<div><b>' + esc(who(cUser)) + '</b><br><span style="' + sub + '">' + esc(cUser.email || '') + '</span></div></div><label style="' + sub + ';display:block;margin-top:8px">표시 이름</label><div style="display:flex;gap:6px;margin-top:4px"><input id="acNm" maxlength="12" value="' + esc(who(cUser)) + '" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit"><button id="acNmSave">변경</button></div><p id="acMsg" style="' + sub + ';margin-top:6px">' + (last ? '마지막 백업: ' + new Date(last).toLocaleString('ko-KR') : '아직 백업 전이에요.') + '<br>데이터는 이 계정으로 자동 백업·복원돼요.<br>' + (photo(cUser) ? '프로필 사진: 구글 사진 사용 중' : '프로필 사진: 받지 못했어요 (로그인 방식: ' + esc(((cUser.app_metadata && cUser.app_metadata.providers) || [(cUser.app_metadata || {}).provider || '?']).join(', ')) + ') — 로그아웃 후 Google로 다시 로그인하면 받아 와요') + '</p>' +
       '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button id="acNow" class="primary" style="flex:1">지금 동기화</button><button id="acOut">로그아웃</button></div><div style="' + okBtn + '"><button id="acX">닫기</button></div>');
     b.querySelector('#acX').onclick = close;
     b.querySelector('#acNmSave').onclick = async () => { const v = b.querySelector('#acNm').value.trim().slice(0, 12), e = b.querySelector('#acMsg'); if (!v) { e.textContent = '이름을 입력해 주세요.'; return; } try { const c = await client(), r = await c.auth.updateUser({ data: { display_name: v } }); if (r.error) throw r.error; cUser = r.data.user; acctBtn(); e.textContent = '이름을 "' + v + '"(으)로 바꿨어요.'; } catch (x) { e.textContent = '변경하지 못했어요: ' + (x.message || x); } };
@@ -424,8 +432,8 @@
   }
   const toast_ = t => { const e = $('toast'); if (e) { e.textContent = t; e.classList.add('show'); setTimeout(() => e.classList.remove('show'), 2200); } };
   async function cloudBoot() {
-    try { const c = await client(), { data } = await c.auth.getSession(); if (data.session) await setUser(data.session.user, false), cloudSync().catch(() => {});
-      c.auth.onAuthStateChange((ev, s) => { if (ev === 'SIGNED_IN' && s && !cUser) setUser(s.user, true); else if (ev === 'SIGNED_OUT') setUser(null); });
+    try { const c = await client(), { data } = await c.auth.getSession(); if (data.session) { grabPhoto(data.session); await setUser(data.session.user, false), cloudSync().catch(() => {}); }
+      c.auth.onAuthStateChange((ev, s) => { if (ev === 'SIGNED_IN' && s) grabPhoto(s); if (ev === 'SIGNED_IN' && s && !cUser) setUser(s.user, true); else if (ev === 'SIGNED_OUT') setUser(null); });
       document.addEventListener('visibilitychange', () => { if (document.hidden && cUser) cloudSync().catch(() => {}); });
       window.addEventListener('pagehide', () => { if (cUser) cloudSync().catch(() => {}); });
     } catch (e) {}

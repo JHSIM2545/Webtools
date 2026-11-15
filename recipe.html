@@ -838,7 +838,7 @@ function togglePause() {
   paintCtl(); setTmr(G.i); $('cPz').hidden = !(G.paused && fs);
 }
 $('cPause').onclick = togglePause;
-$('pages').addEventListener('click', e => { if ($('cook').classList.contains('fs')) { if (!e.target.closest('button,input,label,a')) togglePause(); } else { const im = e.target.closest('.pic img'); if (im) showPhoto(im.src); } });
+$('pages').addEventListener('click', e => { if (!e.target.closest('button,input,label,a,textarea')) togglePause(); });   // 요리 중에는 전체화면 여부와 상관없이 화면을 누르면 일시정지/재개 (사진 확대 팝업 없음)
 const fmtEl = t => (t >= 3600 ? Math.floor(t / 3600) + ':' : '') + String(Math.floor(t % 3600 / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
 function paintCt() { const i = G.i, base = i === 0 ? '재료' : i > G.rec.steps.length ? '끝' : i + '/' + G.rec.steps.length; $('cCt').textContent = base + ' · ' + fmtEl(G.el || 0); $('cEl').textContent = '⏱ ' + fmtEl(G.el || 0); }
 function setFs(on, api) {

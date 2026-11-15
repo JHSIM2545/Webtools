@@ -94,12 +94,23 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 #ring .btns button{padding:14px 22px;font-size:16px;border-radius:14px}
 #live{position:fixed;inset:0;z-index:95;background:#070a10;display:none;flex-direction:column;align-items:center;padding:calc(14px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom));text-align:center}
 #live.on{display:flex}
+#liveTop:focus{outline:none}
 #liveTop{display:flex;flex-direction:column;align-items:center;gap:6px;min-height:44px}
 #live h2{border:0;background:none;padding:2px 6px;margin:0;font-size:14px;font-weight:600;color:var(--sub);letter-spacing:.02em}
 #liveMic{font-size:13px;color:#ffb36b;max-width:92%}#liveMic:not([data-warn="1"]){display:none}
 #liveDev{max-width:92%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:6px;font:inherit;font-size:13px}
 #liveMid{flex:1;min-height:0;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;overflow-y:auto}
 #liveWave{width:min(220px,60vw);height:auto;aspect-ratio:640/300;flex:none}
+#liveConn{display:none;flex-direction:column;align-items:center;gap:18px;color:#9fd8ff;font-size:20px;font-weight:600}
+#live.conn #liveConn{display:flex}#live.conn #liveWave{display:none}#live.conn #liveState{visibility:hidden}#live.conn #liveBar .ib:not(.end){opacity:.35;pointer-events:none}
+#liveConn .sp{position:relative;width:110px;height:110px}
+#liveConn .sp i{position:absolute;inset:0;border-radius:50%;border:3px solid rgba(76,201,240,.65);animation:cnRing 1.8s ease-out infinite}
+#liveConn .sp i:nth-child(2){animation-delay:.6s}#liveConn .sp i:nth-child(3){animation-delay:1.2s}
+#liveConn .sp b{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:#4cc9f0;box-shadow:0 0 22px #4cc9f0aa;animation:cnCore 1.2s ease-in-out infinite}
+@keyframes cnRing{0%{transform:scale(.25);opacity:.9}100%{transform:scale(1);opacity:0}}
+@keyframes cnCore{0%,100%{transform:scale(.8)}50%{transform:scale(1.25)}}
+#live.on:not(.conn) #liveWave{animation:cnPop .45s ease-out}
+@keyframes cnPop{0%{opacity:0;transform:scale(.7)}100%{opacity:1;transform:scale(1)}}
 #live .big{font-size:56px}#live.talk .big{animation:pulse2 1s infinite}
 @keyframes pulse2{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
 #live p{font-size:26px;font-weight:600;line-height:1.5;max-width:94%;min-height:0;word-break:keep-all;overflow-wrap:anywhere}
@@ -167,6 +178,7 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
   <div id="liveTop"><h2 id="liveState">연결 중…</h2><div id="liveMic"></div><select id="liveDev" style="display:none"></select></div>
   <div id="liveMid">
     <canvas id="liveWave" width="640" height="300"></canvas>
+    <div id="liveConn"><div class="sp"><i></i><i></i><i></i><b></b></div><span id="liveConnTxt">연결 중…</span></div>
     <div class="big" id="liveIco" style="display:none">🎙</div>
     <p id="liveMe"></p>
     <p id="liveBot"></p>
@@ -1443,7 +1455,7 @@ const openAi = () => { location.href = 'index.html?ai=gemini'; };   // AI 연결
    도구(메모·연락처·일정·알람·전화·길안내)는 이 폰 안에서 실행한다. */
 const LURL = window.SIMAS_LIVE_URL || 'wss://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-live';
 const LIVE = { on: false, ws: null, ready: false, handle: '', stream: null, ictx: null, octx: null, node: null, nextT: 0, srcs: [], retries: 0, muted: false, wake: null, cands: [], bub: { me: null, bot: null }, ending: false, reconnecting: false, speaker: ls.get('SIMAS_LIVE_SPK', '1') === '1', vol: Math.max(1, Math.min(4, +ls.get('SIMAS_LIVE_VOL', '2.5') || 2.5)), gain: null, quietUntil: 0, drop: false, an: null, oan: null, raf: 0, dev: ls.get('SIMAS_LIVE_DEV', ''), label: '', autoBt: false, readyAt: 0, loud: 0, wd: 0 };
-const liveSet = (st, ico, talk) => { $('liveState').textContent = st; if (ico) $('liveIco').textContent = ico; $('live').classList.toggle('talk', !!talk); };
+const liveSet = (st, ico, talk) => { $('liveState').textContent = st; if (!LIVE.ready) $('liveConnTxt').textContent = st; if (ico) $('liveIco').textContent = ico; $('live').classList.toggle('talk', !!talk); };
 /* 음성 답변 속 '백오십육만팔천원' 같은 한글 금액을 화면에는 숫자(1,568,000원)로 */
 function wonDigits(t) {
   const D = { 영: 0, 공: 0, 일: 1, 이: 2, 삼: 3, 사: 4, 오: 5, 육: 6, 칠: 7, 팔: 8, 구: 9 }, S4 = { 십: 10, 백: 100, 천: 1000 }, B = { 만: 1e4, 억: 1e8, 조: 1e12 };
@@ -1679,7 +1691,7 @@ async function liveStart() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !(window.AudioContext || window.webkitAudioContext) || !window.AudioWorkletNode) { toast('이 브라우저는 실시간 음성 대화를 지원하지 않아요', 4200); return; }
   if (listening) { try { rec.stop(); } catch (e) {} }
   stopSpeak(); unlockAudio(); LIVE.on = true; LIVE.ending = false; LIVE.retries = 0; LIVE.handle = ''; LIVE.muted = false; LIVE.bub = { me: null, bot: null };
-  $('live').classList.add('on'); $('liveMe').textContent = ''; $('liveBot').textContent = ''; $('liveActs').innerHTML = ''; $('liveMute').textContent = '🎤'; $('liveMute').classList.remove('off'); liveSet('연결 중…', '🎙', false); $('liveVol').value = LIVE.vol; spkLabel();
+  $('live').classList.add('on', 'conn'); $('liveConnTxt').textContent = '연결 중…'; $('liveMe').textContent = ''; $('liveBot').textContent = ''; $('liveActs').innerHTML = ''; $('liveMute').textContent = '🎤'; $('liveMute').classList.remove('off'); liveSet('연결 중…', '🎙', false); $('liveVol').value = LIVE.vol; spkLabel();
   try {
     LIVE.autoBt = false; LIVE.stream = await liveAcq(); LIVE.loud = 0; LIVE.readyAt = 0;
     $('liveMic').textContent = ''; spkLabel(); liveDevices();
@@ -1703,6 +1715,7 @@ async function liveStart() {
   } catch (e) { const dn = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError' || e.name === 'PermissionDeniedError'); liveFail(dn ? '마이크 권한' : (e && e.message) || '시작하지 못했어요', dn); }
 }
 function liveEnd(silent) {
+  try { $('live').classList.remove('conn'); } catch (e) {}
   try { LIVE.busyOn = false; Busy.all(); } catch (e) {}
   if (!LIVE.on && !silent) return; LIVE.ending = true; LIVE.on = false;
   try { LIVE.ws && LIVE.ws.close(1000); } catch (e) {} LIVE.ws = null; LIVE.ready = false; liveFlush();
@@ -1745,6 +1758,7 @@ function liveAnim() {
     const raw = speaking ? lvl(LIVE.oan) || 0.25 : (LIVE.muted || (LIVE.speaker && Date.now() < LIVE.quietUntil) ? 0 : lvl(LIVE.an));
     sm += (raw - sm) * (raw > sm ? 0.5 : 0.12);
     const lin = lvl(LIVE.an); $('liveLvl').style.width = Math.round(Math.min(1, lin * 1.4) * 100) + '%';
+    $('live').classList.toggle('conn', !LIVE.ready);
     if (LIVE.ready && !LIVE.readyAt) LIVE.readyAt = now;
     if (lin > 0.03) { LIVE.loud = now; if ($('liveMic').dataset.warn) { $('liveMic').dataset.warn = ''; $('liveMic').textContent = ''; } }
     else if (LIVE.readyAt && !LIVE.muted && !speaking && now - Math.max(LIVE.readyAt, LIVE.loud) > 8000 && !$('liveMic').dataset.warn) { $('liveMic').dataset.warn = '1'; $('liveMic').textContent = '⚠ 마이크 소리가 안 들어와요'; }

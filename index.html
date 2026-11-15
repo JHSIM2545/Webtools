@@ -212,7 +212,7 @@ button.danger{color:#ff8a8a}
   const nameHtml = t => { const m = /^SIM\s+(.+)$/.exec(t.name); return m && t.color ? 'SIM <span style="color:' + esc(t.color) + '">' + esc(m[1]) + '</span>' : esc(t.name); };
   /* ── 순서 (이 기기에만 저장). 목록에 없는 새 툴은 맨 뒤에 붙는다 ── */
   /* ── 안드로이드 런처 앱 안에서 열렸을 때: 설치된 SIM 앱만 보드에 나열, 나머지는 '앱 추가'에서 내려받아 설치 ── */
-  const APP = window.SimLauncher || null;
+  const APP = window.SimLauncher || null, INAPK = !!APP;
   let INSTALLED = [], UPDATES = [];   // UPDATES: 새 버전이 나온 설치 앱 id
   function readInstalled() { if (!APP) return; try { INSTALLED = JSON.parse(APP.installed()); } catch (e) { INSTALLED = []; } }
   readInstalled();
@@ -295,7 +295,7 @@ button.danger{color:#ff8a8a}
   }
   function paintApps() {
     readInstalled();
-    const self = UPDATES.indexOf('launcher') >= 0 ? '<div class="arow"><img src="icon-192.png" alt=""><div class="t"><b>SIM <span style="color:var(--accent)">Tools</span> 런처</b></div><button class="get" data-act="get" data-id="launcher">업데이트</button></div>' : '<div class="arow"><img src="icon-192.png" alt=""><div class="t"><b>SIM <span style="color:var(--accent)">Tools</span> 런처</b></div><button class="get" data-act="get" data-id="launcher">설치</button></div>';
+    const self = UPDATES.indexOf('launcher') >= 0 ? '<div class="arow"><img src="icon-192.png" alt=""><div class="t"><b>SIM <span style="color:var(--accent)">Tools</span> 런처</b></div><button class="get" data-act="get" data-id="launcher">업데이트</button></div>' : '<div class="arow"><img src="icon-192.png" alt=""><div class="t"><b>SIM <span style="color:var(--accent)">Tools</span> 런처</b></div>' + (INAPK ? '<span style="color:var(--sub);font-size:13px;padding:0 8px">✓ 설치됨 · 최신</span>' : '<button class="get" data-act="get" data-id="launcher">설치</button>') + '</div>';
     const all = UPDATES.length >= 2 ? '<div class="arow"><div class="t"><b>업데이트 ' + UPDATES.length + '개</b><span>' + esc(UPDATES.map(i => { const t = TOOLS.find(x => x.id === i); return t ? t.name : i === 'launcher' ? '런처' : i; }).join(' · ')) + '</span></div><button class="get" data-act="getall">모두 업데이트</button></div>' : '';
     $('appList').innerHTML = all + self + TOOLS.map(t => {
       const on = INSTALLED.indexOf(t.id) >= 0;

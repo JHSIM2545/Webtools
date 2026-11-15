@@ -217,7 +217,7 @@
     if (window.__simHandoff) return;   // 브라우저에서 앱으로 로그인 정보를 넘기는 중
     if (BG) return bgBoot();
     const hd = document.querySelector('header'), ins = $('btnInstall');
-    if (!$('simHdStyle')) { const st = document.createElement('style'); st.id = 'simHdStyle'; st.textContent = 'header button{white-space:nowrap}#btnAcct{flex:none;max-width:132px;overflow:hidden;text-overflow:ellipsis}@media(max-width:480px){#btnInstall{display:none!important}#btnAcct{max-width:104px}}'; document.head.appendChild(st); }
+    if (!$('simHdStyle')) { const st = document.createElement('style'); st.id = 'simHdStyle'; st.textContent = 'header button{white-space:nowrap}#btnAcct{flex:none;max-width:140px;display:inline-flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis}@media(max-width:480px){#btnInstall{display:none!important}#btnAcct{max-width:104px}}'; document.head.appendChild(st); }
     if (hd && !$('btnAcct')) { const a = document.createElement('button'); a.id = 'btnAcct'; a.title = '계정 로그인·자동 백업'; a.textContent = '👤 로그인'; a.onclick = acctMenu; hd.insertBefore(a, ins || null); cloudBoot(); }
     if (hd && !$('btnMore')) {   // ⋯ 더보기 메뉴 (기기 동기화)
       const w = document.createElement('div'); w.style.cssText = 'position:relative;flex:none';
@@ -323,8 +323,10 @@
   }
   const getBase_ = () => { try { return JSON.parse(lget(C_BASE) || '{}') || {}; } catch (e) { return {}; } };
   const photo = u => { const m = (u && u.user_metadata) || {}, p = m.avatar_url || m.picture || ''; return /^https:\/\//.test(p) ? p : ''; };
-  const avatar = (u, px) => photo(u) ? '<img src="' + esc(photo(u)) + '" alt="" referrerpolicy="no-referrer" style="width:' + px + 'px;height:' + px + 'px;border-radius:50%;object-fit:cover;vertical-align:middle;flex:none" onerror="this.replaceWith(document.createTextNode(\'👤\'))">' : '👤';
-  function acctBtn() { const b = $('btnAcct'); if (!b) return; if (cUser) { b.innerHTML = avatar(cUser, 20) + ' <span style="vertical-align:middle">' + esc(who(cUser)) + '</span>'; } else b.textContent = '👤 로그인'; }
+  const initial = (u, px) => '<span style="display:inline-flex;align-items:center;justify-content:center;width:' + px + 'px;height:' + px + 'px;border-radius:50%;background:var(--accent,#4f8cff);color:#fff;font-weight:700;font-size:' + Math.round(px * .5) + 'px;vertical-align:middle;flex:none">' + esc((who(u) || '?').charAt(0).toUpperCase()) + '</span>';
+  const avatar = (u, px) => !u ? '👤' : photo(u) ? '<img src="' + esc(photo(u)) + '" alt="" referrerpolicy="no-referrer" style="width:' + px + 'px;height:' + px + 'px;border-radius:50%;object-fit:cover;vertical-align:middle;flex:none;border:1px solid rgba(255,255,255,.35)" onerror="this.outerHTML=window.__simInitial&&window.__simInitial(' + px + ')||\'👤\'">' : initial(u, px);
+  window.__simInitial = px => cUser ? initial(cUser, px) : '';
+  function acctBtn() { const b = $('btnAcct'); if (!b) return; if (cUser) { b.innerHTML = avatar(cUser, 28) + ' <span style="vertical-align:middle">' + esc(who(cUser)) + '</span>'; } else b.textContent = '👤 로그인'; }
   function schedule() { clearInterval(cTimer); if (cUser) cTimer = setInterval(() => { if (!document.hidden) cloudSync().catch(() => {}); }, 5 * 60e3); }
   async function setUser(u, first) {
     cUser = u || null; acctBtn(); schedule();

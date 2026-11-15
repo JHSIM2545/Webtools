@@ -94,8 +94,7 @@
     ];
     bd.innerHTML = rows.map(r => '<div class="simvm-row"><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></div>').join('') +
       '<div class="simvm-st' + (OLDAPK ? ' up' : '') + '" id="svSt">' + (OLDAPK ? '이 앱은 구버전이라 빌드 번호·앱 업데이트를 여기서 볼 수 없어요.\nSIM Tools 런처 → 앱 추가에서 이 앱을 업데이트(재설치)하면 모든 기능이 열려요.' : '"업데이트 확인"을 눌러 새 버전이 있는지 확인하세요.') + '</div>' +
-      '<div class="simvm-act"><button id="svChk" class="pri">🔄 업데이트 확인</button><button id="svApp" class="pri" hidden>⬇ 앱 업데이트</button><button id="svWeb" class="pri" hidden>♻ 화면 새로 받기</button></div>' +
-      '<div class="simvm-note">' + (info ? '앱 업데이트는 새 APK 를 내려받아 설치합니다(설치 화면에서 "설치"를 눌러 주세요). ' : '') + '화면 새로 받기는 저장된 데이터는 그대로 두고 화면 파일만 새로 받습니다.</div>';
+      '<div class="simvm-act"><button id="svChk" class="pri">🔄 업데이트 확인</button><button id="svApp" class="pri" hidden>⬇ 앱 업데이트</button><button id="svWeb" class="pri" hidden>♻ 화면 새로 받기</button></div>';
     const $ = id => bd.querySelector('#' + id), st = (t, k) => { const e = $('svSt'); if (e) { e.className = 'simvm-st' + (k ? ' ' + k : ''); e.textContent = t; } };
     $('svWeb').onclick = () => { st('화면을 새로 받는 중…'); webApply(); };
     $('svApp').onclick = () => { if (NA) NA.installUpdate(); };

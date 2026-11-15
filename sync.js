@@ -342,7 +342,18 @@
   const avatar = (u, px) => !u ? '👤' : ring(photo(u) ? '<img src="' + esc(photo(u)) + '" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="if(!this.dataset.r){this.dataset.r=1;this.removeAttribute(\'referrerpolicy\');this.src=this.src;return}this.outerHTML=window.__simInitial&&window.__simInitial(' + px + ')||\'👤\'">' : initial(u, px).replace(/width:\d+px;height:\d+px/, 'width:100%;height:100%'), px);
   window.__simInitial = px => cUser ? initial(cUser, px) : '';
   let photoTried = false;
-  function acctBtn() { const b = $('btnAcct'); if (!b) return; if (cUser && !photo(cUser) && !photoTried) { photoTried = true; client().then(c => c.auth.getUser()).then(r => { if (r && r.data && r.data.user && photo(r.data.user)) { cUser = r.data.user; acctBtn(); } }).catch(() => {}); } if (cUser) { b.innerHTML = avatar(cUser, 28) + ' <span style="vertical-align:middle">' + esc(who(cUser)) + '</span>'; } else b.textContent = '👤 로그인'; }
+  function autoPhoto() {   // 구글 계정인데 사진이 없으면, 한 번만 구글 확인 화면을 열어 사진 주소를 받아 온다(이후엔 계정에 저장돼 다시 묻지 않음)
+    try {
+      const u = cUser; if (!u || photo(u) || lget('SIM_PHOTO_TRY_' + u.id)) return;
+      const pv = (u.app_metadata && u.app_metadata.providers) || []; if (pv.indexOf('google') < 0) return;
+      lset('SIM_PHOTO_TRY_' + u.id, '1');
+      setTimeout(async () => {
+        if (NS && NS.openBrowser) NS.openBrowser(new URL('app-login.html', location.href).href);
+        else { const c = await client(); await c.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname.replace(/[^/]*$/, 'index.html') } }); }
+      }, 2500);
+    } catch (e) {}
+  }
+  function acctBtn() { const b = $('btnAcct'); if (!b) return; if (cUser && !photo(cUser) && !photoTried) { photoTried = true; client().then(c => c.auth.getUser()).then(r => { if (r && r.data && r.data.user) { cUser = r.data.user; if (photo(cUser)) acctBtn(); else autoPhoto(); } }).catch(() => {}); } if (cUser) { b.innerHTML = avatar(cUser, 28) + ' <span style="vertical-align:middle">' + esc(who(cUser)) + '</span>'; } else b.textContent = '👤 로그인'; }
   function schedule() { clearInterval(cTimer); if (cUser) cTimer = setInterval(() => { if (!document.hidden) cloudSync().catch(() => {}); }, 5 * 60e3); }
   async function setUser(u, first) {
     cUser = u || null; acctBtn(); schedule();
@@ -423,17 +434,12 @@
   function acctMenu() {
     if (!cUser) return authView();
     const last = +lget(C_LAST) || 0;
-    const b = modal('내 계정', '<div style="display:flex;align-items:center;gap:12px">' + avatar(cUser, 52) + '<div><b>' + esc(who(cUser)) + '</b><br><span style="' + sub + '">' + esc(cUser.email || '') + '</span></div></div><label style="' + sub + ';display:block;margin-top:8px">표시 이름</label><div style="display:flex;gap:6px;margin-top:4px"><input id="acNm" maxlength="12" value="' + esc(who(cUser)) + '" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit"><button id="acNmSave">변경</button></div><p id="acMsg" style="' + sub + ';margin-top:6px">' + (last ? '마지막 백업: ' + new Date(last).toLocaleString('ko-KR') : '아직 백업 전이에요.') + '<br>데이터는 이 계정으로 자동 백업·복원돼요.<br>' + (photo(cUser) ? '프로필 사진: 구글 사진 사용 중' : '프로필 사진: 받지 못했어요 (로그인 방식: ' + esc(((cUser.app_metadata && cUser.app_metadata.providers) || [(cUser.app_metadata || {}).provider || '?']).join(', ')) + ') — 아래 버튼으로 구글에 다시 로그인하면 받아 와요') + (photo(cUser) ? '' : '<br><button id="acPhoto" style="margin-top:6px">🖼 구글 프로필 사진 가져오기</button>') + '</p>' +
+    const b = modal('내 계정', '<div style="display:flex;align-items:center;gap:12px">' + avatar(cUser, 52) + '<div><b>' + esc(who(cUser)) + '</b><br><span style="' + sub + '">' + esc(cUser.email || '') + '</span></div></div><label style="' + sub + ';display:block;margin-top:8px">표시 이름</label><div style="display:flex;gap:6px;margin-top:4px"><input id="acNm" maxlength="12" value="' + esc(who(cUser)) + '" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit"><button id="acNmSave">변경</button></div><p id="acMsg" style="' + sub + ';margin-top:6px">' + (last ? '마지막 백업: ' + new Date(last).toLocaleString('ko-KR') : '아직 백업 전이에요.') + '<br>데이터는 이 계정으로 자동 백업·복원돼요.' + '</p>' +
       '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button id="acNow" class="primary" style="flex:1">지금 동기화</button><button id="acOut">로그아웃</button></div><div style="' + okBtn + '"><button id="acX">닫기</button></div>');
     b.querySelector('#acX').onclick = close;
     b.querySelector('#acNmSave').onclick = async () => { const v = b.querySelector('#acNm').value.trim().slice(0, 12), e = b.querySelector('#acMsg'); if (!v) { e.textContent = '이름을 입력해 주세요.'; return; } try { const c = await client(), r = await c.auth.updateUser({ data: { display_name: v } }); if (r.error) throw r.error; cUser = r.data.user; acctBtn(); e.textContent = '이름을 "' + v + '"(으)로 바꿨어요.'; } catch (x) { e.textContent = '변경하지 못했어요: ' + (x.message || x); } };
     b.querySelector('#acNow').onclick = async () => { const e = b.querySelector('#acMsg'); e.textContent = '동기화 중…'; try { const st = await cloudSync(); e.textContent = '완료 — ' + (st && (st.put || st.del) ? '서버에서 ' + st.put + '건 반영' : '변경 없음/서버에 저장') + '. (' + new Date().toLocaleTimeString('ko-KR') + ')'; } catch (x) { e.textContent = '실패: ' + (x.message || x); } };
     b.querySelector('#acOut').onclick = () => logoutFlow();
-    const ph = b.querySelector('#acPhoto');
-    if (ph) ph.onclick = async () => {
-      if (NS && NS.openBrowser) { try { NS.openBrowser(new URL('app-login.html', location.href).href); } catch (e) {} return; }
-      try { const c = await client(); await c.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname.replace(/[^/]*$/, 'index.html') } }); } catch (e) {}
-    };
   }
   const toast_ = t => { const e = $('toast'); if (e) { e.textContent = t; e.classList.add('show'); setTimeout(() => e.classList.remove('show'), 2200); } };
   async function cloudBoot() {

@@ -640,8 +640,16 @@ async function speakAI(text, gen) {
   const ps = ttsChunks(text).map(ttsFetch);
   for (const p of ps) { const url = await p; if (gen !== spkGen) return; if (!url) return; await playUrl(url); if (gen !== spkGen) return; }
 }
+/* 말할 때 소수·분수를 사람 말로: 0.5→반, 1.5→1과 반, 0.25→4분의 1, ½→반, 1/2→2분의 1 */
+function spoken(t) {
+  const FRS = { '.5': '반', '.25': '4분의 1', '.75': '4분의 3', '.33': '3분의 1', '.67': '3분의 2', '.3': '3분의 1', '.7': '3분의 2', '.2': '5분의 1', '.1': '10분의 1' };
+  const V = { '½': '반', '¼': '4분의 1', '¾': '4분의 3', '⅓': '3분의 1', '⅔': '3분의 2' };
+  return String(t).replace(/(\d+)?([½¼¾⅓⅔])/g, (m, w, f) => (w && w !== '0' ? w + '과 ' : '') + V[f])
+    .replace(/(\d+)\/(\d+)/g, (m, a, b) => b + '분의 ' + a)
+    .replace(/(\d*)(\.\d+)(?!\d)/g, (m, w, d) => { const f = FRS[d.length > 3 ? d.slice(0, 3) : d]; if (!f) return m; return (w && w !== '0' ? w + '과 ' : '') + f; });
+}
 async function speak(text) {
-  const gen = spkGen;
+  text = spoken(text); const gen = spkGen;
   if (!ttsBad || pref.devOnly) {
     let r = await speakApp(text); if (gen !== spkGen) return; if (r === 'ok') return;
     r = await speakNative(text); if (r === 'ok' || gen !== spkGen) return;

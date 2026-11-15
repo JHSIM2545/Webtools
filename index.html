@@ -270,7 +270,11 @@ button.danger{color:#ff8a8a}
     window.__simInstall = (id, st) => {
       gotCb = true;
       const t = TOOLS.find(x => x.id === id), n = t ? t.name : (id === 'launcher' ? 'SIM Tools 런처' : id);
-      toast(st === 'start' ? n + ' 내려받는 중…' : st === 'done' ? n + ' 설치 화면을 여는 중…' : st === 'perm' ? '설정에서 "이 출처 허용"을 켠 뒤 다시 눌러 주세요' : n + ' 설치에 실패했어요');
+      toast(st === 'start' ? n + ' 내려받는 중…' : st === 'done' ? n + ' 설치 화면을 여는 중…' : st === 'wait' ? n + ' 받기 완료 — 이 앱 화면으로 돌아오면 설치 화면이 열려요' : st === 'perm' ? '설정에서 "이 출처 허용"을 켠 뒤 다시 눌러 주세요' : n + ' 설치에 실패했어요');
+    };
+    window.__simProgress = (id, pct, note) => {
+      const t = TOOLS.find(x => x.id === id), n = t ? t.name : (id === 'launcher' ? 'SIM Tools 런처' : id);
+      toast(n + (pct >= 0 ? ' 내려받는 중 ' + pct + '%' : '') + (note ? ' — ' + note : ''));
     };
     $('appsClose').onclick = () => $('mApps').classList.remove('show');
     $('mApps').addEventListener('click', e => { if (e.target === $('mApps')) $('mApps').classList.remove('show'); });

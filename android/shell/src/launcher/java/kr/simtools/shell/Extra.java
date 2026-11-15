@@ -9,7 +9,10 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
+import android.database.Cursor;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
@@ -49,32 +52,61 @@ final class Extra {
 
     static void attach(final Activity a, final WebView w) {
         w.addJavascriptInterface(new Bridge(a, w), "SimLauncher");
+        act = a; web = w;
         receiver = new BroadcastReceiver() {
-            @Override public void onReceive(Context c, Intent i) {
-                long id = i.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-                String tool = pending.remove(id);
-                if (tool == null) return;
-                DownloadManager dm = (DownloadManager) c.getSystemService(Context.DOWNLOAD_SERVICE);
-                Uri u = dm.getUriForDownloadedFile(id);
-                if (batch.contains(tool)) {
-                    if (u == null) { batch.remove(tool); tell(w, tool, "fail"); } else ready.put(tool, u);
-                    pump(c, w);
-                    return;
-                }
-                if (u == null) { tell(w, tool, "fail"); return; }
-                tell(w, tool, "done");
-                Intent inst = new Intent(Intent.ACTION_VIEW);
-                inst.setDataAndType(u, "application/vnd.android.package-archive");
-                inst.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-                try { c.startActivity(inst); } catch (Exception e) { tell(w, tool, "fail"); }
-            }
+            @Override public void onReceive(Context c, Intent i) { poll(); }   // 완료 알림이 와도, 못 받아도 아래 폴링이 같은 일을 한다
         };
         IntentFilter f = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
         if (Build.VERSION.SDK_INT >= 33) a.registerReceiver(receiver, f, Context.RECEIVER_EXPORTED);
         else a.registerReceiver(receiver, f);
     }
 
-    /** 일괄 업데이트: 다음 설치 화면을 연다 (한 번에 하나, 런처는 마지막) */
+    private static Activity act; private static WebView web;
+    private static final Handler H = new Handler(Looper.getMainLooper());
+    private static boolean polling;
+    private static String waited;
+    private static final Runnable TICK = new Runnable() { @Override public void run() { polling = false; poll(); } };
+
+    /** 받는 중인 파일 상태를 직접 확인한다 — 진행률 표시, 실패 원인 안내, 완료 알림을 놓쳐도 설치 진행 */
+    static void poll() {
+        if (act == null || web == null) return;
+        DownloadManager dm = (DownloadManager) act.getSystemService(Context.DOWNLOAD_SERVICE);
+        for (Long id : new java.util.ArrayList<>(pending.keySet())) {
+            String tool = pending.get(id);
+            Cursor c = null;
+            try {
+                c = dm.query(new DownloadManager.Query().setFilterById(id));
+                if (c == null || !c.moveToFirst()) { pending.remove(id); batch.remove(tool); tell(web, tool, "fail"); continue; }
+                int st = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                int reason = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
+                long got = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                long tot = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                if (st == DownloadManager.STATUS_SUCCESSFUL) {
+                    pending.remove(id);
+                    Uri u = dm.getUriForDownloadedFile(id);
+                    if (u == null) { batch.remove(tool); tell(web, tool, "fail"); } else ready.put(tool, u);
+                } else if (st == DownloadManager.STATUS_FAILED) {
+                    pending.remove(id); batch.remove(tool);
+                    progress(tool, -1, "받기 실패(코드 " + reason + ")"); tell(web, tool, "fail");
+                } else {
+                    String note = "";
+                    if (st == DownloadManager.STATUS_PAUSED) note = reason == DownloadManager.PAUSED_QUEUED_FOR_WIFI ? "Wi-Fi 연결을 기다리는 중" : reason == DownloadManager.PAUSED_WAITING_FOR_NETWORK ? "네트워크를 기다리는 중" : "잠시 멈춤";
+                    else if (st == DownloadManager.STATUS_PENDING) note = "대기 중";
+                    progress(tool, tot > 0 ? (int) (got * 100 / tot) : 0, note);
+                }
+            } catch (Exception e) { /* 다음 주기에 다시 */ }
+            finally { if (c != null) c.close(); }
+        }
+        pump(act, web);
+        if ((!pending.isEmpty() || !ready.isEmpty()) && !polling) { polling = true; H.postDelayed(TICK, 1000); }
+    }
+
+    private static void progress(String tool, int pct, String note) {
+        final String js = "window.__simProgress&&window.__simProgress('" + tool + "'," + pct + ",'" + note + "')";
+        web.post(() -> web.evaluateJavascript(js, null));
+    }
+
+    /** 다음 설치 화면을 연다 (한 번에 하나, 런처는 마지막). 앱이 화면 앞에 있을 때만 — 뒤에서는 안드로이드가 막아서 아무 반응이 없어 보인다 */
     private static void pump(Context c, WebView w) {
         if (installing || ready.isEmpty()) return;
         String next = null;
@@ -83,6 +115,8 @@ final class Extra {
             for (String id : batch) if (!"launcher".equals(id)) return;   // 다른 앱이 아직 받는 중 → 런처는 그 뒤에
             next = "launcher";
         }
+        if (act == null || !act.hasWindowFocus()) { if (!next.equals(waited)) { waited = next; tell(w, next, "wait"); } return; }
+        waited = null;
         Uri u = ready.remove(next); batch.remove(next);
         Intent inst = new Intent(Intent.ACTION_VIEW);
         inst.setDataAndType(u, "application/vnd.android.package-archive");
@@ -90,13 +124,14 @@ final class Extra {
         try {
             c.startActivity(inst); installing = true; tell(w, next, "done");
             final int left = ready.size() + batch.size();
-            w.post(() -> w.evaluateJavascript("window.__simBatchLeft&&window.__simBatchLeft(" + left + ")", null));
+            if (left > 0) w.post(() -> w.evaluateJavascript("window.__simBatchLeft&&window.__simBatchLeft(" + left + ")", null));
         } catch (Exception e) { tell(w, next, "fail"); pump(c, w); }
     }
 
-    static void onResume(Activity a, WebView w) {
+    static void onResume(final Activity a, final WebView w) {
+        act = a; web = w;
         installing = false;      // 설치 화면에서 돌아옴(설치했든 취소했든) → 다음 앱
-        pump(a, w);
+        H.postDelayed(new Runnable() { @Override public void run() { poll(); } }, 500);   // 창 포커스가 돌아온 뒤에 확인
         w.post(() -> w.evaluateJavascript("window.__simRefresh&&window.__simRefresh()", null));
     }
 
@@ -181,8 +216,9 @@ final class Extra {
             a.runOnUiThread(() -> {
                 try {
                     if (!installAllowed(id)) return;
-                    enqueue(id);
-                    tell(w, id, "start");
+                    if (batch.contains(id) || pending.containsValue(id)) { progress(id, 0, "이미 받는 중"); return; }
+                    batch.add(id); enqueue(id);
+                    tell(w, id, "start"); poll();
                 } catch (Exception e) {
                     tell(w, id, "fail");
                 }
@@ -200,7 +236,7 @@ final class Extra {
                         if (PKG.get(id) == null || batch.contains(id) || ready.containsKey(id)) continue;
                         batch.add(id); enqueue(id); n++;
                     }
-                    final int cnt = n;
+                    final int cnt = n; poll();
                     w.post(() -> w.evaluateJavascript("window.__simBatch&&window.__simBatch(" + cnt + ")", null));
                 } catch (Exception e) {
                     tell(w, "batch", "fail");

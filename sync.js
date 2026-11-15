@@ -334,7 +334,7 @@
     try {
       if (!s || !s.provider_token || !s.user) return;
       const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + s.provider_token } }); if (!r.ok) return;
-      const j = await r.json(); if (j.picture) { lset('SIM_PHOTO_' + s.user.id, j.picture); acctBtn(); }
+      const j = await r.json(); if (j.picture) { lset('SIM_PHOTO_' + s.user.id, j.picture); acctBtn(); try { const c = await client(); await c.auth.updateUser({ data: { avatar_url: j.picture, picture: j.picture } }); } catch (e) {} }
     } catch (e) {}
   }
   const initial = (u, px) => '<span style="display:inline-flex;align-items:center;justify-content:center;width:' + px + 'px;height:' + px + 'px;border-radius:50%;background:var(--accent,#4f8cff);color:#fff;font-weight:700;font-size:' + Math.round(px * .5) + 'px;vertical-align:middle;flex:none">' + esc((who(u) || '?').charAt(0).toUpperCase()) + '</span>';
@@ -423,12 +423,17 @@
   function acctMenu() {
     if (!cUser) return authView();
     const last = +lget(C_LAST) || 0;
-    const b = modal('내 계정', '<div style="display:flex;align-items:center;gap:12px">' + avatar(cUser, 52) + '<div><b>' + esc(who(cUser)) + '</b><br><span style="' + sub + '">' + esc(cUser.email || '') + '</span></div></div><label style="' + sub + ';display:block;margin-top:8px">표시 이름</label><div style="display:flex;gap:6px;margin-top:4px"><input id="acNm" maxlength="12" value="' + esc(who(cUser)) + '" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit"><button id="acNmSave">변경</button></div><p id="acMsg" style="' + sub + ';margin-top:6px">' + (last ? '마지막 백업: ' + new Date(last).toLocaleString('ko-KR') : '아직 백업 전이에요.') + '<br>데이터는 이 계정으로 자동 백업·복원돼요.<br>' + (photo(cUser) ? '프로필 사진: 구글 사진 사용 중' : '프로필 사진: 받지 못했어요 (로그인 방식: ' + esc(((cUser.app_metadata && cUser.app_metadata.providers) || [(cUser.app_metadata || {}).provider || '?']).join(', ')) + ') — 로그아웃 후 Google로 다시 로그인하면 받아 와요') + '</p>' +
+    const b = modal('내 계정', '<div style="display:flex;align-items:center;gap:12px">' + avatar(cUser, 52) + '<div><b>' + esc(who(cUser)) + '</b><br><span style="' + sub + '">' + esc(cUser.email || '') + '</span></div></div><label style="' + sub + ';display:block;margin-top:8px">표시 이름</label><div style="display:flex;gap:6px;margin-top:4px"><input id="acNm" maxlength="12" value="' + esc(who(cUser)) + '" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit"><button id="acNmSave">변경</button></div><p id="acMsg" style="' + sub + ';margin-top:6px">' + (last ? '마지막 백업: ' + new Date(last).toLocaleString('ko-KR') : '아직 백업 전이에요.') + '<br>데이터는 이 계정으로 자동 백업·복원돼요.<br>' + (photo(cUser) ? '프로필 사진: 구글 사진 사용 중' : '프로필 사진: 받지 못했어요 (로그인 방식: ' + esc(((cUser.app_metadata && cUser.app_metadata.providers) || [(cUser.app_metadata || {}).provider || '?']).join(', ')) + ') — 아래 버튼으로 구글에 다시 로그인하면 받아 와요') + (photo(cUser) ? '' : '<br><button id="acPhoto" style="margin-top:6px">🖼 구글 프로필 사진 가져오기</button>') + '</p>' +
       '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button id="acNow" class="primary" style="flex:1">지금 동기화</button><button id="acOut">로그아웃</button></div><div style="' + okBtn + '"><button id="acX">닫기</button></div>');
     b.querySelector('#acX').onclick = close;
     b.querySelector('#acNmSave').onclick = async () => { const v = b.querySelector('#acNm').value.trim().slice(0, 12), e = b.querySelector('#acMsg'); if (!v) { e.textContent = '이름을 입력해 주세요.'; return; } try { const c = await client(), r = await c.auth.updateUser({ data: { display_name: v } }); if (r.error) throw r.error; cUser = r.data.user; acctBtn(); e.textContent = '이름을 "' + v + '"(으)로 바꿨어요.'; } catch (x) { e.textContent = '변경하지 못했어요: ' + (x.message || x); } };
     b.querySelector('#acNow').onclick = async () => { const e = b.querySelector('#acMsg'); e.textContent = '동기화 중…'; try { const st = await cloudSync(); e.textContent = '완료 — ' + (st && (st.put || st.del) ? '서버에서 ' + st.put + '건 반영' : '변경 없음/서버에 저장') + '. (' + new Date().toLocaleTimeString('ko-KR') + ')'; } catch (x) { e.textContent = '실패: ' + (x.message || x); } };
     b.querySelector('#acOut').onclick = () => logoutFlow();
+    const ph = b.querySelector('#acPhoto');
+    if (ph) ph.onclick = async () => {
+      if (NS && NS.openBrowser) { try { NS.openBrowser(new URL('app-login.html', location.href).href); } catch (e) {} return; }
+      try { const c = await client(); await c.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname.replace(/[^/]*$/, 'index.html') } }); } catch (e) {}
+    };
   }
   const toast_ = t => { const e = $('toast'); if (e) { e.textContent = t; e.classList.add('show'); setTimeout(() => e.classList.remove('show'), 2200); } };
   async function cloudBoot() {

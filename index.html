@@ -23,7 +23,15 @@
     document.addEventListener('DOMContentLoaded', function () {
       document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;background:#0f1117;color:#e8eaf0;font-family:sans-serif"><div><div style="font-size:42px">✅</div><h2 style="margin:10px 0 6px;font-size:18px">구글 로그인 완료</h2><p style="margin:0 0 16px;color:#8b92a8;font-size:14px;line-height:1.5">SIM Tools 앱으로 돌아가는 중이에요.<br>자동으로 열리지 않으면 아래 버튼을 눌러 주세요.</p><a href="' + url + '" style="display:inline-block;padding:11px 20px;border-radius:10px;background:#2f6fe8;color:#fff;text-decoration:none;font-weight:600">SIM Tools 앱으로 돌아가기</a></div></div>';
     });
-    location.href = url;
+    var go = function () { location.href = url; }, pt = p.get('provider_token'), at = p.get('access_token');
+    if (!pt) return go();
+    /* 구글 프로필 사진 주소를 계정(user_metadata)에 저장해 둔다 — 앱은 이 계정 정보로 사진을 보여 준다 */
+    var done = false, fin = function () { if (!done) { done = true; go(); } };
+    setTimeout(fin, 5000);
+    fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + pt } }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || !j.picture) return;
+      return fetch('https://rgamgjdnhunzzwzsbnbs.supabase.co/auth/v1/user', { method: 'PUT', headers: { 'Content-Type': 'application/json', apikey: 'sb_publishable_hnBcVEuMXFRdFRqJhOM0OQ_rp72JywU', Authorization: 'Bearer ' + at }, body: JSON.stringify({ data: { avatar_url: j.picture, picture: j.picture } }) });
+    }).then(fin, fin);
   } catch (e) {}
 })();
 </script>

@@ -144,7 +144,7 @@
         '<div class="simvm-pr"><div class="tx"><b>' + esc(p.label) + '</b><small>' + (ask === p.id ? '끌까요? ' + (cur13 ? '(앱이 잠시 종료돼요)' : '(폰 설정 화면이 열려요)') + ' <a href="#" data-y="' + esc(p.id) + '" style="color:var(--accent,#4a8cff);font-weight:700">끄기</a> · <a href="#" data-n="1" style="color:inherit">취소</a>' : esc(p.desc) + ' · ' + (p.granted ? '허용됨' : p.state === 'denied' ? '거절됨' : '꺼짐')) + '</small></div>' +
         '<button class="simvm-sw' + (p.granted ? ' on' : '') + '" role="switch" aria-checked="' + !!p.granted + '" aria-label="' + esc(p.label) + '" data-id="' + esc(p.id) + '"' + (NA ? '' : ' disabled') + '></button></div>').join('')
         : '<div class="simvm-st">이 앱이 사용하는 권한이 없어요.</div>') +
-        (NA ? '<div class="simvm-act"><button id="pvSet">⚙ 폰 앱 설정 열기</button></div><div class="simvm-note">스위치를 켜면 권한을 요청하고, 끄면 권한을 해제합니다(안드로이드 13 이상은 앱이 잠시 종료되니 다시 열어 주세요). 요청창이 더 뜨지 않는 "다시 묻지 않음" 상태는 폰 설정에서 켜야 합니다.</div>'
+        (NA ? '<div class="simvm-act"><button id="pvSet">⚙ 폰 앱 설정 열기</button></div>'
           : '<div class="simvm-note">웹 브라우저에서는 여기서 바꿀 수 없어요. 주소창 왼쪽 자물쇠 → 사이트 설정에서 바꾸세요. 안드로이드 앱에서는 이 화면에서 켜고 끌 수 있어요.</div>');
       const set = bd.querySelector('#pvSet'); if (set) set.onclick = () => NA.openSettings();
     };

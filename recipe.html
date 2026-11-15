@@ -901,7 +901,6 @@ $('cMic').onclick = () => {
   if (!r) { G.paused = G.micPrev; G.micPrev = null; paintCtl(); return toast('이 기기에서는 음성 인식을 쓸 수 없어요. 글로 질문해 주세요'); }
   G.mic = r; $('cMic').textContent = '듣는 중…';
 };
-$('cook').addEventListener('click', e => { const im = e.target.closest('.pic img'); if (im) showPhoto(im.src); });
 
 /* ═══════ 시작 ═══════ */
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { if (S.row) { S.row = null; layers.length = 0; } setTab(b.dataset.t); });

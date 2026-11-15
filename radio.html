@@ -117,14 +117,19 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;p
 .note{width:min(100%,560px);font-size:11.5px;color:var(--sub);line-height:1.55;padding:0 4px}
 .note b{color:#c4c9d8}
 /* ── 세로가 짧아 목록이 안 보일 때: 방송국 목록을 오른쪽에서 펼쳐 열기 (JS 가 body.drawer 를 붙임) ── */
-.drawerBtn,.drawerBg{display:none}
-body.drawer .presets{position:fixed;top:var(--hh,56px);right:0;bottom:0;width:min(82vw,340px);z-index:30;background:var(--panel);border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.5);padding:12px 10px 0 12px;transform:translateX(105%);transition:transform .26s ease;visibility:hidden}
-body.drawer.open .presets{transform:none;visibility:visible}
+.drawerTab,.drawerBg{display:none}
+body.drawer .presets{position:fixed;top:var(--hh,56px);right:0;bottom:0;width:min(82vw,340px);z-index:30;background:var(--panel);border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.5);padding:12px 10px 0 12px;transform:translateX(100%);transition:transform .26s ease}
+body.drawer.open .presets{transform:none}
+body.drawer .presets>h2,body.drawer .presets>.scroll{transition:visibility 0s .26s}
+body.drawer:not(.open):not(.drag) .presets>h2,body.drawer:not(.open):not(.drag) .presets>.scroll{visibility:hidden}
+body.drawer.open .presets>h2,body.drawer.open .presets>.scroll{transition:none}
 body.drawer .grid{grid-template-columns:repeat(2,1fr)}
-body.drawer .drawerBtn{display:flex;align-items:center;gap:6px;position:fixed;right:0;bottom:calc(22px + env(safe-area-inset-bottom));z-index:25;padding:12px 12px 12px 16px;border-radius:14px 0 0 14px;border-right:0;background:var(--panel2);font-size:14px;font-weight:700;box-shadow:-3px 2px 10px rgba(0,0,0,.45)}
-body.drawer.open .drawerBtn{display:none}
+/* 책갈피 탭: 서랍 왼쪽 가장자리에 붙어 있고, 손가락으로 끌어내거나 밀어 넣는다 */
+body.drawer .drawerTab{display:flex;align-items:center;justify-content:center;position:absolute;left:-30px;top:42%;width:30px;height:96px;padding:0;border-radius:12px 0 0 12px;border:1px solid var(--line);border-right:0;background:var(--panel2);color:var(--text);font-size:13px;font-weight:700;letter-spacing:1px;writing-mode:vertical-rl;box-shadow:-3px 2px 10px rgba(0,0,0,.45);touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+body.drawer .drawerTab::before{content:"";position:absolute;left:4px;top:50%;width:3px;height:26px;margin-top:-13px;border-radius:2px;background:var(--accent);opacity:.8}
 body.drawer .drawerBg{display:block;position:fixed;inset:0;z-index:28;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .26s}
 body.drawer.open .drawerBg{opacity:1;pointer-events:auto}
+body.drawer.drag .presets,body.drawer.drag .drawerBg{transition:none}
 /* ── 가로로 길고 세로가 짧은 화면(차량 디스플레이·가로 모드 폰): 좌우 배치 ──
    왼쪽: 라디오 본체(이미지) / 오른쪽: 주파수·채널명 + 방송국 목록 */
 .side{display:contents}
@@ -222,13 +227,13 @@ audio{display:none}
   <div class="side" id="side">
   <div id="dispSlot"></div>
   <section class="presets">
+    <button class="drawerTab" id="drawerTab" type="button" aria-label="방송국 목록 (끌어내거나 밀어 넣기)">채널</button>
     <h2>방송국 바로 맞추기 (서울·수도권 FM)</h2>
     <div class="scroll"><div class="grid" id="grid"></div></div>
   </section>
   </div>
 </main>
 
-<button class="drawerBtn" id="drawerBtn" type="button" aria-label="방송국 목록 열기">채널 ◀</button>
 <div class="drawerBg" id="drawerBg"></div>
 <audio id="au" preload="none" playsinline></audio>
 
@@ -541,12 +546,41 @@ audio{display:none}
     if (need) b.classList.add('drawer'); else b.classList.remove('open');
   }
   const openDrawer = on => document.body.classList.toggle('open', on && document.body.classList.contains('drawer'));
-  $('drawerBtn').addEventListener('click', () => openDrawer(true));
   $('drawerBg').addEventListener('click', () => openDrawer(false));
   document.addEventListener('keydown', e => { if (e.key === 'Escape') openDrawer(false); });
-  (() => { let x0 = null; const p = document.querySelector('.presets');   // 서랍을 오른쪽으로 밀어 닫기
-    p.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
-    p.addEventListener('touchend', e => { if (x0 !== null && e.changedTouches[0].clientX - x0 > 70) openDrawer(false); x0 = null; }, { passive: true }); })();
+  /* 책갈피 탭(및 서랍 제목줄)을 손가락으로 끌어서 열고 닫기. 짧게 누르면 토글 */
+  (() => {
+    const pr = document.querySelector('.presets'), bg = $('drawerBg'), tab = $('drawerTab'), hd = pr.querySelector('h2');
+    let drag = null;
+    const W = () => pr.offsetWidth;
+    const apply = x => { pr.style.transform = 'translateX(' + x + 'px)'; bg.style.opacity = String(Math.max(0, 1 - x / W())); };
+    function down(e) {
+      if (!document.body.classList.contains('drawer')) return;
+      drag = { x0: e.clientX, off: document.body.classList.contains('open') ? 0 : W(), moved: false, t0: Date.now(), last: e.clientX, v: 0 };
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+    function move(e) {
+      if (!drag) return;
+      const dx = e.clientX - drag.x0;
+      if (!drag.moved && Math.abs(dx) < 6) return;
+      if (!drag.moved) { drag.moved = true; document.body.classList.add('drag'); bg.style.pointerEvents = 'auto'; }
+      drag.v = e.clientX - drag.last; drag.last = e.clientX;
+      apply(Math.max(0, Math.min(W(), drag.off + dx)));
+      e.preventDefault();
+    }
+    function up(e) {
+      if (!drag) return;
+      const d = drag; drag = null;
+      document.body.classList.remove('drag');
+      const cur = d.moved ? Math.max(0, Math.min(W(), d.off + (e.clientX - d.x0))) : d.off;
+      pr.style.transform = ''; bg.style.opacity = ''; bg.style.pointerEvents = '';
+      if (!d.moved) { openDrawer(!document.body.classList.contains('open')); return; }
+      const open = Math.abs(d.v) > 4 ? d.v < 0 : cur < W() / 2;   // 빠르게 튕기면 방향대로, 아니면 절반 기준
+      openDrawer(open);
+    }
+    [tab, hd].forEach(el => { el.addEventListener('pointerdown', down); el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); });
+    hd.style.touchAction = 'none';
+  })();
   function fit() {
     const st = $('stage'), rd = $('radio'), main = document.querySelector('main');
     if (!mqWide.matches) { st.style.width = st.style.height = ''; rd.style.transform = ''; setDrawer(); drawScale(); paintFreq(); return; }

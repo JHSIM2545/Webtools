@@ -321,8 +321,8 @@ async function ai(payload, ms, signal) {
       const j = await r.json().catch(() => ({}));
       if (r.ok) return j;
       if (r.status === 429 && j.error === 'rate') { await sleep(900); continue; }
-      const m = { page: '이 주소의 페이지를 읽지 못했어요 (로그인이 필요하거나 막혀 있어요)', empty_page: '페이지에서 읽을 내용이 없어요', quota: 'AI 사용 한도에 도달했어요', forbidden: '로그인이 만료됐어요. 런처에서 다시 로그인해 주세요', ai: 'AI가 레시피를 만들지 못했어요. 잠시 뒤 다시 시도해 주세요' };
-      throw new Error(m[j.error] || 'AI 응답 실패 (' + r.status + ')');
+      const m = { page: '이 주소의 페이지를 읽지 못했어요 (로그인이 필요하거나 막혀 있어요)', empty_page: '페이지에서 읽을 내용이 없어요', quota: 'AI 사용 한도에 도달했어요', no_recipe: '공유하신 링크에는 레시피 정보가 없습니다', forbidden: '로그인이 만료됐어요. 런처에서 다시 로그인해 주세요', ai: 'AI가 레시피를 만들지 못했어요. 잠시 뒤 다시 시도해 주세요' };
+      const er = new Error(m[j.error] || 'AI 응답 실패 (' + r.status + ')'); er.code = j.error; throw er;
     } catch (e) { if (e && e.name === 'AbortError') { if (signal && signal.aborted) throw new Error('취소했어요'); throw new Error('응답이 너무 늦어요'); } if (e instanceof TypeError) throw new Error('네트워크 연결 실패'); throw e; }
     finally { clearTimeout(to); }
   }
@@ -444,19 +444,40 @@ $('fSrc').onchange = e => {
 async function createRecipe() {
   const url = $('nUrl').value.trim(), text = $('nTx').value.trim();
   if (!url && !text && !src.files.length) return toast('주소·글·파일 중 하나를 넣어 주세요');
-  const ctl = new AbortController(); busy(true, 'AI가 자료를 읽고 있어요… (영상은 1~2분 걸릴 수 있어요)', () => ctl.abort());
-  try {
-    const p = { action: 'extract', url: url || undefined, text: text || undefined, images: [] };
+  try { await runExtract(async () => { const p = { action: 'extract', url: url || undefined, text: text || undefined, images: [] };
     for (const f of src.files) { if (f.type === 'application/pdf') p.pdf = (await blobDataUrl(f)).split(',')[1]; else p.images.push(await blobDataUrl(await toJpeg(f, 1600, .8))); }
-    const r = await ai(p, 130000, ctl.signal), rec = r.recipe;
+    return p; }, 'AI가 자료를 읽고 있어요… (영상은 1~2분 걸릴 수 있어요)'); }
+  catch (e) { toast(aiErr(e), 4000); }
+}
+/* 자료 → 레시피 만들기 (직접 넣은 자료·공유받은 링크 공통). 실패하면 오류를 던진다 */
+async function runExtract(makePayload, msg) {
+  const ctl = new AbortController(); busy(true, msg, () => ctl.abort());
+  try {
+    const r = await ai(await makePayload(), 130000, ctl.signal), rec = r.recipe;
     rec.steps.forEach(s => { s.k = 's' + rid(); delete s.regen; }); delete rec.coverRegen; rec.photos = { final: [], steps: {} };
     const c = await client(); await session();
     const ins = await c.from('recipes').insert({ owner: S.uid, owner_name: S.name, title: rec.title, data: rec, shared: false }).select().single();
     if (ins.error) throw ins.error;
     S.cache[ins.data.id] = ins.data; busy(false);
     openRecipe(ins.data, false); queueImages(ins.data);
-  } catch (e) { busy(false); toast(aiErr(e), 4000); }
+  } catch (e) { busy(false); throw e; }
 }
+/* 다른 앱(유튜브·인터넷 등)에서 '공유'로 들어온 링크 */
+const noticeBox = msg => new Promise(ok => { const d = document.createElement('div'); d.className = 'ov'; d.style.zIndex = 95; d.innerHTML = '<div class="box"><h3 style="line-height:1.5">' + esc(msg) + '</h3><button class="pri" id="nbOk">확인</button></div>'; document.body.appendChild(d); d.querySelector('#nbOk').onclick = () => { d.remove(); ok(); }; });
+let sharing = false;
+async function consumeShare() {
+  if (!window.SimShare || !S.uid || sharing) return;
+  let raw = ''; try { raw = window.SimShare.take(); } catch (e) { return; } if (!raw) return;
+  let items = []; try { items = JSON.parse(raw); } catch (e) { return; } const text = items.join('\n').trim(); if (!text) return;
+  sharing = true;
+  try {
+    $('cook').hidden = true; $('editov').hidden = true; $('viewer').hidden = true; layers.length = 0; S.row = null; setTab('mine');   // 어느 화면에 있었든 메인으로 돌아온 뒤 시작
+    const m = text.match(/https?:\/\/[^\s<>"']+/), url = m ? m[0].replace(/[)\].,;]+$/, '') : '';
+    try { await runExtract(async () => ({ action: 'extract', url: url || undefined, text: url ? undefined : text.slice(0, 20000) }), '공유받은 링크를 분석하고 있어요… (영상은 1~2분 걸릴 수 있어요)'); }
+    catch (e) { await (e && e.code === 'no_recipe' ? noticeBox('공유하신 링크에는 레시피 정보가 없습니다') : noticeBox('공유받은 링크로 레시피를 만들지 못했어요: ' + aiErr(e))); setTab('mine'); }
+  } finally { sharing = false; }
+}
+window.__simShare = consumeShare;
 
 /* ═══════ 화면: 상세 ═══════ */
 const layers = [];
@@ -889,7 +910,7 @@ document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { if (S
   try {
     const ss = await session();
     if (!ss) { v.innerHTML = '<div class="empty">SIM Tools 런처에서 로그인한 뒤 열어 주세요</div><a class="back" style="width:auto;padding:12px;align-self:center;font-size:15px" href="index.html">런처로 가기</a>'; return; }
-    S.uid = ss.user.id; S.name = userName(ss.user); setTab('mine');
+    S.uid = ss.user.id; S.name = userName(ss.user); setTab('mine'); setTimeout(consumeShare, 300);
   } catch (e) { v.innerHTML = '<div class="empty">' + esc(aiErr(e)) + '</div>'; }
 })();
 </script>

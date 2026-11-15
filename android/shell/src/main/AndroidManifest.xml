@@ -68,5 +68,19 @@
                 <data android:mimeType="text/directory" />
             </intent-filter>
         </activity-alias>
+
+        <!-- 유튜브·인터넷(웹) 앱의 '공유' 목록에 SIM Recipe 가 나오게 한다 (SIM Recipe 앱 빌드에서만 켜짐) -->
+        <activity-alias
+            android:name=".ShareRecipeAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="${recipeShare}"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
     </application>
 </manifest>

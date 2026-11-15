@@ -173,6 +173,8 @@ public class MainActivity extends Activity {
 
         web.addJavascriptInterface(new SessionBridge(), "SimSession");
         web.addJavascriptInterface(new ShareBridge(), "SimShare");
+        ttsBridge = new TtsBridge(this, web);
+        web.addJavascriptInterface(ttsBridge, "SimTts");
         if (BuildConfig.CONTACTS) web.addJavascriptInterface(new ContactsBridge(), "SimContacts");
         appBridge = new AppBridge(this, web);
         web.addJavascriptInterface(appBridge, "SimApp");
@@ -269,6 +271,8 @@ public class MainActivity extends Activity {
     }
 
     /** 화면(웹)이 공유받은 연락처를 가져가는 창구: JSON 문자열 배열을 돌려주고 비운다 */
+    private TtsBridge ttsBridge;
+
     private class ShareBridge {
         @JavascriptInterface public String take() {
             synchronized (pendingShare) {
@@ -399,6 +403,7 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         Extra.destroy(this);
         if (appBridge != null) appBridge.destroy();
+        if (ttsBridge != null) ttsBridge.destroy();
         web.destroy();
         super.onDestroy();
     }

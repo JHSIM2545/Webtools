@@ -162,7 +162,7 @@ b.q{color:var(--accent);font-weight:800}
     <div class="ctl">
       <button id="cPrev">⏮</button><button id="cPause">⏸</button><button id="cNext">⏭</button>
       <button id="cMore">+1분</button><button id="cDone">다 됐어요</button>
-      <button id="cEasy">간편용량</button><button id="cAuto" class="on">자동</button><button id="cVoice" class="on">🔊</button>
+      <button id="cEasy">간편용량</button><button id="cDev" title="기기 자체 음성만 쓰기 (인터넷 없이도 됨)">기기음성</button><button id="cAuto" class="on">자동</button><button id="cVoice" class="on">🔊</button>
     </div>
     <div class="row"><button id="cMic">🎤</button><input id="cQ" placeholder="질문하기 (예: 소금이 없는데 빼도 돼?)"><button id="cSend" class="pri">전송</button></div>
   </div>
@@ -561,11 +561,29 @@ try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
 let aud = null, audDone = null, ttsBad = false, ttsWarned = false, spkGen = 0;
 const ttsCache = new Map();
 function cancelSpeech() {
-  spkGen++;
+  spkGen++; try { const T = nTts(); T && T.stop(); } catch (e) {}
   try { speechSynthesis.cancel(); } catch (e) {}
   if (aud) { try { aud.pause(); } catch (e) {} aud = null; } if (audDone) { const f = audDone; audDone = null; f(); }
 }
 /* 1) 기기 내장 음성 — 실제로 소리가 시작되지 않으면 'nostart' 로 알려 AI 음성으로 넘어간다 */
+const nTts = () => { try { return window.SimTts && typeof window.SimTts.status === 'function' ? window.SimTts : null; } catch (e) { return null; } };
+let ttsSeq = 0, ttsCb = {};
+window.__simTts = (id, ev) => { const f = ttsCb[id]; if (f) f(ev); };
+/* 0) 앱(APK) 자체 음성 — 인터넷 없이도 되는 안드로이드 TTS */
+async function speakApp(text) {
+  const T = nTts(); if (!T) return 'nostart';
+  for (let k = 0; k < 8 && T.status() === 'init'; k++) await sleep(250);
+  if (T.status() !== 'ready') return 'nostart';
+  return new Promise(ok => {
+    const id = 'r' + (++ttsSeq); let started = false, done = false;
+    const fin = r => { if (!done) { done = true; delete ttsCb[id]; clearTimeout(t1); clearTimeout(t2); ok(r); } };
+    const t1 = setTimeout(() => { if (!started) { try { T.stop(); } catch (e) {} fin('nostart'); } }, 3000);
+    const t2 = setTimeout(() => fin('ok'), 6000 + text.length * 350);
+    ttsCb[id] = ev => { if (ev === 'start') { started = true; clearTimeout(t1); } else if (ev === 'done' || ev === 'stop') fin(started ? 'ok' : 'nostart'); else if (ev === 'error') fin(started ? 'ok' : 'nostart'); };
+    let okk = false; try { okk = T.speak(text, id, 1.0); } catch (e) {}
+    if (!okk) fin('nostart');
+  });
+}
 function speakNative(text) {
   return new Promise(ok => {
     try {
@@ -602,7 +620,7 @@ function ttsFetch(text) {
   if (ttsP.size > 60) ttsP.delete(ttsP.keys().next().value);
   return p;
 }
-function ttsPrefetch(text) { if (!ttsBad || !G.voice || !text) return; try { ttsChunks(text).forEach(ttsFetch); } catch (e) {} }
+function ttsPrefetch(text) { if (pref.devOnly || !ttsBad || !G.voice || !text) return; try { ttsChunks(text).forEach(ttsFetch); } catch (e) {} }
 function playUrl(url) {
   return new Promise(ok => {
     const a = new Audio(url); aud = a; audDone = ok;
@@ -617,7 +635,12 @@ async function speakAI(text, gen) {
 }
 async function speak(text) {
   const gen = spkGen;
-  if (!ttsBad) { const r = await speakNative(text); if (r === 'ok' || gen !== spkGen) return; ttsBad = true; }
+  if (!ttsBad || pref.devOnly) {
+    let r = await speakApp(text); if (gen !== spkGen) return; if (r === 'ok') return;
+    r = await speakNative(text); if (r === 'ok' || gen !== spkGen) return;
+    if (pref.devOnly || !navigator.onLine) { if (!ttsWarned) { ttsWarned = true; toast('기기 한국어 음성이 없어요. 설정 → 텍스트 음성 변환에서 한국어 음성을 설치해 주세요', 5000); } return; }
+    ttsBad = true;
+  }
   await speakAI(text, gen);
 }
 function listenOnce(onText, onEnd) {
@@ -631,6 +654,7 @@ $('editMic').onclick = () => { const r = listenOnce(t => { $('editTx').value = (
 const G = { i: 0, token: 0, left: 0, run: false, paused: false, voice: pref.voice !== false, auto: pref.auto !== false, mic: null, askBusy: false, wake: null, rec: null };
 const pageCount = () => G.rec.steps.length + 2;
 function startCook() {
+  ttsBad = false; ttsWarned = false;
   G.rec = S.row.data; G.i = 0; G.paused = false; G.token++; $('cook').hidden = false; if (!layers.includes('cook')) pushLayer('cook');
   buildPages(); paintCtl(); $('ans').hidden = true;
   try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => { G.wake = w; }).catch(() => {}); } catch (e) {}
@@ -695,7 +719,7 @@ function setTmr(i) {
   if (el && s) { const show = s.timerSec > 0; el.hidden = !show; if (show) { el.textContent = '⏱ ' + mmss(G.run ? G.left : s.timerSec); el.classList.toggle('run', G.run && G.left > 0 && !G.paused); } }
 }
 function paintCtl() {
-  paintEasy();
+  paintEasy(); $('cDev').classList.toggle('on', !!pref.devOnly);
   $('cPause').textContent = G.paused ? '▶' : '⏸'; $('cAuto').classList.toggle('on', G.auto); $('cVoice').classList.toggle('on', G.voice); $('cVoice').textContent = G.voice ? '🔊' : '🔇';
 }
 $('cX').onclick = () => closeCook(false);
@@ -705,6 +729,7 @@ $('cPause').onclick = () => { G.paused = !G.paused; if (G.paused) cancelSpeech()
 $('cMore').onclick = () => { G.left += 60; G.run = true; if (G.left > 0) setTmr(G.i); toast('1분 늘렸어요'); if (G.i > 0 && G.i <= G.rec.steps.length && !G.rec.steps[G.i - 1].timerSec) { const el = document.querySelector('[data-tmr="' + (G.i - 1) + '"]'); if (el) { el.hidden = false; } } };
 $('cDone').onclick = () => { G.left = 0; };
 $('cEasy').onclick = () => toggleEasy();
+$('cDev').onclick = () => { pref.devOnly = !pref.devOnly; savePref(); ttsBad = false; ttsWarned = false; paintCtl(); toast(pref.devOnly ? '기기 자체 음성만 써요 (오프라인 가능). 한국어 음성이 설치돼 있어야 해요' : '기기 음성이 안 되면 AI 음성을 써요', 3500); };
 $('cAuto').onclick = () => { G.auto = !G.auto; pref.auto = G.auto; savePref(); paintCtl(); if (G.auto) runPage(G.i); };
 $('cVoice').onclick = () => { G.voice = !G.voice; pref.voice = G.voice; savePref(); if (!G.voice) cancelSpeech(); paintCtl(); };
 

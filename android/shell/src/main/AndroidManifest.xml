@@ -21,6 +21,7 @@
     <!-- 도구 앱이 런처를 열 때 필요 (다른 앱 목록은 런처 매니페스트에만 둔다: 새 앱이 추가돼도 도구 앱 APK 는 바뀌지 않게) -->
     <queries>
         <package android:name="kr.simtools.launcher" />
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
     </queries>
 
     <application

@@ -264,39 +264,53 @@ final class AppBridge {
                     if (!canInstall()) { tell("perm"); openInstallSettings(); return; }
                     final String file = "simtools-" + BuildConfig.APP_KEY + ".apk";
                     try { new File(a.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), file).delete(); } catch (Exception e) { /* 무시 */ }
-                    if (rx == null) {
-                        rx = new BroadcastReceiver() {
-                            @Override public void onReceive(Context c, Intent i) {
-                                long id = i.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-                                if (id != dlId) return;
-                                dlId = -1;
-                                DownloadManager dm = (DownloadManager) c.getSystemService(Context.DOWNLOAD_SERVICE);
-                                Uri u = dm.getUriForDownloadedFile(id);
-                                if (u == null) { tell("fail"); return; }
-                                tell("done");
-                                Intent inst = new Intent(Intent.ACTION_VIEW);
-                                inst.setDataAndType(u, "application/vnd.android.package-archive");
-                                inst.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-                                try { c.startActivity(inst); } catch (Exception e) { tell("fail"); }
-                            }
-                        };
-                        IntentFilter f = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-                        if (Build.VERSION.SDK_INT >= 33) a.registerReceiver(rx, f, Context.RECEIVER_EXPORTED);
-                        else a.registerReceiver(rx, f);
-                    }
                     DownloadManager dm = (DownloadManager) a.getSystemService(Context.DOWNLOAD_SERVICE);
                     DownloadManager.Request r = new DownloadManager.Request(Uri.parse(BASE + file));
                     r.setTitle("SIM 앱 업데이트 내려받는 중");
                     r.setMimeType("application/vnd.android.package-archive");
                     r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
                     r.setDestinationInExternalFilesDir(a, Environment.DIRECTORY_DOWNLOADS, file);
-                    dlId = dm.enqueue(r);
-                    tell("start");
+                    dlId = dm.enqueue(r); dlWaitTold = false;
+                    tell("start"); dlH.removeCallbacks(dlTick); dlH.postDelayed(dlTick, 700);
                 } catch (Exception e) {
                     tell("fail");
                 }
             }
         });
+    }
+
+    /* 받기 상태를 직접 확인한다 — 완료 알림을 못 받거나 앱이 뒤에 있어도, 진행률·실패 원인을 알려 주고 앱이 앞에 오면 설치 화면을 연다 */
+    private final Handler dlH = new Handler(Looper.getMainLooper());
+    private boolean dlWaitTold;
+    private final Runnable dlTick = new Runnable() { @Override public void run() { pollDl(); } };
+    private void pollDl() {
+        if (dlId < 0) return;
+        android.database.Cursor c = null;
+        try {
+            DownloadManager dm = (DownloadManager) a.getSystemService(Context.DOWNLOAD_SERVICE);
+            c = dm.query(new DownloadManager.Query().setFilterById(dlId));
+            if (c == null || !c.moveToFirst()) { dlId = -1; tell("fail"); return; }
+            int st = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+            int reason = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
+            long got = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+            long tot = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+            if (st == DownloadManager.STATUS_FAILED) { dlId = -1; tell("failc" + reason); return; }
+            if (st == DownloadManager.STATUS_SUCCESSFUL) {
+                if (!a.hasWindowFocus()) { if (!dlWaitTold) { dlWaitTold = true; tell("wait"); } dlH.postDelayed(dlTick, 700); return; }
+                Uri u = dm.getUriForDownloadedFile(dlId); dlId = -1;
+                if (u == null) { tell("fail"); return; }
+                tell("done");
+                Intent inst = new Intent(Intent.ACTION_VIEW);
+                inst.setDataAndType(u, "application/vnd.android.package-archive");
+                inst.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                try { a.startActivity(inst); } catch (Exception e) { tell("fail"); }
+                return;
+            }
+            String note = st == DownloadManager.STATUS_PAUSED ? (reason == DownloadManager.PAUSED_QUEUED_FOR_WIFI ? "Wi-Fi 대기" : reason == DownloadManager.PAUSED_WAITING_FOR_NETWORK ? "네트워크 대기" : "잠시 멈춤") : st == DownloadManager.STATUS_PENDING ? "대기 중" : "";
+            tell("prog:" + (tot > 0 ? (int) (got * 100 / tot) : 0) + ":" + note);
+            dlH.postDelayed(dlTick, 700);
+        } catch (Exception e) { dlH.postDelayed(dlTick, 1000); }
+        finally { if (c != null) c.close(); }
     }
 
     void destroy() {

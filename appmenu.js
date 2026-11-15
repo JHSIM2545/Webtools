@@ -99,7 +99,7 @@
     const $ = id => bd.querySelector('#' + id), st = (t, k) => { const e = $('svSt'); if (e) { e.className = 'simvm-st' + (k ? ' ' + k : ''); e.textContent = t; } };
     $('svWeb').onclick = () => { st('화면을 새로 받는 중…'); webApply(); };
     $('svApp').onclick = () => { if (NA) NA.installUpdate(); };
-    window.__simAppUpdSt = s => st(s === 'start' ? '새 버전을 내려받는 중… (알림창에서 진행 상황을 볼 수 있어요)' : s === 'done' ? '내려받았어요. 설치 화면에서 "설치"를 눌러 주세요.' : s === 'perm' ? '설정에서 "이 출처 허용"을 켠 뒤 돌아와 다시 눌러 주세요.' : '내려받기·설치에 실패했어요. 인터넷을 확인하고 다시 시도해 주세요.', s === 'fail' || s === 'perm' ? 'err' : 'up');
+    window.__simAppUpdSt = s => s.indexOf('prog:') === 0 ? (p => st('내려받는 중 ' + p[1] + '%' + (p[2] ? ' — ' + p[2] : ''), 'up'))(s.split(':')) : s === 'wait' ? st('내려받았어요. 이 화면으로 돌아오면 설치 화면이 열려요.', 'up') : s.indexOf('failc') === 0 ? st('내려받기 실패 (코드 ' + s.slice(5) + '). 인터넷·저장공간을 확인하고 다시 시도해 주세요.', 'err') : st(s === 'start' ? '새 버전을 내려받는 중… (알림창에서 진행 상황을 볼 수 있어요)' : s === 'done' ? '내려받았어요. 설치 화면에서 "설치"를 눌러 주세요.' : s === 'perm' ? '설정에서 "이 출처 허용"을 켠 뒤 돌아와 다시 눌러 주세요.' : '내려받기·설치에 실패했어요. 인터넷을 확인하고 다시 시도해 주세요.', s === 'fail' || s === 'perm' ? 'err' : 'up');
     $('svChk').onclick = async () => {
       const b = $('svChk'); b.disabled = true; st('확인하는 중…');
       const nat = NA ? new Promise(res => { const t = setTimeout(() => res({ ok: false, err: '응답 없음' }), 15000); window.__simAppUpd = r => { clearTimeout(t); res(r || { ok: false }); }; NA.checkUpdate(); }) : Promise.resolve(null);

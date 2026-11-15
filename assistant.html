@@ -2090,6 +2090,7 @@ function relRange(t, now) {   // "지난주 금요일", "어제", "최근 일주
   if ((m = t.match(/(지지난|지난|저번|전|이번|다음|담)\s*주\s*(?:([월화수목금토일])요일)?/))) {
     const off = { 지지난: -2, 지난: -1, 저번: -1, 전: -1, 이번: 0, 다음: 1, 담: 1 }[m[1]], mon = add(monday(base), 7 * off), nm = m[1] + '주';
     if (m[2]) { const wd = SB_WD[m[2]], d = add(mon, wd === 0 ? 6 : wd - 1); return out(d, d, nm + ' ' + m[2] + '요일'); }
+    if (off === -1 && (base.getDay() === 0 || base.getDay() === 6)) { const m0 = monday(base); return out(m0, add(m0, 4), nm); }   // 주말에 '지난주'는 방금 끝난 주(월~금)
     if (off < 0) return out(mon, add(mon, 4), nm);   // 영업일보의 '지난주' = 지난 월요일~금요일
     return out(mon, add(mon, 6), nm);
   }

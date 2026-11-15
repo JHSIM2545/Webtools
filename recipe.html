@@ -180,11 +180,18 @@ b.q{color:var(--accent);font-weight:800}
     <div class="ctl">
       <button id="cPrev">⏮</button><button id="cPause">⏸</button><button id="cNext">⏭</button>
       <button id="cMore">+1분</button><button id="cDone">다 됐어요</button>
-      <button id="cEasy">간편용량</button><button id="cDev" title="기기 자체 음성만 쓰기 (인터넷 없이도 됨)">기기음성</button><button id="cFs" title="전체화면 자막 모드">⛶</button><button id="cAuto" class="on">자동</button><button id="cVoice" class="on">🔊</button>
+      <button id="cEasy">간편용량</button><button id="cDev" title="기기 자체 음성만 쓰기 (인터넷 없이도 됨)">기기음성</button><button id="cBgm" title="배경음악 볼륨">🎵</button><button id="cFs" title="전체화면 자막 모드">⛶</button><button id="cAuto" class="on">자동</button><button id="cVoice" class="on">🔊</button>
     </div>
     <div class="row"><button id="cMic">🎤</button><input id="cQ" placeholder="질문하기 (예: 소금이 없는데 빼도 돼?)"><button id="cSend" class="pri">전송</button></div>
   </div>
 </div>
+<div class="ov" id="bgmov" hidden style="z-index:90"><div class="box">
+  <h3>🎵 배경음악 볼륨</h3>
+  <div style="display:flex;align-items:center;gap:8px"><button id="bgmDn" style="min-width:44px">－</button><input id="bgmVol" type="range" min="0" max="100" step="1" style="flex:1"><button id="bgmUp" style="min-width:44px">＋</button><b id="bgmVal" style="min-width:42px;text-align:right"></b></div>
+  <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="bgmOn"> 요리 안내 중 배경음악 재생</label>
+  <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="bgmDuck"> 음성 안내가 나올 때 배경음악 살짝 낮추기</label>
+  <div class="row"><button id="bgmClose" class="pri">닫기</button></div>
+</div></div>
 <input type="file" id="fPhoto" accept="image/*" multiple hidden>
 <input type="file" id="fSrc" accept="application/pdf,image/*" multiple hidden>
 
@@ -471,7 +478,7 @@ async function consumeShare() {
   let items = []; try { items = JSON.parse(raw); } catch (e) { return; } const text = items.join('\n').trim(); if (!text) return;
   sharing = true;
   try {
-    $('cook').hidden = true; $('editov').hidden = true; $('viewer').hidden = true; layers.length = 0; S.row = null; setTab('mine');   // 어느 화면에 있었든 메인으로 돌아온 뒤 시작
+    bgm.stop(); bgm.stop(); $('cook').hidden = true; $('editov').hidden = true; $('viewer').hidden = true; layers.length = 0; S.row = null; setTab('mine');   // 어느 화면에 있었든 메인으로 돌아온 뒤 시작
     const m = text.match(/https?:\/\/[^\s<>"']+/), url = m ? m[0].replace(/[)\].,;]+$/, '') : '';
     try { await runExtract(async () => ({ action: 'extract', url: url || undefined, text: url ? undefined : text.slice(0, 20000) }), '공유받은 링크를 분석하고 있어요… (영상은 1~2분 걸릴 수 있어요)'); }
     catch (e) { await (e && e.code === 'no_recipe' ? noticeBox('공유하신 링크에는 레시피 정보가 없습니다') : noticeBox('공유받은 링크로 레시피를 만들지 못했어요: ' + aiErr(e))); setTab('mine'); }
@@ -708,7 +715,8 @@ function spoken(t) {
   t = t.replace(new RegExp('(\\d*)\\.(\\d+)\\s*' + U, 'g'), (m, w, d, u) => { const x = parseFloat((w || '0') + '.' + d); return sayAmt(x, u); });
   return t.replace(/(\d*)\.(\d+)(?!\d)/g, (m, w, d) => { const x = parseFloat((w || '0') + '.' + d); if (Math.abs(x - Math.round(x * 4) / 4) > .02 && Math.abs(x * 3 - Math.round(x * 3)) > .03) return m; return sayAmt(x, ''); });
 }
-async function speak(text) {
+async function speak(text) { bgm.duck(1); try { return await speak0(text); } finally { bgm.duck(-1); } }
+async function speak0(text) {
   text = spoken(text); const gen = spkGen;
   if (!ttsBad || pref.devOnly) {
     let r = await speakApp(text); if (gen !== spkGen) return; if (r === 'ok') return;
@@ -743,10 +751,11 @@ function startCook() {
   buildPages(); paintCtl(); $('ans').hidden = true; setFs(!!pref.fs, true);
   try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => { G.wake = w; }).catch(() => {}); } catch (e) {}
   ['네, 잠시만요.', HOLD_MSG, ...TRANS].forEach(ttsPrefetch);
+  bgmPaint(); bgm.start();   // 눌러서 시작한 직후라 소리를 낼 수 있다
   goto(0, true);
 }
 function closeCook(fromPop) {
-  G.token++; cancelSpeech(); clearInterval(G.elT); karaStop(G.i); try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} try { G.mic && G.mic.abort(); } catch (e) {} G.mic = null; $('cook').hidden = true; try { G.wake && G.wake.release(); } catch (e) {} G.wake = null;
+  bgm.stop(); G.token++; cancelSpeech(); clearInterval(G.elT); karaStop(G.i); try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} try { G.mic && G.mic.abort(); } catch (e) {} G.mic = null; $('cook').hidden = true; try { G.wake && G.wake.release(); } catch (e) {} G.wake = null;
   if (!fromPop && layers[layers.length - 1] === 'cook') history.back();
   if (S.row) { renderDetail(); loadComments(); }
 }
@@ -828,6 +837,64 @@ function paintCtl() {
   paintEasy(); $('cDev').classList.toggle('on', !!pref.devOnly);
   $('cPause').textContent = G.paused ? '▶' : '⏸'; $('cAuto').classList.toggle('on', G.auto); $('cVoice').classList.toggle('on', G.voice); $('cVoice').textContent = G.voice ? '🔊' : '🔇';
 }
+
+/* ═══════ 배경음악 (기기에서 직접 만들어 내는 잔잔한 연주곡 · 계속 반복) ═══════ */
+const bgm = (() => {
+  let ctx = null, master = null, fx = null, timer = null, on = false, duckN = 0, step = 0, nextT = 0, preview = false;
+  const CH = [[48, 55, 64, 71], [45, 52, 60, 67], [41, 48, 57, 64], [43, 50, 59, 65]];   // Cmaj7 · Am7 · Fmaj7 · G6
+  const PENT = [0, 2, 4, 7, 9], hz = m => 440 * Math.pow(2, (m - 69) / 12);
+  const vol = () => (pref.bgmVol == null ? 40 : pref.bgmVol) / 100;
+  const level = () => Math.pow(vol(), 1.5) * 1.0 * (duckN > 0 && pref.bgmDuck !== false ? 0.3 : 1);   // 슬라이더는 체감에 맞게 곡선
+  function apply(fast) { if (master) master.gain.setTargetAtTime(level(), ctx.currentTime, fast ? 0.05 : 0.35); }
+  function build() {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+    ctx = new AC(); master = ctx.createGain(); master.gain.value = 0;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800; lp.Q.value = 0.3;
+    fx = ctx.createGain(); const dl = ctx.createDelay(1.5); dl.delayTime.value = 0.42; const fb = ctx.createGain(); fb.gain.value = 0.42;
+    const dlp = ctx.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 1400;
+    fx.connect(dl); dl.connect(dlp); dlp.connect(fb); fb.connect(dl); dlp.connect(lp);   // 여운(에코)
+    lp.connect(master); master.connect(ctx.destination); fx.dry = lp; return true;
+  }
+  function note(m, t, dur, type, peak, att, send) {
+    const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.value = hz(m); o.detune.value = (Math.random() - .5) * 8;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + att); g.gain.setTargetAtTime(0.0001, t + dur - att * 0.2, Math.max(0.15, att * 0.45));
+    o.connect(g); g.connect(fx.dry); if (send) { const s = ctx.createGain(); s.gain.value = send; g.connect(s); s.connect(fx); }
+    o.start(t); o.stop(t + dur + 1.2);
+  }
+  function sched() {
+    if (!on || !ctx) return;
+    while (nextT < ctx.currentTime + 1.5) {
+      const bar = Math.floor(step / 8), ch = CH[bar % 4], k = step % 8;
+      if (k === 0) { ch.forEach((m, j) => note(m, nextT + j * 0.07, 9.2, j % 2 ? 'triangle' : 'sine', 0.085, 2.6, 0.2)); note(ch[0] - 12, nextT, 9, 'sine', 0.09, 1.8, 0); }   // 코드(패드)·베이스
+      if (k % 2 === 0 || Math.random() < 0.35) {   // 부드러운 멜로디 음
+        const base = ch[0] + 12, m = base + PENT[Math.floor(Math.random() * 5)] + (Math.random() < 0.3 ? 12 : 0);
+        note(m, nextT + (Math.random() * 0.12), 2.4, 'sine', 0.075, 0.03, 0.9);
+      }
+      nextT += 1.15; step++;   // 약 52bpm
+    }
+  }
+  return {
+    start(pv) { if (pref.bgm === false && !pv) return; if (!ctx && !build()) return; try { ctx.resume(); } catch (e) {} if (on) { apply(); return; } on = true; preview = !!pv; step = 0; nextT = ctx.currentTime + 0.1; sched(); timer = setInterval(sched, 400); master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setValueAtTime(0, ctx.currentTime); apply(); master.gain.setTargetAtTime(level(), ctx.currentTime, 1.2); },
+    stop() { if (!on) return; on = false; preview = false; clearInterval(timer); timer = null; try { master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setTargetAtTime(0, ctx.currentTime, 0.3); } catch (e) {} const c = ctx; setTimeout(() => { if (!on && c === ctx) { try { c.close(); } catch (e) {} ctx = null; master = null; } }, 2500); },
+    duck(d) { duckN = Math.max(0, duckN + d); if (on) apply(true); },
+    update() { if (on) apply(true); }, get on() { return on; }, get preview() { return preview; },
+  };
+})();
+function bgmShouldPlay() { return !$('cook').hidden && pref.bgm !== false; }
+function bgmSync() { if (bgmShouldPlay()) bgm.start(); else if (!bgm.preview || $('bgmov').hidden) bgm.stop(); }
+function bgmPaint() { const v = pref.bgmVol == null ? 40 : pref.bgmVol; $('bgmVol').value = v; $('bgmVal').textContent = v + '%'; $('bgmOn').checked = pref.bgm !== false; $('bgmDuck').checked = pref.bgmDuck !== false; $('cBgm').classList.toggle('on', pref.bgm !== false); }
+function bgmOpen() { bgmPaint(); $('bgmov').hidden = false; if (!bgm.on && pref.bgm !== false) bgm.start(true); }
+function bgmSetVol(v) { pref.bgmVol = Math.max(0, Math.min(100, Math.round(v))); savePref(); bgmPaint(); bgm.update(); }
+$('bgmVol').oninput = e => bgmSetVol(+e.target.value);
+$('bgmDn').onclick = () => bgmSetVol((pref.bgmVol == null ? 40 : pref.bgmVol) - 10);
+$('bgmUp').onclick = () => bgmSetVol((pref.bgmVol == null ? 40 : pref.bgmVol) + 10);
+$('bgmDuck').onchange = e => { pref.bgmDuck = e.target.checked; savePref(); bgm.update(); };
+$('bgmOn').onchange = e => { pref.bgm = e.target.checked; savePref(); bgmPaint(); if (pref.bgm === false) bgm.stop(); else bgmSync(); if (pref.bgm !== false && $('bgmov').hidden === false && !bgm.on) bgm.start(true); };
+$('bgmClose').onclick = () => { $('bgmov').hidden = true; bgmSync(); };
+$('cBgm').onclick = e => { e.stopPropagation(); bgmOpen(); };
+(window.simAppMenuExtra = window.simAppMenuExtra || []).push(
+  { icon: '🎵', label: '배경음악', get: () => pref.bgm !== false, set: v => { pref.bgm = !!v; savePref(); bgmPaint(); bgmSync(); } },
+  { icon: '🔉', label: '배경음악 볼륨 · 음성 시 낮추기', run: bgmOpen });
 $('cX').onclick = () => closeCook(false);
 $('cPrev').onclick = () => goto(G.i - 1, true);
 $('cNext').onclick = () => goto(G.i + 1, true);

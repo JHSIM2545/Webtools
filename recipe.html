@@ -873,11 +873,41 @@ const bgm = (() => {
       nextT += 1.15; step++;   // 약 52bpm
     }
   }
+  /* 준비된 음악 파일(bgm/list.json)이 있으면 그중에서 랜덤으로 골라 이어서 재생, 없으면 위의 자체 연주 */
+  let tracks = null, el = null, last = -1, ramp = null, fileMode = false;
+  async function loadList() { if (tracks) return tracks; try { const r = await fetch('bgm/list.json', { cache: 'no-cache' }); const j = await r.json(); tracks = (Array.isArray(j) ? j : []).filter(x => typeof x === 'string' && x); } catch (e) { tracks = []; } return tracks; }
+  const fileLevel = () => Math.pow(vol(), 1.5) * (duckN > 0 && pref.bgmDuck !== false ? 0.3 : 1);
+  function fileApply(fast) {
+    if (!el) return; clearInterval(ramp); const to = fileLevel();
+    if (fast) { try { el.volume = Math.max(0, Math.min(1, to)); } catch (e) {} return; }
+    ramp = setInterval(() => { try { const d = to - el.volume; if (Math.abs(d) < 0.02) { el.volume = Math.max(0, Math.min(1, to)); clearInterval(ramp); } else el.volume = Math.max(0, Math.min(1, el.volume + d * 0.15)); } catch (e) { clearInterval(ramp); } }, 60);
+  }
+  let bad = 0;
+  function nextTrack() {
+    if (!on || !fileMode || !el) return; const n = tracks.length; if (bad >= n * 2) { fileMode = false; startSynth(); return; }   // 파일을 못 읽으면 자체 연주로
+    let i = Math.floor(Math.random() * n); if (n > 1 && i === last) i = (i + 1 + Math.floor(Math.random() * (n - 1))) % n; last = i;
+    el.src = 'bgm/' + encodeURIComponent(tracks[i]); const pr = el.play(); if (pr && pr.catch) pr.catch(() => { bad++; setTimeout(nextTrack, 300); });
+  }
+  function startFiles() {
+    fileMode = true; bad = 0; if (!el) { el = new Audio(); el.preload = 'auto'; el.onended = () => { bad = 0; nextTrack(); }; el.onerror = () => { bad++; setTimeout(nextTrack, 300); }; el.onplaying = () => { bad = 0; }; }
+    el.volume = 0; nextTrack(); let t = 0; clearInterval(ramp); ramp = setInterval(() => { t++; fileApply(true); try { el.volume = Math.min(fileLevel(), el.volume + 0.02 * t); } catch (e) {} if (t > 40) clearInterval(ramp); }, 100);
+  }
+  function startSynth() {
+    if (!ctx && !build()) return; try { ctx.resume(); } catch (e) {} step = 0; nextT = ctx.currentTime + 0.1; sched(); clearInterval(timer); timer = setInterval(sched, 400);
+    master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setValueAtTime(0, ctx.currentTime); master.gain.setTargetAtTime(level(), ctx.currentTime, 1.2);
+  }
   return {
-    start(pv) { if (pref.bgm === false && !pv) return; if (!ctx && !build()) return; try { ctx.resume(); } catch (e) {} if (on) { apply(); return; } on = true; preview = !!pv; step = 0; nextT = ctx.currentTime + 0.1; sched(); timer = setInterval(sched, 400); master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setValueAtTime(0, ctx.currentTime); apply(); master.gain.setTargetAtTime(level(), ctx.currentTime, 1.2); },
-    stop() { if (!on) return; on = false; preview = false; clearInterval(timer); timer = null; try { master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setTargetAtTime(0, ctx.currentTime, 0.3); } catch (e) {} const c = ctx; setTimeout(() => { if (!on && c === ctx) { try { c.close(); } catch (e) {} ctx = null; master = null; } }, 2500); },
-    duck(d) { duckN = Math.max(0, duckN + d); if (on) apply(true); },
-    update() { if (on) apply(true); }, get on() { return on; }, get preview() { return preview; },
+    start(pv) {
+      if (pref.bgm === false && !pv) return; if (on) { this.update(); return; } on = true; preview = !!pv;
+      loadList().then(l => { if (!on) return; if (l.length) startFiles(); else startSynth(); });
+    },
+    stop() {
+      if (!on) return; on = false; preview = false; clearInterval(timer); timer = null; clearInterval(ramp);
+      if (el) { const e = el; let k = 0; ramp = setInterval(() => { k++; try { e.volume = Math.max(0, e.volume - 0.08); } catch (x) {} if (k > 15 || e.volume <= 0.01) { clearInterval(ramp); try { e.pause(); } catch (x) {} } }, 60); }
+      if (ctx) { try { master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setTargetAtTime(0, ctx.currentTime, 0.3); } catch (e) {} const c = ctx; setTimeout(() => { if (!on && c === ctx) { try { c.close(); } catch (e) {} ctx = null; master = null; } }, 2500); }
+    },
+    duck(d) { duckN = Math.max(0, duckN + d); this.update(); },
+    update() { if (!on) return; if (fileMode) fileApply(true); else if (master) apply(true); }, get on() { return on; }, get preview() { return preview; },
   };
 })();
 function bgmShouldPlay() { return !$('cook').hidden && pref.bgm !== false; }

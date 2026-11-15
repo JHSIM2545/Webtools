@@ -182,6 +182,19 @@ body.drawer.drag .presets,body.drawer.drag .drawerBg{transition:none}
   #dispSlot .freq{font-size:34px;min-width:112px}
   #dispSlot .name{font-size:17px}
 }
+.speaker{display:none}
+@media (min-aspect-ratio:3/2){
+  /* 주파수 아래에 채널명 (옆에 두면 이름이 잘림) */
+  #dispSlot .disp{flex-direction:column;align-items:flex-start;gap:6px}
+  #dispSlot .info{width:100%;flex:none}
+  #dispSlot .name{white-space:normal;-webkit-line-clamp:2}
+  /* 라디오 하단 스피커: 남는 높이만큼 늘어난다 (fit()이 높이를 정함) */
+  .grille{display:none}
+  .speaker{display:block;position:relative;margin-top:10px;height:26px;border-radius:10px;overflow:hidden;
+    background:radial-gradient(circle at 50% 50%,#05060a 0 1.7px,rgba(0,0,0,0) 2.3px) 0 0/9px 9px,linear-gradient(#4a4f5a,#2b2f37);
+    box-shadow:inset 0 3px 9px rgba(0,0,0,.85),inset 0 -1px 0 rgba(255,255,255,.12),0 1px 0 rgba(255,255,255,.25)}
+  .speaker::after{content:"";position:absolute;inset:0;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,0) 40%,rgba(0,0,0,.25))}
+}
 audio{display:none}
 </style>
 </head>
@@ -221,6 +234,7 @@ audio{display:none}
         <div class="knobbox"><div class="knob big" id="tunKnob" title="튜닝"><div class="rot" id="tunRot"></div></div>TUNING</div>
       </div>
       <div class="grille"></div>
+      <div class="speaker" id="speaker" aria-hidden="true"></div>
     </div>
   </div></div>
 
@@ -585,10 +599,16 @@ audio{display:none}
     const st = $('stage'), rd = $('radio'), main = document.querySelector('main');
     if (!mqWide.matches) { st.style.width = st.style.height = ''; rd.style.transform = ''; setDrawer(); drawScale(); paintFreq(); return; }
     setDrawer(true);
-    rd.style.transform = '';
+    rd.style.transform = ''; const sp = $('speaker'); sp.style.height = '';
     const cs = getComputedStyle(main), padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight), padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom), gap = parseFloat(cs.columnGap) || 14;
     const availH = (main.clientHeight - padY) * 0.94 - 8, availW = main.clientWidth - padX - gap - 270;   // 270px: 오른쪽 목록 최소 폭
-    const nw = rd.offsetWidth, nh = rd.offsetHeight;
+    let nh = rd.offsetHeight;
+    const nw = rd.offsetWidth;
+    if (availW / nw < availH / nh) {   // 폭이 먼저 차서 아래가 비면 → 스피커를 키워 라디오 하단을 채운다
+      const base = sp.offsetHeight, extra = availH / (availW / nw) - nh;
+      sp.style.height = Math.round(Math.max(base, Math.min(base + extra, 260))) + 'px';
+      nh = rd.offsetHeight;
+    }
     const z = Math.max(.3, Math.min(availH / nh, availW / nw));
     rd.style.transform = 'scale(' + z.toFixed(4) + ')';
     st.style.width = Math.floor(nw * z) + 'px'; st.style.height = Math.floor(nh * z) + 'px';

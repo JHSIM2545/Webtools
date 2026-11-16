@@ -119,11 +119,11 @@ function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('sh
 
 /* ── 설정 (기기에 저장, 로그인 계정 동기화는 sync.js 가 처리) ── */
 const KEY = 'simbrief.v1';
-const DEF = { times: [{ t: '07:30', on: true }], sound: true, cats: { politics: true, economy: true, society: true, culture: true, sports: true }, calSim: true, calDevice: true, weather: { on: true, name: '서울', lat: 37.5665, lon: 126.978 } };
+const DEF = { times: [{ t: '07:30', on: true }], sound: true, cats: { politics: true, economy: true, society: true, culture: true, sports: true }, calSim: true, calDevice: true, weather: { on: true, mode: 'auto', located: false, name: '서울', lat: 37.5665, lon: 126.978 } };
 let CFG = (() => { try { const c = JSON.parse(lsGet(KEY) || 'null'); return c ? Object.assign({}, DEF, c, { cats: Object.assign({}, DEF.cats, c.cats || {}), weather: Object.assign({}, DEF.weather, c.weather || {}) }) : JSON.parse(JSON.stringify(DEF)); } catch (e) { return JSON.parse(JSON.stringify(DEF)); } })();
 function save() {
   lsSet(KEY, JSON.stringify(CFG));
-  if (NA) { try { NA.schedule(JSON.stringify({ times: CFG.times.filter(x => x.t), sound: CFG.sound, soundId: curSound(), cats: CATS.map(c => c[0]).filter(k => CFG.cats[k]), endpoint: FN, calDevice: CFG.calDevice, calSim: CFG.calSim, weather: CFG.weather.on ? { name: CFG.weather.name, lat: CFG.weather.lat, lon: CFG.weather.lon } : null })); } catch (e) {} }
+  if (NA) { try { NA.schedule(JSON.stringify({ times: CFG.times.filter(x => x.t), sound: CFG.sound, soundId: curSound(), cats: CATS.map(c => c[0]).filter(k => CFG.cats[k]), endpoint: FN, calDevice: CFG.calDevice, calSim: CFG.calSim, weather: CFG.weather.on ? { name: CFG.weather.name, lat: CFG.weather.lat, lon: CFG.weather.lon, auto: CFG.weather.mode === 'auto' } : null })); } catch (e) {} }
 }
 
 /* ── 알림음: 높은 3음 "심·툴·즈" ── */
@@ -209,12 +209,36 @@ function wxInfo(c) {
   return ['🌡️', '날씨'];
 }
 const grade = (v, lim) => v == null ? null : v <= lim[0] ? '좋음' : v <= lim[1] ? '보통' : v <= lim[2] ? '나쁨' : '매우 나쁨';
+const kmBetween = (a, b, c, d) => { const r = Math.PI / 180, x = Math.sin((c - a) * r / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin((d - b) * r / 2) ** 2; return 12742 * Math.asin(Math.sqrt(x)); };
+function nearestCity(lat, lon) { let best = null; CITIES.forEach(c => { const d = kmBetween(lat, lon, c[1], c[2]); if (!best || d < best[1]) best = [c[0], d]; }); return best; }
+async function placeName(lat, lon) {   // 좌표 → 동네 이름 (실패하면 가까운 도시)
+  try { const j = await fetchJ('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=ko', 6000); const n = j.locality || j.city || j.principalSubdivision; if (n) return n; } catch (e) {}
+  const c = nearestCity(lat, lon); return c[1] < 40 ? c[0] + ' 부근' : '현재 위치';
+}
+function getPos() {
+  return new Promise(res => { if (!navigator.geolocation) return res(null); navigator.geolocation.getCurrentPosition(p => res(p.coords), () => res(null), { timeout: 9000, maximumAge: 600000 }); });
+}
+let LOC_FAIL = false;
+/** '현재 위치(자동)'이면 지금 있는 곳으로 예보 위치를 맞춘다. 위치가 바뀌었으면 true */
+async function refreshLocation(force) {
+  const w = CFG.weather; if (w.mode !== 'auto') return false;
+  const c = await getPos();
+  if (!c) { LOC_FAIL = true; return false; }
+  LOC_FAIL = false;
+  const lat = +c.latitude.toFixed(3), lon = +c.longitude.toFixed(3);
+  if (w.located && !force && kmBetween(w.lat, w.lon, lat, lon) < 3) return false;
+  CFG.weather = Object.assign(w, { lat, lon, located: true, name: await placeName(lat, lon) }); save();
+  return true;
+}
 function fetchJ(url, ms) {
   const c = new AbortController(), t = setTimeout(() => c.abort(), ms);
   return fetch(url, { signal: c.signal }).then(r => r.ok ? r.json() : Promise.reject(new Error('http'))).finally(() => clearTimeout(t));
 }
 // 저장해 둔 예보를 먼저 보여주고, 새 예보가 오면 바로 갱신한다. 미세먼지(느린 서버)는 따로 받아 나중에 덧붙인다.
-async function loadWeather(force, cb) {
+async function loadWeather(force, cb, noLoc) {
+  const auto = !noLoc && CFG.weather.mode === 'auto';
+  if (auto && !CFG.weather.located) await refreshLocation(force);          // 처음엔 위치부터 확인 (엉뚱한 지역 예보를 먼저 보여주지 않게)
+  else if (auto) refreshLocation(force).then(ch => { if (ch) loadWeather(true, cb, true); else if (LOC_FAIL) cb(null, true); });
   const w = CFG.weather, ck = 'simbrief.w', key = w.lat + ',' + w.lon;
   let hit = null; try { hit = JSON.parse(lsGet(ck) || 'null'); } catch (e) {}
   if (hit && hit.k !== key) hit = null;
@@ -242,7 +266,7 @@ function wxHtml(v) {
   const d = v.daily, c = v.cur, i = wxInfo(c ? c.weather_code : d.weather_code[0]), rain = d.precipitation_probability_max[0];
   const g10 = grade(v.pm10, [30, 80, 150]), g25 = grade(v.pm25, [15, 35, 75]);
   const days = ['오늘', '내일', '모레'];
-  return '<div class="wx"><div class="big">' + i[0] + '</div><div><div class="t">' + (c ? Math.round(c.temperature_2m) + '°' : '') + '</div><div class="d">' + esc(v.name) + ' · ' + i[1] + (c ? ' · 체감 ' + Math.round(c.apparent_temperature) + '°' : '') + '</div></div></div>' +
+  return '<div class="wx"><div class="big">' + i[0] + '</div><div><div class="t">' + (c ? Math.round(c.temperature_2m) + '°' : '') + '</div><div class="d">' + (CFG.weather.mode === 'auto' && CFG.weather.located ? '📍 ' : '') + esc(v.name) + ' · ' + i[1] + (c ? ' · 체감 ' + Math.round(c.apparent_temperature) + '°' : '') + '</div></div></div>' +
     '<div class="wx-row">' + [0, 1, 2].map(k => '<div>' + days[k] + '<br>' + wxInfo(d.weather_code[k])[0] + '<b>' + Math.round(d.temperature_2m_min[k]) + '° / ' + Math.round(d.temperature_2m_max[k]) + '°</b>☔ ' + (d.precipitation_probability_max[k] == null ? '-' : d.precipitation_probability_max[k]) + '%</div>').join('') + '</div>' +
     (g10 || g25 ? '<div>' + (g25 ? '<span class="chip">초미세먼지 ' + g25 + '</span>' : '') + (g10 ? '<span class="chip">미세먼지 ' + g10 + '</span>' : '') + '</div>' : '') +
     (rain >= 60 ? '<div class="hint" style="margin-top:8px">☂️ 오늘 강수확률이 ' + rain + '%예요. 우산을 챙기세요.</div>' : '') +
@@ -313,7 +337,13 @@ async function vBrief(force) {
     (tabs.length ? '<div class="seg" id="seg">' + tabs.map(t => '<button data-c="' + t[0] + '"' + (S.cat === t[0] ? ' class="on"' : '') + '>' + t[1] + '</button>').join('') + '</div><div id="news"><div class="empty"><span class="spin"></span>뉴스를 불러오는 중…</div></div>' :
       '<div class="empty">브리핑할 뉴스 분야가 선택되지 않았어요.<br>알림 설정에서 분야를 선택해 주세요.</div>');
   let sched = [], wxLineTxt = '';
-  if (CFG.weather.on) loadWeather(force, v => { wxLineTxt = wxLine(v); if (ok() && $('wx')) $('wx').innerHTML = wxHtml(v); pushCache(); });
+  if (CFG.weather.on) loadWeather(force, (v, locFail) => {
+    const warn = () => '<div class="hint warn locwarn" style="margin-top:6px">현재 위치를 확인하지 못해 기본 지역(' + esc(CFG.weather.name) + ') 기준이에요. 위치 권한을 허용해 주세요.</div>';
+    if (locFail) { if (ok() && $('wx') && $('wx').querySelector('.wx') && !$('wx').querySelector('.locwarn')) $('wx').insertAdjacentHTML('beforeend', warn()); return; }
+    wxLineTxt = wxLine(v);
+    if (ok() && $('wx')) $('wx').innerHTML = (v ? wxHtml(v) : wxHtml(null)) + (v && LOC_FAIL && !CFG.weather.located ? warn() : '');
+    pushCache();
+  });
   if (CFG.calSim || CFG.calDevice) todaySchedule().then(l => { sched = l; if (ok() && $('sch')) $('sch').innerHTML = schedHtml(l); pushCache(); });
   if (!tabs.length) return;
   try {
@@ -352,8 +382,8 @@ async function vSet() {
     '<div class="set"><div class="tx"><b>📅 심스케줄</b><small>SIM Calendar·SIM Assistant 일정</small></div>' + sw(CFG.calSim).replace('class="sw', 'data-a="cs" class="sw') + '</div>' +
     '<div class="set"><div class="tx"><b>📱 기기 달력</b><small>' + (apk ? (nat.cal ? '폰 달력 연동됨' : '켜면 달력 읽기 권한을 요청해요') : '안드로이드 앱(APK)에서 쓸 수 있어요') + '</small></div>' + sw(CFG.calDevice && apk).replace('class="sw', 'data-a="cd" ' + (apk ? '' : 'disabled ') + 'class="sw') + '</div></div>' +
     '<div class="card"><h2>🌤️ 일기예보</h2><div class="set"><div class="tx"><b>브리핑에 일기예보 넣기</b><small>알림과 브리핑 화면에 오늘 날씨·미세먼지 표시</small></div>' + sw(CFG.weather.on).replace('class="sw', 'data-a="wx" class="sw') + '</div>' +
-    '<div class="set"><div class="tx"><b>지역</b><small>' + esc(CFG.weather.name) + '</small></div><select id="wxCity">' + CITIES.map(c => '<option value="' + c[0] + '"' + (CFG.weather.name === c[0] ? ' selected' : '') + '>' + c[0] + '</option>').join('') + (CITIES.some(c => c[0] === CFG.weather.name) ? '' : '<option selected>' + esc(CFG.weather.name) + '</option>') + '</select></div>' +
-    '<button class="sm" id="wxLoc" style="margin-top:6px">📍 현재 위치로 설정</button></div>' +
+    '<div class="set"><div class="tx"><b>지역</b><small>' + (CFG.weather.mode === 'auto' ? (CFG.weather.located ? '📍 ' + esc(CFG.weather.name) + ' (지금 있는 곳 자동)' : '지금 있는 곳 자동 (위치 확인 전)') : esc(CFG.weather.name)) + '</small></div><select id="wxCity"><option value="__auto"' + (CFG.weather.mode === 'auto' ? ' selected' : '') + '>📍 현재 위치 (자동)</option>' + CITIES.map(c => '<option value="' + c[0] + '"' + (CFG.weather.mode !== 'auto' && CFG.weather.name === c[0] ? ' selected' : '') + '>' + c[0] + '</option>').join('') + '</select></div>' +
+    '<button class="sm" id="wxLoc" style="margin-top:6px">📍 지금 있는 곳으로 다시 맞추기</button></div>' +
     '<div class="card"><h2>🧪 알림 확인</h2>' +
     (apk ? '<div class="set"><div class="tx"><b>알림 권한</b><small>' + (nat.notif ? '허용됨' : '꺼져 있어요') + '</small></div>' + (nat.notif ? '' : '<button class="sm" id="reqN">허용</button>') + '</div>' +
       '<div class="set"><div class="tx"><b>정확한 시각 알람</b><small>' + (nat.exact ? '허용됨' : '꺼져 있으면 알림이 몇 분 늦을 수 있어요 — "알람 및 리마인더" 허용') + '</small></div>' + (nat.exact ? '' : '<button class="sm" id="reqE">설정 열기</button>') + '</div>' :
@@ -375,10 +405,9 @@ main.addEventListener('click', async e => {
   if (a === 'cat') { CFG.cats[t.dataset.k] = !CFG.cats[t.dataset.k]; save(); vSet(); return; }
   if (a === 'wx') { CFG.weather.on = !CFG.weather.on; save(); vSet(); return; }
   if (t.id === 'wxLoc') {
-    if (!navigator.geolocation) { toast('이 기기는 위치를 지원하지 않아요'); return; }
-    toast('현재 위치를 확인하는 중…');
-    navigator.geolocation.getCurrentPosition(p => { CFG.weather = Object.assign(CFG.weather, { name: '현재 위치', lat: +p.coords.latitude.toFixed(4), lon: +p.coords.longitude.toFixed(4) }); save(); vSet(); toast('현재 위치로 설정했어요'); }, () => toast('위치를 가져오지 못했어요. 위치 권한을 확인해 주세요'), { timeout: 12000, maximumAge: 600000 });
-    return;
+    CFG.weather.mode = 'auto'; save(); toast('현재 위치를 확인하는 중…');
+    const ch = await refreshLocation(true);
+    toast(ch ? '📍 ' + CFG.weather.name + ' 기준으로 맞췄어요' : '위치를 가져오지 못했어요. 위치 권한을 확인해 주세요'); vSet(); return;
   }
   if (a === 'cs') { CFG.calSim = !CFG.calSim; save(); vSet(); return; }
   if (a === 'cd' && !t.disabled) {
@@ -397,7 +426,10 @@ main.addEventListener('click', async e => {
 });
 main.addEventListener('change', e => {
   const t = e.target;
-  if (t.id === 'wxCity') { const c = CITIES.find(x => x[0] === t.value); if (c) { CFG.weather = Object.assign(CFG.weather, { name: c[0], lat: c[1], lon: c[2] }); save(); vSet(); } return; }
+  if (t.id === 'wxCity') {
+    if (t.value === '__auto') { CFG.weather.mode = 'auto'; save(); refreshLocation(true).then(() => vSet()); vSet(); return; }
+    const c = CITIES.find(x => x[0] === t.value); if (c) { CFG.weather = Object.assign(CFG.weather, { mode: 'city', located: false, name: c[0], lat: c[1], lon: c[2] }); save(); vSet(); } return;
+  }
   if (t.dataset.a !== 't') return;
   const row = t.closest('[data-i]'); if (!row) return;
   CFG.times[+row.dataset.i].t = t.value; save();

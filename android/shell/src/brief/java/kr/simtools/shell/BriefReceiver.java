@@ -12,6 +12,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.location.Location;
+import android.location.LocationManager;
 import android.media.AudioAttributes;
 import android.media.MediaPlayer;
 import android.speech.tts.TextToSpeech;
@@ -151,6 +153,22 @@ public final class BriefReceiver extends BroadcastReceiver {
         finally { if (h != null) h.disconnect(); }
     }
 
+    /** 폰이 마지막으로 알고 있는 위치(12시간 이내). 위치 권한이 없으면 null */
+    private static Location lastLocation(Context c) {
+        try {
+            if (c.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                    && c.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return null;
+            LocationManager lm = (LocationManager) c.getSystemService(Context.LOCATION_SERVICE);
+            if (lm == null) return null;
+            Location best = null;
+            for (String p : lm.getProviders(true)) {
+                Location l = lm.getLastKnownLocation(p);
+                if (l != null && (best == null || l.getTime() > best.getTime())) best = l;
+            }
+            return best != null && System.currentTimeMillis() - best.getTime() < 12L * 3600000L ? best : null;
+        } catch (Exception e) { return null; }
+    }
+
     private static String[] wxInfo(int c) {
         if (c == 0) return new String[]{"☀️", "맑음"};
         if (c == 1) return new String[]{"🌤️", "대체로 맑음"};
@@ -216,6 +234,18 @@ public final class BriefReceiver extends BroadcastReceiver {
         // 일기예보는 뉴스와 동시에 받아 알림이 늦어지지 않게 한다
         final String[] wx = {null};
         final JSONObject wc = cfg.optJSONObject("weather");
+        // '현재 위치(자동)'이면 폰이 알고 있는 가장 최근 위치로 예보 위치를 갱신 (권한·위치가 없으면 화면이 마지막으로 저장한 위치)
+        if (wc != null && wc.optBoolean("auto")) {
+            try {
+                Location l = lastLocation(c);
+                if (l != null) {
+                    float[] d = new float[1];
+                    Location.distanceBetween(wc.optDouble("lat"), wc.optDouble("lon"), l.getLatitude(), l.getLongitude(), d);
+                    if (d[0] > 5000) wc.put("name", "현재 위치");
+                    wc.put("lat", l.getLatitude()); wc.put("lon", l.getLongitude());
+                }
+            } catch (Exception ignore) {}
+        }
         Thread wt = null;
         if (wc != null) { wt = new Thread(new Runnable() { @Override public void run() { wx[0] = fetchWeather(wc); } }); wt.start(); }
         JSONObject news = fetchNews(cfg.optString("endpoint", ""));

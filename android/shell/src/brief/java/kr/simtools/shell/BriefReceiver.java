@@ -13,6 +13,9 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.media.AudioAttributes;
+import android.media.MediaPlayer;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.CalendarContract;
@@ -28,6 +31,8 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * SIM Brief 앱 전용: 정해진 시각마다 브리핑 알림을 띄운다.
@@ -158,7 +163,7 @@ public final class BriefReceiver extends BroadcastReceiver {
             nm.createNotificationChannel(ch);
         }
         if (nm.getNotificationChannel(CH_QUIET) == null) {
-            NotificationChannel ch = new NotificationChannel(CH_QUIET, "SIM Brief (무음)", NotificationManager.IMPORTANCE_DEFAULT);
+            NotificationChannel ch = new NotificationChannel(CH_QUIET, "SIM Brief", NotificationManager.IMPORTANCE_HIGH);
             ch.setSound(null, null);
             nm.createNotificationChannel(ch);
         }
@@ -215,7 +220,7 @@ public final class BriefReceiver extends BroadcastReceiver {
         if (open != null) open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent tap = PendingIntent.getActivity(c, 1, open == null ? new Intent() : open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         android.app.Notification.Builder nb = Build.VERSION.SDK_INT >= 26
-                ? new android.app.Notification.Builder(c, sound ? CH_SND : CH_QUIET) : new android.app.Notification.Builder(c);
+                ? new android.app.Notification.Builder(c, CH_QUIET) : new android.app.Notification.Builder(c);
         nb.setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle("SIM Brief" + (label.isEmpty() ? "" : " · " + label + " 브리핑"))
                 .setContentText(first)
@@ -223,8 +228,50 @@ public final class BriefReceiver extends BroadcastReceiver {
                 .setContentIntent(tap).setAutoCancel(true);
         if (Build.VERSION.SDK_INT < 26) {
             nb.setPriority(android.app.Notification.PRIORITY_HIGH);
-            if (sound) nb.setSound(Uri.parse("android.resource://" + c.getPackageName() + "/raw/brief_chime"));
         }
         try { nm.notify(7001, nb.build()); } catch (Exception ignore) {}
+        if (sound) sayName(c);
+    }
+
+    /** "심툴즈" 알림음: 폰의 한국어 음성(TTS)을 높은 음정으로 읽어 아이 목소리 느낌을 낸다. 음성을 못 쓰면 3음 차임으로 대신한다. */
+    private static void sayName(final Context c) {
+        final CountDownLatch ready = new CountDownLatch(1), done = new CountDownLatch(1);
+        final boolean[] ok = {false};
+        final TextToSpeech[] tts = new TextToSpeech[1];
+        try {
+            tts[0] = new TextToSpeech(c.getApplicationContext(), new TextToSpeech.OnInitListener() {
+                @Override public void onInit(int st) { ok[0] = st == TextToSpeech.SUCCESS; ready.countDown(); }
+            });
+            if (!ready.await(4, TimeUnit.SECONDS) || !ok[0]) throw new Exception("tts");
+            TextToSpeech t = tts[0];
+            int lang = t.setLanguage(Locale.KOREAN);
+            if (lang == TextToSpeech.LANG_MISSING_DATA || lang == TextToSpeech.LANG_NOT_SUPPORTED) throw new Exception("lang");
+            t.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build());
+            t.setPitch(2.0f);            // 높은 음정 = 아이 목소리 느낌
+            t.setSpeechRate(1.0f);
+            t.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override public void onStart(String id) {}
+                @Override public void onDone(String id) { done.countDown(); }
+                @Override public void onError(String id) { done.countDown(); }
+            });
+            if (t.speak("심툴즈", TextToSpeech.QUEUE_FLUSH, null, "simbrief") != TextToSpeech.SUCCESS) throw new Exception("speak");
+            done.await(4, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            chime(c);
+        } finally {
+            try { if (tts[0] != null) tts[0].shutdown(); } catch (Exception ignore) {}
+        }
+    }
+
+    private static void chime(Context c) {
+        try {
+            final CountDownLatch end = new CountDownLatch(1);
+            MediaPlayer mp = MediaPlayer.create(c, c.getResources().getIdentifier("brief_chime", "raw", c.getPackageName()));
+            if (mp == null) return;
+            mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() { @Override public void onCompletion(MediaPlayer m) { end.countDown(); } });
+            mp.start();
+            end.await(3, TimeUnit.SECONDS);
+            mp.release();
+        } catch (Exception ignore) {}
     }
 }

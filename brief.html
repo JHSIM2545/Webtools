@@ -117,6 +117,13 @@ function save() {
 }
 
 /* ── 알림음: 높은 3음 "심·툴·즈" ── */
+function hearName() {   // 폰의 음성(TTS)을 높은 음정으로 — 앱의 알림음과 같은 방식
+  try {
+    if (!('speechSynthesis' in window)) return chime();
+    const u = new SpeechSynthesisUtterance('심툴즈'); u.lang = 'ko-KR'; u.pitch = 2; u.rate = 1;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  } catch (e) { chime(); }
+}
 function chime() {
   try {
     const AC = window.AudioContext || window.webkitAudioContext, ac = new AC(), t0 = ac.currentTime + .02;
@@ -245,7 +252,7 @@ async function vSet() {
     '<div class="card"><h2>⏰ 브리핑 시간</h2><div id="times">' + CFG.times.map((x, i) => '<div class="set" data-i="' + i + '"><input type="time" value="' + esc(x.t) + '" data-a="t">' + '<div class="tx"></div>' + sw(x.on).replace('class="sw', 'data-a="on" class="sw') + '<button class="x" data-a="del" aria-label="삭제">✕</button></div>').join('') + '</div>' +
     '<button class="sm" id="addT" style="margin-top:8px">＋ 시간 추가</button>' +
     '<div class="hint">정한 시간에 알림창으로 주요 뉴스·일정을 알려드려요. 알림을 누르면 이 앱이 열려 카드 뉴스로 들어와요.</div></div>' +
-    '<div class="card"><h2>🔔 알림음</h2><div class="set"><div class="tx"><b>"심툴즈" 알림음</b><small>높은 3음 차임 · 끄면 무음 알림</small></div><button class="sm" id="hear">들어보기</button>' + sw(CFG.sound).replace('class="sw', 'data-a="snd" class="sw') + '</div></div>' +
+    '<div class="card"><h2>🔔 알림음</h2><div class="set"><div class="tx"><b>"심툴즈" 알림음</b><small>높은 음정의 아이 목소리 "심툴즈" · 끄면 무음 알림</small></div><button class="sm" id="hear">들어보기</button>' + sw(CFG.sound).replace('class="sw', 'data-a="snd" class="sw') + '</div></div>' +
     '<div class="card"><h2>📰 브리핑 분야</h2>' + CATS.map(c => '<div class="set"><div class="tx"><b>' + CAT_ICON[c[0]] + ' ' + c[1] + '</b></div>' + sw(CFG.cats[c[0]]).replace('class="sw', 'data-a="cat" data-k="' + c[0] + '" class="sw') + '</div>').join('') +
     '<div class="set"><div class="tx"><b>📅 심스케줄</b><small>SIM Calendar·SIM Assistant 일정</small></div>' + sw(CFG.calSim).replace('class="sw', 'data-a="cs" class="sw') + '</div>' +
     '<div class="set"><div class="tx"><b>📱 기기 달력</b><small>' + (apk ? (nat.cal ? '폰 달력 연동됨' : '켜면 달력 읽기 권한을 요청해요') : '안드로이드 앱(APK)에서 쓸 수 있어요') + '</small></div>' + sw(CFG.calDevice && apk).replace('class="sw', 'data-a="cd" ' + (apk ? '' : 'disabled ') + 'class="sw') + '</div></div>' +
@@ -263,7 +270,7 @@ main.addEventListener('click', async e => {
   if (t.id === 'addT') { CFG.times.push({ t: '18:00', on: true }); save(); vSet(); return; }
   if (a === 'del' && row) { CFG.times.splice(+row.dataset.i, 1); save(); vSet(); return; }
   if (a === 'on' && row) { const x = CFG.times[+row.dataset.i]; x.on = !x.on; save(); vSet(); return; }
-  if (a === 'snd') { CFG.sound = !CFG.sound; save(); vSet(); if (CFG.sound) chime(); return; }
+  if (a === 'snd') { CFG.sound = !CFG.sound; save(); vSet(); if (CFG.sound) hearName(); return; }
   if (a === 'cat') { CFG.cats[t.dataset.k] = !CFG.cats[t.dataset.k]; save(); vSet(); return; }
   if (a === 'cs') { CFG.calSim = !CFG.calSim; save(); vSet(); return; }
   if (a === 'cd' && !t.disabled) {
@@ -271,13 +278,13 @@ main.addEventListener('click', async e => {
     if (CFG.calDevice && NA && !NA.hasCalendar()) { NA.requestCalendar(); toast('달력 읽기를 허용해 주세요'); }
     vSet(); return;
   }
-  if (t.id === 'hear') { chime(); return; }
+  if (t.id === 'hear') { hearName(); return; }
   if (t.id === 'reqN') { NA.requestNotif(); return; }
   if (t.id === 'reqE') { NA.openExact(); return; }
   if (t.id === 'reqW') { const p = await Notification.requestPermission(); vSet(); if (p === 'granted') toast('알림을 허용했어요'); return; }
   if (t.id === 'test') {
     if (NA) { save(); NA.test(); toast('알림창을 확인해 보세요'); return; }
-    if (CFG.sound) chime();
+    if (CFG.sound) hearName();
     await webNotify('테스트');
   }
 });
@@ -302,7 +309,7 @@ async function webNotify(label) {
 }
 if (!NA) setInterval(() => {
   const d = new Date(), cur = hm(d), day = d.toLocaleDateString('sv-SE');
-  CFG.times.forEach(x => { if (x.on && x.t === cur && lsGet('simbrief.last.' + x.t) !== day) { lsSet('simbrief.last.' + x.t, day); if (CFG.sound) chime(); webNotify(x.t); } });
+  CFG.times.forEach(x => { if (x.on && x.t === cur && lsGet('simbrief.last.' + x.t) !== day) { lsSet('simbrief.last.' + x.t, day); if (CFG.sound) hearName(); webNotify(x.t); } });
 }, 20000);
 
 /* ── 탭·새로고침 ── */

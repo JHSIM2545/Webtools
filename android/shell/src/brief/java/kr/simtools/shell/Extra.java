@@ -17,13 +17,14 @@ import org.json.JSONObject;
 final class Extra {
     private Extra() {}
 
-    static void attach(Activity a, WebView w) { w.addJavascriptInterface(new Bridge(a), "SimBrief"); }
+    static void attach(Activity a, WebView w) { w.addJavascriptInterface(new Bridge(a, w), "SimBrief"); }
     static void onResume(Activity a, WebView w) {}
     static void destroy(Activity a) {}
 
     private static final class Bridge {
         private final Activity a;
-        Bridge(Activity a) { this.a = a; }
+        private final WebView w;
+        Bridge(Activity a, WebView w) { this.a = a; this.w = w; }
 
         /** 브리핑 설정 저장 + 알람 맞추기. json: {times:[{t:"07:30",on:true}], sound, cats:[], endpoint, calDevice, calSim} */
         @JavascriptInterface public boolean schedule(String json) {
@@ -53,6 +54,48 @@ final class Extra {
                 return o.toString();
             } catch (Exception e) { return "{}"; }
         }
+        /** 현재 위치 찾기(웹뷰 위치 대신 기기에서 직접). 결과는 window.__briefLoc({lat,lon} 또는 {err:'perm'|'off'|'none'}) 로 돌려준다 */
+        @JavascriptInterface public void locate() {
+            final boolean fine = a.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            final boolean coarse = a.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            if (!fine && !coarse) {
+                a.runOnUiThread(new Runnable() { @Override public void run() { a.requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 93); } });
+                reply("{\"err\":\"perm\"}"); return;
+            }
+            try {
+                final android.location.LocationManager lm = (android.location.LocationManager) a.getSystemService(Context.LOCATION_SERVICE);
+                android.location.Location best = null;
+                for (String p : lm.getProviders(true)) {
+                    android.location.Location l = lm.getLastKnownLocation(p);
+                    if (l != null && (best == null || l.getTime() > best.getTime())) best = l;
+                }
+                if (best != null && System.currentTimeMillis() - best.getTime() < 30L * 60000L) { reply(fix(best)); return; }
+                final String prov = lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER) ? android.location.LocationManager.NETWORK_PROVIDER
+                        : lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) ? android.location.LocationManager.GPS_PROVIDER : null;
+                if (prov == null) { reply(best != null ? fix(best) : "{\"err\":\"off\"}"); return; }
+                final android.location.Location fb = best;
+                final boolean[] done = {false};
+                final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+                final android.location.LocationListener ll = new android.location.LocationListener() {
+                    @Override public void onLocationChanged(android.location.Location l) { if (done[0]) return; done[0] = true; try { lm.removeUpdates(this); } catch (Exception ignore) {} reply(fix(l)); }
+                    @Override public void onStatusChanged(String s, int i, android.os.Bundle b) {}
+                    @Override public void onProviderEnabled(String s) {}
+                    @Override public void onProviderDisabled(String s) {}
+                };
+                h.post(new Runnable() { @Override public void run() {
+                    try { lm.requestSingleUpdate(prov, ll, android.os.Looper.getMainLooper()); } catch (Exception e) { if (!done[0]) { done[0] = true; reply(fb != null ? fix(fb) : "{\"err\":\"none\"}"); } }
+                } });
+                h.postDelayed(new Runnable() { @Override public void run() {
+                    if (done[0]) return; done[0] = true; try { lm.removeUpdates(ll); } catch (Exception ignore) {}
+                    reply(fb != null ? fix(fb) : "{\"err\":\"none\"}");
+                } }, 12000);
+            } catch (Exception e) { reply("{\"err\":\"none\"}"); }
+        }
+        private static String fix(android.location.Location l) { return "{\"lat\":" + l.getLatitude() + ",\"lon\":" + l.getLongitude() + "}"; }
+        private void reply(final String json) {
+            a.runOnUiThread(new Runnable() { @Override public void run() { try { w.evaluateJavascript("window.__briefLoc&&window.__briefLoc(" + json + ")", null); } catch (Exception ignore) {} } });
+        }
+
         @JavascriptInterface public boolean hasSound() { return BriefReceiver.voiceFile(a).exists(); }
         /** 알림음 미리듣기 (알림 때와 같은 방식으로 재생) */
         @JavascriptInterface public void preview(final String id) { new Thread(new Runnable() { @Override public void run() { BriefReceiver.play(a, id, true); } }).start(); }

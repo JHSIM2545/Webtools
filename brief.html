@@ -270,9 +270,22 @@ async function placeName(lat, lon) {   // 좌표 → 동네 이름 (실패하면
   try { const j = await fetchJ('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=ko', 6000); const n = j.locality || j.city || j.principalSubdivision; if (n) return n; } catch (e) {}
   const c = nearestCity(lat, lon); return c[1] < 40 ? c[0] + ' 부근' : '현재 위치';
 }
+let LOC_ERR = '';
 function getPos() {
-  return new Promise(res => { if (!navigator.geolocation) return res(null); navigator.geolocation.getCurrentPosition(p => res(p.coords), () => res(null), { timeout: 9000, maximumAge: 600000 }); });
+  return new Promise(res => {
+    LOC_ERR = '';
+    if (NA && NA.locate) {      // 앱: 기기에서 직접 위치를 찾는다 (웹뷰 위치보다 확실)
+      let done = false;
+      const to = setTimeout(() => { if (!done) { done = true; LOC_ERR = 'none'; res(null); } }, 15000);
+      window.__briefLoc = r => { if (done) return; done = true; clearTimeout(to); if (r && r.lat != null) res({ latitude: r.lat, longitude: r.lon }); else { LOC_ERR = (r && r.err) || 'none'; res(null); } };
+      try { NA.locate(); } catch (e) { done = true; clearTimeout(to); LOC_ERR = 'none'; res(null); }
+      return;
+    }
+    if (!navigator.geolocation) { LOC_ERR = 'none'; return res(null); }
+    navigator.geolocation.getCurrentPosition(p => res(p.coords), er => { LOC_ERR = er && er.code === 1 ? 'perm' : 'none'; res(null); }, { timeout: 9000, maximumAge: 600000 });
+  });
 }
+const locWhy = () => LOC_ERR === 'perm' ? '앱의 위치 권한이 꺼져 있어요.' : LOC_ERR === 'off' ? '기기의 위치(GPS) 기능이 꺼져 있어요.' : '위치를 찾지 못했어요. 잠시 후 다시 시도해 주세요.';
 let LOC_FAIL = false;
 /** '현재 위치(자동)'이면 지금 있는 곳으로 예보 위치를 맞춘다. 위치가 바뀌었으면 true */
 async function refreshLocation(force) {
@@ -499,7 +512,7 @@ async function vBrief(force) {
       '<div class="empty">브리핑할 뉴스 분야가 선택되지 않았어요.<br>알림 설정에서 분야를 선택해 주세요.</div>');
   let sched = [], wxLineTxt = '';
   if (CFG.weather.on) loadWeather(force, (v, locFail) => {
-    const warn = () => '<div class="hint warn locwarn" style="margin-top:6px">현재 위치를 확인하지 못해 기본 지역(' + esc(CFG.weather.name) + ') 기준이에요. 위치 권한을 허용해 주세요.</div>';
+    const warn = () => '<div class="hint warn locwarn" style="margin-top:6px">현재 위치를 확인하지 못해 기본 지역(' + esc(CFG.weather.name) + ') 기준이에요. ' + locWhy() + '</div>';
     setPlace();
     if (locFail) { if (ok() && $('wx') && $('wx').querySelector('.wx') && !$('wx').querySelector('.locwarn')) $('wx').insertAdjacentHTML('beforeend', warn()); return; }
     wxLineTxt = wxLine(v);
@@ -569,7 +582,7 @@ main.addEventListener('click', async e => {
   if (t.id === 'wxLoc') {
     CFG.weather.mode = 'auto'; save(); toast('현재 위치를 확인하는 중…');
     const ch = await refreshLocation(true);
-    toast(ch ? '📍 ' + CFG.weather.name + ' 기준으로 맞췄어요' : '위치를 가져오지 못했어요. 위치 권한을 확인해 주세요'); vSet(); return;
+    toast(ch ? '📍 ' + CFG.weather.name + ' 기준으로 맞췄어요' : locWhy()); vSet(); return;
   }
   if (a === 'cs') { CFG.calSim = !CFG.calSim; save(); vSet(); return; }
   if (a === 'cd' && !t.disabled) {

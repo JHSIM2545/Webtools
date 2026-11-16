@@ -69,7 +69,9 @@ main{max-width:960px;margin:0 auto;padding:12px 12px calc(40px + env(safe-area-i
 .wx-row b{display:block;color:var(--text);font-size:13.5px;margin-top:2px}
 .wxh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
 .wxh h2{margin:0}
-.wxplace{font-size:21px;font-weight:800;letter-spacing:-.5px;padding:6px 12px;border-radius:14px;max-width:64%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.wxr{display:flex;align-items:center;gap:6px;min-width:0;max-width:75%}
+.wxhome{flex:none;font-size:13px;padding:7px 10px;border-radius:12px;color:var(--accent);white-space:nowrap}
+.wxplace{font-size:21px;font-weight:800;letter-spacing:-.5px;padding:6px 12px;border-radius:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
 .wxplace i{font-style:normal;font-size:13px;color:var(--sub);margin-left:2px}
 .wxbig{width:88px;height:88px;flex:none}
 .wi.wxs{width:42px;height:42px;margin:2px auto 4px}
@@ -380,7 +382,7 @@ function openDay(k) {
   const el = document.createElement('div'); el.id = 'plsheet'; el.className = 'plov';
   el.innerHTML = '<div class="plbox"><div class="plh"><b>' + esc(title) + ' · ' + esc(CFG.weather.name) + '</b><button class="x" id="plx" aria-label="닫기">✕</button></div>' +
     '<div class="dsum"><span class="chip">' + (d.partial ? '현재 ' + Math.round(v.now.temp) + '°' : '최저 ' + Math.round(d.min) + '° / 최고 ' + Math.round(d.max) + '°') + '</span><span class="chip">강수확률 최대 ' + (d.pop == null ? '-' : d.pop) + '%</span></div>' +
-    (rows ? '<div class="dhead"><span>시간</span><span></span><span>기온·날씨</span><span>강수확률</span><span style="text-align:right">강수·적설</span></div>' + rows + '<div class="hint">3시간 간격 예보예요. 강수·적설량은 기상청 6시간 예상량(R06·S06)이에요.</div>'
+    (rows ? '<div class="dhead"><span>시간</span><span></span><span>기온·날씨</span><span>강수확률</span><span style="text-align:right">강수·적설</span></div>' + rows + ''
       : '<div class="empty" style="padding:14px">시간별 자료가 아직 없어요. 새로고침해 주세요.</div>') + '</div>';
   document.body.appendChild(el);
   el.addEventListener('click', e => { if (e.target === el || e.target.id === 'plx') closePlace(); });
@@ -426,7 +428,11 @@ function openPlace() {
   });
   setTimeout(() => { const q = el.querySelector('#plq'); if (q) q.focus(); }, 50);
 }
-document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#wxPlace')) openPlace(); });
+document.addEventListener('click', e => {
+  const t = e.target.closest && e.target.closest('#wxPlace,#wxHome'); if (!t) return;
+  if (t.id === 'wxHome') { CFG.weather.mode = 'auto'; CFG.weather.located = false; save(); toast('현재 위치를 확인하는 중…'); vBrief(true); return; }
+  openPlace();
+});
 
 /* ── 오늘 일정: 심스케줄(SIM Calendar·SIM Assistant) + 기기 달력(앱에서) ── */
 const sod = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
@@ -487,7 +493,7 @@ async function vBrief(force) {
   const en = CATS.filter(c => CFG.cats[c[0]]);                                    // 선택한 분야만 탭으로 표시
   const tabs = (en.length > 1 ? [['all', '전체']] : []).concat(en);
   if (!tabs.some(t => t[0] === S.cat)) S.cat = tabs.length ? tabs[0][0] : 'all';
-  main.innerHTML = (CFG.weather.on ? '<div class="card"><div class="wxh"><h2>오늘 날씨</h2><button class="wxplace" id="wxPlace" aria-label="지역 변경">📍 <span id="wxName">' + esc(CFG.weather.name) + '</span> <i>▾</i></button></div><div id="wx"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
+  main.innerHTML = (CFG.weather.on ? '<div class="card"><div class="wxh"><h2>오늘 날씨</h2><span class="wxr">' + (CFG.weather.mode !== 'auto' ? '<button class="wxhome" id="wxHome" aria-label="현재 위치로">⌖ 현재 위치</button>' : '') + '<button class="wxplace" id="wxPlace" aria-label="지역 변경">📍 <span id="wxName">' + esc(CFG.weather.name) + '</span> <i>▾</i></button></span></div><div id="wx"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
     (CFG.calSim || CFG.calDevice ? '<div class="card"><h2>📅 오늘 일정 <span style="color:var(--sub);font-weight:400;font-size:12.5px">' + esc(dt) + '</span></h2><div id="sch"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
     (tabs.length ? '<div class="seg" id="seg">' + tabs.map(t => '<button data-c="' + t[0] + '"' + (S.cat === t[0] ? ' class="on"' : '') + '>' + t[1] + '</button>').join('') + '</div><div id="news"><div class="empty"><span class="spin"></span>뉴스를 불러오는 중…</div></div>' :
       '<div class="empty">브리핑할 뉴스 분야가 선택되지 않았어요.<br>알림 설정에서 분야를 선택해 주세요.</div>');

@@ -112,6 +112,12 @@ main{max-width:960px;margin:0 auto;padding:12px 12px calc(40px + env(safe-area-i
 .dh .rr{text-align:right;white-space:nowrap;color:#7cc4ff}.dh .rr.sn{color:#d6ecff}
 .dsum{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
 .dhead{display:grid;grid-template-columns:38px 30px 1fr 70px 66px;gap:6px;color:var(--sub);font-size:11.5px;padding:0 2px 4px;border-bottom:1px solid var(--line)}
+.mkt{font-size:12px;color:var(--sub);font-weight:700;margin:8px 2px 4px}.mkt:first-child{margin-top:2px}
+.mkg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.mk{background:var(--panel2);border-radius:10px;padding:8px 8px 7px;min-width:0}
+.mkn{font-size:11.5px;color:var(--sub);white-space:nowrap}.mkv{font-size:15px;font-weight:800;margin:2px 0;white-space:nowrap;letter-spacing:-.3px}
+.mkc{font-size:11px;font-weight:700;white-space:nowrap}.mkd{font-size:10px;color:var(--sub);margin-top:2px}
+.mk.up .mkc,.mk.up .mkv{color:#ff5a5f}.mk.dn .mkc,.mk.dn .mkv{color:#4c9bff}.mk.fl .mkc{color:var(--sub)}
 .fz{cursor:pointer}
 .fz:active{border-color:var(--accent)}
 .fzh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
@@ -196,8 +202,8 @@ input[type=time]{background:var(--panel2);border:1px solid var(--line);border-ra
 <script>
 'use strict';
 const FN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-news';
-const CATS = [['politics', '정치'], ['economy', '경제'], ['society', '사회'], ['culture', '문화'], ['sports', '스포츠']];
-const CAT_ICON = { politics: '🏛️', economy: '💹', society: '👥', culture: '🎭', sports: '⚽', custom: '✨' };
+const CATS = [['politics', '정치'], ['economy', '경제'], ['society', '사회'], ['culture', '문화'], ['sports', '스포츠'], ['stock', '증권']];
+const CAT_ICON = { politics: '🏛️', economy: '💹', society: '👥', culture: '🎭', sports: '⚽', stock: '📈', custom: '✨' };
 const NA = window.SimBrief || null;            // 안드로이드 앱(APK)에서만 있음
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -207,7 +213,7 @@ function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('sh
 
 /* ── 설정 (기기에 저장, 로그인 계정 동기화는 sync.js 가 처리) ── */
 const KEY = 'simbrief.v1';
-const DEF = { times: [{ t: '07:30', on: true }], sound: true, cats: { politics: true, economy: true, society: true, culture: true, sports: true, custom: true }, kw: [], calSim: true, calDevice: true, weather: { on: true, mode: 'auto', located: false, name: '서울', lat: 37.5665, lon: 126.978 }, fortune: { on: true, birth: '', g: 'M', time: '' } };
+const DEF = { times: [{ t: '07:30', on: true }], sound: true, cats: { politics: true, economy: true, society: true, culture: true, sports: true, stock: true, custom: true }, mkt: true, kw: [], calSim: true, calDevice: true, weather: { on: true, mode: 'auto', located: false, name: '서울', lat: 37.5665, lon: 126.978 }, fortune: { on: true, birth: '', g: 'M', time: '' } };
 let CFG = (() => { try { const c = JSON.parse(lsGet(KEY) || 'null'); return c ? Object.assign({}, DEF, c, { cats: Object.assign({}, DEF.cats, c.cats || {}), weather: Object.assign({}, DEF.weather, c.weather || {}), fortune: Object.assign({}, DEF.fortune, c.fortune || {}) }) : JSON.parse(JSON.stringify(DEF)); } catch (e) { return JSON.parse(JSON.stringify(DEF)); } })();
 function save() {
   lsSet(KEY, JSON.stringify(CFG));
@@ -482,6 +488,29 @@ document.addEventListener('click', e => {
 });
 
 /* ── 오늘의 운세 ── */
+const MFN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-market';
+/* ── 증시 지수 (직전 거래일 종가) ── */
+async function loadMarket(force) {
+  const ck = 'simbrief.m1'; let c = null; try { c = JSON.parse(lsGet(ck) || 'null'); } catch (e) {}
+  if (!force && c && Date.now() - c.at < 5 * 60000) return c;
+  try {
+    const r = await fetch(MFN, { cache: 'no-store' }); const j = await r.json();
+    if (!j || !j.ok || !j.items || !j.items.length) throw 0;
+    lsSet(ck, JSON.stringify(j)); return j;
+  } catch (e) { return c; }
+}
+function mkFmt(n, d) { return Number(n).toLocaleString('ko-KR', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+function mkRow(x) {
+  const up = x.chg > 0, dn = x.chg < 0, cl = up ? 'up' : dn ? 'dn' : 'fl', ar = up ? '▲' : dn ? '▼' : '–';
+  const dm = x.date ? Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) : '';
+  return '<div class="mk ' + cl + '"><div class="mkn">' + esc(x.name) + '</div><div class="mkv">' + mkFmt(x.value, x.dec) + '</div><div class="mkc">' + ar + ' ' + mkFmt(Math.abs(x.chg), x.dec) + ' (' + (x.pct > 0 ? '+' : x.pct < 0 ? '−' : '') + mkFmt(Math.abs(x.pct), 2) + '%)</div><div class="mkd">' + (x.live ? '장중' : dm + ' 종가') + '</div></div>';
+}
+function mkHtml(v) {
+  if (!v || !v.items) return '<div class="empty" style="padding:10px">증시 정보를 가져오지 못했어요</div>';
+  const g = (k) => v.items.filter(x => x.kind === k);
+  const sec = (t, a) => a.length ? '<div class="mkt">' + t + '</div><div class="mkg">' + a.map(mkRow).join('') + '</div>' : '';
+  return sec('🇰🇷 한국', g('kr').concat(g('fx'))) + sec('🇺🇸 미국 (전일 종가)', g('us'));
+}
 const FFN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-fortune';
 function star5(cx, cy, R, r) { let p = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 ? r : R; p.push((cx + q * Math.cos(a)).toFixed(1) + ',' + (cy + q * Math.sin(a)).toFixed(1)); } return p.join(' '); }
 function fzMotif(m) {
@@ -618,6 +647,7 @@ async function vBrief(force) {
   const tabs = (tabs0.length > 1 ? [['all', '전체']] : []).concat(tabs0);
   if (!tabs.some(t => t[0] === S.cat)) S.cat = tabs.length ? tabs[0][0] : 'all';
   main.innerHTML = (CFG.weather.on ? '<div class="card"><div class="wxh"><h2>오늘 날씨</h2><span class="wxr">' + (CFG.weather.mode !== 'auto' ? '<button class="wxhome" id="wxHome" aria-label="현재 위치로">⌖ 현재 위치</button>' : '') + '<button class="wxplace" id="wxPlace" aria-label="지역 변경">📍 <span id="wxName">' + esc(CFG.weather.name) + '</span> <i>▾</i></button></span></div><div id="wx"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
+    (CFG.mkt ? '<div class="card"><h2>📈 증시 <span style="color:var(--sub);font-weight:400;font-size:12.5px">직전 거래일 종가</span></h2><div id="mk"><div class="empty" style="padding:10px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
     (CFG.fortune.on ? '<div class="card fz" id="fzCard" role="button" tabindex="0"><div class="fzh"><h2>🔮 오늘의 운세</h2><span class="fzsc" id="fzScore"></span></div><div id="fz"><div class="empty" style="padding:10px"><span class="spin"></span>운세를 보는 중…</div></div></div>' : '') +
     (CFG.calSim || CFG.calDevice ? '<div class="card"><h2>📅 오늘 일정 <span style="color:var(--sub);font-weight:400;font-size:12.5px">' + esc(dt) + '</span></h2><div id="sch"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
     (tabs.length ? '<div class="seg" id="seg">' + tabs.map(t => '<button data-c="' + t[0] + '"' + (S.cat === t[0] ? ' class="on"' : '') + '>' + t[1] + '</button>').join('') + '</div><div id="news"><div class="empty"><span class="spin"></span>뉴스를 불러오는 중…</div></div>' :
@@ -631,6 +661,7 @@ async function vBrief(force) {
     if (ok() && $('wx')) $('wx').innerHTML = (v ? wxHtml(v) : wxHtml(null)) + (v && LOC_FAIL && !CFG.weather.located ? warn() : '');
     pushCache();
   });
+  if (CFG.mkt) loadMarket(force).then(v => { if (ok() && $('mk')) $('mk').innerHTML = mkHtml(v); });
   if (CFG.fortune.on) renderFortune(false, ok);
   if (CFG.calSim || CFG.calDevice) todaySchedule().then(l => { sched = l; if (ok() && $('sch')) $('sch').innerHTML = schedHtml(l); pushCache(); });
   if (!tabs.length) return;
@@ -673,6 +704,7 @@ async function vSet(kind) {
     '<div class="hint" style="margin:6px 0 4px">소리를 고르면 바로 들려줘요</div>' +
     SOUNDS.filter(x => x[0] !== 'voice' || hasVoice()).map(x => '<div class="set" data-sid="' + x[0] + '" style="cursor:pointer"><div class="tx"><b>' + x[1] + '</b><small>' + x[2] + '</small></div><span style="font-size:20px;color:var(--accent)">' + (curSound() === x[0] ? '●' : '○') + '</span></div>').join('') + '<div class="hint" id="smsg"></div></div>'),
     cats: ('<div class="card"><h2>📰 브리핑 분야</h2>' + CATS.map(c => '<div class="set"><div class="tx"><b>' + CAT_ICON[c[0]] + ' ' + c[1] + '</b></div>' + sw(CFG.cats[c[0]]).replace('class="sw', 'data-a="cat" data-k="' + c[0] + '" class="sw') + '</div>').join('') + '</div>'),
+    mk: ('<div class="card"><h2>📈 증시</h2><div class="set"><div class="tx"><b>메인에 증시 지수 넣기</b><small>코스피·코스닥·원/달러, 미국 3대 지수</small></div>' + sw(CFG.mkt).replace('class="sw', 'data-a="mkt" class="sw') + '</div></div>'),
     kw: ('<div class="card"><h2>✨ 맞춤 뉴스</h2><div class="set"><div class="tx"><b>맞춤 뉴스 보기</b><small>키워드별 최근 24시간 뉴스만 모아요</small></div>' + sw(CFG.cats.custom).replace('class="sw', 'data-a="cat" data-k="custom" class="sw') + '</div>' +
       '<div class="kws">' + (CFG.kw || []).map((k, i) => '<span class="kw">' + esc(k) + '<button class="x" data-a="kwdel" data-k="' + i + '" aria-label="삭제">✕</button></span>').join('') + '</div>' +
       ((CFG.kw || []).length < 5 ? '<form id="kwf" class="kwf"><input id="kwIn" type="text" maxlength="24" placeholder="키워드 입력 (예: 삼성전자, 부동산)" autocomplete="off" enterkeyhint="done"><button class="primary" type="submit">추가</button></form>' : '<div class="hint">키워드는 최대 5개예요.</div>') + '</div>'),
@@ -694,7 +726,7 @@ async function vSet(kind) {
   };
   const TT = { news: '📰 뉴스 설정', fortune: '🔮 운세 설정', alarm: '🔔 알림 설정' };
   main.innerHTML = '<div class="vbar"><button class="sm" id="toBrief">‹ 뒤로</button><b>' + (TT[kind] || '') + '</b></div>' +
-    (kind === 'news' ? C.cats + C.kw : kind === 'fortune' ? C.fz : C.times + C.sound + C.sched + C.wx + C.test);
+    (kind === 'news' ? C.cats + C.mk + C.kw : kind === 'fortune' ? C.fz : C.times + C.sound + C.sched + C.wx + C.test);
   if (kind === 'alarm') setTimeout(showDiag, 50);
 }
 main.addEventListener('click', async e => {
@@ -718,6 +750,7 @@ main.addEventListener('click', async e => {
     const ch = await refreshLocation(true);
     toast(ch ? '📍 ' + CFG.weather.name + ' 기준으로 맞췄어요' : locWhy()); vSet(); return;
   }
+  if (a === 'mkt') { CFG.mkt = !CFG.mkt; save(); vSet(); return; }
   if (a === 'cs') { CFG.calSim = !CFG.calSim; save(); vSet(); return; }
   if (a === 'cd' && !t.disabled) {
     CFG.calDevice = !CFG.calDevice; save();

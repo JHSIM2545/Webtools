@@ -507,6 +507,21 @@ let ringing = null, actx = null, ringT = null, wakeLock = null;
 function unlockAudio() {
   try { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; if (!actx) actx = new AC(); if (actx.state === 'suspended') actx.resume(); } catch (e) {}
 }
+/* ───── 알림음: SIM Brief 에서 고른(만든) 알림음 — 같은 앱 저장소의 설정을 읽어 그대로 쓴다 ───── */
+const BriefSnd = (() => {
+  let a = null, loopT = null, on = false;
+  const src = () => {
+    let id = ''; try { const c = JSON.parse(localStorage.getItem('simbrief.v1') || 'null'); id = c && c.soundId || ''; } catch (e) {}
+    let v = ''; try { v = localStorage.getItem('simbrief.voice') || ''; } catch (e) {}
+    if (!id) id = v ? 'voice' : 'chime';
+    if (id === 'voice' && v) return 'data:audio/wav;base64,' + v;
+    return 'brief-sounds/brief_s_' + (/^(chime|pop|bell|harp|game|morning|synth)$/.test(id) ? id : 'chime') + '.wav';
+  };
+  function once() {
+    try { if (a) a.pause(); a = new Audio(src()); a.volume = 1; const pr = a.play(); if (pr && pr.catch) pr.catch(() => { if (on) beep(); }); a.onended = () => { if (on && loopT === 'loop') setTimeout(() => on && loopT === 'loop' && once(), 1200); }; } catch (e) { try { beep(); } catch (x) {} }
+  }
+  return { play() { on = true; loopT = ''; once(); }, loop() { on = true; loopT = 'loop'; once(); }, stop() { on = false; loopT = null; try { a && a.pause(); } catch (e) {} } };
+})();
 function beep() {
   if (!actx) return;
   [0, 0.22, 0.44].forEach((dt, i) => {
@@ -518,11 +533,12 @@ function beep() {
 function startRing(silent) {
   stopRing();
   if (silent) return;
-  const go = () => { beep(); try { navigator.vibrate && navigator.vibrate([400, 200, 400]); } catch (e) {} };
-  go(); ringT = setInterval(go, 1400);
+  try { navigator.vibrate && navigator.vibrate([400, 200, 400]); } catch (e) {}
+  BriefSnd.loop(); ringT = setInterval(() => { try { navigator.vibrate && navigator.vibrate([400, 200, 400]); } catch (e) {} }, 3000);
 }
-function stopRing() { clearInterval(ringT); ringT = null; try { navigator.vibrate && navigator.vibrate(0); } catch (e) {} }
+function stopRing() { clearInterval(ringT); ringT = null; BriefSnd.stop(); try { navigator.vibrate && navigator.vibrate(0); } catch (e) {} }
 async function notifyOS(title, body, tag) {
+  try { if (!ringing) BriefSnd.play(); } catch (e) {}
   try {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
@@ -1258,7 +1274,7 @@ async function tripAlert(t, eta, late) {
   const arrive = new Date(t.arrive), leave = new Date(arrive.getTime() - eta * 1000), mins = Math.max(0, Math.round((leave - Date.now()) / 60000));
   const msg = late ? t.name + '까지 약 ' + fmtDur(eta) + ' 걸려요. ' + fmtHM(arrive) + '에 도착하려면 지금 출발하세요.' : t.name + '까지 약 ' + fmtDur(eta) + ' 걸려요. ' + fmtHM(arrive) + '에 도착하려면 약 ' + mins + '분 뒤인 ' + fmtHM(leave) + '에 출발하세요.';
   bot('🚗 곧 출발할 시간이에요. ' + msg, { html: '<b>🚗 곧 출발할 시간이에요</b>' + kvRows([['목적지', t.name], ['도착 예정', fmtHM(arrive)], ['예상 소요', fmtDur(eta)], ['출발', late ? '지금' : fmtHM(leave)]]), btns: [{ label: '🧭 내비 시작', primary: true, href: launchHref(nmapUrl.nav({ lat: t.lat, lng: t.lng, name: t.name })), fn: iosStoreFallback }] });
-  speakNow(msg); notifyOS('🚗 곧 출발할 시간이에요', msg, 'trip-' + (t.sid || t.id));
+  notifyOS('🚗 곧 출발할 시간이에요', msg, 'trip-' + (t.sid || t.id)); setTimeout(() => speakNow(msg), 1800);
   t.done = true; tripSave(); try { window.SimApp && window.SimApp.tripStop && window.SimApp.tripStop(); } catch (e) {} if (t.sid) tripApi({ a: 'cancel', id: t.sid }).catch(() => {});   // 서버 푸시가 또 가지 않게
 }
 let tripBusy = false;

@@ -32,7 +32,7 @@ import java.util.Calendar;
  */
 public class TripService extends Service {
     private static final String ETA_URL = "https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-trip";
-    private static final String CH_RUN = "trip_run", CH_ALERT = "trip_alert";
+    private static final String CH_RUN = "trip_run", CH_ALERT = "trip_alert2";
     private static final int ID_RUN = 1201, ID_ALERT = 1202;
 
     private volatile boolean running = false;
@@ -61,7 +61,12 @@ public class TripService extends Service {
         run.setDescription("도착 시간에 맞춰 출발 시각을 확인하는 동안 표시돼요");
         NotificationChannel al = new NotificationChannel(CH_ALERT, "출발 알림", NotificationManager.IMPORTANCE_HIGH);
         al.enableVibration(true);
+        try {   // SIM Brief 알림음
+            al.setSound(android.net.Uri.parse("android.resource://" + getPackageName() + "/raw/sim_chime"),
+                    new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+        } catch (Exception ignore) { }
         nm.createNotificationChannel(run);
+        try { nm.deleteNotificationChannel("trip_alert"); } catch (Exception ignore) { }
         nm.createNotificationChannel(al);
     }
 

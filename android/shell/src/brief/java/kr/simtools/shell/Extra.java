@@ -40,18 +40,9 @@ final class Extra {
             try { new JSONObject(json); BriefReceiver.prefs(a).edit().putString("cache", json).apply(); } catch (Exception ignore) {}
         }
 
-        /** AI로 만든 알림음(WAV, base64)을 이 앱 안에 저장 — 알림 때 이 소리를 재생한다 */
-        @JavascriptInterface public boolean saveSound(String b64) {
-            try {
-                byte[] d = android.util.Base64.decode(b64, android.util.Base64.DEFAULT);
-                if (d.length < 1000 || d.length > 2_000_000) return false;
-                java.io.FileOutputStream o = new java.io.FileOutputStream(BriefReceiver.voiceFile(a));
-                o.write(d); o.close();
-                return true;
-            } catch (Exception e) { return false; }
-        }
         @JavascriptInterface public boolean hasSound() { return BriefReceiver.voiceFile(a).exists(); }
-        @JavascriptInterface public void clearSound() { BriefReceiver.voiceFile(a).delete(); }
+        /** 알림음 미리듣기 (알림 때와 같은 방식으로 재생) */
+        @JavascriptInterface public void preview(final String id) { new Thread(new Runnable() { @Override public void run() { BriefReceiver.play(a, id); } }).start(); }
 
         @JavascriptInterface public void test() {
             new Thread(new Runnable() { @Override public void run() { BriefReceiver.post(a, "테스트"); } }).start();

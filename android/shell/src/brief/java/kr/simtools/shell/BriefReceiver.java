@@ -230,29 +230,37 @@ public final class BriefReceiver extends BroadcastReceiver {
             nb.setPriority(android.app.Notification.PRIORITY_HIGH);
         }
         try { nm.notify(7001, nb.build()); } catch (Exception ignore) {}
-        if (sound) sayName(c);
+        if (sound) play(c, cfg.optString("soundId", ""));
     }
 
     /** "심툴즈" 알림음: 폰의 한국어 음성(TTS)을 높은 음정으로 읽어 아이 목소리 느낌을 낸다. 음성을 못 쓰면 3음 차임으로 대신한다. */
     static java.io.File voiceFile(Context c) { return new java.io.File(c.getFilesDir(), "brief_voice.wav"); }
 
+    /** 설정에서 고른 알림음을 재생: voice(저장해 둔 아이 목소리) · tts(폰 음성) · 그 밖에는 내장 멜로디(brief_s_<id>) */
+    static void play(Context c, String id) {
+        if (id == null || id.isEmpty()) id = voiceFile(c).exists() ? "voice" : "tts";
+        if ("tts".equals(id)) { sayName(c); return; }
+        boolean ok;
+        if ("voice".equals(id) && voiceFile(c).exists() && voiceFile(c).length() > 1000) ok = playMp(c, voiceFile(c).getAbsolutePath(), 0);
+        else ok = playMp(c, null, c.getResources().getIdentifier("brief_s_" + id, "raw", c.getPackageName()));
+        if (!ok) sayName(c);
+    }
+
+    private static boolean playMp(Context c, String path, int resId) {
+        MediaPlayer mp = null;
+        try {
+            final CountDownLatch end = new CountDownLatch(1);
+            if (path != null) { mp = new MediaPlayer(); mp.setDataSource(path); mp.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()); mp.prepare(); }
+            else { if (resId == 0) return false; mp = MediaPlayer.create(c, resId); if (mp == null) return false; mp.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()); }
+            mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() { @Override public void onCompletion(MediaPlayer m) { end.countDown(); } });
+            mp.start();
+            end.await(5, TimeUnit.SECONDS);
+            return true;
+        } catch (Exception e) { return false; }
+        finally { try { if (mp != null) mp.release(); } catch (Exception ignore) {} }
+    }
+
     private static void sayName(final Context c) {
-        // 1순위: 사용자가 만들어 저장한 AI 아이 목소리 파일
-        java.io.File vf = voiceFile(c);
-        if (vf.exists() && vf.length() > 1000) {
-            try {
-                final CountDownLatch end = new CountDownLatch(1);
-                MediaPlayer mp = new MediaPlayer();
-                mp.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
-                mp.setDataSource(vf.getAbsolutePath());
-                mp.prepare();
-                mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() { @Override public void onCompletion(MediaPlayer m) { end.countDown(); } });
-                mp.start();
-                end.await(5, TimeUnit.SECONDS);
-                mp.release();
-                return;
-            } catch (Exception ignore) { /* 아래 폰 음성으로 */ }
-        }
         final CountDownLatch ready = new CountDownLatch(1), done = new CountDownLatch(1);
         final boolean[] ok = {false};
         final TextToSpeech[] tts = new TextToSpeech[1];

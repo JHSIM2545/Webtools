@@ -62,12 +62,45 @@ main{max-width:960px;margin:0 auto;padding:12px 12px calc(40px + env(safe-area-i
 .sch i{font-style:normal;font-size:11px;color:var(--sub);margin-left:6px}
 /* 일기예보 */
 .wx{display:flex;align-items:center;gap:12px}
-.wx .big{font-size:44px;line-height:1}
 .wx .t{font-size:34px;font-weight:700;letter-spacing:-1px}
 .wx .d{font-size:13px;color:var(--sub);line-height:1.45}
 .wx-row{display:flex;gap:8px;margin-top:10px}
 .wx-row>div{flex:1;background:var(--panel2);border-radius:12px;padding:8px 6px;text-align:center;font-size:12px;color:var(--sub)}
 .wx-row b{display:block;color:var(--text);font-size:13.5px;margin-top:2px}
+.wxh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.wxh h2{margin:0}
+.wxplace{font-size:21px;font-weight:800;letter-spacing:-.5px;padding:6px 12px;border-radius:14px;max-width:64%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.wxplace i{font-style:normal;font-size:13px;color:var(--sub);margin-left:2px}
+.wxbig{width:88px;height:88px;flex:none}
+.wi.wxs{width:42px;height:42px;margin:2px auto 4px}
+.wi{display:block;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 5px 4px rgba(0,0,0,.42))}
+.wi .a{transform-box:fill-box;transform-origin:center}
+.wi .rays{animation:wspin 20s linear infinite}
+.wi .pulse{animation:wpulse 3.4s ease-in-out infinite}
+.wi .fl{animation:wfl 5s ease-in-out infinite}
+.wi .fl2{animation:wfl 6.5s ease-in-out infinite reverse}
+.wi .dp{animation:wdrop 1.15s linear infinite;opacity:0}
+.wi .sn{animation:wsnow 2.6s linear infinite;opacity:0}
+.wi .bolt{animation:wbolt 2.8s ease-in-out infinite}
+.wi .fg{animation:wfog 4s ease-in-out infinite}
+.wi .tw{animation:wtw 2.4s ease-in-out infinite}
+@keyframes wspin{to{transform:rotate(360deg)}}
+@keyframes wpulse{50%{transform:scale(1.06)}}
+@keyframes wfl{50%{transform:translateX(5px)}}
+@keyframes wdrop{0%{transform:translateY(-4px);opacity:0}20%{opacity:1}100%{transform:translateY(20px);opacity:0}}
+@keyframes wsnow{0%{transform:translate(0,-4px);opacity:0}20%{opacity:1}50%{transform:translate(3px,8px)}100%{transform:translate(-2px,20px);opacity:0}}
+@keyframes wbolt{0%,55%,100%{opacity:.25}60%,70%{opacity:1}65%{opacity:.4}}
+@keyframes wfog{50%{transform:translateX(6px)}}
+@keyframes wtw{50%{opacity:.2}}
+.plov{position:fixed;inset:0;background:#000a;z-index:60;display:flex;align-items:flex-end;justify-content:center}
+.plbox{background:var(--panel);border:1px solid var(--line);border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:82vh;overflow:auto;padding:14px 14px calc(18px + env(safe-area-inset-bottom))}
+.plh{display:flex;align-items:center;justify-content:space-between;font-size:17px;margin-bottom:10px}
+#plf{display:flex;gap:8px}
+#plq{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:16px}
+.plit{display:block;width:100%;text-align:left;margin-top:8px;padding:11px 12px}
+.plit small{display:block;color:var(--sub);font-size:12px}
+.plch{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.plch button{padding:7px 12px;border-radius:99px;font-size:14px}
 .chip{display:inline-block;padding:3px 9px;border-radius:99px;font-size:12px;background:var(--panel2);margin:8px 6px 0 0}
 select{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:var(--text);font:inherit;color-scheme:dark}
 /* 설정 */
@@ -103,6 +136,17 @@ input[type=time]{background:var(--panel2);border:1px solid var(--line);border-ra
   <button data-t="set">알림 설정</button>
 </nav>
 <main id="main"></main>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<radialGradient id="gSun" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff9b8"/><stop offset=".45" stop-color="#ffd43b"/><stop offset="1" stop-color="#ff9500"/></radialGradient>
+<radialGradient id="gCl" cx=".4" cy=".2" r="1"><stop offset="0" stop-color="#fff"/><stop offset=".6" stop-color="#e8f0fa"/><stop offset="1" stop-color="#b4c4db"/></radialGradient>
+<radialGradient id="gCd" cx=".4" cy=".2" r="1"><stop offset="0" stop-color="#e3e8f1"/><stop offset=".6" stop-color="#a4b0c4"/><stop offset="1" stop-color="#6d7a90"/></radialGradient>
+<radialGradient id="gMoon" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#fffbe2"/><stop offset=".6" stop-color="#f1de8e"/><stop offset="1" stop-color="#c8a84a"/></radialGradient>
+<linearGradient id="gDrop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c4e8ff"/><stop offset="1" stop-color="#3a8be6"/></linearGradient>
+<linearGradient id="gBolt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff7a8"/><stop offset="1" stop-color="#ffaa00"/></linearGradient>
+<g id="cl"><rect x="20" y="56" width="66" height="21" rx="10.5" fill="url(#gCl)"/><circle cx="35" cy="58" r="16" fill="url(#gCl)"/><circle cx="54" cy="46" r="21" fill="url(#gCl)"/><circle cx="72" cy="57" r="15" fill="url(#gCl)"/><ellipse cx="54" cy="73" rx="28" ry="3.5" fill="#566782" opacity=".16"/></g>
+<g id="cld"><rect x="20" y="56" width="66" height="21" rx="10.5" fill="url(#gCd)"/><circle cx="35" cy="58" r="16" fill="url(#gCd)"/><circle cx="54" cy="46" r="21" fill="url(#gCd)"/><circle cx="72" cy="57" r="15" fill="url(#gCd)"/><ellipse cx="54" cy="73" rx="28" ry="3.5" fill="#2c3547" opacity=".22"/></g>
+</defs></svg>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -251,6 +295,43 @@ async function loadWeather(force, cb, noLoc) {
     lsSet(ck, JSON.stringify({ at: Date.now(), k: key, v })); cb(v);
   } catch (e) { cb(hit ? Object.assign({ stale: true }, hit.v) : null); }
 }
+/* ── 3D 느낌의 움직이는 날씨 아이콘 (SVG) ── */
+function wxKind(e, wf, night) {
+  e = e || ''; wf = wf || '';
+  let k = e.includes('☀') ? 'sun' : e.includes('🌤') || e.includes('⛅') ? 'partly' : e.includes('🌦') || e.includes('🌧') ? 'rain' : e.includes('🌨') ? 'sleet' : e.includes('❄') ? 'snow' : 'cloud';
+  if (/안개|박무/.test(wf)) k = 'fog'; if (/뇌우|천둥/.test(wf)) k = 'thunder';
+  if (night) { if (k === 'sun') k = 'moon'; else if (k === 'partly') k = 'moonc'; }
+  return k;
+}
+function sunG(cx, cy, sc) {
+  let r = ''; for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, c = Math.cos(a), s = Math.sin(a); r += '<line x1="' + (50 + 33 * c).toFixed(1) + '" y1="' + (50 + 33 * s).toFixed(1) + '" x2="' + (50 + 42 * c).toFixed(1) + '" y2="' + (50 + 42 * s).toFixed(1) + '"/>'; }
+  return '<g transform="translate(' + cx + ' ' + cy + ') scale(' + sc + ') translate(-50 -50)"><g class="a rays" stroke="#ffb52e" stroke-width="5.5" stroke-linecap="round">' + r + '</g><g class="a pulse"><circle cx="50" cy="50" r="23" fill="url(#gSun)"/><ellipse cx="42" cy="41" rx="9" ry="6" fill="#fff" opacity=".4" transform="rotate(-30 42 41)"/></g></g>';
+}
+function moonG(cx, cy, sc) {
+  return '<g transform="translate(' + cx + ' ' + cy + ') scale(' + sc + ') translate(-50 -50)"><circle cx="50" cy="50" r="26" fill="url(#gMoon)"/><circle cx="41" cy="44" r="5" fill="#c9a94a" opacity=".45"/><circle cx="58" cy="57" r="7" fill="#c9a94a" opacity=".4"/><circle cx="55" cy="38" r="3" fill="#c9a94a" opacity=".4"/><ellipse cx="40" cy="38" rx="9" ry="5" fill="#fff" opacity=".35" transform="rotate(-30 40 38)"/></g>' +
+    '<g fill="#fff"><circle class="a tw" cx="86" cy="22" r="2"/><circle class="a tw" style="animation-delay:.8s" cx="16" cy="30" r="1.6"/><circle class="a tw" style="animation-delay:1.5s" cx="80" cy="50" r="1.4"/></g>';
+}
+const drops = (xs, y) => xs.map((x, i) => '<ellipse class="a dp" style="animation-delay:' + (i * .38).toFixed(2) + 's" cx="' + x + '" cy="' + y + '" rx="2.6" ry="5.2" fill="url(#gDrop)"/>').join('');
+const flakes = (xs, y) => xs.map((x, i) => '<circle class="a sn" style="animation-delay:' + (i * .8).toFixed(2) + 's" cx="' + x + '" cy="' + y + '" r="3.2" fill="#fff" stroke="#bfe0ff" stroke-width="1"/>').join('');
+function wxIcon(kind, cls) {
+  let b;
+  switch (kind) {
+    case 'sun': b = sunG(50, 50, 1); break;
+    case 'moon': b = moonG(50, 50, 1); break;
+    case 'partly': b = sunG(37, 36, .78) + '<g class="a fl"><use href="#cl" transform="translate(9 11) scale(.84)"/></g>'; break;
+    case 'moonc': b = moonG(38, 36, .8) + '<g class="a fl"><use href="#cl" transform="translate(9 11) scale(.84)"/></g>'; break;
+    case 'rain': b = '<g class="a fl"><use href="#cld" transform="translate(0 -10)"/></g>' + drops([34, 52, 70], 74); break;
+    case 'snow': b = '<g class="a fl"><use href="#cld" transform="translate(0 -10)"/></g>' + flakes([34, 52, 70], 72); break;
+    case 'sleet': b = '<g class="a fl"><use href="#cld" transform="translate(0 -10)"/></g>' + drops([36, 68], 74) + flakes([52], 72); break;
+    case 'thunder': b = '<g class="a fl"><use href="#cld" transform="translate(0 -12)"/></g><polygon class="a bolt" points="55,58 41,82 51,82 45,98 65,72 54,72 62,58" fill="url(#gBolt)" stroke="#ffd04d" stroke-width="1" stroke-linejoin="round"/>'; break;
+    case 'fog': b = '<g class="a fl"><use href="#cl" transform="translate(0 -12)"/></g><g stroke="#cfdbec" stroke-width="5" stroke-linecap="round"><line class="a fg" x1="26" y1="70" x2="74" y2="70"/><line class="a fg" style="animation-delay:.9s" x1="34" y1="80" x2="82" y2="80"/><line class="a fg" style="animation-delay:1.7s" x1="24" y1="90" x2="66" y2="90"/></g>'; break;
+    default: b = '<g class="a fl2"><use href="#cld" transform="translate(14 -2) scale(.72)"/></g><g class="a fl"><use href="#cl" transform="translate(-4 8) scale(.96)"/></g>';
+  }
+  return '<svg class="wi ' + (cls || '') + '" viewBox="0 0 100 100" aria-hidden="true">' + b + '</svg>';
+}
+const isNight = h => h != null && (h >= 19 || h <= 6);
+function setPlace() { const e = $('wxName'); if (e) e.textContent = CFG.weather.name; }
+
 function wxLine(v) {   // 알림 대체 문구용 한 줄
   if (!v || !v.daily || !v.daily[0]) return '';
   const d = v.daily[0], n = v.now || {};
@@ -262,13 +343,52 @@ function wxHtml(v) {
   const d = v.daily, n = v.now || {}, rain = d[0].pop;
   const g10 = grade(v.pm10, [30, 80, 150]), g25 = grade(v.pm25, [15, 35, 75]);
   const days = ['오늘', '내일', '모레'];
-  const cell = k => !d[k] ? '' : '<div>' + days[k] + '<br>' + d[k].emoji + '<b>' + (d[k].partial ? '지금 ' + Math.round(n.temp) + '°' : Math.round(d[k].min) + '° / ' + Math.round(d[k].max) + '°') + '</b>☔ ' + (d[k].pop == null ? '-' : d[k].pop) + '%</div>';
-  return '<div class="wx"><div class="big">' + n.emoji + '</div><div><div class="t">' + (n.temp != null ? Math.round(n.temp) + '°' : '') + '</div><div class="d">' + (CFG.weather.mode === 'auto' && CFG.weather.located ? '📍 ' : '') + esc(v.name) + ' · ' + esc(n.wf || '') + (n.reh != null ? ' · 습도 ' + n.reh + '%' : '') + '</div></div></div>' +
+  const cell = k => !d[k] ? '' : '<div>' + days[k] + wxIcon(wxKind(d[k].emoji, d[k].wf), 'wxs') + '<b>' + (d[k].partial ? '지금 ' + Math.round(n.temp) + '°' : Math.round(d[k].min) + '° / ' + Math.round(d[k].max) + '°') + '</b>☔ ' + (d[k].pop == null ? '-' : d[k].pop) + '%</div>';
+  return '<div class="wx"><div class="wxbig">' + wxIcon(wxKind(n.emoji, n.wf, isNight(n.hour))) + '</div><div><div class="t">' + (n.temp != null ? Math.round(n.temp) + '°' : '') + '</div><div class="d">' + esc(n.wf || '') + (n.reh != null ? ' · 습도 ' + n.reh + '%' : '') + '</div></div></div>' +
     '<div class="wx-row">' + [0, 1, 2].map(cell).join('') + '</div>' +
     (g10 || g25 ? '<div>' + (g25 ? '<span class="chip">초미세먼지 ' + g25 + '</span>' : '') + (g10 ? '<span class="chip">미세먼지 ' + g10 + '</span>' : '') + '</div>' : '') +
-    (rain >= 60 ? '<div class="hint" style="margin-top:8px">☂️ 오늘 강수확률이 ' + rain + '%예요. 우산을 챙기세요.</div>' : '') +
-    '<div class="hint">' + (v.stale ? '네트워크가 불안정해 마지막으로 받은 예보예요 · ' : '') + '예보: 기상청 동네예보' + (g10 || g25 ? ' · 미세먼지는 대기질 모델 추정값(공식 측정값과 다를 수 있어요)' : '') + '</div>';
+    (rain >= 60 ? '<div class="hint" style="margin-top:8px">☂️ 오늘 강수확률이 ' + rain + '%예요. 우산을 챙기세요.</div>' : '');
 }
+
+/* ── 지역 검색 시트 ── */
+function placePick(n, la, lo) {
+  CFG.weather = Object.assign(CFG.weather, { mode: 'city', located: false, name: n, lat: +(+la).toFixed(3), lon: +(+lo).toFixed(3) }); save();
+  closePlace(); vBrief(false);
+}
+function closePlace() { const e = $('plsheet'); if (e) e.remove(); }
+async function placeSearch(q) {
+  const out = [], seen = new Set(), add = (n, s, la, lo) => { const k = (+la).toFixed(2) + ',' + (+lo).toFixed(2); if (seen.has(k) || !isFinite(la) || !isFinite(lo)) return; seen.add(k); out.push({ n, s, la, lo }); };
+  CITIES.forEach(c => { if (c[0].includes(q)) add(c[0], '', c[1], c[2]); });
+  let r = null;
+  try { r = await fetchJ(WFN + '?q=' + encodeURIComponent(q), 10000); } catch (e) {}
+  if (!r || !r.ok) { try { const j = await fetchJ('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&countrycodes=kr&accept-language=ko&q=' + encodeURIComponent(q), 9000);
+      r = { ok: true, items: j.map(x => { const p = String(x.display_name).split(', '); return { n: x.name || p[0], s: p.slice(1).reverse().filter(v => v !== '대한민국' && !/^\d+$/.test(v)).join(' '), la: +x.lat, lo: +x.lon }; }) }; } catch (e) {} }
+  if (r && r.ok) r.items.forEach(x => add(x.n, x.s, x.la, x.lo));
+  return { list: out, failed: !(r && r.ok) };
+}
+function openPlace() {
+  if ($('plsheet')) return;
+  const el = document.createElement('div'); el.id = 'plsheet'; el.className = 'plov';
+  el.innerHTML = '<div class="plbox"><div class="plh"><b>지역 변경</b><button class="x" id="plx" aria-label="닫기">✕</button></div><form id="plf"><input id="plq" type="search" placeholder="동네·지역 검색 (예: 신월동, 강남구)" autocomplete="off" enterkeyhint="search"><button class="primary" type="submit">검색</button></form>' +
+    '<button class="plit" id="plauto">📍 현재 위치 (자동)</button><div id="plres"></div><div class="plch">' + CITIES.map(c => '<button data-n="' + esc(c[0]) + '" data-la="' + c[1] + '" data-lo="' + c[2] + '">' + esc(c[0]) + '</button>').join('') + '</div></div>';
+  document.body.appendChild(el);
+  const res = el.querySelector('#plres');
+  el.addEventListener('click', e => {
+    const t = e.target;
+    if (t === el || t.id === 'plx') return closePlace();
+    if (t.id === 'plauto') { CFG.weather.mode = 'auto'; CFG.weather.located = false; save(); closePlace(); vBrief(true); return; }
+    const b = t.closest('[data-n]'); if (b) placePick(b.dataset.n, b.dataset.la, b.dataset.lo);
+  });
+  el.querySelector('#plf').addEventListener('submit', async e => {
+    e.preventDefault(); const q = el.querySelector('#plq').value.trim(); if (!q) return;
+    res.innerHTML = '<div class="empty" style="padding:12px"><span class="spin"></span>검색 중…</div>';
+    const r = await placeSearch(q);
+    res.innerHTML = r.list.length ? r.list.map(x => '<button class="plit" data-n="' + esc(x.n) + '" data-la="' + x.la + '" data-lo="' + x.lo + '">' + esc(x.n) + (x.s ? '<small>' + esc(x.s) + '</small>' : '') + '</button>').join('')
+      : '<div class="empty" style="padding:12px">' + (r.failed ? '검색에 실패했어요. 아래 주요 도시에서 골라 주세요.' : '검색 결과가 없어요.') + '</div>';
+  });
+  setTimeout(() => { const q = el.querySelector('#plq'); if (q) q.focus(); }, 50);
+}
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#wxPlace')) openPlace(); });
 
 /* ── 오늘 일정: 심스케줄(SIM Calendar·SIM Assistant) + 기기 달력(앱에서) ── */
 const sod = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
@@ -329,13 +449,14 @@ async function vBrief(force) {
   const en = CATS.filter(c => CFG.cats[c[0]]);                                    // 선택한 분야만 탭으로 표시
   const tabs = (en.length > 1 ? [['all', '전체']] : []).concat(en);
   if (!tabs.some(t => t[0] === S.cat)) S.cat = tabs.length ? tabs[0][0] : 'all';
-  main.innerHTML = (CFG.weather.on ? '<div class="card"><h2>🌤️ 오늘 날씨</h2><div id="wx"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
+  main.innerHTML = (CFG.weather.on ? '<div class="card"><div class="wxh"><h2>오늘 날씨</h2><button class="wxplace" id="wxPlace" aria-label="지역 변경">📍 <span id="wxName">' + esc(CFG.weather.name) + '</span> <i>▾</i></button></div><div id="wx"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
     (CFG.calSim || CFG.calDevice ? '<div class="card"><h2>📅 오늘 일정 <span style="color:var(--sub);font-weight:400;font-size:12.5px">' + esc(dt) + '</span></h2><div id="sch"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
     (tabs.length ? '<div class="seg" id="seg">' + tabs.map(t => '<button data-c="' + t[0] + '"' + (S.cat === t[0] ? ' class="on"' : '') + '>' + t[1] + '</button>').join('') + '</div><div id="news"><div class="empty"><span class="spin"></span>뉴스를 불러오는 중…</div></div>' :
       '<div class="empty">브리핑할 뉴스 분야가 선택되지 않았어요.<br>알림 설정에서 분야를 선택해 주세요.</div>');
   let sched = [], wxLineTxt = '';
   if (CFG.weather.on) loadWeather(force, (v, locFail) => {
     const warn = () => '<div class="hint warn locwarn" style="margin-top:6px">현재 위치를 확인하지 못해 기본 지역(' + esc(CFG.weather.name) + ') 기준이에요. 위치 권한을 허용해 주세요.</div>';
+    setPlace();
     if (locFail) { if (ok() && $('wx') && $('wx').querySelector('.wx') && !$('wx').querySelector('.locwarn')) $('wx').insertAdjacentHTML('beforeend', warn()); return; }
     wxLineTxt = wxLine(v);
     if (ok() && $('wx')) $('wx').innerHTML = (v ? wxHtml(v) : wxHtml(null)) + (v && LOC_FAIL && !CFG.weather.located ? warn() : '');

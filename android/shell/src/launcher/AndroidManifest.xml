@@ -22,6 +22,7 @@
         <package android:name="kr.simtools.scan" />
         <package android:name="kr.simtools.recipe" />
         <package android:name="kr.simtools.brief" />
+        <package android:name="kr.simtools.price" />
         <package android:name="kr.simtools.map" />
         <package android:name="kr.simtools.simpad" />
     </queries>

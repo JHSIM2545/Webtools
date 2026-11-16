@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#be123c"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- 바코드 카드 -->
+  <rect x="84" y="132" width="344" height="248" rx="34" fill="#fff"/>
+  <g fill="#1f2937">
+    <rect x="120" y="168" width="14" height="120"/>
+    <rect x="146" y="168" width="8" height="120"/><rect x="166" y="168" width="20" height="120"/>
+    <rect x="198" y="168" width="8" height="120"/><rect x="216" y="168" width="14" height="120"/>
+    <rect x="242" y="168" width="8" height="120"/><rect x="262" y="168" width="20" height="120"/>
+    <rect x="294" y="168" width="8" height="120"/><rect x="314" y="168" width="14" height="120"/>
+    <rect x="340" y="168" width="20" height="120"/><rect x="372" y="168" width="8" height="120"/>
+  </g>
+  <rect x="120" y="312" width="260" height="30" rx="15" fill="#fecdd3"/>
+  <!-- 가격 태그 -->
+  <path d="M356 70h92a30 30 0 0 1 30 30v92a30 30 0 0 1-8.8 21.2L394 306a30 30 0 0 1-42.4 0l-56-56a30 30 0 0 1 0-42.4L356 147z" fill="#fbbf24" stroke="#fff" stroke-width="10" transform="translate(-30 -6) scale(.92)"/>
+  <circle cx="424" cy="122" r="12" fill="#fff" transform="translate(-30 -6)"/>
+</svg>

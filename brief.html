@@ -136,6 +136,13 @@ main{max-width:960px;margin:0 auto;padding:12px 12px calc(40px + env(safe-area-i
 @keyframes wbob{50%{transform:translateY(-4px) rotate(1.5deg)}}
 @keyframes wflick{to{transform:scale(1.15,1.3)}}
 @keyframes wstm{0%{transform:translateY(4px);opacity:0}40%{opacity:.7}100%{transform:translateY(-8px);opacity:0}}
+.vbar{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.vbar b{font-size:16px}
+.kws{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.kw{display:inline-flex;align-items:center;gap:2px;padding:4px 4px 4px 12px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);font-size:14px}
+.kw .x{font-size:15px;padding:0 6px}
+.kwf{display:flex;gap:8px;margin-top:6px}
+.kwf input{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:15px}
 .chip{display:inline-block;padding:3px 9px;border-radius:99px;font-size:12px;background:var(--panel2);margin:8px 6px 0 0}
 select{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:var(--text);font:inherit;color-scheme:dark}
 /* 설정 */
@@ -164,12 +171,9 @@ input[type=time]{background:var(--panel2);border:1px solid var(--line);border-ra
   <a class="back" href="index.html" aria-label="런처로">‹</a>
   <h1>SIM <span>Brief</span></h1>
   <div class="spacer"></div>
-  <button class="sm" id="refresh" aria-label="새로고침">↻ 새로고침</button>
+  <button class="sm" id="refresh" aria-label="새로고침">↻</button>
+  <button class="sm" id="menuBtn" aria-label="메뉴">☰ 메뉴</button>
 </header>
-<nav class="tabs" id="tabs">
-  <button data-t="brief" class="on">브리핑</button>
-  <button data-t="set">알림 설정</button>
-</nav>
 <main id="main"></main>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
 <radialGradient id="gSun" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff9b8"/><stop offset=".45" stop-color="#ffd43b"/><stop offset="1" stop-color="#ff9500"/></radialGradient>
@@ -194,7 +198,7 @@ input[type=time]{background:var(--panel2);border:1px solid var(--line);border-ra
 'use strict';
 const FN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-news';
 const CATS = [['politics', '정치'], ['economy', '경제'], ['society', '사회'], ['culture', '문화'], ['sports', '스포츠']];
-const CAT_ICON = { politics: '🏛️', economy: '💹', society: '👥', culture: '🎭', sports: '⚽' };
+const CAT_ICON = { politics: '🏛️', economy: '💹', society: '👥', culture: '🎭', sports: '⚽', custom: '✨' };
 const NA = window.SimBrief || null;            // 안드로이드 앱(APK)에서만 있음
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -204,7 +208,7 @@ function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('sh
 
 /* ── 설정 (기기에 저장, 로그인 계정 동기화는 sync.js 가 처리) ── */
 const KEY = 'simbrief.v1';
-const DEF = { times: [{ t: '07:30', on: true }], sound: true, cats: { politics: true, economy: true, society: true, culture: true, sports: true }, calSim: true, calDevice: true, weather: { on: true, mode: 'auto', located: false, name: '서울', lat: 37.5665, lon: 126.978 }, fortune: { on: true, birth: '', g: 'M', time: '' } };
+const DEF = { times: [{ t: '07:30', on: true }], sound: true, cats: { politics: true, economy: true, society: true, culture: true, sports: true, custom: true }, kw: [], calSim: true, calDevice: true, weather: { on: true, mode: 'auto', located: false, name: '서울', lat: 37.5665, lon: 126.978 }, fortune: { on: true, birth: '', g: 'M', time: '' } };
 let CFG = (() => { try { const c = JSON.parse(lsGet(KEY) || 'null'); return c ? Object.assign({}, DEF, c, { cats: Object.assign({}, DEF.cats, c.cats || {}), weather: Object.assign({}, DEF.weather, c.weather || {}), fortune: Object.assign({}, DEF.fortune, c.fortune || {}) }) : JSON.parse(JSON.stringify(DEF)); } catch (e) { return JSON.parse(JSON.stringify(DEF)); } })();
 function save() {
   lsSet(KEY, JSON.stringify(CFG));
@@ -264,12 +268,13 @@ function chime() {
 const NEWS = {};   // cat -> {at, items}
 const ago = t => { if (!t) return ''; const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? '방금' : m < 60 ? m + '분 전' : m < 1440 ? Math.floor(m / 60) + '시간 전' : Math.floor(m / 1440) + '일 전'; };
 async function loadNews(cat, n, force) {
-  const ck = 'simbrief.c.' + cat + '.' + n;
+  const kws = (CFG.kw || []).join(',');
+  const ck = 'simbrief.c.' + cat + '.' + n + (cat === 'custom' ? '.' + kws : '');
   let hit = null; try { hit = JSON.parse(lsGet(ck) || 'null'); } catch (e) {}
   if (!force && hit && Date.now() - hit.at < 10 * 60000) return { items: hit.v, at: hit.at, cached: false };
   const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 30000);
   try {
-    const r = await fetch(FN + '?cat=' + cat + '&n=' + n, { signal: ctl.signal });
+    const r = await fetch(FN + (cat === 'custom' ? '?kw=' + encodeURIComponent(kws) : '?cat=' + cat) + '&n=' + n, { signal: ctl.signal });
     const j = await r.json(); if (!r.ok || !j.ok) throw new Error('fail');
     const out = cat === 'all' ? j.news : j.news[cat];
     lsSet(ck, JSON.stringify({ at: Date.now(), v: out }));
@@ -282,7 +287,7 @@ async function loadNews(cat, n, force) {
 function cardHtml(x, cat) {
   return '<a class="nc" href="' + esc(x.link) + '" target="_blank" rel="noopener noreferrer"><div class="ph">' + (CAT_ICON[cat] || '📰') +
     (x.img ? '<img src="' + esc(x.img) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : '') +
-    '</div><div class="tt">' + esc(x.title) + '</div><div class="mt">' + esc(x.src) + (x.at ? ' · ' + ago(x.at) : '') + '</div></a>';
+    '</div><div class="tt">' + esc(x.title) + '</div><div class="mt">' + (x.kw ? '#' + esc(x.kw) + ' · ' : '') + esc(x.src) + (x.at ? ' · ' + ago(x.at) : '') + '</div></a>';
 }
 
 /* ── 일기예보 (기상청 동네예보, 미세먼지는 대기질 모델 추정값) ── */
@@ -523,7 +528,7 @@ async function getFortune(force) {
 }
 async function renderFortune(force, ok) {
   const box = $('fz'); if (!box) return;
-  if (!CFG.fortune.birth) { box.innerHTML = '<div class="fzb"><div class="fzs">생년월일을 설정하면 오늘의 운세를 볼 수 있어요.</div></div><div class="fzgo" data-go="set">설정하러 가기 ›</div>'; FZV = null; return; }
+  if (!CFG.fortune.birth) { box.innerHTML = '<div class="fzb"><div class="fzs">생년월일을 설정하면 오늘의 운세를 볼 수 있어요.</div></div><div class="fzgo" data-go="fortune">설정하러 가기 ›</div>'; FZV = null; return; }
   try {
     const v = await getFortune(force); if (!ok() || !$('fz')) return; FZV = v;
     $('fz').innerHTML = '<div class="fzb">' + fzIcon(v.card.motif, 'fzic') + '<div class="fzs">' + esc(v.summary) + '</div></div>';
@@ -533,7 +538,7 @@ async function renderFortune(force, ok) {
 const FZ_ICON = { '총운': '🔮', '재물운': '💰', '애정운': '💗', '직장·학업운': '💼', '건강운': '🍀' };
 async function openFortune() {
   if ($('plsheet')) return;
-  if (!CFG.fortune.birth) { const t = document.querySelector('#tabs [data-t=set]'); if (t) t.click(); return; }
+  if (!CFG.fortune.birth) { goView('fortune'); return; }
   let v = FZV;
   if (!v) { try { toast('운세를 불러오는 중…'); v = await getFortune(true); FZV = v; } catch (e) { toast('운세를 불러오지 못했어요'); return; } }
   const dt = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' }), fa = v.facts || {};
@@ -548,7 +553,7 @@ async function openFortune() {
   el.addEventListener('click', e => { if (e.target === el || e.target.id === 'plx') closePlace(); });
 }
 document.addEventListener('click', e => {
-  const g = e.target.closest && e.target.closest('[data-go="set"]'); if (g) { e.stopPropagation(); const t = document.querySelector('#tabs [data-t=set]'); if (t) t.click(); return; }
+  const g = e.target.closest && e.target.closest('[data-go]'); if (g) { e.stopPropagation(); goView(g.dataset.go); return; }
   if (e.target.closest && e.target.closest('#fzCard')) openFortune();
 });
 
@@ -609,13 +614,15 @@ async function vBrief(force) {
   const my = ++seq, ok = () => my === seq && S.tab === 'brief';
   const dt = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
   const en = CATS.filter(c => CFG.cats[c[0]]);                                    // 선택한 분야만 탭으로 표시
-  const tabs = (en.length > 1 ? [['all', '전체']] : []).concat(en);
+  const wantCustom = !!CFG.cats.custom, hasKw = (CFG.kw || []).length > 0;
+  const tabs0 = (wantCustom ? [['custom', '맞춤']] : []).concat(en);
+  const tabs = (tabs0.length > 1 ? [['all', '전체']] : []).concat(tabs0);
   if (!tabs.some(t => t[0] === S.cat)) S.cat = tabs.length ? tabs[0][0] : 'all';
   main.innerHTML = (CFG.weather.on ? '<div class="card"><div class="wxh"><h2>오늘 날씨</h2><span class="wxr">' + (CFG.weather.mode !== 'auto' ? '<button class="wxhome" id="wxHome" aria-label="현재 위치로">⌖ 현재 위치</button>' : '') + '<button class="wxplace" id="wxPlace" aria-label="지역 변경">📍 <span id="wxName">' + esc(CFG.weather.name) + '</span> <i>▾</i></button></span></div><div id="wx"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
     (CFG.fortune.on ? '<div class="card fz" id="fzCard" role="button" tabindex="0"><div class="fzh"><h2>🔮 오늘의 운세</h2><span class="fzsc" id="fzScore"></span></div><div id="fz"><div class="empty" style="padding:10px"><span class="spin"></span>운세를 보는 중…</div></div></div>' : '') +
     (CFG.calSim || CFG.calDevice ? '<div class="card"><h2>📅 오늘 일정 <span style="color:var(--sub);font-weight:400;font-size:12.5px">' + esc(dt) + '</span></h2><div id="sch"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
     (tabs.length ? '<div class="seg" id="seg">' + tabs.map(t => '<button data-c="' + t[0] + '"' + (S.cat === t[0] ? ' class="on"' : '') + '>' + t[1] + '</button>').join('') + '</div><div id="news"><div class="empty"><span class="spin"></span>뉴스를 불러오는 중…</div></div>' :
-      '<div class="empty">브리핑할 뉴스 분야가 선택되지 않았어요.<br>알림 설정에서 분야를 선택해 주세요.</div>');
+      '<div class="empty">브리핑할 뉴스 분야가 선택되지 않았어요.<br><button class="sm" data-go="news">뉴스 설정 열기</button></div>');
   let sched = [], wxLineTxt = '';
   if (CFG.weather.on) loadWeather(force, (v, locFail) => {
     const warn = () => '<div class="hint warn locwarn" style="margin-top:6px">현재 위치를 확인하지 못해 기본 지역(' + esc(CFG.weather.name) + ') 기준이에요. ' + locWhy() + '</div>';
@@ -629,11 +636,16 @@ async function vBrief(force) {
   if (CFG.calSim || CFG.calDevice) todaySchedule().then(l => { sched = l; if (ok() && $('sch')) $('sch').innerHTML = schedHtml(l); pushCache(); });
   if (!tabs.length) return;
   try {
-    const r = await loadNews(S.cat, S.cat === 'all' ? 6 : 16, force); if (!ok()) return;
+    if (S.cat === 'custom' && !hasKw) { $('news').innerHTML = '<div class="empty">관심 키워드를 추가하면 최근 24시간 안의 새 뉴스를 모아 보여줘요.<br><button class="sm" style="margin-top:10px" data-go="news">키워드 추가하기</button></div>'; return; }
+    const useC = S.cat === 'all' && wantCustom && hasKw;
+    const [r, rc] = await Promise.all([S.cat === 'all' ? (en.length ? loadNews('all', 6, force) : Promise.resolve({ items: {} })) : loadNews(S.cat, 16, force), useC ? loadNews('custom', 6, force).catch(() => null) : null]);
+    if (!ok()) return;
     let h = '', note = r.cached ? '<div class="hint warn" style="margin:0 2px 8px">네트워크가 불안정해 마지막으로 받은 뉴스를 보여줘요 (' + ago(r.at) + ')</div>' : '';
     if (S.cat === 'all') {
+      if (rc && rc.items && rc.items.length) { NEWS.custom = rc.items; h += '<div class="sec-h">✨ 맞춤</div><div class="grid">' + rc.items.map(x => cardHtml(x, 'custom')).join('') + '</div>'; }
       en.forEach(c => { const a = (r.items && r.items[c[0]]) || []; if (!a.length) return; NEWS[c[0]] = a; h += '<div class="sec-h">' + CAT_ICON[c[0]] + ' ' + c[1] + '</div><div class="grid">' + a.map(x => cardHtml(x, c[0])).join('') + '</div>'; });
     } else { NEWS[S.cat] = r.items; h = '<div class="grid">' + (r.items || []).map(x => cardHtml(x, S.cat)).join('') + '</div>'; }
+    if (S.cat === 'custom' && !(r.items || []).length) h = '<div class="empty">최근 24시간 안에 올라온 기사가 없어요.</div>';
     $('news').innerHTML = note + (h || '<div class="empty">표시할 뉴스가 없어요</div>');
     pushCache();
   } catch (e) {
@@ -648,38 +660,46 @@ async function vBrief(force) {
 
 /* ── 화면: 알림 설정 ── */
 const sw = on => '<button class="sw' + (on ? ' on' : '') + '" role="switch" aria-checked="' + !!on + '"></button>';
-async function vSet() {
+async function vSet(kind) {
+  kind = kind || (S.tab === 'brief' ? 'alarm' : S.tab);
   const apk = !!NA;
   const nat = apk ? { notif: safe(() => NA.hasNotif()), exact: safe(() => NA.canExact()), cal: safe(() => NA.hasCalendar()) } : null;
   function safe(f) { try { return !!f(); } catch (e) { return false; } }
   const wn = !apk && 'Notification' in window ? Notification.permission : null;
-  main.innerHTML =
-    '<div class="card"><h2>⏰ 브리핑 시간</h2><div id="times">' + CFG.times.map((x, i) => '<div class="set" data-i="' + i + '"><input type="time" value="' + esc(x.t) + '" data-a="t">' + '<div class="tx"></div>' + sw(x.on).replace('class="sw', 'data-a="on" class="sw') + '<button class="x" data-a="del" aria-label="삭제">✕</button></div>').join('') + '</div>' +
+  const C = {
+    times: (    '<div class="card"><h2>⏰ 브리핑 시간</h2><div id="times">' + CFG.times.map((x, i) => '<div class="set" data-i="' + i + '"><input type="time" value="' + esc(x.t) + '" data-a="t">' + '<div class="tx"></div>' + sw(x.on).replace('class="sw', 'data-a="on" class="sw') + '<button class="x" data-a="del" aria-label="삭제">✕</button></div>').join('') + '</div>' +
     '<button class="sm" id="addT" style="margin-top:8px">＋ 시간 추가</button>' +
-    '<div class="hint">정한 시간에 알림창으로 주요 뉴스·일정을 알려드려요. 알림을 누르면 이 앱이 열려 카드 뉴스로 들어와요.</div></div>' +
-    '<div class="card"><h2>🔔 알림음</h2><div class="set"><div class="tx"><b>알림음 켜기</b><small>끄면 무음 알림</small></div>' + sw(CFG.sound).replace('class="sw', 'data-a="snd" class="sw') + '</div>' +
+    '<div class="hint">정한 시간에 알림창으로 주요 뉴스·일정을 알려드려요. 알림을 누르면 이 앱이 열려 카드 뉴스로 들어와요.</div></div>'),
+    sound: (    '<div class="card"><h2>🔔 알림음</h2><div class="set"><div class="tx"><b>알림음 켜기</b><small>끄면 무음 알림</small></div>' + sw(CFG.sound).replace('class="sw', 'data-a="snd" class="sw') + '</div>' +
     '<div class="hint" style="margin:6px 0 4px">소리를 고르면 바로 들려줘요</div>' +
-    SOUNDS.filter(x => x[0] !== 'voice' || hasVoice()).map(x => '<div class="set" data-sid="' + x[0] + '" style="cursor:pointer"><div class="tx"><b>' + x[1] + '</b><small>' + x[2] + '</small></div><span style="font-size:20px;color:var(--accent)">' + (curSound() === x[0] ? '●' : '○') + '</span></div>').join('') + '<div class="hint" id="smsg"></div></div>' +
-    '<div class="card"><h2>📰 브리핑 분야</h2>' + CATS.map(c => '<div class="set"><div class="tx"><b>' + CAT_ICON[c[0]] + ' ' + c[1] + '</b></div>' + sw(CFG.cats[c[0]]).replace('class="sw', 'data-a="cat" data-k="' + c[0] + '" class="sw') + '</div>').join('') +
-    '<div class="set"><div class="tx"><b>📅 심스케줄</b><small>SIM Calendar·SIM Assistant 일정</small></div>' + sw(CFG.calSim).replace('class="sw', 'data-a="cs" class="sw') + '</div>' +
-    '<div class="set"><div class="tx"><b>📱 기기 달력</b><small>' + (apk ? (nat.cal ? '폰 달력 연동됨' : '켜면 달력 읽기 권한을 요청해요') : '안드로이드 앱(APK)에서 쓸 수 있어요') + '</small></div>' + sw(CFG.calDevice && apk).replace('class="sw', 'data-a="cd" ' + (apk ? '' : 'disabled ') + 'class="sw') + '</div></div>' +
-    '<div class="card"><h2>🔮 오늘의 운세</h2><div class="set"><div class="tx"><b>브리핑에 운세 넣기</b></div>' + sw(CFG.fortune.on).replace('class="sw', 'data-a="fz" class="sw') + '</div>' +
+    SOUNDS.filter(x => x[0] !== 'voice' || hasVoice()).map(x => '<div class="set" data-sid="' + x[0] + '" style="cursor:pointer"><div class="tx"><b>' + x[1] + '</b><small>' + x[2] + '</small></div><span style="font-size:20px;color:var(--accent)">' + (curSound() === x[0] ? '●' : '○') + '</span></div>').join('') + '<div class="hint" id="smsg"></div></div>'),
+    cats: ('<div class="card"><h2>📰 브리핑 분야</h2>' + CATS.map(c => '<div class="set"><div class="tx"><b>' + CAT_ICON[c[0]] + ' ' + c[1] + '</b></div>' + sw(CFG.cats[c[0]]).replace('class="sw', 'data-a="cat" data-k="' + c[0] + '" class="sw') + '</div>').join('') + '</div>'),
+    kw: ('<div class="card"><h2>✨ 맞춤 뉴스</h2><div class="set"><div class="tx"><b>맞춤 뉴스 보기</b><small>키워드별 최근 24시간 뉴스만 모아요</small></div>' + sw(CFG.cats.custom).replace('class="sw', 'data-a="cat" data-k="custom" class="sw') + '</div>' +
+      '<div class="kws">' + (CFG.kw || []).map((k, i) => '<span class="kw">' + esc(k) + '<button class="x" data-a="kwdel" data-k="' + i + '" aria-label="삭제">✕</button></span>').join('') + '</div>' +
+      ((CFG.kw || []).length < 5 ? '<form id="kwf" class="kwf"><input id="kwIn" type="text" maxlength="24" placeholder="키워드 입력 (예: 삼성전자, 부동산)" autocomplete="off" enterkeyhint="done"><button class="primary" type="submit">추가</button></form>' : '<div class="hint">키워드는 최대 5개예요.</div>') + '</div>'),
+    sched: ('<div class="card"><h2>📅 브리핑 일정</h2>' + '<div class="set"><div class="tx"><b>📅 심스케줄</b><small>SIM Calendar·SIM Assistant 일정</small></div>' + sw(CFG.calSim).replace('class="sw', 'data-a="cs" class="sw') + '</div>' +
+    '<div class="set"><div class="tx"><b>📱 기기 달력</b><small>' + (apk ? (nat.cal ? '폰 달력 연동됨' : '켜면 달력 읽기 권한을 요청해요') : '안드로이드 앱(APK)에서 쓸 수 있어요') + '</small></div>' + sw(CFG.calDevice && apk).replace('class="sw', 'data-a="cd" ' + (apk ? '' : 'disabled ') + 'class="sw') + '</div></div>'),
+    fz: (    '<div class="card"><h2>🔮 오늘의 운세</h2><div class="set"><div class="tx"><b>브리핑에 운세 넣기</b></div>' + sw(CFG.fortune.on).replace('class="sw', 'data-a="fz" class="sw') + '</div>' +
     '<div class="set"><div class="tx"><b>생년월일</b><small>양력 기준</small></div><input type="date" id="fBirth" value="' + esc(CFG.fortune.birth) + '" max="' + new Date().toLocaleDateString('sv-SE') + '" style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color-scheme:dark;font-size:15px"></div>' +
     '<div class="set"><div class="tx"><b>성별</b></div><select id="fG"><option value="M"' + (CFG.fortune.g === 'M' ? ' selected' : '') + '>남성</option><option value="F"' + (CFG.fortune.g === 'F' ? ' selected' : '') + '>여성</option></select></div>' +
-    '<div class="set"><div class="tx"><b>태어난 시간</b><small>' + (CFG.fortune.time ? '' : '모름') + '</small></div><input type="time" id="fTime" value="' + esc(CFG.fortune.time) + '">' + (CFG.fortune.time ? '<button class="x" id="fTimeClr" aria-label="시간 지우기">✕</button>' : '') + '</div></div>' +
-    '<div class="card"><h2>🌤️ 일기예보</h2><div class="set"><div class="tx"><b>브리핑에 일기예보 넣기</b><small>알림과 브리핑 화면에 오늘 날씨·미세먼지 표시</small></div>' + sw(CFG.weather.on).replace('class="sw', 'data-a="wx" class="sw') + '</div>' +
+    '<div class="set"><div class="tx"><b>태어난 시간</b><small>' + (CFG.fortune.time ? '' : '모름') + '</small></div><input type="time" id="fTime" value="' + esc(CFG.fortune.time) + '">' + (CFG.fortune.time ? '<button class="x" id="fTimeClr" aria-label="시간 지우기">✕</button>' : '') + '</div></div>'),
+    wx: (    '<div class="card"><h2>🌤️ 일기예보</h2><div class="set"><div class="tx"><b>브리핑에 일기예보 넣기</b><small>알림과 브리핑 화면에 오늘 날씨·미세먼지 표시</small></div>' + sw(CFG.weather.on).replace('class="sw', 'data-a="wx" class="sw') + '</div>' +
     '<div class="set"><div class="tx"><b>지역</b><small>' + (CFG.weather.mode === 'auto' ? (CFG.weather.located ? '📍 ' + esc(CFG.weather.name) + ' (지금 있는 곳 자동)' : '지금 있는 곳 자동 (위치 확인 전)') : esc(CFG.weather.name)) + '</small></div><select id="wxCity"><option value="__auto"' + (CFG.weather.mode === 'auto' ? ' selected' : '') + '>📍 현재 위치 (자동)</option>' + CITIES.map(c => '<option value="' + c[0] + '"' + (CFG.weather.mode !== 'auto' && CFG.weather.name === c[0] ? ' selected' : '') + '>' + c[0] + '</option>').join('') + '</select></div>' +
-    '<button class="sm" id="wxLoc" style="margin-top:6px">📍 지금 있는 곳으로 다시 맞추기</button></div>' +
-    '<div class="card"><h2>🧪 알림 확인</h2>' +
+    '<button class="sm" id="wxLoc" style="margin-top:6px">📍 지금 있는 곳으로 다시 맞추기</button></div>'),
+    test: (    '<div class="card"><h2>🧪 알림 확인</h2>' +
     (apk ? '<div class="set"><div class="tx"><b>알림 권한</b><small>' + (nat.notif ? '허용됨' : '꺼져 있어요') + '</small></div>' + (nat.notif ? '' : '<button class="sm" id="reqN">허용</button>') + '</div>' +
       '<div class="set"><div class="tx"><b>정확한 시각 알람</b><small>' + (nat.exact ? '허용됨' : '꺼져 있으면 알림이 몇 분 늦을 수 있어요 — "알람 및 리마인더" 허용') + '</small></div>' + (nat.exact ? '' : '<button class="sm" id="reqE">설정 열기</button>') + '</div>' :
       '<div class="set"><div class="tx"><b>브라우저 알림</b><small>' + (wn === 'granted' ? '허용됨' : wn === 'denied' ? '차단됨 — 브라우저 설정에서 허용해 주세요' : wn ? '아직 허용 전' : '이 브라우저는 알림을 지원하지 않아요') + '</small></div>' + (wn === 'default' ? '<button class="sm" id="reqW">허용</button>' : '') + '</div>') +
     '<button class="primary" id="test" style="width:100%;margin-top:10px">지금 브리핑 알림 테스트</button>' +
-    '<div class="hint ' + (apk ? '' : 'warn') + '">' + (apk ? '앱을 꺼 두어도 정한 시간에 알림이 와요. 폰 절전 설정이 앱을 제한하면 알림이 안 올 수 있으니 SIM Brief를 "제한 없음"으로 두세요.' : '웹 브라우저에서는 이 화면이 열려 있는 동안만 정시 알림이 와요. 앱을 꺼 둬도 알림을 받으려면 런처에서 SIM Brief 앱(APK)을 설치해 주세요.') + '</div></div>';
-  setTimeout(showDiag, 50);
+    '<div class="hint ' + (apk ? '' : 'warn') + '">' + (apk ? '앱을 꺼 두어도 정한 시간에 알림이 와요. 폰 절전 설정이 앱을 제한하면 알림이 안 올 수 있으니 SIM Brief를 "제한 없음"으로 두세요.' : '웹 브라우저에서는 이 화면이 열려 있는 동안만 정시 알림이 와요. 앱을 꺼 둬도 알림을 받으려면 런처에서 SIM Brief 앱(APK)을 설치해 주세요.') + '</div></div>'),
+  };
+  const TT = { news: '📰 뉴스 설정', fortune: '🔮 운세 설정', alarm: '🔔 알림 설정' };
+  main.innerHTML = '<div class="vbar"><button class="sm" id="toBrief">‹ 브리핑</button><b>' + (TT[kind] || '') + '</b></div>' +
+    (kind === 'news' ? C.cats + C.kw : kind === 'fortune' ? C.fz : C.times + C.sound + C.sched + C.wx + C.test);
+  if (kind === 'alarm') setTimeout(showDiag, 50);
 }
 main.addEventListener('click', async e => {
-  const sr = S.tab === 'set' && e.target.closest('[data-sid]');
+  const sr = S.tab === 'alarm' && e.target.closest('[data-sid]');
   if (sr) { CFG.soundId = sr.dataset.sid; save(); vSet(); playSound(CFG.soundId); return; }
   const t = e.target.closest('button'); if (!t) return;
   if (S.tab === 'brief') { if (t.dataset.c) { S.cat = t.dataset.c; vBrief(); } return; }
@@ -688,6 +708,8 @@ main.addEventListener('click', async e => {
   if (a === 'del' && row) { CFG.times.splice(+row.dataset.i, 1); save(); vSet(); return; }
   if (a === 'on' && row) { const x = CFG.times[+row.dataset.i]; x.on = !x.on; save(); vSet(); return; }
   if (a === 'snd') { CFG.sound = !CFG.sound; save(); vSet(); if (CFG.sound) playSound(curSound()); return; }
+  if (t.id === 'toBrief') { goView('brief'); return; }
+  if (a === 'kwdel') { CFG.kw.splice(+t.dataset.k, 1); save(); vSet(); return; }
   if (a === 'cat') { CFG.cats[t.dataset.k] = !CFG.cats[t.dataset.k]; save(); vSet(); return; }
   if (a === 'fz') { CFG.fortune.on = !CFG.fortune.on; save(); vSet(); return; }
   if (t.id === 'fTimeClr') { CFG.fortune.time = ''; save(); vSet(); return; }
@@ -711,6 +733,14 @@ main.addEventListener('click', async e => {
     if (CFG.sound) playSound(curSound());
     await webNotify('테스트');
   }
+});
+main.addEventListener('submit', e => {
+  if (e.target.id !== 'kwf') return; e.preventDefault();
+  const i = $('kwIn'), v = (i.value || '').trim().replace(/[,#]/g, ' ').replace(/\s+/g, ' ').slice(0, 24);
+  if (!v) return; CFG.kw = CFG.kw || [];
+  if (CFG.kw.includes(v)) { toast('이미 있는 키워드예요'); return; }
+  if (CFG.kw.length >= 5) { toast('키워드는 최대 5개예요'); return; }
+  CFG.kw.push(v); save(); vSet();
 });
 main.addEventListener('change', e => {
   const t = e.target;
@@ -744,11 +774,19 @@ if (!NA) setInterval(() => {
   CFG.times.forEach(x => { if (x.on && x.t === cur && lsGet('simbrief.last.' + x.t) !== day) { lsSet('simbrief.last.' + x.t, day); if (CFG.sound) playSound(curSound()); webNotify(x.t); } });
 }, 20000);
 
-/* ── 탭·새로고침 ── */
-$('tabs').addEventListener('click', e => { const b = e.target.closest('button[data-t]'); if (!b) return; S.tab = b.dataset.t; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); render(); });
+/* ── 메뉴·새로고침 ── */
+function goView(v) { S.tab = v || 'brief'; seq++; render(); window.scrollTo(0, 0); }
+$('menuBtn').addEventListener('click', () => {
+  if ($('plsheet')) return;
+  const el = document.createElement('div'); el.id = 'plsheet'; el.className = 'plov';
+  el.innerHTML = '<div class="plbox"><div class="plh"><b>메뉴</b><button class="x" id="plx" aria-label="닫기">✕</button></div>' +
+    '<button class="plit" data-v="brief">🏠 브리핑</button><button class="plit" data-v="news">📰 뉴스 설정</button><button class="plit" data-v="fortune">🔮 운세 설정</button><button class="plit" data-v="alarm">🔔 알림 설정</button></div>';
+  document.body.appendChild(el);
+  el.addEventListener('click', ev => { const b = ev.target.closest('[data-v]'); if (b) { closePlace(); goView(b.dataset.v); return; } if (ev.target === el || ev.target.id === 'plx') closePlace(); });
+});
 $('refresh').addEventListener('click', () => { if (S.tab === 'brief') vBrief(true); else vSet(); });
 function render() { seq++; S.tab === 'brief' ? vBrief() : vSet(); }
-document.addEventListener('visibilitychange', () => { if (!document.hidden && S.tab === 'set') vSet(); });   // 권한 설정을 하고 돌아오면 상태 갱신
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.tab !== 'brief') vSet(); });   // 권한 설정을 하고 돌아오면 상태 갱신
 save();      // 앱에서는 열 때마다 알람을 다시 맞춘다
 render();
 </script>

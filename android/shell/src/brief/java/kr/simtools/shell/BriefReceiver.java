@@ -184,24 +184,26 @@ public final class BriefReceiver extends BroadcastReceiver {
         return new String[]{"🌡️", "날씨"};
     }
 
-    /** 오늘 예보 한 줄 (Open-Meteo). 실패하면 null → 화면이 저장해 둔 문구를 쓴다 */
+    /** 오늘 예보 한 줄 (기상청 동네예보, brief-weather 경유). 실패하면 null → 화면이 저장해 둔 문구를 쓴다 */
     private static String fetchWeather(JSONObject w) {
         HttpURLConnection h = null;
         try {
-            String u = "https://api.open-meteo.com/v1/forecast?latitude=" + w.optDouble("lat") + "&longitude=" + w.optDouble("lon")
-                    + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FSeoul&forecast_days=1";
+            String u = "https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-weather?lat=" + w.optDouble("lat") + "&lon=" + w.optDouble("lon")
+                    + "&name=" + java.net.URLEncoder.encode(w.optString("name", ""), "UTF-8");
             h = (HttpURLConnection) new URL(u).openConnection();
-            h.setConnectTimeout(3500); h.setReadTimeout(3500);
+            h.setConnectTimeout(5000); h.setReadTimeout(8000);
             if (h.getResponseCode() != 200) return null;
             InputStream is = h.getInputStream();
             ByteArrayOutputStream bo = new ByteArrayOutputStream();
             byte[] buf = new byte[4096]; int n;
             while ((n = is.read(buf)) > 0) bo.write(buf, 0, n);
-            JSONObject d = new JSONObject(bo.toString("UTF-8")).getJSONObject("daily");
-            String[] i = wxInfo(d.getJSONArray("weather_code").getInt(0));
-            String rain = d.getJSONArray("precipitation_probability_max").isNull(0) ? "-" : String.valueOf(d.getJSONArray("precipitation_probability_max").getInt(0));
-            return i[0] + " " + w.optString("name", "") + " " + i[1] + " · " + Math.round(d.getJSONArray("temperature_2m_min").getDouble(0)) + "°/"
-                    + Math.round(d.getJSONArray("temperature_2m_max").getDouble(0)) + "° · 강수 " + rain + "%";
+            JSONObject j = new JSONObject(bo.toString("UTF-8"));
+            if (!j.optBoolean("ok")) return null;
+            JSONObject d = j.getJSONArray("daily").getJSONObject(0);
+            String t = d.optBoolean("partial") || d.isNull("min") || d.isNull("max")
+                    ? "지금 " + Math.round(j.getJSONObject("now").getDouble("temp")) + "°"
+                    : Math.round(d.getDouble("min")) + "°/" + Math.round(d.getDouble("max")) + "°";
+            return d.optString("emoji") + " " + w.optString("name", "") + " " + d.optString("wf") + " · " + t + " · 강수 " + (d.isNull("pop") ? "-" : String.valueOf(d.getInt("pop"))) + "%";
         } catch (Exception e) { return null; }
         finally { if (h != null) h.disconnect(); }
     }

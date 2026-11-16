@@ -200,7 +200,7 @@ function cardHtml(x, cat) {
     '</div><div class="tt">' + esc(x.title) + '</div><div class="mt">' + esc(x.src) + (x.at ? ' · ' + ago(x.at) : '') + '</div></a>';
 }
 
-/* ── 일기예보 (Open-Meteo: 키 없이 쓰는 공개 예보, 미세먼지는 대기질 모델 추정값) ── */
+/* ── 일기예보 (기상청 동네예보, 미세먼지는 대기질 모델 추정값) ── */
 const CITIES = [['서울', 37.5665, 126.978], ['인천', 37.4563, 126.7052], ['수원', 37.2636, 127.0286], ['춘천', 37.8813, 127.7298], ['강릉', 37.7519, 128.8761], ['대전', 36.3504, 127.3845], ['세종', 36.48, 127.289], ['청주', 36.6424, 127.489], ['전주', 35.8242, 127.148], ['광주', 35.1595, 126.8526], ['대구', 35.8714, 128.6014], ['포항', 36.019, 129.3435], ['울산', 35.5384, 129.3114], ['부산', 35.1796, 129.0756], ['창원', 35.2279, 128.6811], ['제주', 33.4996, 126.5312]];
 function wxInfo(c) {
   if (c === 0) return ['☀️', '맑음']; if (c === 1) return ['🌤️', '대체로 맑음']; if (c === 2) return ['⛅', '구름 조금']; if (c === 3) return ['☁️', '흐림'];
@@ -234,43 +234,40 @@ function fetchJ(url, ms) {
   const c = new AbortController(), t = setTimeout(() => c.abort(), ms);
   return fetch(url, { signal: c.signal }).then(r => r.ok ? r.json() : Promise.reject(new Error('http'))).finally(() => clearTimeout(t));
 }
-// 저장해 둔 예보를 먼저 보여주고, 새 예보가 오면 바로 갱신한다. 미세먼지(느린 서버)는 따로 받아 나중에 덧붙인다.
+// 기상청 동네예보(brief-weather 경유). 저장해 둔 예보를 먼저 보여주고, 새 예보가 오면 바로 갱신한다.
+const WFN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-weather';
 async function loadWeather(force, cb, noLoc) {
   const auto = !noLoc && CFG.weather.mode === 'auto';
   if (auto && !CFG.weather.located) await refreshLocation(force);          // 처음엔 위치부터 확인 (엉뚱한 지역 예보를 먼저 보여주지 않게)
   else if (auto) refreshLocation(force).then(ch => { if (ch) loadWeather(true, cb, true); else if (LOC_FAIL) cb(null, true); });
-  const w = CFG.weather, ck = 'simbrief.w', key = w.lat + ',' + w.lon;
+  const w = CFG.weather, ck = 'simbrief.w2', key = w.lat + ',' + w.lon;
   let hit = null; try { hit = JSON.parse(lsGet(ck) || 'null'); } catch (e) {}
   if (hit && hit.k !== key) hit = null;
   if (hit) cb(hit.v);
-  if (hit && !force && Date.now() - hit.at < 30 * 60000) return;
-  const q = '?latitude=' + w.lat + '&longitude=' + w.lon + '&timezone=Asia%2FSeoul';
-  let v;
+  if (hit && !force && Date.now() - hit.at < 20 * 60000) return;
   try {
-    const f = await fetchJ('https://api.open-meteo.com/v1/forecast' + q + '&current=temperature_2m,apparent_temperature,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=3', 9000);
-    v = { name: w.name, cur: f.current, daily: f.daily, pm10: hit ? hit.v.pm10 : null, pm25: hit ? hit.v.pm25 : null };
+    const v = await fetchJ(WFN + '?lat=' + w.lat + '&lon=' + w.lon + '&name=' + encodeURIComponent(w.name || ''), 15000);
+    if (!v || !v.ok) throw new Error('wx');
     lsSet(ck, JSON.stringify({ at: Date.now(), k: key, v })); cb(v);
-  } catch (e) { cb(hit ? Object.assign({ stale: true }, hit.v) : null); return; }
-  try {
-    const a = await fetchJ('https://air-quality-api.open-meteo.com/v1/air-quality' + q + '&current=pm10,pm2_5', 12000);
-    if (a && a.current) { v.pm10 = a.current.pm10; v.pm25 = a.current.pm2_5; lsSet(ck, JSON.stringify({ at: Date.now(), k: key, v })); cb(v); }
-  } catch (e) { /* 미세먼지만 못 받아도 예보는 그대로 */ }
+  } catch (e) { cb(hit ? Object.assign({ stale: true }, hit.v) : null); }
 }
 function wxLine(v) {   // 알림 대체 문구용 한 줄
-  if (!v || !v.daily) return '';
-  const i = wxInfo(v.daily.weather_code[0]);
-  return i[0] + ' ' + v.name + ' ' + i[1] + ' · ' + Math.round(v.daily.temperature_2m_min[0]) + '°/' + Math.round(v.daily.temperature_2m_max[0]) + '° · 강수 ' + (v.daily.precipitation_probability_max[0] == null ? '-' : v.daily.precipitation_probability_max[0]) + '%';
+  if (!v || !v.daily || !v.daily[0]) return '';
+  const d = v.daily[0], n = v.now || {};
+  const t = d.partial ? '지금 ' + Math.round(n.temp) + '°' : Math.round(d.min) + '°/' + Math.round(d.max) + '°';
+  return d.emoji + ' ' + v.name + ' ' + d.wf + ' · ' + t + ' · 강수 ' + (d.pop == null ? '-' : d.pop) + '%';
 }
 function wxHtml(v) {
-  if (!v || !v.daily) return '<div class="empty" style="padding:12px">일기예보를 가져오지 못했어요.<br>인터넷 연결을 확인하고 새로고침해 주세요.</div>';
-  const d = v.daily, c = v.cur, i = wxInfo(c ? c.weather_code : d.weather_code[0]), rain = d.precipitation_probability_max[0];
+  if (!v || !v.daily || !v.daily[0]) return '<div class="empty" style="padding:12px">일기예보를 가져오지 못했어요.<br>잠시 후 새로고침해 주세요.</div>';
+  const d = v.daily, n = v.now || {}, rain = d[0].pop;
   const g10 = grade(v.pm10, [30, 80, 150]), g25 = grade(v.pm25, [15, 35, 75]);
   const days = ['오늘', '내일', '모레'];
-  return '<div class="wx"><div class="big">' + i[0] + '</div><div><div class="t">' + (c ? Math.round(c.temperature_2m) + '°' : '') + '</div><div class="d">' + (CFG.weather.mode === 'auto' && CFG.weather.located ? '📍 ' : '') + esc(v.name) + ' · ' + i[1] + (c ? ' · 체감 ' + Math.round(c.apparent_temperature) + '°' : '') + '</div></div></div>' +
-    '<div class="wx-row">' + [0, 1, 2].map(k => '<div>' + days[k] + '<br>' + wxInfo(d.weather_code[k])[0] + '<b>' + Math.round(d.temperature_2m_min[k]) + '° / ' + Math.round(d.temperature_2m_max[k]) + '°</b>☔ ' + (d.precipitation_probability_max[k] == null ? '-' : d.precipitation_probability_max[k]) + '%</div>').join('') + '</div>' +
+  const cell = k => !d[k] ? '' : '<div>' + days[k] + '<br>' + d[k].emoji + '<b>' + (d[k].partial ? '지금 ' + Math.round(n.temp) + '°' : Math.round(d[k].min) + '° / ' + Math.round(d[k].max) + '°') + '</b>☔ ' + (d[k].pop == null ? '-' : d[k].pop) + '%</div>';
+  return '<div class="wx"><div class="big">' + n.emoji + '</div><div><div class="t">' + (n.temp != null ? Math.round(n.temp) + '°' : '') + '</div><div class="d">' + (CFG.weather.mode === 'auto' && CFG.weather.located ? '📍 ' : '') + esc(v.name) + ' · ' + esc(n.wf || '') + (n.reh != null ? ' · 습도 ' + n.reh + '%' : '') + '</div></div></div>' +
+    '<div class="wx-row">' + [0, 1, 2].map(cell).join('') + '</div>' +
     (g10 || g25 ? '<div>' + (g25 ? '<span class="chip">초미세먼지 ' + g25 + '</span>' : '') + (g10 ? '<span class="chip">미세먼지 ' + g10 + '</span>' : '') + '</div>' : '') +
     (rain >= 60 ? '<div class="hint" style="margin-top:8px">☂️ 오늘 강수확률이 ' + rain + '%예요. 우산을 챙기세요.</div>' : '') +
-    '<div class="hint">' + (v.stale ? '네트워크가 불안정해 마지막으로 받은 예보예요 · ' : '') + '예보: Open-Meteo · 미세먼지는 대기질 모델 추정값(공식 측정값과 다를 수 있어요)</div>';
+    '<div class="hint">' + (v.stale ? '네트워크가 불안정해 마지막으로 받은 예보예요 · ' : '') + '예보: 기상청 동네예보' + (g10 || g25 ? ' · 미세먼지는 대기질 모델 추정값(공식 측정값과 다를 수 있어요)' : '') + '</div>';
 }
 
 /* ── 오늘 일정: 심스케줄(SIM Calendar·SIM Assistant) + 기기 달력(앱에서) ── */

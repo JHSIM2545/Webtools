@@ -209,19 +209,28 @@ function wxInfo(c) {
   return ['🌡️', '날씨'];
 }
 const grade = (v, lim) => v == null ? null : v <= lim[0] ? '좋음' : v <= lim[1] ? '보통' : v <= lim[2] ? '나쁨' : '매우 나쁨';
-async function loadWeather(force) {
-  const w = CFG.weather, ck = 'simbrief.w';
+function fetchJ(url, ms) {
+  const c = new AbortController(), t = setTimeout(() => c.abort(), ms);
+  return fetch(url, { signal: c.signal }).then(r => r.ok ? r.json() : Promise.reject(new Error('http'))).finally(() => clearTimeout(t));
+}
+// 저장해 둔 예보를 먼저 보여주고, 새 예보가 오면 바로 갱신한다. 미세먼지(느린 서버)는 따로 받아 나중에 덧붙인다.
+async function loadWeather(force, cb) {
+  const w = CFG.weather, ck = 'simbrief.w', key = w.lat + ',' + w.lon;
   let hit = null; try { hit = JSON.parse(lsGet(ck) || 'null'); } catch (e) {}
-  if (!force && hit && hit.k === w.lat + ',' + w.lon && Date.now() - hit.at < 30 * 60000) return hit.v;
+  if (hit && hit.k !== key) hit = null;
+  if (hit) cb(hit.v);
+  if (hit && !force && Date.now() - hit.at < 30 * 60000) return;
   const q = '?latitude=' + w.lat + '&longitude=' + w.lon + '&timezone=Asia%2FSeoul';
+  let v;
   try {
-    const [f, a] = await Promise.all([
-      fetch('https://api.open-meteo.com/v1/forecast' + q + '&current=temperature_2m,apparent_temperature,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=3').then(r => r.ok ? r.json() : Promise.reject()),
-      fetch('https://air-quality-api.open-meteo.com/v1/air-quality' + q + '&current=pm10,pm2_5').then(r => r.ok ? r.json() : null).catch(() => null)
-    ]);
-    const v = { name: w.name, cur: f.current, daily: f.daily, pm10: a && a.current ? a.current.pm10 : null, pm25: a && a.current ? a.current.pm2_5 : null };
-    lsSet(ck, JSON.stringify({ at: Date.now(), k: w.lat + ',' + w.lon, v })); return v;
-  } catch (e) { return hit ? Object.assign({ stale: true }, hit.v) : null; }
+    const f = await fetchJ('https://api.open-meteo.com/v1/forecast' + q + '&current=temperature_2m,apparent_temperature,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=3', 9000);
+    v = { name: w.name, cur: f.current, daily: f.daily, pm10: hit ? hit.v.pm10 : null, pm25: hit ? hit.v.pm25 : null };
+    lsSet(ck, JSON.stringify({ at: Date.now(), k: key, v })); cb(v);
+  } catch (e) { cb(hit ? Object.assign({ stale: true }, hit.v) : null); return; }
+  try {
+    const a = await fetchJ('https://air-quality-api.open-meteo.com/v1/air-quality' + q + '&current=pm10,pm2_5', 12000);
+    if (a && a.current) { v.pm10 = a.current.pm10; v.pm25 = a.current.pm2_5; lsSet(ck, JSON.stringify({ at: Date.now(), k: key, v })); cb(v); }
+  } catch (e) { /* 미세먼지만 못 받아도 예보는 그대로 */ }
 }
 function wxLine(v) {   // 알림 대체 문구용 한 줄
   if (!v || !v.daily) return '';
@@ -229,7 +238,7 @@ function wxLine(v) {   // 알림 대체 문구용 한 줄
   return i[0] + ' ' + v.name + ' ' + i[1] + ' · ' + Math.round(v.daily.temperature_2m_min[0]) + '°/' + Math.round(v.daily.temperature_2m_max[0]) + '° · 강수 ' + (v.daily.precipitation_probability_max[0] == null ? '-' : v.daily.precipitation_probability_max[0]) + '%';
 }
 function wxHtml(v) {
-  if (!v || !v.daily) return '<div class="empty" style="padding:12px">일기예보를 가져오지 못했어요</div>';
+  if (!v || !v.daily) return '<div class="empty" style="padding:12px">일기예보를 가져오지 못했어요.<br>인터넷 연결을 확인하고 새로고침해 주세요.</div>';
   const d = v.daily, c = v.cur, i = wxInfo(c ? c.weather_code : d.weather_code[0]), rain = d.precipitation_probability_max[0];
   const g10 = grade(v.pm10, [30, 80, 150]), g25 = grade(v.pm25, [15, 35, 75]);
   const days = ['오늘', '내일', '모레'];
@@ -304,7 +313,7 @@ async function vBrief(force) {
     (tabs.length ? '<div class="seg" id="seg">' + tabs.map(t => '<button data-c="' + t[0] + '"' + (S.cat === t[0] ? ' class="on"' : '') + '>' + t[1] + '</button>').join('') + '</div><div id="news"><div class="empty"><span class="spin"></span>뉴스를 불러오는 중…</div></div>' :
       '<div class="empty">브리핑할 뉴스 분야가 선택되지 않았어요.<br>알림 설정에서 분야를 선택해 주세요.</div>');
   let sched = [], wxLineTxt = '';
-  if (CFG.weather.on) loadWeather(force).then(v => { wxLineTxt = wxLine(v); if (ok() && $('wx')) $('wx').innerHTML = wxHtml(v); pushCache(); });
+  if (CFG.weather.on) loadWeather(force, v => { wxLineTxt = wxLine(v); if (ok() && $('wx')) $('wx').innerHTML = wxHtml(v); pushCache(); });
   if (CFG.calSim || CFG.calDevice) todaySchedule().then(l => { sched = l; if (ok() && $('sch')) $('sch').innerHTML = schedHtml(l); pushCache(); });
   if (!tabs.length) return;
   try {

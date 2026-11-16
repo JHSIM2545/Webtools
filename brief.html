@@ -112,6 +112,30 @@ main{max-width:960px;margin:0 auto;padding:12px 12px calc(40px + env(safe-area-i
 .dh .rr{text-align:right;white-space:nowrap;color:#7cc4ff}.dh .rr.sn{color:#d6ecff}
 .dsum{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
 .dhead{display:grid;grid-template-columns:38px 30px 1fr 70px 66px;gap:6px;color:var(--sub);font-size:11.5px;padding:0 2px 4px;border-bottom:1px solid var(--line)}
+.fz{cursor:pointer}
+.fz:active{border-color:var(--accent)}
+.fzh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.fzh h2{margin:0}
+.fzsc{font-size:12.5px;font-weight:800;padding:3px 9px;border-radius:99px;background:var(--panel2);color:#ffd24a;white-space:nowrap}
+.fzb{display:flex;align-items:center;gap:12px}
+.fzic{width:54px;height:54px;flex:none}
+.fzs{flex:1;min-width:0;font-size:14.5px;line-height:1.5;white-space:pre-line;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fzgo{font-size:13px;color:var(--accent);margin-top:6px}
+.fzart{display:block;width:78%;max-width:270px;margin:4px auto 10px;filter:drop-shadow(0 8px 14px rgba(0,0,0,.5))}
+.fzsec{padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;line-height:1.55}
+.fzsec:last-of-type{border-bottom:0}
+.fzsec b{display:block;font-size:13px;color:var(--accent);margin-bottom:2px}
+.fzlk{display:flex;gap:6px;margin-top:8px}
+.fzlk div{flex:1;background:var(--panel2);border-radius:12px;padding:8px 4px;text-align:center;font-size:12px;color:var(--sub)}
+.fzlk b{display:block;color:var(--text);font-size:14px;margin-top:2px}
+.fzbar{height:8px;border-radius:99px;background:var(--panel2);overflow:hidden;margin:2px 0 8px}
+.fzbar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#ff9f1a,#ffd24a)}
+.wi .bob{animation:wbob 3.2s ease-in-out infinite}
+.wi .flick{animation:wflick .5s ease-in-out infinite alternate}
+.wi .stm{animation:wstm 2.6s ease-in-out infinite;opacity:0}
+@keyframes wbob{50%{transform:translateY(-4px) rotate(1.5deg)}}
+@keyframes wflick{to{transform:scale(1.15,1.3)}}
+@keyframes wstm{0%{transform:translateY(4px);opacity:0}40%{opacity:.7}100%{transform:translateY(-8px);opacity:0}}
 .chip{display:inline-block;padding:3px 9px;border-radius:99px;font-size:12px;background:var(--panel2);margin:8px 6px 0 0}
 select{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:var(--text);font:inherit;color-scheme:dark}
 /* 설정 */
@@ -154,6 +178,12 @@ input[type=time]{background:var(--panel2);border:1px solid var(--line);border-ra
 <radialGradient id="gMoon" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#fffbe2"/><stop offset=".6" stop-color="#f1de8e"/><stop offset="1" stop-color="#c8a84a"/></radialGradient>
 <linearGradient id="gDrop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c4e8ff"/><stop offset="1" stop-color="#3a8be6"/></linearGradient>
 <linearGradient id="gBolt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff7a8"/><stop offset="1" stop-color="#ffaa00"/></linearGradient>
+<radialGradient id="gPink" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#ffd0de"/><stop offset=".55" stop-color="#ff86ab"/><stop offset="1" stop-color="#d9406f"/></radialGradient>
+<radialGradient id="gRed" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#ffb0b0"/><stop offset=".55" stop-color="#ff4f55"/><stop offset="1" stop-color="#bb2330"/></radialGradient>
+<radialGradient id="gGreen" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#c8f8b0"/><stop offset=".55" stop-color="#4fcb66"/><stop offset="1" stop-color="#25873b"/></radialGradient>
+<radialGradient id="gBlue" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#c6e6ff"/><stop offset=".55" stop-color="#4f9cea"/><stop offset="1" stop-color="#2a5fc6"/></radialGradient>
+<radialGradient id="gPurple" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#e6d0ff"/><stop offset=".55" stop-color="#9c70ff"/><stop offset="1" stop-color="#5d34c4"/></radialGradient>
+<linearGradient id="gGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff4b4"/><stop offset=".5" stop-color="#ffd24a"/><stop offset="1" stop-color="#d4920f"/></linearGradient>
 <g id="cl"><rect x="20" y="56" width="66" height="21" rx="10.5" fill="url(#gCl)"/><circle cx="35" cy="58" r="16" fill="url(#gCl)"/><circle cx="54" cy="46" r="21" fill="url(#gCl)"/><circle cx="72" cy="57" r="15" fill="url(#gCl)"/><ellipse cx="54" cy="73" rx="28" ry="3.5" fill="#566782" opacity=".16"/></g>
 <g id="cld"><rect x="20" y="56" width="66" height="21" rx="10.5" fill="url(#gCd)"/><circle cx="35" cy="58" r="16" fill="url(#gCd)"/><circle cx="54" cy="46" r="21" fill="url(#gCd)"/><circle cx="72" cy="57" r="15" fill="url(#gCd)"/><ellipse cx="54" cy="73" rx="28" ry="3.5" fill="#2c3547" opacity=".22"/></g>
 </defs></svg>
@@ -174,8 +204,8 @@ function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('sh
 
 /* ── 설정 (기기에 저장, 로그인 계정 동기화는 sync.js 가 처리) ── */
 const KEY = 'simbrief.v1';
-const DEF = { times: [{ t: '07:30', on: true }], sound: true, cats: { politics: true, economy: true, society: true, culture: true, sports: true }, calSim: true, calDevice: true, weather: { on: true, mode: 'auto', located: false, name: '서울', lat: 37.5665, lon: 126.978 } };
-let CFG = (() => { try { const c = JSON.parse(lsGet(KEY) || 'null'); return c ? Object.assign({}, DEF, c, { cats: Object.assign({}, DEF.cats, c.cats || {}), weather: Object.assign({}, DEF.weather, c.weather || {}) }) : JSON.parse(JSON.stringify(DEF)); } catch (e) { return JSON.parse(JSON.stringify(DEF)); } })();
+const DEF = { times: [{ t: '07:30', on: true }], sound: true, cats: { politics: true, economy: true, society: true, culture: true, sports: true }, calSim: true, calDevice: true, weather: { on: true, mode: 'auto', located: false, name: '서울', lat: 37.5665, lon: 126.978 }, fortune: { on: true, birth: '', g: 'M', time: '' } };
+let CFG = (() => { try { const c = JSON.parse(lsGet(KEY) || 'null'); return c ? Object.assign({}, DEF, c, { cats: Object.assign({}, DEF.cats, c.cats || {}), weather: Object.assign({}, DEF.weather, c.weather || {}), fortune: Object.assign({}, DEF.fortune, c.fortune || {}) }) : JSON.parse(JSON.stringify(DEF)); } catch (e) { return JSON.parse(JSON.stringify(DEF)); } })();
 function save() {
   lsSet(KEY, JSON.stringify(CFG));
   if (NA) { try { NA.schedule(JSON.stringify({ times: CFG.times.filter(x => x.t), sound: CFG.sound, soundId: curSound(), cats: CATS.map(c => c[0]).filter(k => CFG.cats[k]), endpoint: FN, calDevice: CFG.calDevice, calSim: CFG.calSim, weather: CFG.weather.on ? { name: CFG.weather.name, lat: CFG.weather.lat, lon: CFG.weather.lon, auto: CFG.weather.mode === 'auto' } : null })); } catch (e) {} }
@@ -447,6 +477,81 @@ document.addEventListener('click', e => {
   openPlace();
 });
 
+/* ── 오늘의 운세 ── */
+const FFN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-fortune';
+function star5(cx, cy, R, r) { let p = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 ? r : R; p.push((cx + q * Math.cos(a)).toFixed(1) + ',' + (cy + q * Math.sin(a)).toFixed(1)); } return p.join(' '); }
+function fzMotif(m) {
+  switch (m) {
+    case 'piggy': return '<g class="a bob"><path d="M28 38 L34 20 L46 34Z" fill="#e0457b"/><path d="M62 33 L72 20 L76 40Z" fill="#e0457b"/><ellipse cx="48" cy="58" rx="31" ry="25" fill="url(#gPink)"/><ellipse cx="80" cy="60" rx="9" ry="7" fill="#ff9cb9"/><circle cx="77" cy="60" r="1.6" fill="#8a2a4c"/><circle cx="83" cy="60" r="1.6" fill="#8a2a4c"/><circle cx="64" cy="48" r="3.2" fill="#3a1a28"/><rect x="38" y="36" width="20" height="4" rx="2" fill="#8a2a4c"/><rect x="30" y="76" width="9" height="12" rx="4" fill="#d9406f"/><rect x="56" y="76" width="9" height="12" rx="4" fill="#d9406f"/><path d="M18 56 q-8 -4 -4 -10" stroke="#d9406f" stroke-width="3" fill="none" stroke-linecap="round"/><ellipse cx="40" cy="48" rx="9" ry="5" fill="#fff" opacity=".35"/></g><g class="a dp" style="animation-duration:1.8s"><circle cx="48" cy="14" r="7.5" fill="url(#gGold)" stroke="#d4920f" stroke-width="1.5"/><text x="48" y="18" font-size="9" font-weight="800" text-anchor="middle" fill="#a86b00">₩</text></g>';
+    case 'heart': return '<g class="a pulse"><path d="M50 84 C14 58 18 26 36 24 C44 23 49 28 50 34 C51 28 56 23 64 24 C82 26 86 58 50 84Z" fill="url(#gRed)"/><ellipse cx="34" cy="38" rx="8" ry="5" fill="#fff" opacity=".45" transform="rotate(-35 34 38)"/></g><g class="a bob" fill="#ff7aa2"><path d="M80 22 c-8 -6 -12 3 -6 7 l6 5 6 -5 c6 -4 2 -13 -6 -7z" transform="scale(.7) translate(34 6)"/></g>';
+    case 'clover': return '<g class="a bob"><path d="M50 60 C52 76 48 88 40 94" stroke="#25873b" stroke-width="4.5" fill="none" stroke-linecap="round"/><g fill="url(#gGreen)"><circle cx="38" cy="38" r="15"/><circle cx="62" cy="38" r="15"/><circle cx="38" cy="62" r="15"/><circle cx="62" cy="62" r="15"/></g><circle cx="50" cy="50" r="6" fill="#25873b" opacity=".35"/><ellipse cx="34" cy="32" rx="6" ry="3.5" fill="#fff" opacity=".4"/></g>';
+    case 'rocket': return '<g class="a bob"><g transform="rotate(28 50 50)"><path d="M40 70 L26 88 L40 80Z" fill="#d9304a"/><path d="M60 70 L74 88 L60 80Z" fill="#d9304a"/><path d="M50 8 C66 26 66 54 60 76 L40 76 C34 54 34 26 50 8Z" fill="url(#gCl)"/><path d="M50 8 C58 16 62 26 63 36 L37 36 C38 26 42 16 50 8Z" fill="url(#gRed)"/><circle cx="50" cy="52" r="8" fill="url(#gBlue)" stroke="#8d9bb3" stroke-width="2"/><ellipse class="a flick" cx="50" cy="86" rx="6" ry="10" fill="url(#gSun)"/></g></g>';
+    case 'umbrella': return '<g class="a bob"><path d="M12 54 A38 38 0 0 1 88 54 Q79 47 69 54 Q59 47 50 54 Q41 47 31 54 Q21 47 12 54Z" fill="url(#gPurple)"/><path d="M50 54 L50 80 Q50 91 41 88" stroke="#8a6a48" stroke-width="4.5" fill="none" stroke-linecap="round"/><ellipse cx="34" cy="34" rx="9" ry="4.5" fill="#fff" opacity=".4" transform="rotate(-30 34 34)"/></g>' + drops([20, 78], 80);
+    case 'coffee': return '<g class="a bob"><path d="M70 46 Q88 46 85 59 Q82 70 68 67" stroke="#dbe5f3" stroke-width="5.5" fill="none" stroke-linecap="round"/><path d="M22 42 H72 V64 Q72 82 47 82 Q22 82 22 64Z" fill="url(#gCl)"/><ellipse cx="47" cy="42" rx="25" ry="6" fill="#e9eff8"/><ellipse cx="47" cy="43" rx="21" ry="4.4" fill="#7a4a2b"/><ellipse cx="47" cy="87" rx="31" ry="5.5" fill="url(#gCl)"/></g><g fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".8"><path class="a stm" d="M38 34 q-5 -7 0 -13"/><path class="a stm" style="animation-delay:.8s" d="M50 34 q-5 -7 0 -13"/><path class="a stm" style="animation-delay:1.6s" d="M60 34 q-5 -7 0 -13"/></g>';
+    case 'key': return '<g class="a bob"><g transform="rotate(-25 50 50)"><circle cx="28" cy="50" r="17" fill="none" stroke="url(#gGold)" stroke-width="9"/><rect x="42" y="46" width="46" height="9" rx="4.5" fill="url(#gGold)"/><rect x="70" y="54" width="7" height="12" rx="2" fill="url(#gGold)"/><rect x="81" y="54" width="7" height="9" rx="2" fill="url(#gGold)"/></g></g><g fill="#fff"><circle class="a tw" cx="82" cy="22" r="2.4"/><circle class="a tw" style="animation-delay:1s" cx="14" cy="22" r="1.8"/></g>';
+    case 'star': return '<g class="a pulse"><polygon points="' + star5(50, 54, 40, 17) + '" fill="url(#gGold)" stroke="#e0a21a" stroke-width="2" stroke-linejoin="round"/><polygon points="' + star5(50, 54, 40, 17) + '" fill="none"/><ellipse cx="40" cy="42" rx="9" ry="4.5" fill="#fff" opacity=".5" transform="rotate(-35 40 42)"/></g><g fill="#fff"><circle class="a tw" cx="14" cy="26" r="2"/><circle class="a tw" style="animation-delay:.9s" cx="88" cy="30" r="2.4"/></g>';
+    case 'dice': return '<g class="a bob"><g transform="rotate(14 50 52)"><rect x="20" y="22" width="60" height="60" rx="13" fill="url(#gCl)" stroke="#a9b9d2" stroke-width="2"/><g fill="#2c3547"><circle cx="36" cy="38" r="5.4"/><circle cx="64" cy="38" r="5.4"/><circle cx="50" cy="52" r="5.4"/><circle cx="36" cy="66" r="5.4"/><circle cx="64" cy="66" r="5.4"/></g></g></g>';
+    case 'balloon': return '<g class="a bob"><ellipse cx="50" cy="40" rx="25" ry="31" fill="url(#gPink)"/><path d="M45 71 L55 71 L50 78Z" fill="#d9406f"/><path d="M50 78 q-7 7 0 13 q7 6 0 12" stroke="#b9c4d6" stroke-width="2.4" fill="none" stroke-linecap="round"/><ellipse cx="38" cy="28" rx="7" ry="11" fill="#fff" opacity=".42" transform="rotate(20 38 28)"/></g>';
+  }
+  return '<circle cx="50" cy="50" r="30" fill="url(#gSun)"/>';
+}
+const fzIcon = (m, cls) => '<svg class="wi ' + (cls || '') + '" viewBox="0 0 100 100" aria-hidden="true">' + fzMotif(m) + '</svg>';
+function fzCard(v) {
+  const sc = v.score, t = sc >= 75 ? ['#5b3fd6', '#c14cc0', '#ffb347'] : sc >= 55 ? ['#1f4fbf', '#2aa7c9', '#a8f0d8'] : ['#2b3a67', '#5a4aa8', '#9db4ff'];
+  const title = String(v.card.title || ''), cap = String(v.card.caption || '');
+  let l1 = cap, l2 = ''; if (cap.length > 13) { let i = cap.lastIndexOf(' ', 14); if (i < 4) i = Math.ceil(cap.length / 2); l1 = cap.slice(0, i).trim(); l2 = cap.slice(i).trim(); }
+  const stars = '★'.repeat(Math.max(1, Math.round(sc / 20))) + '☆'.repeat(5 - Math.max(1, Math.round(sc / 20)));
+  return '<svg class="fzart" viewBox="0 0 240 340" role="img" aria-label="' + esc(title) + '"><defs><linearGradient id="fzbg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="' + t[0] + '"/><stop offset=".6" stop-color="' + t[1] + '"/><stop offset="1" stop-color="' + t[2] + '"/></linearGradient><radialGradient id="fzglow"><stop offset="0" stop-color="#fff" stop-opacity=".75"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>' +
+    '<rect x="4" y="4" width="232" height="332" rx="22" fill="url(#fzbg)"/><rect x="12" y="12" width="216" height="316" rx="16" fill="none" stroke="#ffe9a6" stroke-width="2.5"/><rect x="18" y="18" width="204" height="304" rx="12" fill="none" stroke="#ffe9a6" stroke-width="1" opacity=".6"/>' +
+    '<text x="120" y="40" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff" opacity=".85" letter-spacing="3">TODAY’S CARD</text>' +
+    '<text x="120" y="74" text-anchor="middle" font-size="' + (title.length > 9 ? 19 : 24) + '" font-weight="800" fill="#fff" style="paint-order:stroke" stroke="rgba(0,0,0,.28)" stroke-width="3">' + esc(title) + '</text>' +
+    '<circle cx="120" cy="170" r="92" fill="url(#fzglow)"/><g transform="translate(48 98) scale(1.44)">' + fzMotif(v.card.motif) + '</g>' +
+    '<g fill="#ffe9a6"><circle class="a tw" cx="40" cy="108" r="2.4"/><circle class="a tw" style="animation-delay:.7s" cx="202" cy="132" r="2"/><circle class="a tw" style="animation-delay:1.4s" cx="52" cy="232" r="1.8"/><circle class="a tw" style="animation-delay:.3s" cx="196" cy="236" r="2.4"/></g>' +
+    '<text x="120" y="268" text-anchor="middle" font-size="16" fill="#ffe9a6" letter-spacing="2">' + stars + '</text>' +
+    '<text x="120" y="' + (l2 ? 292 : 300) + '" text-anchor="middle" font-size="13.5" font-weight="700" fill="#fff">' + esc(l1) + '</text>' + (l2 ? '<text x="120" y="310" text-anchor="middle" font-size="13.5" font-weight="700" fill="#fff">' + esc(l2) + '</text>' : '') + '</svg>';
+}
+let FZV = null;
+const fzKey = () => { const f = CFG.fortune; return [f.birth, f.g, f.time].join('|') + '|' + new Date().toLocaleDateString('sv-SE'); };
+async function getFortune(force) {
+  const f = CFG.fortune; if (!f.birth) return null;
+  const key = fzKey(); let hit = null; try { hit = JSON.parse(lsGet('simbrief.f') || 'null'); } catch (e) {}
+  if (hit && hit.k === key && !force && hit.v && hit.v.ok) return hit.v;
+  const u = FFN + '?birth=' + encodeURIComponent(f.birth) + '&g=' + f.g + '&t=' + encodeURIComponent(f.time || '') + '&d=' + new Date().toLocaleDateString('sv-SE');
+  const v = await fetchJ(u, 45000);
+  if (!v || !v.ok) throw new Error('fz');
+  lsSet('simbrief.f', JSON.stringify({ k: key, v })); return v;
+}
+async function renderFortune(force, ok) {
+  const box = $('fz'); if (!box) return;
+  if (!CFG.fortune.birth) { box.innerHTML = '<div class="fzb"><div class="fzs">생년월일을 설정하면 오늘의 운세를 볼 수 있어요.</div></div><div class="fzgo" data-go="set">설정하러 가기 ›</div>'; FZV = null; return; }
+  try {
+    const v = await getFortune(force); if (!ok() || !$('fz')) return; FZV = v;
+    $('fz').innerHTML = '<div class="fzb">' + fzIcon(v.card.motif, 'fzic') + '<div class="fzs">' + esc(v.summary) + '</div></div>';
+    const sc = $('fzScore'); if (sc) sc.textContent = v.score + '점';
+  } catch (e) { if (ok() && $('fz')) $('fz').innerHTML = '<div class="fzs">운세를 불러오지 못했어요. 눌러서 다시 시도해 주세요.</div>'; FZV = null; }
+}
+const FZ_ICON = { '총운': '🔮', '재물운': '💰', '애정운': '💗', '직장·학업운': '💼', '건강운': '🍀' };
+async function openFortune() {
+  if ($('plsheet')) return;
+  if (!CFG.fortune.birth) { const t = document.querySelector('#tabs [data-t=set]'); if (t) t.click(); return; }
+  let v = FZV;
+  if (!v) { try { toast('운세를 불러오는 중…'); v = await getFortune(true); FZV = v; } catch (e) { toast('운세를 불러오지 못했어요'); return; } }
+  const dt = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' }), fa = v.facts || {};
+  const chips = [fa.me, fa.ddi, fa.hourPillar, fa.today && '오늘 ' + fa.today, fa.ten && '오늘의 기운 ' + fa.ten].filter(Boolean).map(x => '<span class="chip">' + esc(x) + '</span>').join('');
+  const el = document.createElement('div'); el.id = 'plsheet'; el.className = 'plov';
+  el.innerHTML = '<div class="plbox"><div class="plh"><b>오늘의 운세 · ' + esc(dt) + '</b><button class="x" id="plx" aria-label="닫기">✕</button></div>' + fzCard(v) +
+    '<div style="display:flex;align-items:center;gap:10px"><b style="font-size:15px;white-space:nowrap">운세 지수 ' + v.score + '점</b><div class="fzbar" style="flex:1"><i style="width:' + v.score + '%"></i></div></div>' +
+    '<div>' + chips + '</div>' +
+    Object.keys(FZ_ICON).filter(k => v.detail && v.detail[k]).map(k => '<div class="fzsec"><b>' + FZ_ICON[k] + ' ' + k + '</b>' + esc(v.detail[k]) + '</div>').join('') +
+    (v.lucky ? '<div class="fzlk"><div>행운의 색<b>' + esc(v.lucky.color) + '</b></div><div>행운의 숫자<b>' + v.lucky.number + '</b></div><div>행운의 아이템<b>' + esc(v.lucky.item) + '</b></div></div>' : '') + '</div>';
+  document.body.appendChild(el);
+  el.addEventListener('click', e => { if (e.target === el || e.target.id === 'plx') closePlace(); });
+}
+document.addEventListener('click', e => {
+  const g = e.target.closest && e.target.closest('[data-go="set"]'); if (g) { e.stopPropagation(); const t = document.querySelector('#tabs [data-t=set]'); if (t) t.click(); return; }
+  if (e.target.closest && e.target.closest('#fzCard')) openFortune();
+});
+
 /* ── 오늘 일정: 심스케줄(SIM Calendar·SIM Assistant) + 기기 달력(앱에서) ── */
 const sod = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 const hm = d => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
@@ -507,6 +612,7 @@ async function vBrief(force) {
   const tabs = (en.length > 1 ? [['all', '전체']] : []).concat(en);
   if (!tabs.some(t => t[0] === S.cat)) S.cat = tabs.length ? tabs[0][0] : 'all';
   main.innerHTML = (CFG.weather.on ? '<div class="card"><div class="wxh"><h2>오늘 날씨</h2><span class="wxr">' + (CFG.weather.mode !== 'auto' ? '<button class="wxhome" id="wxHome" aria-label="현재 위치로">⌖ 현재 위치</button>' : '') + '<button class="wxplace" id="wxPlace" aria-label="지역 변경">📍 <span id="wxName">' + esc(CFG.weather.name) + '</span> <i>▾</i></button></span></div><div id="wx"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
+    (CFG.fortune.on ? '<div class="card fz" id="fzCard" role="button" tabindex="0"><div class="fzh"><h2>🔮 오늘의 운세</h2><span class="fzsc" id="fzScore"></span></div><div id="fz"><div class="empty" style="padding:10px"><span class="spin"></span>운세를 보는 중…</div></div></div>' : '') +
     (CFG.calSim || CFG.calDevice ? '<div class="card"><h2>📅 오늘 일정 <span style="color:var(--sub);font-weight:400;font-size:12.5px">' + esc(dt) + '</span></h2><div id="sch"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
     (tabs.length ? '<div class="seg" id="seg">' + tabs.map(t => '<button data-c="' + t[0] + '"' + (S.cat === t[0] ? ' class="on"' : '') + '>' + t[1] + '</button>').join('') + '</div><div id="news"><div class="empty"><span class="spin"></span>뉴스를 불러오는 중…</div></div>' :
       '<div class="empty">브리핑할 뉴스 분야가 선택되지 않았어요.<br>알림 설정에서 분야를 선택해 주세요.</div>');
@@ -519,6 +625,7 @@ async function vBrief(force) {
     if (ok() && $('wx')) $('wx').innerHTML = (v ? wxHtml(v) : wxHtml(null)) + (v && LOC_FAIL && !CFG.weather.located ? warn() : '');
     pushCache();
   });
+  if (CFG.fortune.on) renderFortune(false, ok);
   if (CFG.calSim || CFG.calDevice) todaySchedule().then(l => { sched = l; if (ok() && $('sch')) $('sch').innerHTML = schedHtml(l); pushCache(); });
   if (!tabs.length) return;
   try {
@@ -556,6 +663,10 @@ async function vSet() {
     '<div class="card"><h2>📰 브리핑 분야</h2>' + CATS.map(c => '<div class="set"><div class="tx"><b>' + CAT_ICON[c[0]] + ' ' + c[1] + '</b></div>' + sw(CFG.cats[c[0]]).replace('class="sw', 'data-a="cat" data-k="' + c[0] + '" class="sw') + '</div>').join('') +
     '<div class="set"><div class="tx"><b>📅 심스케줄</b><small>SIM Calendar·SIM Assistant 일정</small></div>' + sw(CFG.calSim).replace('class="sw', 'data-a="cs" class="sw') + '</div>' +
     '<div class="set"><div class="tx"><b>📱 기기 달력</b><small>' + (apk ? (nat.cal ? '폰 달력 연동됨' : '켜면 달력 읽기 권한을 요청해요') : '안드로이드 앱(APK)에서 쓸 수 있어요') + '</small></div>' + sw(CFG.calDevice && apk).replace('class="sw', 'data-a="cd" ' + (apk ? '' : 'disabled ') + 'class="sw') + '</div></div>' +
+    '<div class="card"><h2>🔮 오늘의 운세</h2><div class="set"><div class="tx"><b>브리핑에 운세 넣기</b></div>' + sw(CFG.fortune.on).replace('class="sw', 'data-a="fz" class="sw') + '</div>' +
+    '<div class="set"><div class="tx"><b>생년월일</b><small>양력 기준</small></div><input type="date" id="fBirth" value="' + esc(CFG.fortune.birth) + '" max="' + new Date().toLocaleDateString('sv-SE') + '" style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color-scheme:dark;font-size:15px"></div>' +
+    '<div class="set"><div class="tx"><b>성별</b></div><select id="fG"><option value="M"' + (CFG.fortune.g === 'M' ? ' selected' : '') + '>남성</option><option value="F"' + (CFG.fortune.g === 'F' ? ' selected' : '') + '>여성</option></select></div>' +
+    '<div class="set"><div class="tx"><b>태어난 시간</b><small>' + (CFG.fortune.time ? '' : '모름') + '</small></div><input type="time" id="fTime" value="' + esc(CFG.fortune.time) + '">' + (CFG.fortune.time ? '<button class="x" id="fTimeClr" aria-label="시간 지우기">✕</button>' : '') + '</div></div>' +
     '<div class="card"><h2>🌤️ 일기예보</h2><div class="set"><div class="tx"><b>브리핑에 일기예보 넣기</b><small>알림과 브리핑 화면에 오늘 날씨·미세먼지 표시</small></div>' + sw(CFG.weather.on).replace('class="sw', 'data-a="wx" class="sw') + '</div>' +
     '<div class="set"><div class="tx"><b>지역</b><small>' + (CFG.weather.mode === 'auto' ? (CFG.weather.located ? '📍 ' + esc(CFG.weather.name) + ' (지금 있는 곳 자동)' : '지금 있는 곳 자동 (위치 확인 전)') : esc(CFG.weather.name)) + '</small></div><select id="wxCity"><option value="__auto"' + (CFG.weather.mode === 'auto' ? ' selected' : '') + '>📍 현재 위치 (자동)</option>' + CITIES.map(c => '<option value="' + c[0] + '"' + (CFG.weather.mode !== 'auto' && CFG.weather.name === c[0] ? ' selected' : '') + '>' + c[0] + '</option>').join('') + '</select></div>' +
     '<button class="sm" id="wxLoc" style="margin-top:6px">📍 지금 있는 곳으로 다시 맞추기</button></div>' +
@@ -578,6 +689,8 @@ main.addEventListener('click', async e => {
   if (a === 'on' && row) { const x = CFG.times[+row.dataset.i]; x.on = !x.on; save(); vSet(); return; }
   if (a === 'snd') { CFG.sound = !CFG.sound; save(); vSet(); if (CFG.sound) playSound(curSound()); return; }
   if (a === 'cat') { CFG.cats[t.dataset.k] = !CFG.cats[t.dataset.k]; save(); vSet(); return; }
+  if (a === 'fz') { CFG.fortune.on = !CFG.fortune.on; save(); vSet(); return; }
+  if (t.id === 'fTimeClr') { CFG.fortune.time = ''; save(); vSet(); return; }
   if (a === 'wx') { CFG.weather.on = !CFG.weather.on; save(); vSet(); return; }
   if (t.id === 'wxLoc') {
     CFG.weather.mode = 'auto'; save(); toast('현재 위치를 확인하는 중…');
@@ -601,6 +714,9 @@ main.addEventListener('click', async e => {
 });
 main.addEventListener('change', e => {
   const t = e.target;
+  if (t.id === 'fBirth') { CFG.fortune.birth = t.value; save(); toast(t.value ? '저장했어요' : '지웠어요'); return; }
+  if (t.id === 'fG') { CFG.fortune.g = t.value === 'F' ? 'F' : 'M'; save(); return; }
+  if (t.id === 'fTime') { CFG.fortune.time = t.value; save(); vSet(); return; }
   if (t.id === 'wxCity') {
     if (t.value === '__auto') { CFG.weather.mode = 'auto'; save(); refreshLocation(true).then(() => vSet()); vSet(); return; }
     const c = CITIES.find(x => x[0] === t.value); if (c) { CFG.weather = Object.assign(CFG.weather, { mode: 'city', located: false, name: c[0], lat: c[1], lon: c[2] }); save(); vSet(); } return;

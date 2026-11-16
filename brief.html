@@ -172,7 +172,6 @@ input[type=time]{background:var(--panel2);border:1px solid var(--line);border-ra
   <h1>SIM <span>Brief</span></h1>
   <div class="spacer"></div>
   <button class="sm" id="refresh" aria-label="새로고침">↻</button>
-  <button class="sm" id="menuBtn" aria-label="메뉴">☰ 메뉴</button>
 </header>
 <main id="main"></main>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -694,7 +693,7 @@ async function vSet(kind) {
     '<div class="hint ' + (apk ? '' : 'warn') + '">' + (apk ? '앱을 꺼 두어도 정한 시간에 알림이 와요. 폰 절전 설정이 앱을 제한하면 알림이 안 올 수 있으니 SIM Brief를 "제한 없음"으로 두세요.' : '웹 브라우저에서는 이 화면이 열려 있는 동안만 정시 알림이 와요. 앱을 꺼 둬도 알림을 받으려면 런처에서 SIM Brief 앱(APK)을 설치해 주세요.') + '</div></div>'),
   };
   const TT = { news: '📰 뉴스 설정', fortune: '🔮 운세 설정', alarm: '🔔 알림 설정' };
-  main.innerHTML = '<div class="vbar"><button class="sm" id="toBrief">‹ 브리핑</button><b>' + (TT[kind] || '') + '</b></div>' +
+  main.innerHTML = '<div class="vbar"><button class="sm" id="toBrief">‹ 뒤로</button><b>' + (TT[kind] || '') + '</b></div>' +
     (kind === 'news' ? C.cats + C.kw : kind === 'fortune' ? C.fz : C.times + C.sound + C.sched + C.wx + C.test);
   if (kind === 'alarm') setTimeout(showDiag, 50);
 }
@@ -774,16 +773,13 @@ if (!NA) setInterval(() => {
   CFG.times.forEach(x => { if (x.on && x.t === cur && lsGet('simbrief.last.' + x.t) !== day) { lsSet('simbrief.last.' + x.t, day); if (CFG.sound) playSound(curSound()); webNotify(x.t); } });
 }, 20000);
 
-/* ── 메뉴·새로고침 ── */
+/* ── 설정 화면 이동·새로고침 ── */
 function goView(v) { S.tab = v || 'brief'; seq++; render(); window.scrollTo(0, 0); }
-$('menuBtn').addEventListener('click', () => {
-  if ($('plsheet')) return;
-  const el = document.createElement('div'); el.id = 'plsheet'; el.className = 'plov';
-  el.innerHTML = '<div class="plbox"><div class="plh"><b>메뉴</b><button class="x" id="plx" aria-label="닫기">✕</button></div>' +
-    '<button class="plit" data-v="brief">🏠 브리핑</button><button class="plit" data-v="news">📰 뉴스 설정</button><button class="plit" data-v="fortune">🔮 운세 설정</button><button class="plit" data-v="alarm">🔔 알림 설정</button></div>';
-  document.body.appendChild(el);
-  el.addEventListener('click', ev => { const b = ev.target.closest('[data-v]'); if (b) { closePlace(); goView(b.dataset.v); return; } if (ev.target === el || ev.target.id === 'plx') closePlace(); });
-});
+// 상단 ⋮ 메뉴(공통 메뉴)에 설정 항목을 넣는다
+(window.simAppMenuExtra = window.simAppMenuExtra || []).push(
+  { icon: '📰', label: '뉴스 설정', run: () => goView('news') },
+  { icon: '🔮', label: '운세 설정', run: () => goView('fortune') },
+  { icon: '🔔', label: '알림 설정', run: () => goView('alarm') });
 $('refresh').addEventListener('click', () => { if (S.tab === 'brief') vBrief(true); else vSet(); });
 function render() { seq++; S.tab === 'brief' ? vBrief() : vSet(); }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.tab !== 'brief') vSet(); });   // 권한 설정을 하고 돌아오면 상태 갱신

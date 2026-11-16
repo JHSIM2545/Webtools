@@ -51,6 +51,11 @@ android {
         sourceSets { tool { java.srcDirs = ['src/simtv/java']; manifest.srcFile 'src/simtv/AndroidManifest.xml' } }
     }
 
+    // SIM Brief 앱만: 정해진 시각 알림·기기 달력 읽기용 전용 Extra·수신기·매니페스트·알림음. 다른 앱의 APK 내용에는 영향이 없다.
+    if (appKey == 'brief') {
+        sourceSets { tool { java.srcDirs = ['src/brief/java']; manifest.srcFile 'src/brief/AndroidManifest.xml'; res.srcDir 'src/brief/res' } }
+    }
+
     signingConfigs {
         sim {
             storeFile file('../sim-release.jks')

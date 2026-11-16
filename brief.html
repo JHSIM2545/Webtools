@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1117">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SIM Brief">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>SIM Brief</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root{
+  --bg:#0f1117; --panel:#171a23; --panel2:#1f2330; --line:#2a2f3f;
+  --text:#e8eaf0; --sub:#8b92a8; --accent:#14b8a6; --accent2:#14b8a6; --ink:#032420; --ok:#3ecf8e; --warn:#ffb86b; --bad:#ff6b6b;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;font-size:15px;line-height:1.5}
+header{display:flex;align-items:center;gap:10px;padding:12px 14px;padding-top:calc(12px + env(safe-area-inset-top));background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+header a.back{color:var(--text);text-decoration:none;font-size:26px;line-height:1;padding:0 6px 3px 0}
+header h1{font-size:18px;font-weight:700;letter-spacing:-.3px}
+header h1 span{color:var(--accent)}
+.spacer{flex:1}
+button,input{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 13px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--accent2);border-color:var(--accent2);color:var(--ink);font-weight:700}
+button.sm{padding:6px 10px;font-size:13px;border-radius:8px}
+.tabs{display:flex;gap:4px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:calc(53px + env(safe-area-inset-top));z-index:19}
+.tabs button{flex:1;border:0;background:transparent;padding:9px 6px;border-radius:9px;font-size:14px;color:var(--sub)}
+.tabs button.on{background:var(--accent2);color:var(--ink);font-weight:700}
+main{max-width:960px;margin:0 auto;padding:12px 12px calc(40px + env(safe-area-inset-bottom))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+.card h2{font-size:15px;margin-bottom:8px}
+.hint{font-size:12px;color:var(--sub);margin-top:8px;line-height:1.5}
+.hint.warn{color:var(--warn)}
+.row{display:flex;gap:8px;align-items:center}
+.seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px;margin-bottom:12px;overflow-x:auto}
+.seg button{flex:1;border:0;background:transparent;border-radius:8px;padding:7px 8px;font-size:13px;white-space:nowrap}
+.seg button.on{background:var(--accent2);color:var(--ink);font-weight:700}
+/* 카드 뉴스 바둑판 */
+.sec-h{display:flex;align-items:center;gap:8px;margin:14px 2px 8px;font-size:15px;font-weight:700}
+.sec-h small{color:var(--sub);font-weight:400;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(min-width:620px){.grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:900px){.grid{grid-template-columns:repeat(4,1fr)}}
+@media(max-height:480px) and (min-width:560px){.grid{grid-template-columns:repeat(4,1fr)}}
+.nc{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;color:inherit;text-decoration:none;min-width:0}
+.nc:active{border-color:var(--accent)}
+.nc .ph{position:relative;aspect-ratio:16/10;background:linear-gradient(135deg,#1f2a2e,#16202a);display:flex;align-items:center;justify-content:center;font-size:30px;color:#3d4d56}
+.nc .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.nc .tt{padding:9px 10px 0;font-size:13.5px;font-weight:600;line-height:1.38;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all}
+.nc .mt{padding:6px 10px 9px;font-size:11.5px;color:var(--sub);margin-top:auto}
+.sch{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+.sch:last-child{border-bottom:0}
+.sch b{flex:none;width:52px;color:var(--accent);font-variant-numeric:tabular-nums}
+.sch span.s{color:var(--sub);font-size:12px}
+.sch i{font-style:normal;font-size:11px;color:var(--sub);margin-left:6px}
+/* 설정 */
+.set{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.set:last-of-type{border-bottom:0}
+.set .tx{flex:1;min-width:0}
+.set .tx b{display:block;font-size:15px}
+.set .tx small{display:block;color:var(--sub);font-size:12.5px;margin-top:1px}
+.sw{position:relative;flex:none;width:46px;height:26px;border-radius:99px;border:0;padding:0;background:#3a4056}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s}
+.sw.on{background:var(--ok)}.sw.on::after{left:23px}
+input[type=time]{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color-scheme:dark;font-size:18px;font-weight:700}
+.x{border:0;background:transparent;color:var(--sub);font-size:20px;padding:4px 8px}
+.empty{padding:26px 10px;text-align:center;color:var(--sub);font-size:14px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#000c;color:#fff;padding:9px 16px;border-radius:99px;font-size:13.5px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+.toast.show{opacity:1}
+</style>
+<script src="ui-guard.js" defer></script>
+<script src="appmenu.js" defer></script>
+<script src="sync.js?bg=1" defer></script>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html" aria-label="런처로">‹</a>
+  <h1>SIM <span>Brief</span></h1>
+  <div class="spacer"></div>
+  <button class="sm" id="refresh" aria-label="새로고침">↻ 새로고침</button>
+</header>
+<nav class="tabs" id="tabs">
+  <button data-t="brief" class="on">브리핑</button>
+  <button data-t="set">알림 설정</button>
+</nav>
+<main id="main"></main>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const FN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-news';
+const CATS = [['politics', '정치'], ['economy', '경제'], ['society', '사회'], ['culture', '문화'], ['sports', '스포츠']];
+const CAT_ICON = { politics: '🏛️', economy: '💹', society: '👥', culture: '🎭', sports: '⚽' };
+const NA = window.SimBrief || null;            // 안드로이드 앱(APK)에서만 있음
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200); }
+
+/* ── 설정 (기기에 저장, 로그인 계정 동기화는 sync.js 가 처리) ── */
+const KEY = 'simbrief.v1';
+const DEF = { times: [{ t: '07:30', on: true }], sound: true, cats: { politics: true, economy: true, society: true, culture: true, sports: true }, calSim: true, calDevice: true };
+let CFG = (() => { try { const c = JSON.parse(lsGet(KEY) || 'null'); return c ? Object.assign({}, DEF, c, { cats: Object.assign({}, DEF.cats, c.cats || {}) }) : JSON.parse(JSON.stringify(DEF)); } catch (e) { return JSON.parse(JSON.stringify(DEF)); } })();
+function save() {
+  lsSet(KEY, JSON.stringify(CFG));
+  if (NA) { try { NA.schedule(JSON.stringify({ times: CFG.times.filter(x => x.t), sound: CFG.sound, cats: CATS.map(c => c[0]).filter(k => CFG.cats[k]), endpoint: FN, calDevice: CFG.calDevice, calSim: CFG.calSim })); } catch (e) {} }
+}
+
+/* ── 알림음: 높은 3음 "심·툴·즈" ── */
+function chime() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext, ac = new AC(), t0 = ac.currentTime + .02;
+    [[1318.5, 0], [1661.2, .2], [1975.5, .4]].forEach(([f, d]) => {
+      [[1, .28], [2, .1], [3, .035]].forEach(([m, a]) => {
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.type = 'sine'; o.frequency.value = f * m;
+        g.gain.setValueAtTime(0, t0 + d); g.gain.linearRampToValueAtTime(a, t0 + d + .004); g.gain.exponentialRampToValueAtTime(.0001, t0 + d + 1);
+        o.connect(g); g.connect(ac.destination); o.start(t0 + d); o.stop(t0 + d + 1.05);
+      });
+    });
+    setTimeout(() => ac.close && ac.close(), 1800);
+  } catch (e) {}
+}
+
+/* ── 뉴스 ── */
+const NEWS = {};   // cat -> {at, items}
+const ago = t => { if (!t) return ''; const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? '방금' : m < 60 ? m + '분 전' : m < 1440 ? Math.floor(m / 60) + '시간 전' : Math.floor(m / 1440) + '일 전'; };
+async function loadNews(cat, n, force) {
+  const ck = 'simbrief.c.' + cat + '.' + n;
+  let hit = null; try { hit = JSON.parse(lsGet(ck) || 'null'); } catch (e) {}
+  if (!force && hit && Date.now() - hit.at < 10 * 60000) return { items: hit.v, at: hit.at, cached: false };
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 30000);
+  try {
+    const r = await fetch(FN + '?cat=' + cat + '&n=' + n, { signal: ctl.signal });
+    const j = await r.json(); if (!r.ok || !j.ok) throw new Error('fail');
+    const out = cat === 'all' ? j.news : j.news[cat];
+    lsSet(ck, JSON.stringify({ at: Date.now(), v: out }));
+    return { items: out, at: Date.now(), cached: false };
+  } catch (e) {
+    if (hit) return { items: hit.v, at: hit.at, cached: true };
+    throw e;
+  } finally { clearTimeout(to); }
+}
+function cardHtml(x, cat) {
+  return '<a class="nc" href="' + esc(x.link) + '" target="_blank" rel="noopener noreferrer"><div class="ph">' + (CAT_ICON[cat] || '📰') +
+    (x.img ? '<img src="' + esc(x.img) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : '') +
+    '</div><div class="tt">' + esc(x.title) + '</div><div class="mt">' + esc(x.src) + (x.at ? ' · ' + ago(x.at) : '') + '</div></a>';
+}
+
+/* ── 오늘 일정: 심스케줄(SIM Calendar·SIM Assistant) + 기기 달력(앱에서) ── */
+const sod = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+const hm = d => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+function idbAll(name, store) {
+  return new Promise(res => {
+    if (!window.indexedDB) return res([]);
+    const r = indexedDB.open(name);
+    r.onerror = () => res([]);
+    r.onsuccess = () => {
+      const db = r.result;
+      try { if (!db.objectStoreNames.contains(store)) { db.close(); return res([]); }
+        const q = db.transaction(store, 'readonly').objectStore(store).getAll();
+        q.onsuccess = () => { db.close(); res(q.result || []); }; q.onerror = () => { db.close(); res([]); };
+      } catch (e) { try { db.close(); } catch (x) {} res([]); }
+    };
+  });
+}
+function occursOn(r, day) {
+  const s = new Date(r.start); if (isNaN(s)) return null;
+  const e = new Date(r.end || r.start), d0 = sod(day), d1 = new Date(d0.getTime() + 864e5);
+  if (!r.rep) {
+    const ee = isNaN(e) || e <= s ? new Date(s.getTime() + (r.allDay ? 864e5 : 36e5)) : (r.allDay ? new Date(sod(e).getTime() + 864e5) : e);
+    return s < d1 && ee > d0 ? s : null;
+  }
+  if (sod(s) > d0) return null;
+  if (r.until != null && +d0 >= +r.until) return null;
+  const ok = r.rep === 'daily' || (r.rep === 'weekly' && s.getDay() === d0.getDay()) || (r.rep === 'monthly' && s.getDate() === d0.getDate()) || (r.rep === 'yearly' && s.getMonth() === d0.getMonth() && s.getDate() === d0.getDate());
+  if (!ok) return null;
+  const occ = new Date(d0); occ.setHours(s.getHours(), s.getMinutes(), 0, 0);
+  if ((r.ex || []).map(Number).indexOf(+occ) >= 0) return null;
+  return occ;
+}
+async function todaySchedule() {
+  const out = [], day = new Date();
+  if (CFG.calSim) {
+    const L = (await idbAll('simcalendar', 'events')).concat(await idbAll('simassistant', 'events'));
+    for (const r of L) { const o = occursOn(r, day); if (o) out.push({ t: r.allDay ? 0 : +o, allDay: !!r.allDay, title: r.title || '(제목 없음)', loc: r.loc || '', src: '심스케줄' }); }
+  }
+  if (CFG.calDevice && NA) {
+    try { if (NA.hasCalendar()) { const a = JSON.parse(NA.calendar(+sod(day), +sod(day) + 864e5)); a.forEach(o => out.push({ t: o.allDay ? 0 : o.start, allDay: o.allDay, title: o.title || '(제목 없음)', loc: o.loc || '', src: '기기 달력' })); } } catch (e) {}
+  }
+  out.sort((a, b) => (b.allDay - a.allDay) || (a.t - b.t));
+  return out;
+}
+function schedHtml(list) {
+  if (!list.length) return '<div class="empty" style="padding:12px">오늘 등록된 일정이 없어요</div>';
+  return list.map(o => '<div class="sch"><b>' + (o.allDay ? '종일' : hm(new Date(o.t))) + '</b><div style="flex:1;min-width:0">' + esc(o.title) + (o.loc ? ' <span class="s">· ' + esc(o.loc) + '</span>' : '') + '<i>' + esc(o.src) + '</i></div></div>').join('');
+}
+
+/* ── 화면: 브리핑 ── */
+const S = { tab: 'brief', cat: 'all' };
+const main = $('main');
+let seq = 0;
+async function vBrief(force) {
+  const my = ++seq, ok = () => my === seq && S.tab === 'brief';
+  const dt = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
+  main.innerHTML = '<div class="card"><h2>📅 오늘 일정 <span style="color:var(--sub);font-weight:400;font-size:12.5px">' + esc(dt) + '</span></h2><div id="sch"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' +
+    '<div class="seg" id="seg"><button data-c="all"' + (S.cat === 'all' ? ' class="on"' : '') + '>전체</button>' + CATS.map(c => '<button data-c="' + c[0] + '"' + (S.cat === c[0] ? ' class="on"' : '') + '>' + c[1] + '</button>').join('') + '</div><div id="news"><div class="empty"><span class="spin"></span>뉴스를 불러오는 중…</div></div>';
+  let sched = []; todaySchedule().then(l => { sched = l; if (ok() && $('sch')) $('sch').innerHTML = schedHtml(l); pushCache(); });
+  try {
+    const r = await loadNews(S.cat, S.cat === 'all' ? 6 : 16, force); if (!ok()) return;
+    let h = '', note = r.cached ? '<div class="hint warn" style="margin:0 2px 8px">네트워크가 불안정해 마지막으로 받은 뉴스를 보여줘요 (' + ago(r.at) + ')</div>' : '';
+    if (S.cat === 'all') {
+      CATS.forEach(c => { const a = (r.items && r.items[c[0]]) || []; if (!a.length) return; NEWS[c[0]] = a; h += '<div class="sec-h">' + CAT_ICON[c[0]] + ' ' + c[1] + '</div><div class="grid">' + a.map(x => cardHtml(x, c[0])).join('') + '</div>'; });
+    } else { NEWS[S.cat] = r.items; h = '<div class="grid">' + (r.items || []).map(x => cardHtml(x, S.cat)).join('') + '</div>'; }
+    $('news').innerHTML = note + (h || '<div class="empty">표시할 뉴스가 없어요</div>');
+    pushCache();
+  } catch (e) {
+    if (ok()) $('news').innerHTML = '<div class="empty">뉴스를 가져오지 못했어요.<br>인터넷 연결을 확인하고 새로고침해 주세요.</div>';
+  }
+  async function pushCache() {   // 알림에서 네트워크가 안 될 때 쓸 마지막 헤드라인·오늘 심스케줄을 앱에 맡겨 둔다
+    if (!NA) return;
+    try { const news = {}; CATS.forEach(c => { if (NEWS[c[0]]) news[c[0]] = NEWS[c[0]].slice(0, 2).map(x => ({ title: x.title })); });
+      NA.cache(JSON.stringify({ date: new Date().toLocaleDateString('sv-SE'), news, sched: sched.filter(o => o.src === '심스케줄').map(o => (o.allDay ? '종일' : hm(new Date(o.t))) + ' ' + o.title) })); } catch (e) {}
+  }
+}
+
+/* ── 화면: 알림 설정 ── */
+const sw = on => '<button class="sw' + (on ? ' on' : '') + '" role="switch" aria-checked="' + !!on + '"></button>';
+async function vSet() {
+  const apk = !!NA;
+  const nat = apk ? { notif: safe(() => NA.hasNotif()), exact: safe(() => NA.canExact()), cal: safe(() => NA.hasCalendar()) } : null;
+  function safe(f) { try { return !!f(); } catch (e) { return false; } }
+  const wn = !apk && 'Notification' in window ? Notification.permission : null;
+  main.innerHTML =
+    '<div class="card"><h2>⏰ 브리핑 시간</h2><div id="times">' + CFG.times.map((x, i) => '<div class="set" data-i="' + i + '"><input type="time" value="' + esc(x.t) + '" data-a="t">' + '<div class="tx"></div>' + sw(x.on).replace('class="sw', 'data-a="on" class="sw') + '<button class="x" data-a="del" aria-label="삭제">✕</button></div>').join('') + '</div>' +
+    '<button class="sm" id="addT" style="margin-top:8px">＋ 시간 추가</button>' +
+    '<div class="hint">정한 시간에 알림창으로 주요 뉴스·일정을 알려드려요. 알림을 누르면 이 앱이 열려 카드 뉴스로 들어와요.</div></div>' +
+    '<div class="card"><h2>🔔 알림음</h2><div class="set"><div class="tx"><b>"심툴즈" 알림음</b><small>높은 3음 차임 · 끄면 무음 알림</small></div><button class="sm" id="hear">들어보기</button>' + sw(CFG.sound).replace('class="sw', 'data-a="snd" class="sw') + '</div></div>' +
+    '<div class="card"><h2>📰 브리핑 분야</h2>' + CATS.map(c => '<div class="set"><div class="tx"><b>' + CAT_ICON[c[0]] + ' ' + c[1] + '</b></div>' + sw(CFG.cats[c[0]]).replace('class="sw', 'data-a="cat" data-k="' + c[0] + '" class="sw') + '</div>').join('') +
+    '<div class="set"><div class="tx"><b>📅 심스케줄</b><small>SIM Calendar·SIM Assistant 일정</small></div>' + sw(CFG.calSim).replace('class="sw', 'data-a="cs" class="sw') + '</div>' +
+    '<div class="set"><div class="tx"><b>📱 기기 달력</b><small>' + (apk ? (nat.cal ? '폰 달력 연동됨' : '켜면 달력 읽기 권한을 요청해요') : '안드로이드 앱(APK)에서 쓸 수 있어요') + '</small></div>' + sw(CFG.calDevice && apk).replace('class="sw', 'data-a="cd" ' + (apk ? '' : 'disabled ') + 'class="sw') + '</div></div>' +
+    '<div class="card"><h2>🧪 알림 확인</h2>' +
+    (apk ? '<div class="set"><div class="tx"><b>알림 권한</b><small>' + (nat.notif ? '허용됨' : '꺼져 있어요') + '</small></div>' + (nat.notif ? '' : '<button class="sm" id="reqN">허용</button>') + '</div>' +
+      '<div class="set"><div class="tx"><b>정확한 시각 알람</b><small>' + (nat.exact ? '허용됨' : '꺼져 있으면 알림이 몇 분 늦을 수 있어요 — "알람 및 리마인더" 허용') + '</small></div>' + (nat.exact ? '' : '<button class="sm" id="reqE">설정 열기</button>') + '</div>' :
+      '<div class="set"><div class="tx"><b>브라우저 알림</b><small>' + (wn === 'granted' ? '허용됨' : wn === 'denied' ? '차단됨 — 브라우저 설정에서 허용해 주세요' : wn ? '아직 허용 전' : '이 브라우저는 알림을 지원하지 않아요') + '</small></div>' + (wn === 'default' ? '<button class="sm" id="reqW">허용</button>' : '') + '</div>') +
+    '<button class="primary" id="test" style="width:100%;margin-top:10px">지금 브리핑 알림 테스트</button>' +
+    '<div class="hint ' + (apk ? '' : 'warn') + '">' + (apk ? '앱을 꺼 두어도 정한 시간에 알림이 와요. 폰 절전 설정이 앱을 제한하면 알림이 안 올 수 있으니 SIM Brief를 "제한 없음"으로 두세요.' : '웹 브라우저에서는 이 화면이 열려 있는 동안만 정시 알림이 와요. 앱을 꺼 둬도 알림을 받으려면 런처에서 SIM Brief 앱(APK)을 설치해 주세요.') + '</div></div>';
+}
+main.addEventListener('click', async e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (S.tab === 'brief') { if (t.dataset.c) { S.cat = t.dataset.c; vBrief(); } return; }
+  const row = t.closest('[data-i]'), a = t.dataset.a;
+  if (t.id === 'addT') { CFG.times.push({ t: '18:00', on: true }); save(); vSet(); return; }
+  if (a === 'del' && row) { CFG.times.splice(+row.dataset.i, 1); save(); vSet(); return; }
+  if (a === 'on' && row) { const x = CFG.times[+row.dataset.i]; x.on = !x.on; save(); vSet(); return; }
+  if (a === 'snd') { CFG.sound = !CFG.sound; save(); vSet(); if (CFG.sound) chime(); return; }
+  if (a === 'cat') { CFG.cats[t.dataset.k] = !CFG.cats[t.dataset.k]; save(); vSet(); return; }
+  if (a === 'cs') { CFG.calSim = !CFG.calSim; save(); vSet(); return; }
+  if (a === 'cd' && !t.disabled) {
+    CFG.calDevice = !CFG.calDevice; save();
+    if (CFG.calDevice && NA && !NA.hasCalendar()) { NA.requestCalendar(); toast('달력 읽기를 허용해 주세요'); }
+    vSet(); return;
+  }
+  if (t.id === 'hear') { chime(); return; }
+  if (t.id === 'reqN') { NA.requestNotif(); return; }
+  if (t.id === 'reqE') { NA.openExact(); return; }
+  if (t.id === 'reqW') { const p = await Notification.requestPermission(); vSet(); if (p === 'granted') toast('알림을 허용했어요'); return; }
+  if (t.id === 'test') {
+    if (NA) { save(); NA.test(); toast('알림창을 확인해 보세요'); return; }
+    if (CFG.sound) chime();
+    await webNotify('테스트');
+  }
+});
+main.addEventListener('change', e => {
+  const t = e.target; if (t.dataset.a !== 't') return;
+  const row = t.closest('[data-i]'); if (!row) return;
+  CFG.times[+row.dataset.i].t = t.value; save();
+});
+
+/* ── 웹 브라우저용 정시 알림 (화면이 열려 있는 동안) ── */
+async function webNotify(label) {
+  if (!('Notification' in window)) { toast('이 브라우저는 알림을 지원하지 않아요'); return; }
+  if (Notification.permission !== 'granted') { toast('알림을 먼저 허용해 주세요'); return; }
+  let body = '누르면 오늘의 브리핑을 볼 수 있어요.';
+  try { const r = await loadNews('all', 2, false); const f = CATS.map(c => (r.items[c[0]] || [])[0] && '[' + c[1] + '] ' + r.items[c[0]][0].title).filter(Boolean); if (f.length) body = f.slice(0, 3).join('\n'); } catch (e) {}
+  const o = { body, icon: 'brief-icon-192.png', tag: 'simbrief', silent: true };
+  try {
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (reg && reg.showNotification) await reg.showNotification('SIM Brief · ' + label + ' 브리핑', o);
+    else { const n = new Notification('SIM Brief · ' + label + ' 브리핑', o); n.onclick = () => { window.focus(); n.close(); }; }
+  } catch (e) { toast('알림을 띄우지 못했어요'); }
+}
+if (!NA) setInterval(() => {
+  const d = new Date(), cur = hm(d), day = d.toLocaleDateString('sv-SE');
+  CFG.times.forEach(x => { if (x.on && x.t === cur && lsGet('simbrief.last.' + x.t) !== day) { lsSet('simbrief.last.' + x.t, day); if (CFG.sound) chime(); webNotify(x.t); } });
+}, 20000);
+
+/* ── 탭·새로고침 ── */
+$('tabs').addEventListener('click', e => { const b = e.target.closest('button[data-t]'); if (!b) return; S.tab = b.dataset.t; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); render(); });
+$('refresh').addEventListener('click', () => { if (S.tab === 'brief') vBrief(true); else vSet(); });
+function render() { seq++; S.tab === 'brief' ? vBrief() : vSet(); }
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.tab === 'set') vSet(); });   // 권한 설정을 하고 돌아오면 상태 갱신
+save();      // 앱에서는 열 때마다 알람을 다시 맞춘다
+render();
+</script>
+</body>
+</html>

@@ -643,7 +643,7 @@ async function vBrief(force) {
   const dt = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
   const en = CATS.filter(c => CFG.cats[c[0]]);                                    // 선택한 분야만 탭으로 표시
   const wantCustom = !!CFG.cats.custom, hasKw = (CFG.kw || []).length > 0;
-  const tabs0 = (wantCustom ? [['custom', '맞춤']] : []).concat(en);
+  const tabs0 = en.concat(wantCustom ? [['custom', '맞춤']] : []);
   const tabs = (tabs0.length > 1 ? [['all', '전체']] : []).concat(tabs0);
   if (!tabs.some(t => t[0] === S.cat)) S.cat = tabs.length ? tabs[0][0] : 'all';
   main.innerHTML = (CFG.weather.on ? '<div class="card"><div class="wxh"><h2>오늘 날씨</h2><span class="wxr">' + (CFG.weather.mode !== 'auto' ? '<button class="wxhome" id="wxHome" aria-label="현재 위치로">⌖ 현재 위치</button>' : '') + '<button class="wxplace" id="wxPlace" aria-label="지역 변경">📍 <span id="wxName">' + esc(CFG.weather.name) + '</span> <i>▾</i></button></span></div><div id="wx"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
@@ -672,8 +672,8 @@ async function vBrief(force) {
     if (!ok()) return;
     let h = '', note = r.cached ? '<div class="hint warn" style="margin:0 2px 8px">네트워크가 불안정해 마지막으로 받은 뉴스를 보여줘요 (' + ago(r.at) + ')</div>' : '';
     if (S.cat === 'all') {
-      if (rc && rc.items && rc.items.length) { NEWS.custom = rc.items; h += '<div class="sec-h">✨ 맞춤</div><div class="grid">' + rc.items.map(x => cardHtml(x, 'custom')).join('') + '</div>'; }
       en.forEach(c => { const a = (r.items && r.items[c[0]]) || []; if (!a.length) return; NEWS[c[0]] = a; h += '<div class="sec-h">' + CAT_ICON[c[0]] + ' ' + c[1] + '</div><div class="grid">' + a.map(x => cardHtml(x, c[0])).join('') + '</div>'; });
+      if (rc && rc.items && rc.items.length) { NEWS.custom = rc.items; h += '<div class="sec-h">✨ 맞춤</div><div class="grid">' + rc.items.map(x => cardHtml(x, 'custom')).join('') + '</div>'; }
     } else { NEWS[S.cat] = r.items; h = '<div class="grid">' + (r.items || []).map(x => cardHtml(x, S.cat)).join('') + '</div>'; }
     if (S.cat === 'custom' && !(r.items || []).length) h = '<div class="empty">최근 24시간 안에 올라온 기사가 없어요.</div>';
     $('news').innerHTML = note + (h || '<div class="empty">표시할 뉴스가 없어요</div>');
@@ -707,7 +707,7 @@ async function vSet(kind) {
     mk: ('<div class="card"><h2>📈 증시</h2><div class="set"><div class="tx"><b>메인에 증시 지수 넣기</b><small>코스피·코스닥·원/달러, 미국 3대 지수</small></div>' + sw(CFG.mkt).replace('class="sw', 'data-a="mkt" class="sw') + '</div></div>'),
     kw: ('<div class="card"><h2>✨ 맞춤 뉴스</h2><div class="set"><div class="tx"><b>맞춤 뉴스 보기</b><small>키워드별 최근 24시간 뉴스만 모아요</small></div>' + sw(CFG.cats.custom).replace('class="sw', 'data-a="cat" data-k="custom" class="sw') + '</div>' +
       '<div class="kws">' + (CFG.kw || []).map((k, i) => '<span class="kw">' + esc(k) + '<button class="x" data-a="kwdel" data-k="' + i + '" aria-label="삭제">✕</button></span>').join('') + '</div>' +
-      ((CFG.kw || []).length < 5 ? '<form id="kwf" class="kwf"><input id="kwIn" type="text" maxlength="24" placeholder="키워드 입력 (예: 삼성전자, 부동산)" autocomplete="off" enterkeyhint="done"><button class="primary" type="submit">추가</button></form>' : '<div class="hint">키워드는 최대 5개예요.</div>') + '</div>'),
+      ((CFG.kw || []).length < 10 ? '<form id="kwf" class="kwf"><input id="kwIn" type="text" maxlength="24" placeholder="키워드 입력 (예: 삼성전자, 부동산)" autocomplete="off" enterkeyhint="done"><button class="primary" type="submit">추가</button></form>' : '<div class="hint">키워드는 최대 10개예요.</div>') + '</div>'),
     sched: ('<div class="card"><h2>📅 브리핑 일정</h2>' + '<div class="set"><div class="tx"><b>📅 심스케줄</b><small>SIM Calendar·SIM Assistant 일정</small></div>' + sw(CFG.calSim).replace('class="sw', 'data-a="cs" class="sw') + '</div>' +
     '<div class="set"><div class="tx"><b>📱 기기 달력</b><small>' + (apk ? (nat.cal ? '폰 달력 연동됨' : '켜면 달력 읽기 권한을 요청해요') : '안드로이드 앱(APK)에서 쓸 수 있어요') + '</small></div>' + sw(CFG.calDevice && apk).replace('class="sw', 'data-a="cd" ' + (apk ? '' : 'disabled ') + 'class="sw') + '</div></div>'),
     fz: (    '<div class="card"><h2>🔮 오늘의 운세</h2><div class="set"><div class="tx"><b>브리핑에 운세 넣기</b></div>' + sw(CFG.fortune.on).replace('class="sw', 'data-a="fz" class="sw') + '</div>' +
@@ -771,7 +771,7 @@ main.addEventListener('submit', e => {
   const i = $('kwIn'), v = (i.value || '').trim().replace(/[,#]/g, ' ').replace(/\s+/g, ' ').slice(0, 24);
   if (!v) return; CFG.kw = CFG.kw || [];
   if (CFG.kw.includes(v)) { toast('이미 있는 키워드예요'); return; }
-  if (CFG.kw.length >= 5) { toast('키워드는 최대 5개예요'); return; }
+  if (CFG.kw.length >= 10) { toast('키워드는 최대 10개예요'); return; }
   CFG.kw.push(v); save(); vSet();
 });
 main.addEventListener('change', e => {

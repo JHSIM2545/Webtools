@@ -234,7 +234,25 @@ public final class BriefReceiver extends BroadcastReceiver {
     }
 
     /** "심툴즈" 알림음: 폰의 한국어 음성(TTS)을 높은 음정으로 읽어 아이 목소리 느낌을 낸다. 음성을 못 쓰면 3음 차임으로 대신한다. */
+    static java.io.File voiceFile(Context c) { return new java.io.File(c.getFilesDir(), "brief_voice.wav"); }
+
     private static void sayName(final Context c) {
+        // 1순위: 사용자가 만들어 저장한 AI 아이 목소리 파일
+        java.io.File vf = voiceFile(c);
+        if (vf.exists() && vf.length() > 1000) {
+            try {
+                final CountDownLatch end = new CountDownLatch(1);
+                MediaPlayer mp = new MediaPlayer();
+                mp.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+                mp.setDataSource(vf.getAbsolutePath());
+                mp.prepare();
+                mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() { @Override public void onCompletion(MediaPlayer m) { end.countDown(); } });
+                mp.start();
+                end.await(5, TimeUnit.SECONDS);
+                mp.release();
+                return;
+            } catch (Exception ignore) { /* 아래 폰 음성으로 */ }
+        }
         final CountDownLatch ready = new CountDownLatch(1), done = new CountDownLatch(1);
         final boolean[] ok = {false};
         final TextToSpeech[] tts = new TextToSpeech[1];

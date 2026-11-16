@@ -98,6 +98,7 @@ input[type=time]{background:var(--panel2);border:1px solid var(--line);border-ra
 <script>
 'use strict';
 const FN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-news';
+const FN_VOICE = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-voice';
 const CATS = [['politics', '정치'], ['economy', '경제'], ['society', '사회'], ['culture', '문화'], ['sports', '스포츠']];
 const CAT_ICON = { politics: '🏛️', economy: '💹', society: '👥', culture: '🎭', sports: '⚽' };
 const NA = window.SimBrief || null;            // 안드로이드 앱(APK)에서만 있음
@@ -117,7 +118,14 @@ function save() {
 }
 
 /* ── 알림음: 높은 3음 "심·툴·즈" ── */
-function hearName() {   // 폰의 음성(TTS)을 높은 음정으로 — 앱의 알림음과 같은 방식
+const VKEY = 'simbrief.voice';
+const VOICES = [['Leda', '밝은 아이'], ['Zephyr', '맑은 톤'], ['Puck', '명랑한 톤'], ['Aoede', '또랑또랑'], ['Kore', '차분한 톤']];
+let GEN = null;       // 방금 만든 {voice, b64, url}
+let playing = null;
+function playB64(b64) { try { if (playing) playing.pause(); playing = new Audio('data:audio/wav;base64,' + b64); playing.play().catch(() => {}); } catch (e) {} }
+function savedVoice() { return lsGet(VKEY); }
+function hearName() {   // 저장해 둔 AI 아이 목소리 → 없으면 폰의 음성(TTS)을 높은 음정으로
+  const sv = savedVoice(); if (sv) return playB64(sv);
   try {
     if (!('speechSynthesis' in window)) return chime();
     const u = new SpeechSynthesisUtterance('심툴즈'); u.lang = 'ko-KR'; u.pitch = 2; u.rate = 1;
@@ -252,7 +260,11 @@ async function vSet() {
     '<div class="card"><h2>⏰ 브리핑 시간</h2><div id="times">' + CFG.times.map((x, i) => '<div class="set" data-i="' + i + '"><input type="time" value="' + esc(x.t) + '" data-a="t">' + '<div class="tx"></div>' + sw(x.on).replace('class="sw', 'data-a="on" class="sw') + '<button class="x" data-a="del" aria-label="삭제">✕</button></div>').join('') + '</div>' +
     '<button class="sm" id="addT" style="margin-top:8px">＋ 시간 추가</button>' +
     '<div class="hint">정한 시간에 알림창으로 주요 뉴스·일정을 알려드려요. 알림을 누르면 이 앱이 열려 카드 뉴스로 들어와요.</div></div>' +
-    '<div class="card"><h2>🔔 알림음</h2><div class="set"><div class="tx"><b>"심툴즈" 알림음</b><small>높은 음정의 아이 목소리 "심툴즈" · 끄면 무음 알림</small></div><button class="sm" id="hear">들어보기</button>' + sw(CFG.sound).replace('class="sw', 'data-a="snd" class="sw') + '</div></div>' +
+    '<div class="card"><h2>🔔 알림음</h2><div class="set"><div class="tx"><b>"심툴즈" 알림음</b><small>' + (savedVoice() || (NA && safe(() => NA.hasSound())) ? 'AI 아이 목소리 저장됨' : '기본: 폰 음성 높은 음정') + ' · 끄면 무음 알림</small></div><button class="sm" id="hear">들어보기</button>' + sw(CFG.sound).replace('class="sw', 'data-a="snd" class="sw') + '</div>' +
+    '<div class="hint" style="margin:10px 0 6px">🎙️ AI 아이 목소리 만들기 — 목소리를 고르고 만들어 들어본 뒤 마음에 들면 저장하세요</div>' +
+    '<div class="seg" id="vseg">' + VOICES.map((v, i) => '<button data-v="' + v[0] + '"' + (i === 0 ? ' class="on"' : '') + '>' + v[1] + '</button>').join('') + '</div>' +
+    '<div class="row"><button class="sm" id="genV" style="flex:1">만들어서 들어보기</button><button class="sm primary" id="saveV" style="flex:1" disabled>이 소리로 저장</button></div>' +
+    '<div class="row" style="margin-top:8px"><a class="sm" id="dlV" style="display:none;color:var(--accent)" download="sim_toolz_alert.wav">⬇ WAV 파일로 받기</a><button class="sm" id="clrV" style="margin-left:auto">기본 소리로 되돌리기</button></div><div class="hint" id="vmsg"></div></div>' +
     '<div class="card"><h2>📰 브리핑 분야</h2>' + CATS.map(c => '<div class="set"><div class="tx"><b>' + CAT_ICON[c[0]] + ' ' + c[1] + '</b></div>' + sw(CFG.cats[c[0]]).replace('class="sw', 'data-a="cat" data-k="' + c[0] + '" class="sw') + '</div>').join('') +
     '<div class="set"><div class="tx"><b>📅 심스케줄</b><small>SIM Calendar·SIM Assistant 일정</small></div>' + sw(CFG.calSim).replace('class="sw', 'data-a="cs" class="sw') + '</div>' +
     '<div class="set"><div class="tx"><b>📱 기기 달력</b><small>' + (apk ? (nat.cal ? '폰 달력 연동됨' : '켜면 달력 읽기 권한을 요청해요') : '안드로이드 앱(APK)에서 쓸 수 있어요') + '</small></div>' + sw(CFG.calDevice && apk).replace('class="sw', 'data-a="cd" ' + (apk ? '' : 'disabled ') + 'class="sw') + '</div></div>' +
@@ -278,6 +290,25 @@ main.addEventListener('click', async e => {
     if (CFG.calDevice && NA && !NA.hasCalendar()) { NA.requestCalendar(); toast('달력 읽기를 허용해 주세요'); }
     vSet(); return;
   }
+  if (t.dataset.v) { document.querySelectorAll('#vseg button').forEach(x => x.classList.toggle('on', x === t)); return; }
+  if (t.id === 'genV') {
+    const v = (document.querySelector('#vseg .on') || {}).dataset.v || 'Leda', m = $('vmsg');
+    t.disabled = true; m.innerHTML = '<span class="spin"></span>목소리를 만드는 중이에요 (10~20초)…';
+    try {
+      const r = await fetch(FN_VOICE, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice: v }) });
+      const j = await r.json().catch(() => ({})); if (!r.ok || !j.data) throw new Error(j.error || 'fail');
+      GEN = { voice: v, b64: j.data }; playB64(j.data);
+      const d = $('dlV'); d.href = 'data:audio/wav;base64,' + j.data; d.style.display = ''; $('saveV').disabled = false;
+      m.textContent = '재생했어요. 마음에 들면 "이 소리로 저장", 아니면 다른 목소리로 다시 만들어 보세요.';
+    } catch (err) { m.textContent = (err.message === 'quota' ? 'AI 사용 한도에 걸렸어요. 잠시 뒤 다시 시도해 주세요.' : '목소리를 만들지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.'); }
+    t.disabled = false; return;
+  }
+  if (t.id === 'saveV' && GEN) {
+    let ok = true;
+    if (NA) { try { ok = NA.saveSound(GEN.b64); } catch (err) { ok = false; } }
+    lsSet(VKEY, GEN.b64); toast(ok ? '알림음으로 저장했어요' : '저장에 실패했어요'); vSet(); return;
+  }
+  if (t.id === 'clrV') { try { localStorage.removeItem(VKEY); } catch (err) {} if (NA) { try { NA.clearSound(); } catch (err) {} } GEN = null; toast('기본 소리로 되돌렸어요'); vSet(); return; }
   if (t.id === 'hear') { hearName(); return; }
   if (t.id === 'reqN') { NA.requestNotif(); return; }
   if (t.id === 'reqE') { NA.openExact(); return; }

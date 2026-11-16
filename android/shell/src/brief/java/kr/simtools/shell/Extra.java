@@ -40,9 +40,22 @@ final class Extra {
             try { new JSONObject(json); BriefReceiver.prefs(a).edit().putString("cache", json).apply(); } catch (Exception ignore) {}
         }
 
+        /** 마지막 재생 결과와 현재 볼륨 상태 (JSON) — 소리가 안 들릴 때 원인 확인용 */
+        @JavascriptInterface public String diag() {
+            try {
+                android.media.AudioManager am = (android.media.AudioManager) a.getSystemService(Context.AUDIO_SERVICE);
+                JSONObject o = new JSONObject();
+                o.put("last", BriefReceiver.LAST);
+                o.put("music", am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC));
+                o.put("alarm", am.getStreamVolume(android.media.AudioManager.STREAM_ALARM));
+                o.put("notif", am.getStreamVolume(android.media.AudioManager.STREAM_NOTIFICATION));
+                o.put("voiceSize", BriefReceiver.voiceFile(a).exists() ? BriefReceiver.voiceFile(a).length() : 0);
+                return o.toString();
+            } catch (Exception e) { return "{}"; }
+        }
         @JavascriptInterface public boolean hasSound() { return BriefReceiver.voiceFile(a).exists(); }
         /** 알림음 미리듣기 (알림 때와 같은 방식으로 재생) */
-        @JavascriptInterface public void preview(final String id) { new Thread(new Runnable() { @Override public void run() { BriefReceiver.play(a, id); } }).start(); }
+        @JavascriptInterface public void preview(final String id) { new Thread(new Runnable() { @Override public void run() { BriefReceiver.play(a, id, true); } }).start(); }
 
         @JavascriptInterface public void test() {
             new Thread(new Runnable() { @Override public void run() { BriefReceiver.post(a, "테스트"); } }).start();

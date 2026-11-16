@@ -230,37 +230,59 @@ public final class BriefReceiver extends BroadcastReceiver {
             nb.setPriority(android.app.Notification.PRIORITY_HIGH);
         }
         try { nm.notify(7001, nb.build()); } catch (Exception ignore) {}
-        if (sound) play(c, cfg.optString("soundId", ""));
+        if (sound) play(c, cfg.optString("soundId", ""), false);
     }
 
     /** "심툴즈" 알림음: 폰의 한국어 음성(TTS)을 높은 음정으로 읽어 아이 목소리 느낌을 낸다. 음성을 못 쓰면 3음 차임으로 대신한다. */
     static java.io.File voiceFile(Context c) { return new java.io.File(c.getFilesDir(), "brief_voice.wav"); }
 
-    /** 설정에서 고른 알림음을 재생: voice(저장해 둔 아이 목소리) · tts(폰 음성) · 그 밖에는 내장 멜로디(brief_s_<id>) */
-    static void play(Context c, String id) {
+    /** 마지막 재생 결과 (화면의 알림음 점검 표시용): ok / 실패 사유 */
+    static volatile String LAST = "";
+
+    /** 설정에서 고른 알림음을 재생: voice(저장해 둔 아이 목소리) · tts(폰 음성) · 그 밖에는 내장 멜로디(brief_s_<id>).
+     *  preview=true 는 설정 화면 미리듣기(미디어 볼륨), false 는 실제 알림(알람 볼륨 — 무음·진동 모드에서도 들리도록) */
+    static void play(Context c, String id, boolean preview) {
         if (id == null || id.isEmpty()) id = voiceFile(c).exists() ? "voice" : "tts";
-        if ("tts".equals(id)) { sayName(c); return; }
-        boolean ok;
-        if ("voice".equals(id) && voiceFile(c).exists() && voiceFile(c).length() > 1000) ok = playMp(c, voiceFile(c).getAbsolutePath(), 0);
-        else ok = playMp(c, null, c.getResources().getIdentifier("brief_s_" + id, "raw", c.getPackageName()));
-        if (!ok) sayName(c);
+        int usage = preview ? AudioAttributes.USAGE_MEDIA : AudioAttributes.USAGE_ALARM;
+        String err;
+        if ("tts".equals(id)) { sayName(c, usage); return; }
+        if ("voice".equals(id) && voiceFile(c).exists() && voiceFile(c).length() > 1000) err = playMp(c, voiceFile(c), 0, usage);
+        else {
+            int res = c.getResources().getIdentifier("brief_s_" + id, "raw", c.getPackageName());
+            err = res == 0 ? "소리 파일 없음(" + id + ")" : playMp(c, null, res, usage);
+        }
+        LAST = err == null ? "ok" : "실패: " + err;
+        if (err != null) sayName(c, usage);
     }
 
-    private static boolean playMp(Context c, String path, int resId) {
+    /** 성공하면 null, 실패하면 사유 */
+    private static String playMp(Context c, java.io.File f, int resId, int usage) {
         MediaPlayer mp = null;
+        final String[] err = {null};
         try {
             final CountDownLatch end = new CountDownLatch(1);
-            if (path != null) { mp = new MediaPlayer(); mp.setDataSource(path); mp.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()); mp.prepare(); }
-            else { if (resId == 0) return false; mp = MediaPlayer.create(c, resId); if (mp == null) return false; mp.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()); }
+            mp = new MediaPlayer();
+            mp.setAudioAttributes(new AudioAttributes.Builder().setUsage(usage).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+            if (f != null) mp.setDataSource(f.getAbsolutePath());
+            else {
+                android.content.res.AssetFileDescriptor afd = c.getResources().openRawResourceFd(resId);
+                mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+                afd.close();
+            }
+            mp.setOnErrorListener(new MediaPlayer.OnErrorListener() {
+                @Override public boolean onError(MediaPlayer m, int what, int extra) { err[0] = "재생 오류 " + what + "/" + extra; end.countDown(); return true; }
+            });
             mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() { @Override public void onCompletion(MediaPlayer m) { end.countDown(); } });
+            mp.prepare();
+            mp.setVolume(1f, 1f);
             mp.start();
-            end.await(5, TimeUnit.SECONDS);
-            return true;
-        } catch (Exception e) { return false; }
+            end.await(6, TimeUnit.SECONDS);
+            return err[0];
+        } catch (Exception e) { return String.valueOf(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()); }
         finally { try { if (mp != null) mp.release(); } catch (Exception ignore) {} }
     }
 
-    private static void sayName(final Context c) {
+    private static void sayName(final Context c, final int usage) {
         final CountDownLatch ready = new CountDownLatch(1), done = new CountDownLatch(1);
         final boolean[] ok = {false};
         final TextToSpeech[] tts = new TextToSpeech[1];
@@ -272,7 +294,7 @@ public final class BriefReceiver extends BroadcastReceiver {
             TextToSpeech t = tts[0];
             int lang = t.setLanguage(Locale.KOREAN);
             if (lang == TextToSpeech.LANG_MISSING_DATA || lang == TextToSpeech.LANG_NOT_SUPPORTED) throw new Exception("lang");
-            t.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build());
+            t.setAudioAttributes(new AudioAttributes.Builder().setUsage(usage).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build());
             t.setPitch(2.0f);            // 높은 음정 = 아이 목소리 느낌
             t.setSpeechRate(1.0f);
             t.setOnUtteranceProgressListener(new UtteranceProgressListener() {
@@ -282,22 +304,17 @@ public final class BriefReceiver extends BroadcastReceiver {
             });
             if (t.speak("심툴즈", TextToSpeech.QUEUE_FLUSH, null, "simbrief") != TextToSpeech.SUCCESS) throw new Exception("speak");
             done.await(4, TimeUnit.SECONDS);
+            LAST = (LAST == null || LAST.isEmpty() || LAST.startsWith("ok") ? "" : LAST + " → ") + "ok(폰 음성)";
         } catch (Exception e) {
-            chime(c);
+            LAST = LAST + " / 폰 음성도 실패: " + e.getMessage();
+            chime(c, usage);
         } finally {
             try { if (tts[0] != null) tts[0].shutdown(); } catch (Exception ignore) {}
         }
     }
 
-    private static void chime(Context c) {
-        try {
-            final CountDownLatch end = new CountDownLatch(1);
-            MediaPlayer mp = MediaPlayer.create(c, c.getResources().getIdentifier("brief_chime", "raw", c.getPackageName()));
-            if (mp == null) return;
-            mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() { @Override public void onCompletion(MediaPlayer m) { end.countDown(); } });
-            mp.start();
-            end.await(3, TimeUnit.SECONDS);
-            mp.release();
-        } catch (Exception ignore) {}
+    private static void chime(Context c, int usage) {
+        int res = c.getResources().getIdentifier("brief_chime", "raw", c.getPackageName());
+        if (res != 0) playMp(c, null, res, usage);
     }
 }

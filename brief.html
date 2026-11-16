@@ -126,10 +126,22 @@ const hasVoice = () => !!savedVoice() || nativeHasVoice();
 const curSound = () => CFG.soundId || (hasVoice() ? 'voice' : 'tts');
 function playSound(id) {
   try { if (playing) playing.pause(); } catch (e) {}
-  if (NA) { try { NA.preview(id); return; } catch (e) {} }
+  if (NA) { try { NA.preview(id); setTimeout(showDiag, 1800); return; } catch (e) {} }
   if (id === 'voice') { const sv = savedVoice(); if (sv) { playing = new Audio('data:audio/wav;base64,' + sv); playing.play().catch(() => {}); return; } }
   if (id === 'tts') return hearTts();
   playing = new Audio('brief-sounds/brief_s_' + id + '.wav'); playing.play().catch(() => hearTts());
+}
+function showDiag() {   // 앱에서 소리가 안 들릴 때 원인을 바로 보여준다
+  const m = $('smsg'); if (!m || !NA) return;
+  try {
+    const d = JSON.parse(NA.diag()), w = [];
+    if (d.last && d.last.indexOf('실패') >= 0) w.push('재생에 실패했어요 (' + d.last + ')');
+    if (d.music === 0) w.push('미디어 볼륨이 0이에요 — 볼륨을 올려 주세요');
+    if (d.alarm === 0) w.push('알람 볼륨이 0이라 정시 알림음이 들리지 않아요');
+    if (curSound() === 'voice' && !d.voiceSize) w.push('저장된 목소리 파일이 이 기기에 없어요');
+    m.className = 'hint' + (w.length ? ' warn' : '');
+    m.innerHTML = (w.length ? w.map(esc).join('<br>') + '<br>' : '') + '볼륨 — 미디어 ' + d.music + ' · 알람 ' + d.alarm + ' · 알림 ' + d.notif + (d.last ? ' · 마지막 재생: ' + esc(d.last) : '');
+  } catch (e) {}
 }
 function hearTts() {   // 폰(브라우저)의 음성을 높은 음정으로
   try {
@@ -268,7 +280,7 @@ async function vSet() {
     '<div class="hint">정한 시간에 알림창으로 주요 뉴스·일정을 알려드려요. 알림을 누르면 이 앱이 열려 카드 뉴스로 들어와요.</div></div>' +
     '<div class="card"><h2>🔔 알림음</h2><div class="set"><div class="tx"><b>알림음 켜기</b><small>끄면 무음 알림</small></div>' + sw(CFG.sound).replace('class="sw', 'data-a="snd" class="sw') + '</div>' +
     '<div class="hint" style="margin:6px 0 4px">소리를 고르면 바로 들려줘요</div>' +
-    SOUNDS.filter(x => x[0] !== 'voice' || hasVoice()).map(x => '<div class="set" data-sid="' + x[0] + '" style="cursor:pointer"><div class="tx"><b>' + x[1] + '</b><small>' + x[2] + '</small></div><span style="font-size:20px;color:var(--accent)">' + (curSound() === x[0] ? '●' : '○') + '</span></div>').join('') + '</div>' +
+    SOUNDS.filter(x => x[0] !== 'voice' || hasVoice()).map(x => '<div class="set" data-sid="' + x[0] + '" style="cursor:pointer"><div class="tx"><b>' + x[1] + '</b><small>' + x[2] + '</small></div><span style="font-size:20px;color:var(--accent)">' + (curSound() === x[0] ? '●' : '○') + '</span></div>').join('') + '<div class="hint" id="smsg"></div></div>' +
     '<div class="card"><h2>📰 브리핑 분야</h2>' + CATS.map(c => '<div class="set"><div class="tx"><b>' + CAT_ICON[c[0]] + ' ' + c[1] + '</b></div>' + sw(CFG.cats[c[0]]).replace('class="sw', 'data-a="cat" data-k="' + c[0] + '" class="sw') + '</div>').join('') +
     '<div class="set"><div class="tx"><b>📅 심스케줄</b><small>SIM Calendar·SIM Assistant 일정</small></div>' + sw(CFG.calSim).replace('class="sw', 'data-a="cs" class="sw') + '</div>' +
     '<div class="set"><div class="tx"><b>📱 기기 달력</b><small>' + (apk ? (nat.cal ? '폰 달력 연동됨' : '켜면 달력 읽기 권한을 요청해요') : '안드로이드 앱(APK)에서 쓸 수 있어요') + '</small></div>' + sw(CFG.calDevice && apk).replace('class="sw', 'data-a="cd" ' + (apk ? '' : 'disabled ') + 'class="sw') + '</div></div>' +
@@ -278,6 +290,7 @@ async function vSet() {
       '<div class="set"><div class="tx"><b>브라우저 알림</b><small>' + (wn === 'granted' ? '허용됨' : wn === 'denied' ? '차단됨 — 브라우저 설정에서 허용해 주세요' : wn ? '아직 허용 전' : '이 브라우저는 알림을 지원하지 않아요') + '</small></div>' + (wn === 'default' ? '<button class="sm" id="reqW">허용</button>' : '') + '</div>') +
     '<button class="primary" id="test" style="width:100%;margin-top:10px">지금 브리핑 알림 테스트</button>' +
     '<div class="hint ' + (apk ? '' : 'warn') + '">' + (apk ? '앱을 꺼 두어도 정한 시간에 알림이 와요. 폰 절전 설정이 앱을 제한하면 알림이 안 올 수 있으니 SIM Brief를 "제한 없음"으로 두세요.' : '웹 브라우저에서는 이 화면이 열려 있는 동안만 정시 알림이 와요. 앱을 꺼 둬도 알림을 받으려면 런처에서 SIM Brief 앱(APK)을 설치해 주세요.') + '</div></div>';
+  setTimeout(showDiag, 50);
 }
 main.addEventListener('click', async e => {
   const sr = S.tab === 'set' && e.target.closest('[data-sid]');

@@ -118,6 +118,7 @@ main{max-width:960px;margin:0 auto;padding:12px 12px calc(40px + env(safe-area-i
 .mkn{font-size:11.5px;color:var(--sub);white-space:nowrap}.mkv{font-size:15px;font-weight:800;margin:2px 0;white-space:nowrap;letter-spacing:-.3px}
 .mkc{font-size:11px;font-weight:700;white-space:nowrap}.mkd{font-size:10px;color:var(--sub);margin-top:2px}
 .mk.up .mkc,.mk.up .mkv{color:#ff5a5f}.mk.dn .mkc,.mk.dn .mkv{color:#4c9bff}.mk.fl .mkc{color:var(--sub)}
+.lv{color:#2fd27f;font-weight:700}
 .fz{cursor:pointer}
 .fz:active{border-color:var(--accent)}
 .fzh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
@@ -492,7 +493,7 @@ const MFN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-market'
 /* ── 증시 지수 (직전 거래일 종가) ── */
 async function loadMarket(force) {
   const ck = 'simbrief.m1'; let c = null; try { c = JSON.parse(lsGet(ck) || 'null'); } catch (e) {}
-  if (!force && c && Date.now() - c.at < 5 * 60000) return c;
+  if (!force && c && Date.now() - c.at < ((c.items || []).some(x => x.live) ? 45000 : 5 * 60000)) return c;
   try {
     const r = await fetch(MFN, { cache: 'no-store' }); const j = await r.json();
     if (!j || !j.ok || !j.items || !j.items.length) throw 0;
@@ -503,13 +504,13 @@ function mkFmt(n, d) { return Number(n).toLocaleString('ko-KR', { minimumFractio
 function mkRow(x) {
   const up = x.chg > 0, dn = x.chg < 0, cl = up ? 'up' : dn ? 'dn' : 'fl', ar = up ? '▲' : dn ? '▼' : '–';
   const dm = x.date ? Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) : '';
-  return '<div class="mk ' + cl + '"><div class="mkn">' + esc(x.name) + '</div><div class="mkv">' + mkFmt(x.value, x.dec) + '</div><div class="mkc">' + ar + ' ' + mkFmt(Math.abs(x.chg), x.dec) + ' (' + (x.pct > 0 ? '+' : x.pct < 0 ? '−' : '') + mkFmt(Math.abs(x.pct), 2) + '%)</div><div class="mkd">' + (x.live ? '장중' : dm + ' 종가') + '</div></div>';
+  return '<div class="mk ' + cl + '"><div class="mkn">' + esc(x.name) + '</div><div class="mkv">' + mkFmt(x.value, x.dec) + '</div><div class="mkc">' + ar + ' ' + mkFmt(Math.abs(x.chg), x.dec) + ' (' + (x.pct > 0 ? '+' : x.pct < 0 ? '−' : '') + mkFmt(Math.abs(x.pct), 2) + '%)</div><div class="mkd">' + (x.live ? '<span class="lv">● 실시간</span>' : dm + ' 종가') + '</div></div>';
 }
 function mkHtml(v) {
   if (!v || !v.items) return '<div class="empty" style="padding:10px">증시 정보를 가져오지 못했어요</div>';
   const g = (k) => v.items.filter(x => x.kind === k);
   const sec = (t, a) => a.length ? '<div class="mkt">' + t + '</div><div class="mkg">' + a.map(mkRow).join('') + '</div>' : '';
-  return sec('🇰🇷 한국', g('kr').concat(g('fx'))) + sec('🇺🇸 미국 (전일 종가)', g('us'));
+  return sec('🇰🇷 한국', g('kr').concat(g('fx'))) + sec('🇺🇸 미국', g('us'));
 }
 const FFN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-fortune';
 function star5(cx, cy, R, r) { let p = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 ? r : R; p.push((cx + q * Math.cos(a)).toFixed(1) + ',' + (cy + q * Math.sin(a)).toFixed(1)); } return p.join(' '); }
@@ -647,7 +648,7 @@ async function vBrief(force) {
   const tabs = (tabs0.length > 1 ? [['all', '전체']] : []).concat(tabs0);
   if (!tabs.some(t => t[0] === S.cat)) S.cat = tabs.length ? tabs[0][0] : 'all';
   main.innerHTML = (CFG.weather.on ? '<div class="card"><div class="wxh"><h2>오늘 날씨</h2><span class="wxr">' + (CFG.weather.mode !== 'auto' ? '<button class="wxhome" id="wxHome" aria-label="현재 위치로">⌖ 현재 위치</button>' : '') + '<button class="wxplace" id="wxPlace" aria-label="지역 변경">📍 <span id="wxName">' + esc(CFG.weather.name) + '</span> <i>▾</i></button></span></div><div id="wx"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
-    (CFG.mkt ? '<div class="card"><h2>📈 증시 <span style="color:var(--sub);font-weight:400;font-size:12.5px">직전 거래일 종가</span></h2><div id="mk"><div class="empty" style="padding:10px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
+    (CFG.mkt ? '<div class="card"><h2>📈 증시 <span id="mkAt" style="color:var(--sub);font-weight:400;font-size:12.5px"></span></h2><div id="mk"><div class="empty" style="padding:10px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
     (CFG.fortune.on ? '<div class="card fz" id="fzCard" role="button" tabindex="0"><div class="fzh"><h2>🔮 오늘의 운세</h2><span class="fzsc" id="fzScore"></span></div><div id="fz"><div class="empty" style="padding:10px"><span class="spin"></span>운세를 보는 중…</div></div></div>' : '') +
     (CFG.calSim || CFG.calDevice ? '<div class="card"><h2>📅 오늘 일정 <span style="color:var(--sub);font-weight:400;font-size:12.5px">' + esc(dt) + '</span></h2><div id="sch"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
     (tabs.length ? '<div class="seg" id="seg">' + tabs.map(t => '<button data-c="' + t[0] + '"' + (S.cat === t[0] ? ' class="on"' : '') + '>' + t[1] + '</button>').join('') + '</div><div id="news"><div class="empty"><span class="spin"></span>뉴스를 불러오는 중…</div></div>' :
@@ -661,7 +662,12 @@ async function vBrief(force) {
     if (ok() && $('wx')) $('wx').innerHTML = (v ? wxHtml(v) : wxHtml(null)) + (v && LOC_FAIL && !CFG.weather.located ? warn() : '');
     pushCache();
   });
-  if (CFG.mkt) loadMarket(force).then(v => { if (ok() && $('mk')) $('mk').innerHTML = mkHtml(v); });
+  if (CFG.mkt) {
+    const paint = (v) => { if ($('mk')) { $('mk').innerHTML = mkHtml(v); if ($('mkAt')) $('mkAt').textContent = v && (v.items || []).some(x => x.live) ? new Date(v.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' 기준' : ''; } };
+    const tick = (f) => loadMarket(f).then(v => { if (ok()) paint(v); });
+    tick(force);
+    clearInterval(vBrief._mk); vBrief._mk = setInterval(() => { if (!ok()) { clearInterval(vBrief._mk); return; } if (!document.hidden) tick(true); }, 60000);
+  }
   if (CFG.fortune.on) renderFortune(false, ok);
   if (CFG.calSim || CFG.calDevice) todaySchedule().then(l => { sched = l; if (ok() && $('sch')) $('sch').innerHTML = schedHtml(l); pushCache(); });
   if (!tabs.length) return;

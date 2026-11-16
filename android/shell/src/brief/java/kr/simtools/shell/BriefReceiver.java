@@ -151,6 +151,43 @@ public final class BriefReceiver extends BroadcastReceiver {
         finally { if (h != null) h.disconnect(); }
     }
 
+    private static String[] wxInfo(int c) {
+        if (c == 0) return new String[]{"☀️", "맑음"};
+        if (c == 1) return new String[]{"🌤️", "대체로 맑음"};
+        if (c == 2) return new String[]{"⛅", "구름 조금"};
+        if (c == 3) return new String[]{"☁️", "흐림"};
+        if (c == 45 || c == 48) return new String[]{"🌫️", "안개"};
+        if (c >= 51 && c <= 57) return new String[]{"🌦️", "이슬비"};
+        if (c >= 61 && c <= 67) return new String[]{"🌧️", "비"};
+        if (c >= 71 && c <= 77) return new String[]{"❄️", "눈"};
+        if (c >= 80 && c <= 82) return new String[]{"🌧️", "소나기"};
+        if (c == 85 || c == 86) return new String[]{"❄️", "눈 소나기"};
+        if (c >= 95) return new String[]{"⛈️", "뇌우"};
+        return new String[]{"🌡️", "날씨"};
+    }
+
+    /** 오늘 예보 한 줄 (Open-Meteo). 실패하면 null → 화면이 저장해 둔 문구를 쓴다 */
+    private static String fetchWeather(JSONObject w) {
+        HttpURLConnection h = null;
+        try {
+            String u = "https://api.open-meteo.com/v1/forecast?latitude=" + w.optDouble("lat") + "&longitude=" + w.optDouble("lon")
+                    + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FSeoul&forecast_days=1";
+            h = (HttpURLConnection) new URL(u).openConnection();
+            h.setConnectTimeout(3500); h.setReadTimeout(3500);
+            if (h.getResponseCode() != 200) return null;
+            InputStream is = h.getInputStream();
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            byte[] buf = new byte[4096]; int n;
+            while ((n = is.read(buf)) > 0) bo.write(buf, 0, n);
+            JSONObject d = new JSONObject(bo.toString("UTF-8")).getJSONObject("daily");
+            String[] i = wxInfo(d.getJSONArray("weather_code").getInt(0));
+            String rain = d.getJSONArray("precipitation_probability_max").isNull(0) ? "-" : String.valueOf(d.getJSONArray("precipitation_probability_max").getInt(0));
+            return i[0] + " " + w.optString("name", "") + " " + i[1] + " · " + Math.round(d.getJSONArray("temperature_2m_min").getDouble(0)) + "°/"
+                    + Math.round(d.getJSONArray("temperature_2m_max").getDouble(0)) + "° · 강수 " + rain + "%";
+        } catch (Exception e) { return null; }
+        finally { if (h != null) h.disconnect(); }
+    }
+
     private static String today() { return new SimpleDateFormat("yyyy-MM-dd", Locale.KOREA).format(new Date()); }
 
     private static void channels(Context c) {
@@ -176,11 +213,20 @@ public final class BriefReceiver extends BroadcastReceiver {
         JSONArray want = cfg.optJSONArray("cats");
         JSONObject cache = null;
         try { cache = new JSONObject(prefs(c).getString("cache", "{}")); } catch (Exception ignore) {}
+        // 일기예보는 뉴스와 동시에 받아 알림이 늦어지지 않게 한다
+        final String[] wx = {null};
+        final JSONObject wc = cfg.optJSONObject("weather");
+        Thread wt = null;
+        if (wc != null) { wt = new Thread(new Runnable() { @Override public void run() { wx[0] = fetchWeather(wc); } }); wt.start(); }
         JSONObject news = fetchNews(cfg.optString("endpoint", ""));
+        if (wt != null) { try { wt.join(4000); } catch (InterruptedException ignore) {} }
         if (news == null && cache != null) news = cache.optJSONObject("news");
 
         StringBuilder big = new StringBuilder();
         String first = "";
+        String wline = wx[0];
+        if ((wline == null || wline.isEmpty()) && wc != null && cache != null && today().equals(cache.optString("date"))) wline = cache.optString("weather", "");
+        if (wline != null && !wline.isEmpty()) { big.append(wline).append('\n'); first = wline; }
         // 일정: 기기 달력(오늘) + 화면이 오늘 저장해 둔 심스케줄
         StringBuilder sc = new StringBuilder();
         int cnt = 0;
@@ -199,8 +245,9 @@ public final class BriefReceiver extends BroadcastReceiver {
             for (int i = 0; a != null && i < a.length(); i++) { cnt++; if (cnt <= 5) sc.append("· ").append(a.optString(i)).append('\n'); }
         }
         if (cnt > 0) {
+            if (big.length() > 0) big.append('\n');
             big.append("📅 오늘 일정 ").append(cnt).append("건\n").append(sc);
-            first = "오늘 일정 " + cnt + "건";
+            if (first.isEmpty()) first = "오늘 일정 " + cnt + "건";
         }
         for (String[] cat : CATS) {
             if (want != null) { boolean on = false; for (int i = 0; i < want.length(); i++) if (cat[0].equals(want.optString(i))) on = true; if (!on) continue; }

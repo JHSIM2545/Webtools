@@ -1642,7 +1642,7 @@ async function liveTools(calls) {
   liveSend({ toolResponse: { functionResponses: resp } }); if (!LIVE.srcs.length) liveSet('듣고 있어요', '🎙', false);
 }
 function liveMsg(m) {
-  if (m.ready) { LIVE.ready = true; LIVE.retries = 0; LIVE.reconnecting = false; liveSet('듣고 있어요', '🎙', false); return; }
+  if (m.ready) { LIVE.ready = true; LIVE.retries = 0; LIVE.recoverN = 0; LIVE.reconnecting = false; liveSet('듣고 있어요', '🎙', false); return; }
   if (m.error) { liveFail(m.error === 'forbidden' ? '등록되지 않은 전화번호예요. ✨에서 확인해 주세요' : '서버 오류'); return; }
   if (m.upstreamClosed) { liveReconnect('upstream'); return; }
   if (m.sessionResumptionUpdate) { if (m.sessionResumptionUpdate.newHandle) LIVE.handle = m.sessionResumptionUpdate.newHandle; return; }
@@ -1665,10 +1665,11 @@ function liveOpen() {
 }
 function liveReconnect(why) {
   if (!LIVE.on || LIVE.ending || LIVE.reconnecting) return;
-  if (++LIVE.retries > 3) return liveFail('실시간 연결이 계속 끊겨요');
+  if (document.hidden) { LIVE.needRecover = true; return; }   // 앱을 벗어난 동안(통화 등)엔 재시도하지 않고, 돌아오면 처음부터 다시 연결
+  if (++LIVE.retries > 3) return liveRecover('retries', true);
   LIVE.reconnecting = true; liveSet('다시 연결하는 중…', '🔄', false);
   const old = LIVE.ws; LIVE.ws = null; try { old && old.close(); } catch (e) {}
-  setTimeout(() => { LIVE.reconnecting = false; if (LIVE.on && !LIVE.ending) liveOpen(); }, 600 * LIVE.retries);
+  const sid = LIVE.sid; setTimeout(() => { if (LIVE.sid !== sid) return; LIVE.reconnecting = false; if (LIVE.on && !LIVE.ending) liveOpen(); }, 600 * LIVE.retries);
 }
 const MIC_DENIED = '이 기기의 브라우저가 마이크 사용을 허용하지 않아요.';
 async function micAdvice() {   // 크롬이 기억하는 마이크 권한 상태에 맞는 안내
@@ -1680,7 +1681,7 @@ async function micAdvice() {   // 크롬이 기억하는 마이크 권한 상태
 }
 let lastFailMsg = '', lastFailAt = 0;
 async function liveFail(msg, denied) {
-  const was = LIVE.on; liveEnd(true); if (!was) return;
+  const was = LIVE.on; liveEnd(true); if (!was) return; if (LIVE.recovering) return;   // 복구 중의 실패는 복구 루프가 다시 시도한다
   const text = denied ? await micAdvice() : '실시간 대화를 쓸 수 없어요: ' + msg + ' — 기본 방식으로 돌아가요';
   if (text !== lastFailMsg || Date.now() - lastFailAt > 60000) sys(text);   // 같은 안내를 계속 쌓지 않는다
   lastFailMsg = text; lastFailAt = Date.now(); toast(denied ? '마이크가 허용되지 않았어요' : '실시간 연결 실패: ' + msg, 4200);
@@ -1701,17 +1702,35 @@ async function liveDevices() {
   } catch (e) {}
 }
 $('liveDev').onchange = async () => { LIVE.dev = $('liveDev').value; ls.set('SIMAS_LIVE_DEV', LIVE.dev); toast('마이크를 바꿔 다시 연결해요'); liveEnd(); await sleep(300); liveStart(); };
+/* 통화·다른 앱에서 돌아왔을 때: 연결·마이크·오디오 중 하나라도 죽었으면 전체를 새로 시작한다 (대화 맥락은 이어받기 시도) */
+async function liveRecover(why, force) {
+  if (!LIVE.on || LIVE.ending || LIVE.recovering) return;
+  const tr = LIVE.stream && LIVE.stream.getAudioTracks && LIVE.stream.getAudioTracks()[0];
+  const ok = LIVE.ws && LIVE.ws.readyState === 1 && LIVE.ready && tr && tr.readyState === 'live' && !tr.muted && LIVE.ictx && LIVE.ictx.state === 'running';
+  if (ok && !force && !LIVE.needRecover) return;
+  if ((LIVE.recoverN = (LIVE.recoverN || 0) + 1) > 4) { LIVE.recoverN = 0; LIVE.needRecover = false; return liveFail('실시간 연결이 계속 끊겨요'); }
+  LIVE.recovering = true; LIVE.needRecover = false; const keep = LIVE.handle;
+  try { $('live').classList.add('on', 'conn'); $('liveConnTxt').textContent = '다시 연결하는 중…'; } catch (e) {}
+  liveEnd(true); await sleep(700);
+  for (let k = 0; k < 3 && !LIVE.on; k++) {
+    LIVE.keep = keep; await liveStart(); if (LIVE.on) break;
+    await sleep(1500 + k * 1000);   // 통화 직후엔 마이크가 잠깐 점유돼 있을 수 있다
+  }
+  LIVE.recovering = false;
+  if (!LIVE.on) { LIVE.on = true; liveFail('다시 연결하지 못했어요'); }
+}
+['visibilitychange', 'pageshow', 'online', 'focus'].forEach(ev => (ev === 'visibilitychange' ? document : window).addEventListener(ev, () => { if (ev === 'visibilitychange' && document.hidden) return; if (LIVE.on) setTimeout(() => { try { liveRecover(ev); } catch (e) {} }, 500); }));
 async function liveStart() {
   if (LIVE.on) return;
   if (!gKey()) { toast('✨에서 등록된 전화번호를 먼저 입력해 주세요', 4200); return; }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !(window.AudioContext || window.webkitAudioContext) || !window.AudioWorkletNode) { toast('이 브라우저는 실시간 음성 대화를 지원하지 않아요', 4200); return; }
   if (listening) { try { rec.stop(); } catch (e) {} }
-  stopSpeak(); unlockAudio(); LIVE.on = true; LIVE.ending = false; LIVE.retries = 0; LIVE.handle = ''; LIVE.muted = false; LIVE.bub = { me: null, bot: null };
+  stopSpeak(); unlockAudio(); LIVE.sid = (LIVE.sid || 0) + 1; LIVE.reconnecting = false; LIVE.on = true; LIVE.ending = false; LIVE.retries = 0; LIVE.handle = LIVE.keep || ''; LIVE.keep = ''; LIVE.muted = false; LIVE.bub = { me: null, bot: null };
   $('live').classList.add('on', 'conn'); $('liveConnTxt').textContent = '연결 중…'; $('liveMe').textContent = ''; $('liveBot').textContent = ''; $('liveActs').innerHTML = ''; $('liveMute').textContent = '🎤'; $('liveMute').classList.remove('off'); liveSet('연결 중…', '🎙', false); $('liveVol').value = LIVE.vol; spkLabel();
   try {
     LIVE.autoBt = false; LIVE.stream = await liveAcq(); LIVE.loud = 0; LIVE.readyAt = 0;
     $('liveMic').textContent = ''; spkLabel(); liveDevices();
-    try { const tr = LIVE.stream.getAudioTracks && LIVE.stream.getAudioTracks()[0]; if (tr) tr.onended = () => { if (LIVE.on) liveFail('마이크 연결이 끊겼어요'); }; } catch (e) {}
+    try { const tr = LIVE.stream.getAudioTracks && LIVE.stream.getAudioTracks()[0]; if (tr) { tr.onended = () => { if (LIVE.on && !LIVE.recovering) liveRecover('mic', true); }; tr.onunmute = () => { if (LIVE.on && !document.hidden) liveRecover('unmute'); }; } } catch (e) {}
     const AC = window.AudioContext || window.webkitAudioContext;
     try { LIVE.ictx = new AC({ sampleRate: 16000 }); } catch (e) { LIVE.ictx = new AC(); } try { await LIVE.ictx.resume(); } catch (e) {}
     await LIVE.ictx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' })));

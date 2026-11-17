@@ -87,6 +87,18 @@
     const bd = modal('버전 정보');
     bd.innerHTML = '<div class="simvm-st">불러오는 중…</div>';
     const info = nativeInfo(), wv = await webVer();
+    /* 옛 개별 앱·옛 런처에서 열었다면: 통합 SIM Tools 앱으로 옮기도록 안내하고 받기 버튼을 준다 */
+    if (OLDAPK || (info && !info.suite && info.pkg !== 'kr.simtools.app')) {
+      const NEW = new URL('get-app.html', location.href).href;   // 옛 앱의 브라우저 열기는 이 사이트 주소만 허용하므로, 받기 페이지를 거친다
+      bd.innerHTML = (info ? [['앱', info.name], ['버전', info.versionName || '—'], ['빌드 날짜', fmt(info.buildTime)]].map(r => '<div class="simvm-row"><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></div>').join('') : '') +
+        '<div class="simvm-st up"><b>통합된 새로운 앱이 있습니다</b>\n런처와 모든 도구가 하나의 SIM Tools 앱으로 합쳐졌어요. 새 앱을 받아 설치한 뒤, 이 앱의 ⋯ → 기기 동기화로 기존 데이터를 옮기고(또는 같은 계정으로 로그인) 이 앱은 지워 주세요.</div>' +
+        '<div class="simvm-act"><button id="svNew" class="pri">⬇ 새 SIM Tools 앱 받기</button></div>';
+      bd.querySelector('#svNew').onclick = () => {
+        try { if (window.SimSession && typeof window.SimSession.openBrowser === 'function') { window.SimSession.openBrowser(NEW); return; } } catch (e) {}
+        try { window.open(NEW, '_blank'); } catch (e) { location.href = NEW; }
+      };
+      return;
+    }
     const rows = info && info.suite ? [   // 통합 앱: 버전은 하나(앱·화면 공통)
       ['앱', info.name], ['버전', (info.versionName || '—')], ['빌드 날짜', fmt(info.buildTime)], ['패키지', info.pkg], ['안드로이드', 'API ' + info.sdk]
     ] : info ? [

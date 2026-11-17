@@ -37,7 +37,7 @@ input:focus,select:focus{border-color:var(--accent)}
 #views{flex:1;min-height:0;position:relative}
 .view{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg)}
 .area{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#06070a}
-.stage{position:relative;touch-action:none;user-select:none;-webkit-user-select:none;background:#000;flex:none}
+.stage{position:relative;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;background:#000;flex:none}
 .stage video,.stage canvas.src{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:fill}
 .stage svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
 .stage .dim{fill:rgba(0,0,0,.3);fill-rule:evenodd}
@@ -126,6 +126,7 @@ input:focus,select:focus{border-color:var(--accent)}
   .hint{display:none}
 }
 @media print{body{display:none}}
+.zchip{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;border-radius:14px;padding:4px 12px;font-size:13px;font-weight:700;pointer-events:none}
 </style>
 </head>
 <body>
@@ -147,6 +148,7 @@ input:focus,select:focus{border-color:var(--accent)}
         <video id="video" playsinline muted autoplay></video>
         <div class="flash" id="flash"></div>
       </div>
+      <div class="zchip" id="zchip" hidden></div>
       <div class="tops">
         <button id="btnTorch" hidden>🔦 플래시</button>
         <button id="btnQuick" >⚡ 바로 추가</button>
@@ -521,6 +523,31 @@ const cam = { stream: null, track: null, vw: 0, vh: 0, miss: 0, manual: false, r
 const small = newCanvas(8, 8), sctx = small.getContext('2d', { willReadFrequently: true });
 function setStat() {}
 function camFit() { if (cam.vw) { const r = $('camArea').getBoundingClientRect(), k = Math.min(r.width / cam.vw, r.height / cam.vh) || 1, st = $('camStage'); st.style.width = Math.round(cam.vw * k) + 'px'; st.style.height = Math.round(cam.vh * k) + 'px'; } }
+cam.z = 1; cam.tx = 0; cam.ty = 0; cam.hw = null; cam.zmax = 5;
+function zoomPaint() {
+  const st = $('camStage'), W = st.clientWidth || 1, H = st.clientHeight || 1, dz = cam.hw ? 1 : cam.z;
+  cam.tx = clamp(cam.tx, -(dz - 1) * W / 2, (dz - 1) * W / 2); cam.ty = clamp(cam.ty, -(dz - 1) * H / 2, (dz - 1) * H / 2);
+  video.style.transformOrigin = '50% 50%'; video.style.transform = dz > 1 ? 'translate(' + cam.tx + 'px,' + cam.ty + 'px) scale(' + dz + ')' : '';
+  const ch = $('zchip'); ch.hidden = cam.z < 1.05; ch.textContent = cam.z.toFixed(1) + '×';
+}
+function setZoom(z) {
+  cam.z = clamp(z, 1, cam.zmax);
+  if (cam.hw && cam.track) { try { cam.track.applyConstraints({ advanced: [{ zoom: clamp(cam.hw.min * cam.z, cam.hw.min, cam.hw.max) }] }).catch(() => {}); } catch (e) {} }
+  zoomPaint();
+}
+(() => {
+  const st = $('camStage'), ps = new Map(); let g = null, lastTap = 0;
+  const two = () => { const a = [...ps.values()]; return { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1, mx: (a[0].x + a[1].x) / 2, my: (a[0].y + a[1].y) / 2 }; };
+  st.addEventListener('pointerdown', e => { try { st.setPointerCapture(e.pointerId); } catch (er) {} ps.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ps.size === 2) { const t = two(); g = { d: t.d, z: cam.z, mx: t.mx, my: t.my, tx: cam.tx, ty: cam.ty }; }
+    else if (ps.size === 1) { g = { x: e.clientX, y: e.clientY, tx: cam.tx, ty: cam.ty, one: 1 }; const n = Date.now(); if (n - lastTap < 300 && cam.z > 1) setZoom(1); lastTap = n; } });
+  st.addEventListener('pointermove', e => { if (!ps.has(e.pointerId)) return; ps.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ps.size >= 2 && g && g.d) { const t = two(); cam.tx = g.tx + (t.mx - g.mx); cam.ty = g.ty + (t.my - g.my); setZoom(g.z * t.d / g.d); }
+    else if (ps.size === 1 && g && g.one && cam.z > 1 && !cam.hw) { cam.tx = g.tx + (e.clientX - g.x); cam.ty = g.ty + (e.clientY - g.y); zoomPaint(); } });
+  const up = e => { ps.delete(e.pointerId); g = null; if (ps.size === 1) { const a = [...ps.values()][0]; g = { x: a.x, y: a.y, tx: cam.tx, ty: cam.ty, one: 1 }; } };
+  st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
+  st.addEventListener('wheel', e => { e.preventDefault(); setZoom(cam.z * (e.deltaY < 0 ? 1.12 : 1 / 1.12)); }, { passive: false });
+})();
 async function camStart() {
   if (cam.starting) return;
   if (cam.stream) { camFit(); video.play().catch(() => {}); setStat('촬영 준비 완료', 'ok'); return; }
@@ -532,7 +559,7 @@ async function camStart() {
     cam.stream = st; cam.track = st.getVideoTracks()[0]; video.srcObject = st; await video.play().catch(() => {});
     await new Promise(r => { if (video.videoWidth) r(); else video.onloadedmetadata = () => r(); });
     cam.vw = video.videoWidth; cam.vh = video.videoHeight; camFit();
-    try { const c = cam.track.getCapabilities ? cam.track.getCapabilities() : {}; $('btnTorch').hidden = !c.torch; if (c.focusMode && c.focusMode.includes('continuous')) cam.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {}); } catch (e) {}
+    try { const c = cam.track.getCapabilities ? cam.track.getCapabilities() : {}; $('btnTorch').hidden = !c.torch; cam.hw = c.zoom && c.zoom.max > c.zoom.min ? { min: c.zoom.min || 1, max: c.zoom.max } : null; cam.zmax = cam.hw ? Math.min(8, cam.hw.max / (cam.hw.min || 1)) : 5; cam.z = 1; cam.tx = cam.ty = 0; zoomPaint(); if (c.focusMode && c.focusMode.includes('continuous')) cam.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {}); } catch (e) {}
     cam.run = true; setStat('촬영 준비 완료', 'ok');
   } catch (e) {
     const name = (e && e.name) || '', msg = (e && e.message) || '';
@@ -544,7 +571,7 @@ async function camStart() {
 function camStop() {
   cam.run = false;
   if (cam.stream) { cam.stream.getTracks().forEach(t => t.stop()); cam.stream = null; cam.track = null; }
-  video.srcObject = null; cam.vw = 0; cam.torch = false; $('btnTorch').classList.remove('on');
+  video.srcObject = null; cam.vw = 0; cam.z = 1; cam.tx = cam.ty = 0; cam.hw = null; zoomPaint(); cam.torch = false; $('btnTorch').classList.remove('on');
 }
 $('btnTorch').onclick = async () => {
   if (!cam.track) return; cam.torch = !cam.torch;
@@ -556,7 +583,11 @@ $('btnQuick').onclick = () => { S.quick = !S.quick; saveS(); paintQuick(); };
 $('btnShot').onclick = async () => {
   if (!cam.vw || video.readyState < 2) { toast('카메라 준비 중'); return; }
   const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); try { navigator.vibrate && navigator.vibrate(25); } catch (e) {}
-  const c = newCanvas(cam.vw, cam.vh); c.getContext('2d').drawImage(video, 0, 0);
+  let c;
+  if (!cam.hw && cam.z > 1.02) {   // 디지털 확대: 화면에 보이는 영역만 잘라서 찍는다
+    const st = $('camStage'), W = st.clientWidth || 1, H = st.clientHeight || 1, sw = cam.vw / cam.z, sh = cam.vh / cam.z, cx = cam.vw / 2 - (cam.tx / cam.z) * (cam.vw / W), cy = cam.vh / 2 - (cam.ty / cam.z) * (cam.vh / H), sx = clamp(cx - sw / 2, 0, cam.vw - sw), sy = clamp(cy - sh / 2, 0, cam.vh - sh);
+    c = newCanvas(Math.round(sw), Math.round(sh)); c.getContext('2d').drawImage(video, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  } else { c = newCanvas(cam.vw, cam.vh); c.getContext('2d').drawImage(video, 0, 0); }
   const found = detectFromCanvas(c, 640), pts = found && goodQuad(found) ? found : insetQuad(c.width, c.height, 0.04);   // 찍은 뒤 모서리 자동 인식
   if (S.quick) { busy('보정 중…'); await nextFrame(); try { await addPageFrom(c, pts); toast('📑 ' + pages.length + '쪽 추가'); } catch (e) { toast('보정하지 못했어요.'); } unbusy(); }
   else openEditor({ src: c, pts, from: 'cam', found: !!(found && goodQuad(found)) });

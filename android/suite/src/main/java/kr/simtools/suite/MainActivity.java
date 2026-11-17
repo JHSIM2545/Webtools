@@ -13,6 +13,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.database.Cursor;
 import android.os.Environment;
+import android.provider.OpenableColumns;
 import android.provider.ContactsContract;
 import android.view.View;
 import android.view.ViewGroup;
@@ -34,10 +35,16 @@ import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +66,7 @@ public class MainActivity extends Activity {
     private View customView;
     private WebChromeClient.CustomViewCallback customCb;
     private boolean errorShown = false;
+    private final List<JSONObject> pendingFiles = new ArrayList<>();   // SIM Note 로 공유받은 PDF·그림·문서 파일(앱 캐시에 복사해 둔 것의 목록. 화면이 가져가기 전까지 보관)
     private final List<String> pendingShare = new ArrayList<>();   // 연락처 앱에서 공유받은 vCard 텍스트(화면이 가져가기 전까지 보관)
 
     @Override
@@ -106,6 +114,7 @@ public class MainActivity extends Activity {
             public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
                 try {
                     String u = r.getUrl().toString();
+                    if ("GET".equals(r.getMethod()) && u.startsWith(BASE + "Webtools/__share/")) return sharedFileResponse(r.getUrl());   // SIM Note 로 공유받은 파일
                     if (!"GET".equals(r.getMethod()) || !u.startsWith(BASE + "Webtools") || online()) return null;
                     String p = r.getUrl().getPath() == null ? "" : r.getUrl().getPath().replaceFirst("^/Webtools/?", "");
                     if (p.isEmpty()) p = "index.html";
@@ -312,6 +321,86 @@ public class MainActivity extends Activity {
                 return a.toString();
             }
         }
+        /** SIM Note: 공유받은 파일 목록(JSON 배열 [{id,name,type,size}])을 돌려주고 비운다. 파일 내용은 화면이 같은 주소의 /Webtools/__share/<id> 로 가져간다 */
+        @JavascriptInterface public String takeFiles() {
+            synchronized (pendingFiles) {
+                if (pendingFiles.isEmpty()) return "";
+                JSONArray a = new JSONArray();
+                for (JSONObject o : pendingFiles) a.put(o);
+                pendingFiles.clear();
+                return a.toString();
+            }
+        }
+        @JavascriptInterface public void release(String id) {
+            try {
+                if (id == null || id.contains("/") || id.contains("..")) return;
+                new File(new File(getCacheDir(), "share"), id).delete();
+            } catch (Exception e) { /* 못 지워도 하루 뒤 자동 정리 */ }
+        }
+    }
+
+    /** SIM Note 로 공유받은 파일(앱 캐시에 복사해 둔 것)을 화면이 fetch 로 가져가게 내준다 */
+    private WebResourceResponse sharedFileResponse(Uri uri) {
+        try {
+            String id = uri.getLastPathSegment();
+            if (id == null || id.contains("/") || id.contains("..")) return null;
+            File f = new File(new File(getCacheDir(), "share"), id);
+            Map<String, String> h = new HashMap<>();
+            h.put("Cache-Control", "no-store");
+            if (!f.isFile()) return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", h, new ByteArrayInputStream(new byte[0]));
+            return new WebResourceResponse("application/octet-stream", null, 200, "OK", h, new FileInputStream(f));
+        } catch (Exception e) { return null; }
+    }
+
+    /** 갤러리·파일·메신저 앱 등에서 'SIM Note'로 공유한 PDF·그림·문서를 앱 캐시에 복사하고 화면(note.html)에 알린다 */
+    @SuppressWarnings("deprecation")
+    private void handleShareFiles(Intent i, boolean one) {
+        final List<Uri> uris = new ArrayList<>();
+        if (one) { Uri u = i.getParcelableExtra(Intent.EXTRA_STREAM); if (u != null) uris.add(u); }
+        else { ArrayList<Uri> l = i.getParcelableArrayListExtra(Intent.EXTRA_STREAM); if (l != null) uris.addAll(l); }
+        final String fallbackType = i.getType();
+        i.setAction(Intent.ACTION_MAIN);   // 화면 회전·재생성 때 같은 공유를 다시 처리하지 않도록
+        if (uris.isEmpty()) { Toast.makeText(this, "공유받은 파일을 찾지 못했습니다", Toast.LENGTH_SHORT).show(); return; }
+        Toast.makeText(this, "공유받은 파일을 여는 중…", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            List<JSONObject> got = new ArrayList<>();
+            File dir = new File(getCacheDir(), "share");
+            dir.mkdirs();
+            long now = System.currentTimeMillis();
+            File[] old = dir.listFiles();
+            if (old != null) for (File o : old) if (now - o.lastModified() > 24L * 3600 * 1000) o.delete();   // 하루 지난 임시 파일 정리
+            int idx = 0;
+            for (Uri u : uris) {
+                try {
+                    String name = "file", type = getContentResolver().getType(u);
+                    try (Cursor c = getContentResolver().query(u, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+                        if (c != null && c.moveToFirst() && c.getString(0) != null) name = c.getString(0);
+                    } catch (Exception e) { String p = u.getLastPathSegment(); if (p != null) name = p; }
+                    if (type == null || type.isEmpty()) type = fallbackType == null ? "" : fallbackType;
+                    String ext = name.contains(".") ? name.substring(name.lastIndexOf('.') + 1).replaceAll("[^A-Za-z0-9]", "") : "";
+                    String id = now + "_" + (idx++) + (ext.isEmpty() ? "" : "." + ext);
+                    File out = new File(dir, id);
+                    long tot = 0;
+                    boolean ok = false;
+                    try (InputStream in = getContentResolver().openInputStream(u); OutputStream os = new FileOutputStream(out)) {
+                        if (in != null) {
+                            byte[] buf = new byte[65536]; int n;
+                            while ((n = in.read(buf)) > 0) { os.write(buf, 0, n); tot += n; if (tot > 80L * 1024 * 1024) throw new java.io.IOException("too big"); }
+                            ok = true;
+                        }
+                    } catch (Exception e) { ok = false; }
+                    if (!ok) { out.delete(); continue; }
+                    JSONObject o = new JSONObject();
+                    o.put("id", id); o.put("name", name); o.put("type", type); o.put("size", tot);
+                    got.add(o);
+                } catch (Exception e) { /* 읽지 못한 파일은 건너뜀 */ }
+            }
+            runOnUiThread(() -> {
+                if (got.isEmpty()) { Toast.makeText(this, "공유받은 파일을 읽지 못했습니다 (80MB 이하 파일만 가능)", Toast.LENGTH_LONG).show(); return; }
+                synchronized (pendingFiles) { pendingFiles.addAll(got); }
+                if (web != null) web.evaluateJavascript("window.__simShareFiles&&window.__simShareFiles()", null);   // 화면이 이미 열려 있으면 바로 가져가게
+            });
+        }).start();
     }
 
     /** 연락처 앱 등에서 '공유'로 들어온 vCard(.vcf 파일 또는 텍스트)를 읽어 보관하고 화면에 알린다 */
@@ -321,6 +410,8 @@ public class MainActivity extends Activity {
         String act = i.getAction();
         final boolean one = Intent.ACTION_SEND.equals(act), many = Intent.ACTION_SEND_MULTIPLE.equals(act);
         if (!one && !many) return;
+        String cn = i.getComponent() == null ? "" : i.getComponent().getClassName();
+        if (cn.endsWith("ShareNoteAlias")) { handleShareFiles(i, one); return; }   // PDF·그림·문서 → SIM Note (글자가 아닌 파일이라 따로 처리)
         final List<Uri> uris = new ArrayList<>();
         if (one) { Uri u = i.getParcelableExtra(Intent.EXTRA_STREAM); if (u != null) uris.add(u); }
         else { ArrayList<Uri> l = i.getParcelableArrayListExtra(Intent.EXTRA_STREAM); if (l != null) uris.addAll(l); }
@@ -366,6 +457,7 @@ public class MainActivity extends Activity {
             if (c.endsWith("ShareContactAlias")) k = "phone";
             else if (c.endsWith("ShareRecipeAlias")) k = "recipe";
             else if (c.endsWith("ShareCalendarAlias")) k = "calendar";
+            else if (c.endsWith("ShareNoteAlias")) k = "note";
         }
         if (k != null && !SuiteExtra.valid(k)) k = null;
         key = k; isLauncher = k == null;

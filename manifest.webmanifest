@@ -26,6 +26,26 @@
             "text/directory",
             ".vcf"
           ]
+        },
+        {
+          "name": "docs",
+          "accept": [
+            "application/pdf",
+            "image/*",
+            ".pdf",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".docx",
+            ".xlsx",
+            ".xls",
+            ".pptx",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+          ]
         }
       ]
     }

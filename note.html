@@ -1943,10 +1943,80 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     setTimeout(() => window.print(), 300);
   }
 
+  /* ───────── 공유로 들어온 PDF·그림·문서 → 새 노트 ─────────
+     · APK(SIM Tools 앱): 갤러리·내 파일·카카오톡 등의 '공유' 목록에서 SIM Note 를 고르면 앱이 파일을 받아 두고(SimShare.takeFiles), 여기서 가져간다
+     · 웹(설치한 PWA): manifest 의 share_target → sw.js 가 보관함(simnote-share)에 넣고 note.html?shared=1 로 넘긴다
+     여러 파일을 한 번에 공유하면 한 노트에 차례로 쪽으로 붙는다 (예: 문서 사진 3장 → 3쪽 노트) */
+  const isImageFile = f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i.test(f.name);
+  async function imageToPage(file) {
+    const url = URL.createObjectURL(file), im = new Image();
+    try {
+      await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('user:이미지를 읽을 수 없습니다. (JPG·PNG·WebP 등)')); im.src = url; });
+      const k = Math.min(1, 2400 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(im.naturalWidth * k)); c.height = Math.max(1, Math.round(im.naturalHeight * k));
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
+      return canvasPage(c);
+    } finally { URL.revokeObjectURL(url); }
+  }
+  const sharedPages = async f => isImageFile(f) ? [await imageToPage(f)] : filePages(f);
+  let shareChain = Promise.resolve();
+  const openSharedFiles = files => { if (files.length) shareChain = shareChain.then(() => doOpenShared(files)).catch(() => {}); };
+  async function doOpenShared(files) {
+    if (note) await closeNote();   // 편집 중이었다면 저장하고 닫은 뒤 새 노트를 연다
+    const pages = [];
+    try {
+      for (let i = 0; i < files.length; i++) {
+        busy((files.length > 1 ? '(' + (i + 1) + '/' + files.length + ') ' : '') + '공유받은 파일을 여는 중…');
+        try { pages.push(...await sharedPages(files[i])); } catch (err) { toast(files[i].name + ': ' + pdfErrMsg(err)); }
+      }
+      if (!pages.length) return;
+      const n = newNote(); n.pages = pages;
+      const base = files[0].name.replace(/\.[^.]+$/, '');
+      n.title = files.length > 1 ? base + ' 외 ' + (files.length - 1) + '개' : base;
+      await dbPut(n); openNote(n); scheduleSave();
+      toast('공유받은 파일을 새 노트로 열었어요. (' + pages.length + '쪽)');
+    } finally { unbusy(); }
+  }
+  let shareReady = false;
+  async function consumeNativeShare() {   // APK
+    if (!shareReady || !window.SimShare || !SimShare.takeFiles) return;
+    let raw = ''; try { raw = SimShare.takeFiles(); } catch (e) { return; }
+    if (!raw) return;
+    let list = []; try { list = JSON.parse(raw); } catch (e) { return; }
+    const files = [];
+    for (const d of list) {
+      try {
+        const r = await fetch('__share/' + encodeURIComponent(d.id), { cache: 'no-store' });
+        if (!r.ok) throw new Error('http');
+        const b = await r.blob();
+        files.push(new File([b], d.name || d.id, { type: d.type || b.type }));
+      } catch (e) { toast('공유받은 파일을 읽지 못했습니다: ' + (d.name || '')); }
+      try { SimShare.release(d.id); } catch (e) {}
+    }
+    openSharedFiles(files);
+  }
+  window.__simShareFiles = consumeNativeShare;
+  async function consumeWebShare() {   // 웹(PWA)
+    if (!/[?&]shared=1\b/.test(location.search) || !window.caches) return;
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    const files = [];
+    try {
+      const c = await caches.open('simnote-share');
+      for (const k of await c.keys()) {
+        const r = await c.match(k); if (!r) continue;
+        const b = await r.blob(); let nm = 'file'; try { nm = decodeURIComponent(r.headers.get('X-Name') || 'file'); } catch (e) {}
+        files.push(new File([b], nm, { type: b.type }));
+        await c.delete(k);
+      }
+    } catch (e) {}
+    if (files.length) openSharedFiles(files); else toast('공유받은 파일을 찾지 못했습니다.');
+  }
+
   /* ───────── 시작 ───────── */
   (async () => {
     try { db = await openDB(); } catch (e) { db = null; toast('이 브라우저는 저장소를 쓸 수 없어 임시로만 동작합니다.'); }
     renderList();
+    shareReady = true; consumeNativeShare(); consumeWebShare();   // 공유로 열렸다면 지금 가져간다
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
   })();
 })();

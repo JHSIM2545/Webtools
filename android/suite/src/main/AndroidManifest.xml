@@ -138,5 +138,33 @@
                 <data android:mimeType="application/ics" />
             </intent-filter>
         </activity-alias>
+
+        <!-- 갤러리·내 파일·카카오톡 등의 '공유' 목록에 SIM Note 가 나오게 한다 (PDF·그림·Word/Excel/PowerPoint 를 새 노트로 연다) -->
+        <activity-alias
+            android:name=".ShareNoteAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="SIM Note">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                <data android:mimeType="application/vnd.ms-excel" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                <data android:mimeType="application/vnd.ms-excel" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation" />
+            </intent-filter>
+        </activity-alias>
     </application>
 </manifest>

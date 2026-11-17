@@ -325,6 +325,7 @@ async function photoBarcode(file) {
 const S = { tried: [], code: '', name: '', cands: [], conf: null, src: '', mart: 0, res: null };
 const show = (id, on) => $(id).classList.toggle('hide', !on);
 
+const cleanName = n => String(n || '').replace(/\s*[\(（\[][^\)）\]]*[\)）\]]/g, '').replace(/\s+/g, ' ').trim();
 async function onBarcode(code) {
   S.code = code; S.res = null; show('cRes', false);
   $('inCode').value = code;
@@ -332,13 +333,13 @@ async function onBarcode(code) {
   try {
     const j = await api({ action: 'lookup', barcode: code }, 60000);
     S.cands = j.candidates || []; S.tried = j.tried || [];
-    if (S.cands.length) pick(0);
+    if (S.cands.length) { pick(0); setScanMsg(''); $('btnCmp').click(); return; }
     else { S.name = ''; S.conf = null; S.src = ''; renderProd(); }
     setScanMsg('');
   } catch (e) { setScanMsg(esc(e.message), true); S.cands = []; S.name = ''; S.conf = null; renderProd(); }
   $('cProd').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-function pick(i) { const c = S.cands[i]; if (!c) return; S.name = c.name; S.conf = c.confirmed; S.src = c.source; S.sel = i; renderProd(); }
+function pick(i) { const c = S.cands[i]; if (!c) return; S.name = cleanName(c.name) || c.name; S.conf = c.confirmed; S.src = c.source; S.sel = i; renderProd(); }
 function renderProd() {
   show('cProd', true); show('cMart', true);
   $('inName').value = S.name;
@@ -362,7 +363,7 @@ async function handleId(f) {
   $('prodNote').innerHTML = '<span class="spin"></span>사진에서 상품명을 읽는 중…'; $('btnId').disabled = true;
   try {
     const j = await api({ action: 'identify', image: await fileToDataUrl(f, 1600) }, 50000);
-    if (j.name) { S.name = j.name; S.conf = false; S.src = '사진 인식(AI)'; S.cands = []; renderProd(); $('prodNote').textContent = '사진에서 읽은 이름이에요. 용량·수량이 실제와 같은지 확인하고 필요하면 고쳐 주세요.'; }
+    if (j.name) { S.name = cleanName(j.name) || j.name; S.conf = false; S.src = '사진 인식(AI)'; S.cands = []; renderProd(); setTimeout(() => $('btnCmp').click(), 300); $('prodNote').textContent = '사진에서 읽은 이름이에요. 용량·수량이 실제와 같은지 확인하고 필요하면 고쳐 주세요.'; }
     else $('prodNote').textContent = '사진에서 상품명을 읽지 못했어요. 글자가 크게 보이게 다시 찍거나 직접 입력해 주세요.';
   } catch (err) { $('prodNote').textContent = err.message; }
   $('btnId').disabled = false;

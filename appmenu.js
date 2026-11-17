@@ -6,6 +6,7 @@
    런처(index.html)는 자체 ⋯ 메뉴에서 window.simAppMenu.open('ver' | 'perm') 으로 같은 창을 연다. */
 (() => {
   if (window.simAppMenu) return;
+  const LAUNCHER = /\/(index\.html)?$/.test(location.pathname);   // 버전·권한 정보는 런처에서만 (각 도구에는 넣지 않는다)
   const NA = window.SimApp && typeof window.SimApp.info === 'function' ? window.SimApp : null;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const fmt = ms => { try { return ms ? new Date(Number(ms)).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) + ' (KST)' : '—'; } catch (e) { return '—'; } };
@@ -188,7 +189,7 @@
     const sws = all.filter(x => typeof x.get === 'function' && typeof x.set === 'function'), ex = all.filter(x => typeof x.run === 'function');
     pop.innerHTML = sws.map((x, i) => '<button role="menuitemcheckbox" data-s="' + i + '" aria-checked="' + !!x.get() + '"><span>' + esc(x.icon || '•') + '</span><span style="flex:1">' + esc(x.label) + '</span><i class="simvm-sw' + (x.get() ? ' on' : '') + '"></i></button>').join('') +
       (sws.length ? '<div style="height:1px;background:var(--line,#333a4d);margin:4px 6px"></div>' : '') +
-      '<button role="menuitem" data-k="ver"><span>ⓘ</span><span>버전 정보</span></button><button role="menuitem" data-k="perm"><span>🔐</span><span>권한 정보</span></button>' +
+      (LAUNCHER ? '<button role="menuitem" data-k="ver"><span>ⓘ</span><span>버전 정보</span></button><button role="menuitem" data-k="perm"><span>🔐</span><span>권한 정보</span></button>' : '') +
       ex.map((x, i) => '<button role="menuitem" data-x="' + i + '"><span>' + esc(x.icon || '•') + '</span><span>' + esc(x.label) + '</span></button>').join('');
     pop.addEventListener('click', e => {
       const sx = e.target.closest('button[data-s]');
@@ -207,6 +208,7 @@
 
   function mountBar(back) {
     const bar = back.closest('header, .bar'); if (!bar || bar.querySelector(':scope > .simvm-btn')) return;
+    if (!LAUNCHER && !(Array.isArray(window.simAppMenuExtra) && window.simAppMenuExtra.some(x => x && x.label))) return;   // 도구 화면은 자기 항목(방송찾기 등)이 있을 때만 ⋯ 버튼을 둔다
     if (bar.querySelector('[aria-label="더보기"], [data-h="more"]')) return;   // 이미 ⋯ 더보기 메뉴가 있는 화면(SIM Phone·SIM Folder)은 그 메뉴 안에 항목을 넣는다
     css();
     const b = document.createElement('button'); b.type = 'button'; b.className = 'simvm-btn'; b.title = '더보기'; b.setAttribute('aria-label', '더보기'); b.setAttribute('aria-haspopup', 'menu');
@@ -226,6 +228,6 @@
   let mo = 0;
   const watch = () => { if (mo) return; mo = requestAnimationFrame(() => { mo = 0; mount(); }); };
   window.simAppMenu = { open, mount };
-  const start = () => { mount(); try { new MutationObserver(watch).observe(document.body, { childList: true, subtree: true }); } catch (e) {} };
+  const start = () => { mount(); [400, 1500, 4000].forEach(t => setTimeout(mount, t)); try { new MutationObserver(watch).observe(document.body, { childList: true, subtree: true }); } catch (e) {} };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();

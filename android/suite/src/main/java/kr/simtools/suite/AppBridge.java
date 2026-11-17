@@ -40,8 +40,48 @@ final class AppBridge {
             {"mic", Manifest.permission.RECORD_AUDIO, "마이크", "음성 입력·받아쓰기·실시간 대화"},
             {"location", Manifest.permission.ACCESS_FINE_LOCATION, "위치", "현재 위치 등록·길안내"},
             {"contacts", Manifest.permission.READ_CONTACTS, "연락처", "폰 연락처 검색·전화 걸기"},
-            {"notif", "android.permission.POST_NOTIFICATIONS", "알림", "다운로드·업데이트 알림"},
+            {"calendar", Manifest.permission.READ_CALENDAR, "캘린더", "SIM Brief 일정 읽기"},
+            {"bt", "android.permission.BLUETOOTH_CONNECT,android.permission.BLUETOOTH_ADVERTISE,android.permission.BLUETOOTH_SCAN", "블루투스(근처 기기)", "SIM Control 마우스·키보드 연결"},
+            {"notif", "android.permission.POST_NOTIFICATIONS", "알림", "재생·출발·브리핑 알림"},
     };
+    static final int REQ_FIRST = 82;
+
+    /** 이 폰(안드로이드 버전)에서 실제로 물어야 하는 권한만 */
+    private static boolean applies(String id) {
+        if ("notif".equals(id)) return Build.VERSION.SDK_INT >= 33;
+        if ("bt".equals(id)) return Build.VERSION.SDK_INT >= 31;
+        return true;
+    }
+
+    private static boolean granted(Activity a, String csv) {
+        for (String p : csv.split(",")) if (a.checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) return false;
+        return true;
+    }
+
+    /** 처음 설치했을 때: 필요한 권한을 한 번에 묻는다(이미 허용된 것은 제외) */
+    static void askAllOnce(Activity a) {
+        android.content.SharedPreferences sp = a.getSharedPreferences("simsuite", Context.MODE_PRIVATE);
+        if (sp.getBoolean("permAsked", false)) return;
+        sp.edit().putBoolean("permAsked", true).apply();
+        java.util.ArrayList<String> need = new java.util.ArrayList<>();
+        for (String[] c : CAT) {
+            if (!applies(c[0])) continue;
+            for (String p : c[1].split(",")) if (a.checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) need.add(p);
+        }
+        if (!need.isEmpty()) a.requestPermissions(need.toArray(new String[0]), REQ_FIRST);
+        else askExact(a);
+    }
+
+    /** '알람 및 리마인더'는 일반 권한창이 없어 설정 화면으로 보낸다 (SIM Brief 정시 알림용) */
+    static void askExact(Activity a) {
+        try {
+            if (Build.VERSION.SDK_INT >= 31) {
+                android.app.AlarmManager am = (android.app.AlarmManager) a.getSystemService(Context.ALARM_SERVICE);
+                if (am != null && !am.canScheduleExactAlarms())
+                    a.startActivity(new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + a.getPackageName())));
+            }
+        } catch (Exception e) { /* 무시 */ }
+    }
 
     private final Activity a;
     private final WebView w;
@@ -92,11 +132,17 @@ final class AppBridge {
         try {
             PackageInfo pi = pkgInfo(PackageManager.GET_PERMISSIONS);
             for (String[] c : CAT) {
-                if (!declared(pi, c[1])) continue;
-                if ("notif".equals(c[0]) && Build.VERSION.SDK_INT < 33) continue;   // 13 미만은 알림 권한이 따로 없음
+                if (!applies(c[0])) continue;   // 이 안드로이드 버전에 없는 권한은 숨김
                 JSONObject o = new JSONObject();
                 o.put("id", c[0]); o.put("label", c[2]); o.put("desc", c[3]);
-                o.put("granted", can(c[1])); o.put("special", false);
+                o.put("granted", granted(a, c[1])); o.put("special", false);
+                arr.put(o);
+            }
+            if (Build.VERSION.SDK_INT >= 31) {
+                android.app.AlarmManager am = (android.app.AlarmManager) a.getSystemService(Context.ALARM_SERVICE);
+                JSONObject o = new JSONObject();
+                o.put("id", "alarm"); o.put("label", "알람 및 리마인더"); o.put("desc", "SIM Brief 정시 알림");
+                o.put("granted", am != null && am.canScheduleExactAlarms()); o.put("special", true);
                 arr.put(o);
             }
         } catch (Exception e) { /* 무시 */ }
@@ -108,11 +154,14 @@ final class AppBridge {
         a.runOnUiThread(new Runnable() {
             @Override public void run() {
                 try {
+                    if ("alarm".equals(id)) { askExact(a); return; }
                     String perm = null;
                     for (String[] c : CAT) if (c[0].equals(id)) perm = c[1];
                     if (perm == null) return;
-                    if (can(perm)) { openSettings(); return; }
-                    a.requestPermissions(new String[]{perm}, REQ_APP);
+                    if (granted(a, perm)) { openSettings(); return; }
+                    java.util.ArrayList<String> need = new java.util.ArrayList<>();
+                    for (String p : perm.split(",")) if (!can(p)) need.add(p);
+                    a.requestPermissions(need.toArray(new String[0]), REQ_APP);
                 } catch (Exception e) { openSettings(); }
             }
         });
@@ -141,8 +190,8 @@ final class AppBridge {
                     String perm = null;
                     for (String[] c : CAT) if (c[0].equals(id)) perm = c[1];
                     if (perm == null) { openSettings(); return; }
-                    if (Build.VERSION.SDK_INT >= 33 && can(perm)) {
-                        a.revokeSelfPermissionOnKill(perm);
+                    if (Build.VERSION.SDK_INT >= 33 && can(perm.split(",")[0])) {
+                        for (String p : perm.split(",")) a.revokeSelfPermissionOnKill(p);
                         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                             @Override public void run() {
                                 a.finishAndRemoveTask();
@@ -201,7 +250,7 @@ final class AppBridge {
         boolean ok = res != null && res.length > 0 && res[0] == PackageManager.PERMISSION_GRANTED;
         boolean perma = false;
         if (perms != null && perms.length > 0) {
-            for (String[] c : CAT) if (c[1].equals(perms[0])) id = c[0];
+            for (String[] c : CAT) if (java.util.Arrays.asList(c[1].split(",")).contains(perms[0])) id = c[0];
             perma = !ok && !a.shouldShowRequestPermissionRationale(perms[0]);   // 다시 묻지 않음 상태 → 설정에서만 켤 수 있음
         }
         js("window.__simAppPerm&&window.__simAppPerm('" + id + "'," + ok + "," + perma + ")");

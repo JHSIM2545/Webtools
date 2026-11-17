@@ -208,6 +208,7 @@ public class MainActivity extends Activity {
         BriefExtra.attach(this, web);
         handleAuth(getIntent());
         handleShare(getIntent());
+        web.post(() -> AppBridge.askAllOnce(this));   // 처음 설치 후 첫 실행: 필요한 권한을 한 번에 묻는다
         web.loadUrl(startUrl);
     }
 
@@ -422,6 +423,8 @@ public class MainActivity extends Activity {
         } else if (code == REQ_CONTACTS) {
             final boolean g = ok;
             if (web != null) web.post(() -> web.evaluateJavascript("window.__simContactsPerm&&window.__simContactsPerm(" + g + ")", null));
+        } else if (code == AppBridge.REQ_FIRST) {
+            AppBridge.askExact(this);
         } else if (code == AppBridge.REQ_APP && appBridge != null) {
             appBridge.onPermResult(perms, res);
         } else if (code == REQ_GEO && geoCb != null) {

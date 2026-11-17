@@ -100,6 +100,17 @@ main{max-width:720px;margin:0 auto;padding:12px 12px calc(28px + env(safe-area-i
   #cRes,#cHist{grid-column:2}
   #cRes{grid-row:1 / span 3}
 }
+
+#busy{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(15,15,20,.72);backdrop-filter:blur(2px)}
+#busy.on{display:flex}
+#busy .stage{position:relative;width:180px;height:150px}
+#busy svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+#busy .mag{transform-origin:90px 60px;animation:magOrbit 2.4s ease-in-out infinite}
+@keyframes magOrbit{0%{transform:translate(-38px,0) rotate(-10deg)}25%{transform:translate(0,-26px) rotate(8deg)}50%{transform:translate(38px,4px) rotate(-6deg)}75%{transform:translate(4px,22px) rotate(10deg)}100%{transform:translate(-38px,0) rotate(-10deg)}}
+#busy .cart{animation:cartBob 1.2s ease-in-out infinite;transform-origin:90px 100px}
+@keyframes cartBob{50%{transform:translateY(3px)}}
+#busy p{color:#fff;margin:14px 0 0;font-size:15px;font-weight:600}
+#busy small{color:#cbd5e1;margin-top:4px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="ui-guard.js" defer></script>
@@ -112,6 +123,10 @@ main{max-width:720px;margin:0 auto;padding:12px 12px calc(28px + env(safe-area-i
   <h1>SIM <span>Price</span></h1>
   <div class="spacer"></div>
 </header>
+<div id="busy" aria-live="polite"><div class="stage"><svg viewBox="0 0 180 150" fill="none" stroke-linecap="round" stroke-linejoin="round">
+<g class="cart" stroke="#fff" stroke-width="7"><path d="M28 62h18l14 44h66l12-32H52"/><circle cx="68" cy="124" r="8" fill="#fff"/><circle cx="118" cy="124" r="8" fill="#fff"/></g>
+<g class="mag"><circle cx="90" cy="44" r="22" stroke="#fda4af" stroke-width="7" fill="rgba(255,255,255,.18)"/><path d="M106 60l20 20" stroke="#f43f5e" stroke-width="9"/></g></svg></div>
+<p>구글에서 가격을 찾는 중…</p><small>최대 40초 걸려요</small></div>
 <main>
   <section class="card" id="cScan">
     <h2>① 바코드</h2>
@@ -422,13 +437,13 @@ async function handleTag(f) {
 $('btnCmp').onclick = async () => {
   const q = $('inName').value.trim();
   if (!q) return toast('상품명을 입력해 주세요');
-  show('cRes', true); $('res').innerHTML = '<div class="sub"><span class="spin"></span>몰별 가격을 찾는 중… (최대 40초)</div>';
+  show('cRes', false); $('busy').classList.add('on');
   $('btnCmp').disabled = true;
   try {
-    const j = await api({ action: 'malls', query: q }, 55000);
-    S.res = j; renderRes(); addHist(j);
-  } catch (e) { $('res').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; }
-  $('btnCmp').disabled = false;
+    const j = await api({ action: 'malls', query: q, only: ['google'] }, 55000);
+    show('cRes', true); S.res = j; renderRes(); addHist(j);
+  } catch (e) { show('cRes', true); $('res').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; }
+  $('busy').classList.remove('on'); $('btnCmp').disabled = false;
   $('cRes').scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 const okRes = j => ((j && j.results) || []).filter(x => x.price > 0);
@@ -450,6 +465,8 @@ function renderRes() {
       '<div class="ml">' + (has ? esc(x.title || '') + (x.seller ? ' · ' + esc(x.seller) : '') + (x.status === 'ai' ? '<span class="tag-sus">AI 검색</span>' : '') + (x.note ? ' · ' + esc(x.note) : '') : '가격을 가져오지 못했어요 · 눌러서 ' + esc(x.mall) + '에서 직접 보기') + '</div></div>' +
       '<div class="pr">' + (diff != null ? '<small class="' + (diff < 0 ? 'neg' : 'pos') + '">' + (diff < 0 ? '▼ ' : '▲ ') + won(Math.abs(diff)) + '</small>' : '<small>›</small>') + '</div></a>';
   }).join('') + '</div>';
+  const gl = (j.results[0] && j.results[0].link) || ('https://www.google.com/search?tbm=shop&q=' + encodeURIComponent(j.query || ''));
+  h += '<a class="pri" style="display:block;text-align:center;text-decoration:none;margin-top:10px;padding:12px;border-radius:12px" href="' + esc(gl) + '" target="_blank" rel="noopener">🔍 가격 찾아보러가기 (구글 쇼핑)</a>';
   h += '<div class="note">구글 검색으로 찾은 가격이라 <b>AI가 읽은 값이 틀릴 수 있어요</b>. 해당 몰 검색 근거가 확인된 경우만 가격을 보여 주고, 아니면 "미확인"으로 표시해요. 배송비·쿠폰·카드할인은 반영되지 않았고 용량·수량이 같은지는 상품 페이지에서 꼭 확인하세요.</div>';
   $('res').innerHTML = h;
 }

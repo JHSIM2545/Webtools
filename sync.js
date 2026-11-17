@@ -171,6 +171,13 @@
       const url = location.origin + location.pathname.replace(/[^/]*$/, 'index.html') + '#sync=' + sid + '.' + b64(key), q = qrcode(0, 'M'); q.addData(url); q.make();
       const b = modal('다른 기기로 QR 찍기', '<p>동기화할 다른 기기의 <b>카메라</b>(또는 런처의 QR 스캔)로 아래 QR을 찍어 주세요. 10분 안에 찍어야 해요.</p><div style="background:#fff;padding:10px;border-radius:10px;margin:10px auto;width:max-content;max-width:100%">' + q.createSvgTag({ cellSize: 5, margin: 0, scalable: true }) + '</div><p id="syMsg" style="' + sub + ';text-align:center">상대 기기를 기다리는 중…</p><div style="margin-top:10px;text-align:right"><button id="syX">취소</button></div>');
       const svg = b.querySelector('svg'); if (svg) { svg.style.width = '240px'; svg.style.height = '240px'; }
+      /* 같은 폰의 옛 앱 → 새 앱처럼 QR을 찍을 수 없을 때: 코드를 복사해 상대 기기의 '기기 동기화' 칸에 붙여넣는다 */
+      try {
+        const box = document.createElement('div'); box.style.cssText = 'margin-top:10px';
+        box.innerHTML = '<div style="' + sub + '">QR을 찍을 수 없다면 이 코드를 복사해서 다른 앱의 <b>기기 동기화 → 코드 붙여넣기</b> 칸에 넣어 주세요.</div><input id="syCode" readonly style="width:100%;margin-top:6px;font-size:12px" value="' + esc(url) + '"><div style="margin-top:6px"><button id="syCp">📋 코드 복사</button></div>';
+        b.appendChild(box);
+        b.querySelector('#syCp').onclick = async () => { const i = b.querySelector('#syCode'); try { await navigator.clipboard.writeText(i.value); } catch (e) { i.select(); try { document.execCommand('copy'); } catch (e2) {} } b.querySelector('#syCp').textContent = '✓ 복사했어요'; };
+      } catch (e) {}
       b.querySelector('#syX').onclick = () => { call({ op: 'done', sid }).catch(() => {}); close(); };
       let stop = false; abort = () => { stop = true; call({ op: 'done', sid }).catch(() => {}); };
       const end = Date.now() + 10 * 60e3;
@@ -236,7 +243,7 @@
       const inst = mk('btnInstallMenu', '<span>📲 앱 설치</span>', () => { pop.style.display = 'none'; const bi = $('btnInstall'); if (bi) bi.click(); });
       const paintInst = () => { const bi = $('btnInstall'); inst.style.display = bi && bi.style.display !== 'none' ? 'flex' : 'none'; };
       mb.addEventListener('click', paintInst); paintInst();
-      if (!window.SimLauncher) mk('btnApk', '<span>📥 SIM Tools 안드로이드 앱 받기 (APK)</span>', () => { pop.style.display = 'none'; const l = document.createElement('a'); l.href = 'https://github.com/JHSIM2545/Webtools/releases/download/apps-latest/simtools-launcher.apk'; l.download = 'simtools-launcher.apk'; l.rel = 'noopener'; document.body.appendChild(l); l.click(); l.remove(); });
+      if (!window.SimLauncher) mk('btnApk', '<span>📥 SIM Tools 안드로이드 앱 받기 (APK)</span>', () => { pop.style.display = 'none'; const l = document.createElement('a'); l.href = 'https://github.com/JHSIM2545/Webtools/releases/download/suite-latest/SIM-Tools.apk'; l.download = 'SIM-Tools.apk'; l.rel = 'noopener'; document.body.appendChild(l); l.click(); l.remove(); });
       mk('btnVer', '<span>ⓘ 버전 정보</span>', () => { pop.style.display = 'none'; if (window.simAppMenu) window.simAppMenu.open('ver'); });
       mk('btnPerm', '<span>🔐 권한 정보</span>', () => { pop.style.display = 'none'; if (window.simAppMenu) window.simAppMenu.open('perm'); });
       const hr = document.createElement('div'); hr.style.cssText = 'height:1px;background:var(--line);margin:4px 6px'; pop.appendChild(hr);

@@ -136,6 +136,8 @@ public class PadActivity extends Activity {
 
     /** JS → 네이티브 (pad.html 의 window.SimPadBT) */
     class Bridge {
+        /** 화면의 ‹ 버튼: 뒤로가기와 같게 런처로(연결은 유지) */
+        @JavascriptInterface public void back() { runOnUiThread(new Runnable() { @Override public void run() { onBackPressed(); } }); }
         @JavascriptInterface public String state() { return hid.stateJson(); }
         @JavascriptInterface public void send(String ev, String json) { hid.handle(ev, json); }
         @JavascriptInterface public void connect(String addr) { hid.connect(addr); }

@@ -677,7 +677,7 @@ function setMode(m) {
   paintMode(); paintSc(); setStat(); if (m === 'bt') btRefresh();
 }
 if (BT) {
-  document.querySelector('.back').style.display = 'none';
+  document.querySelector('.back').addEventListener('click', e => { e.preventDefault(); try { window.SimPadBT.back(); } catch (x) {} });   // 앱 안: ‹ 는 런처로(연결 유지)
   window.__btUpdate = btRefresh;
   $('modeTabs').style.display = '';
   $('bCode').textContent = '연결 설정 (차량 블루투스 / PC)';

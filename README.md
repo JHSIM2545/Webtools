@@ -11,3 +11,11 @@
 - 버전 이름은 `1.0.<버전번호>`, 빌드 번호는 versionCode(= 버전번호), 빌드 날짜는 그 버전을 만든 시각입니다 (안 바뀐 앱은 예전 값 유지). 앱의 ⋯ → 버전 정보에서 볼 수 있습니다.
 - 새 앱을 추가할 때: `android.yml` 의 matrix, `sw.js` SHELL 목록, 런처 매니페스트(`android/shell/src/launcher/AndroidManifest.xml`)의 `<queries>`, `Extra.java` 의 PKG 목록에 넣습니다.
 - 릴리스를 수동으로 지우지 마세요. 버전표(`versions.json`)가 사라지면 CI 가 중단됩니다(빈 표로 대체해 모든 앱을 새 버전으로 만드는 일을 막기 위해).
+
+## SIM Tools 통합 앱 (단일 APK)
+
+- `android/suite` 모듈이 런처와 모든 도구(SIM Control 제외)를 하나의 앱(`kr.simtools.app`)으로 묶는다. 빌드: `.github/workflows/suite.yml` → 릴리스 `suite-latest` 의 `SIM-Tools.apk`.
+- 화면(웹)은 지금처럼 GitHub Pages 에서 불러온다. 웹만 바꾸면 앱 재설치 없이 반영된다.
+- 런처의 "앱 추가/제거"는 APK 설치가 아니라 런처 보드에 도구를 켜고 끄는 것이다(`SimLauncher` 창구, `SuiteExtra.java`).
+- 도구는 `simtools://tool/<id>` 로 별도 창(documentLaunchMode)에서 열린다. 새 도구를 추가하면 `SuiteExtra.IDS` 와 런처 `TOOLS` 에 넣는다.
+- 기존 개별 앱 빌드(`android.yml`)는 그대로 남아 있다. 네이티브 코드는 `android/shell` 과 `android/suite` 에 복사돼 있으니 공통 기능을 고치면 양쪽을 맞춘다.

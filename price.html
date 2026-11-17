@@ -134,6 +134,7 @@ main{max-width:720px;margin:0 auto;padding:12px 12px calc(28px + env(safe-area-i
     <input id="inName" type="text" placeholder="상품명 (브랜드·용량·수량 포함할수록 정확해요)" style="margin-top:6px" autocomplete="off">
     <div class="chips" id="cands"></div>
     <div class="note" id="prodNote"></div>
+    <div class="row" style="margin-top:8px"><button id="btnId">📷 상품 앞면 사진으로 이름 찾기</button><input type="file" id="fileId" accept="image/*" capture="environment" class="hide"></div>
   </section>
 
   <section class="card hide" id="cMart">
@@ -306,7 +307,7 @@ async function photoBarcode(file) {
 }
 
 /* ── 흐름 ── */
-const S = { code: '', name: '', cands: [], conf: null, src: '', mart: 0, res: null };
+const S = { tried: [], code: '', name: '', cands: [], conf: null, src: '', mart: 0, res: null };
 const show = (id, on) => $(id).classList.toggle('hide', !on);
 
 async function onBarcode(code) {
@@ -315,7 +316,7 @@ async function onBarcode(code) {
   setScanMsg('<span class="spin"></span>' + esc(code) + ' 상품 확인 중…');
   try {
     const j = await api({ action: 'lookup', barcode: code }, 60000);
-    S.cands = j.candidates || [];
+    S.cands = j.candidates || []; S.tried = j.tried || [];
     if (S.cands.length) pick(0);
     else { S.name = ''; S.conf = null; S.src = ''; renderProd(); }
     setScanMsg('');
@@ -332,7 +333,7 @@ function renderProd() {
   else if (S.name && S.conf === false) meta.push('<span class="badge un">미확인</span> ' + esc(S.src));
   $('prodMeta').innerHTML = meta.join(' · ');
   $('cands').innerHTML = S.cands.length > 1 ? S.cands.map((c, i) => '<span class="chip' + (i === S.sel ? ' on' : '') + '" data-i="' + i + '">' + esc(c.name.slice(0, 28)) + '</span>').join('') : '';
-  $('prodNote').textContent = !S.name ? '이 바코드의 상품 정보를 찾지 못했어요. 상품명을 직접 입력해 주세요.'
+  $('prodNote').textContent = !S.name ? (S.code ? '이 바코드는 ' + (S.tried.length ? S.tried.join('·') : '바코드 DB') + '에서 찾지 못했어요. 상품 앞면 사진을 찍거나 상품명을 직접 입력해 주세요.' : '상품명을 입력해 주세요.')
     : S.conf === false ? '바코드와 정확히 일치하는 등록 정보를 찾지 못해 추정한 이름이에요. 실제 상품과 같은지 확인하고 필요하면 고쳐 주세요.'
     : '용량·수량(예: 5입, 1.5L)이 마트 상품과 같은지 확인해 주세요.';
 }
@@ -340,6 +341,17 @@ $('cands').addEventListener('click', e => { const c = e.target.closest('.chip');
 $('inName').addEventListener('input', () => { S.name = $('inName').value; if (S.conf !== null) { S.conf = null; S.src = '직접 수정'; renderMetaOnly(); } });
 function renderMetaOnly() { $('prodMeta').innerHTML = (S.code ? '바코드 ' + esc(S.code) + ' · ' : '') + '<span class="badge un">직접 수정</span>'; }
 
+$('btnId').onclick = () => $('fileId').click();
+$('fileId').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  $('prodNote').innerHTML = '<span class="spin"></span>사진에서 상품명을 읽는 중…'; $('btnId').disabled = true;
+  try {
+    const j = await api({ action: 'identify', image: await fileToDataUrl(f, 1600) }, 50000);
+    if (j.name) { S.name = j.name; S.conf = false; S.src = '사진 인식(AI)'; S.cands = []; renderProd(); $('prodNote').textContent = '사진에서 읽은 이름이에요. 용량·수량이 실제와 같은지 확인하고 필요하면 고쳐 주세요.'; }
+    else $('prodNote').textContent = '사진에서 상품명을 읽지 못했어요. 글자가 크게 보이게 다시 찍거나 직접 입력해 주세요.';
+  } catch (err) { $('prodNote').textContent = err.message; }
+  $('btnId').disabled = false;
+};
 $('btnCam').onclick = startCam;
 $('btnPhoto').onclick = () => $('filePhoto').click();
 $('filePhoto').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) photoBarcode(f); };

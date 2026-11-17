@@ -86,7 +86,9 @@
     const bd = modal('버전 정보');
     bd.innerHTML = '<div class="simvm-st">불러오는 중…</div>';
     const info = nativeInfo(), wv = await webVer();
-    const rows = info ? [
+    const rows = info && info.suite ? [   // 통합 앱: 버전은 하나(앱·화면 공통)
+      ['앱', info.name], ['버전', (info.versionName || '—')], ['빌드 날짜', fmt(info.buildTime)], ['패키지', info.pkg], ['안드로이드', 'API ' + info.sdk]
+    ] : info ? [
       ['앱', info.name], ['버전', info.versionName || '—'], ['빌드 번호', '#' + info.build], ['빌드 날짜', fmt(info.buildTime)],
       ['화면(웹) 버전', WEBOK ? (wv ? 'v' + wv : '—') : '오프라인 화면'], ['패키지', info.pkg], ['안드로이드', 'API ' + info.sdk]
     ] : [
@@ -98,7 +100,7 @@
     const $ = id => bd.querySelector('#' + id), st = (t, k) => { const e = $('svSt'); if (e) { e.className = 'simvm-st' + (k ? ' ' + k : ''); e.textContent = t; } };
     $('svWeb').onclick = () => { st('화면을 새로 받는 중…'); webApply(); };
     $('svApp').onclick = () => { if (NA) NA.installUpdate(); };
-    window.__simAppUpdSt = s => s.indexOf('prog:') === 0 ? (p => st('내려받는 중 ' + p[1] + '%' + (p[2] ? ' — ' + p[2] : ''), 'up'))(s.split(':')) : s === 'wait' ? st('내려받았어요. 이 화면으로 돌아오면 설치 화면이 열려요.', 'up') : s.indexOf('failc') === 0 ? st('내려받기 실패 (코드 ' + s.slice(5) + '). 인터넷·저장공간을 확인하고 다시 시도해 주세요.', 'err') : st(s === 'start' ? '새 버전을 내려받는 중… (알림창에서 진행 상황을 볼 수 있어요)' : s === 'done' ? '내려받았어요. 설치 화면에서 "설치"를 눌러 주세요.' : s === 'perm' ? '설정에서 "이 출처 허용"을 켠 뒤 돌아와 다시 눌러 주세요.' : '내려받기·설치에 실패했어요. 인터넷을 확인하고 다시 시도해 주세요.', s === 'fail' || s === 'perm' ? 'err' : 'up');
+    window.__simAppUpdSt = s => s.indexOf('prog:') === 0 ? (p => st('내려받는 중 ' + p[1] + '%' + (p[2] ? ' — ' + p[2] : ''), 'up'))(s.split(':')) : s === 'wait' ? st('내려받았어요. 이 화면으로 돌아오면 설치 화면이 열려요.', 'up') : s.indexOf('failc') === 0 ? st('내려받기 실패 (코드 ' + s.slice(5) + '). 인터넷·저장공간을 확인하고 다시 시도해 주세요.', 'err') : st(s === 'start' ? '새 버전을 내려받는 중… (알림창에서 진행 상황을 볼 수 있어요)' : s === 'browser' ? '브라우저에서 내려받은 뒤, 받은 파일을 열어 설치해 주세요.' : s === 'done' ? '내려받았어요. 설치 화면에서 "설치"를 눌러 주세요.' : s === 'perm' ? '설정에서 "이 출처 허용"을 켠 뒤 돌아와 다시 눌러 주세요.' : '내려받기·설치에 실패했어요. 인터넷을 확인하고 다시 시도해 주세요.', s === 'fail' || s === 'perm' ? 'err' : 'up');
     $('svChk').onclick = async () => {
       const b = $('svChk'); b.disabled = true; st('확인하는 중…');
       const nat = NA ? new Promise(res => { const t = setTimeout(() => res({ ok: false, err: '응답 없음' }), 15000); window.__simAppUpd = r => { clearTimeout(t); res(r || { ok: false }); }; NA.checkUpdate(); }) : Promise.resolve(null);
@@ -107,6 +109,14 @@
       if (nr) {
         if (nr.ok) { if (nr.need) { need = true; lines.push('앱: 새 빌드 #' + nr.latest + ' 있음 (현재 #' + nr.current + ')'); } else lines.push('앱: 최신 빌드예요 (#' + nr.current + ')'); }
         else { bad = true; lines.push('앱: 확인하지 못했어요 (인터넷 확인)'); }
+      }
+      const SU = !!(info && info.suite);
+      if (SU) {   // 통합 앱: 화면(웹)은 알아서 최신으로 맞추고, 사용자에게는 버전 하나만 보여준다
+        const wn = wl > 0 && (!wv || wl > wv);
+        if (!bad && !need) { st('최신 버전이에요 (' + (info.versionName || '') + ')', 'ok'); if (wn) setTimeout(webApply, 600); }
+        else if (need) { $('svApp').hidden = false; st('새 버전이 있어요 (빌드 #' + nr.latest + ', 현재 #' + nr.current + ')\n"앱 업데이트"를 누르면 설치 파일을 받아요.', 'up'); }
+        else st('확인하지 못했어요. 인터넷을 확인해 주세요.', 'err');
+        return;
       }
       let webNeed = false;
       if (wl < 0) lines.push('화면: 앱 안의 오프라인 화면이라 확인하지 않아요');

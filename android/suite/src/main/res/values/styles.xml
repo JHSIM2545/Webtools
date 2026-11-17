@@ -7,5 +7,6 @@
         <item name="android:statusBarColor">#171a23</item>
         <item name="android:navigationBarColor">#0f1117</item>
     </style>
+    <color name="ic_bg">#121831</color>
     <color name="sim_bg">#0f1117</color>
 </resources>

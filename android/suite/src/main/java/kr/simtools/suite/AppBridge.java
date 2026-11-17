@@ -207,9 +207,48 @@ final class AppBridge {
         js("window.__simAppPerm&&window.__simAppPerm('" + id + "'," + ok + "," + perma + ")");
     }
 
-    /** 통합 앱은 APK 를 내려받아 고치지 않는다 — 화면(웹)은 "화면 새로 받기"로, 앱 본체는 스토어/설치 파일로 갱신 */
-    @JavascriptInterface public void checkUpdate() { js("window.__simAppUpd&&window.__simAppUpd({\"ok\":false,\"suite\":true,\"need\":false})"); }
-    @JavascriptInterface public void installUpdate() { }
+    private static final String REL = "https://api.github.com/repos/JHSIM2545/Webtools/releases/tags/suite-latest";
+    private String dlUrl = "";
+
+    /** 앱 본체 업데이트 확인: 릴리스(suite-latest)의 빌드 번호와 지금 설치된 빌드 번호를 비교 */
+    @JavascriptInterface public void checkUpdate() {
+        final long cur = pkgInfo(0) == null ? 0 : pkgInfo(0).getLongVersionCode();
+        new Thread(new Runnable() {
+            @Override public void run() {
+                String out;
+                try {
+                    HttpURLConnection c = (HttpURLConnection) new URL(REL).openConnection();
+                    c.setConnectTimeout(8000); c.setReadTimeout(8000);
+                    c.setRequestProperty("Accept", "application/vnd.github+json");
+                    InputStream in = c.getInputStream();
+                    ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                    byte[] b = new byte[4096]; int n;
+                    while ((n = in.read(b)) > 0) bo.write(b, 0, n);
+                    JSONObject r = new JSONObject(bo.toString("UTF-8"));
+                    String body = r.optString("body", "");
+                    long latest = 0;
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("build=(\\d+)").matcher(body);
+                    if (m.find()) latest = Long.parseLong(m.group(1));
+                    JSONArray as = r.optJSONArray("assets");
+                    if (as != null && as.length() > 0) dlUrl = as.getJSONObject(0).optString("browser_download_url", "");
+                    if (latest <= 0) throw new Exception("no build");
+                    out = "{\"ok\":true,\"need\":" + (latest > cur) + ",\"latest\":" + latest + ",\"current\":" + cur + "}";
+                } catch (Exception e) { out = "{\"ok\":false}"; }
+                js("window.__simAppUpd&&window.__simAppUpd(" + out + ")");
+            }
+        }).start();
+    }
+
+    /** 새 앱 파일은 브라우저로 내려받아 직접 설치한다(앱이 스스로 설치하지 않는다) */
+    @JavascriptInterface public void installUpdate() {
+        try {
+            String u = dlUrl.isEmpty() ? "https://github.com/JHSIM2545/Webtools/releases/tag/suite-latest" : dlUrl;
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(u));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            a.startActivity(i);
+            js("window.__simAppUpdSt&&window.__simAppUpdSt('browser')");
+        } catch (Exception e) { js("window.__simAppUpdSt&&window.__simAppUpdSt('fail')"); }
+    }
 
     void destroy() { }
 }

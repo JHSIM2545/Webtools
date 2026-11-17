@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 도착 시간 맞춤 출발 알림(SIM Assistant): 앱을 꺼도 위치를 확인하며 대기 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- SIM Radio: 화면을 내려도 알림창에 재생 알림 유지 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- SIM Brief: 정해진 시각 브리핑 알림, 기기 달력 읽기, 재부팅 후 알림 다시 맞추기 -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <queries>
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:largeHeap="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:usesCleartextTraffic="false"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <!-- 런처와 각 도구가 같은 창을 쓰되, 도구마다 최근 앱 목록에 따로 뜨게 한다(documentLaunchMode).
+             같은 도구를 다시 열면 이미 열린 창으로 돌아간다. SIM TV 는 화면 속 화면(PIP) 허용. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:documentLaunchMode="intoExisting"
+            android:supportsPictureInPicture="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|density|uiMode"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- 브라우저에서 구글 로그인을 마친 뒤 kr.simtools.launcher://auth 로 앱에 돌아온다 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="kr.simtools.launcher" android:host="auth" />
+            </intent-filter>
+        </activity>
+
+        <service android:name=".TripService" android:exported="false" android:foregroundServiceType="location" />
+        <service android:name=".RadioService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+
+        <receiver android:name=".BriefReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="kr.simtools.brief.ALARM" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 연락처 앱 '공유' 목록에 SIM Phone 이 나오게 한다 -->
+        <activity-alias
+            android:name=".ShareContactAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="SIM Phone">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/x-vcard" />
+                <data android:mimeType="text/vcard" />
+                <data android:mimeType="text/directory" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/x-vcard" />
+                <data android:mimeType="text/vcard" />
+                <data android:mimeType="text/directory" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- 유튜브·인터넷(웹) 앱의 '공유' 목록에 SIM Recipe 가 나오게 한다 -->
+        <activity-alias
+            android:name=".ShareRecipeAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="SIM Recipe">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- 삼성 캘린더 등의 일정(.ics) '공유' 목록에 SIM Calendar 가 나오게 한다 -->
+        <activity-alias
+            android:name=".ShareCalendarAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="SIM Calendar">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/calendar" />
+                <data android:mimeType="text/x-vcalendar" />
+                <data android:mimeType="application/ics" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/calendar" />
+                <data android:mimeType="text/x-vcalendar" />
+                <data android:mimeType="application/ics" />
+            </intent-filter>
+        </activity-alias>
+    </application>
+</manifest>

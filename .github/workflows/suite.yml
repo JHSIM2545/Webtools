@@ -1,0 +1,51 @@
+name: SIM Tools 통합 앱 (단일 APK)
+
+on:
+  push:
+    paths:
+      - 'android/suite/**'
+      - 'android/settings.gradle'
+      - 'icon-192.png'
+      - '.github/workflows/suite.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: suite-apk
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: 앱 아이콘 넣기
+        run: |
+          mkdir -p android/suite/src/main/res/mipmap-xxxhdpi
+          cp icon-192.png android/suite/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+      - name: 통합 APK 빌드
+        run: >
+          gradle -p android :suite:assembleDebug --no-daemon --stacktrace
+          -PverCode=${{ github.run_number }} -PbuildTime=$(date +%s)000 -PverName=1.${{ github.run_number }}
+      - name: 파일 이름 정리
+        run: cp "$(find android/suite/build/outputs/apk -name '*.apk' | head -n1)" SIM-Tools.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SIM-Tools-apk
+          path: SIM-Tools.apk
+      - name: 릴리스로 올리기
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view suite-latest >/dev/null 2>&1 || gh release create suite-latest --title "SIM Tools (통합 앱)" --notes "런처와 모든 도구를 하나로 묶은 SIM Tools 단일 APK" --latest=false
+          gh release upload suite-latest SIM-Tools.apk --clobber

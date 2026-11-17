@@ -1,0 +1,42 @@
+plugins {
+    id 'com.android.application'
+}
+
+// 통합 SIM Tools: 런처와 모든 도구를 한 앱(APK)으로. 화면(웹)은 GitHub Pages 에서 불러온다.
+def verCode = (project.findProperty('verCode') ?: '1') as int
+def verName = (project.findProperty('verName') ?: '1.0') as String
+def buildStamp = (project.findProperty('buildTime') ?: System.currentTimeMillis().toString()) as String
+
+android {
+    namespace 'kr.simtools.suite'
+    compileSdk 34
+
+    buildFeatures { buildConfig true }
+
+    defaultConfig {
+        applicationId 'kr.simtools.app'
+        minSdk 28
+        targetSdk 34
+        versionCode verCode
+        versionName verName
+        resValue 'string', 'app_name', 'SIM Tools'
+        buildConfigField 'long', 'BUILD_TIME', "${buildStamp}L"
+    }
+
+    signingConfigs {
+        sim {
+            storeFile file('../sim-release.jks')
+            storePassword 'SimTools2026x'
+            keyAlias 'sim'
+            keyPassword 'SimTools2026x'
+        }
+    }
+    buildTypes {
+        debug { signingConfig signingConfigs.sim }
+        release { minifyEnabled false; signingConfig signingConfigs.sim }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

@@ -341,9 +341,9 @@ $('cands').addEventListener('click', e => { const c = e.target.closest('.chip');
 $('inName').addEventListener('input', () => { S.name = $('inName').value; if (S.conf !== null) { S.conf = null; S.src = '직접 수정'; renderMetaOnly(); } });
 function renderMetaOnly() { $('prodMeta').innerHTML = (S.code ? '바코드 ' + esc(S.code) + ' · ' : '') + '<span class="badge un">직접 수정</span>'; }
 
-$('btnId').onclick = () => $('fileId').click();
-$('fileId').onchange = async e => {
-  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+$('btnId').onclick = async () => { const f = await shoot('상품 앞면을 찍어 주세요'); if (f) handleId(f); };
+$('fileId').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) handleId(f); };
+async function handleId(f) {
   $('prodNote').innerHTML = '<span class="spin"></span>사진에서 상품명을 읽는 중…'; $('btnId').disabled = true;
   try {
     const j = await api({ action: 'identify', image: await fileToDataUrl(f, 1600) }, 50000);
@@ -351,7 +351,7 @@ $('fileId').onchange = async e => {
     else $('prodNote').textContent = '사진에서 상품명을 읽지 못했어요. 글자가 크게 보이게 다시 찍거나 직접 입력해 주세요.';
   } catch (err) { $('prodNote').textContent = err.message; }
   $('btnId').disabled = false;
-};
+}
 $('btnCam').onclick = startCam;
 $('btnPhoto').onclick = () => $('filePhoto').click();
 $('filePhoto').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) photoBarcode(f); };
@@ -364,13 +364,43 @@ $('btnCode').onclick = () => {
 $('inCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnCode').click(); });
 $('inPrice').addEventListener('input', e => { const v = e.target.value.replace(/\D/g, ''); S.mart = +v || 0; e.target.value = v ? (+v).toLocaleString('ko-KR') : ''; });
 
+/* 앱 안 카메라: 미리보기 + 촬영 버튼. 카메라를 못 쓰면 갤러리 선택으로 대신한다 */
+function shoot(title) {
+  stopCam();
+  return new Promise(resolve => {
+    const gallery = () => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.onchange = () => { const f = i.files[0]; close(f || null); }; i.click(); };
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:2147480000;background:#000;display:flex;flex-direction:column';
+    ov.innerHTML = '<div style="padding:calc(10px + env(safe-area-inset-top)) 14px 10px;color:#fff;text-align:center;font-size:15px;background:#000a">' + esc(title) + '</div>' +
+      '<video playsinline muted style="flex:1;min-height:0;width:100%;object-fit:contain;background:#000"></video>' +
+      '<div style="display:flex;align-items:center;justify-content:space-around;padding:14px 10px calc(16px + env(safe-area-inset-bottom));background:#000a">' +
+      '<button id="shG" style="min-width:76px">🖼️ 갤러리</button>' +
+      '<button id="shS" style="width:68px;height:68px;border-radius:50%;background:#fff;border:5px solid var(--accent);padding:0" aria-label="촬영"></button>' +
+      '<button id="shX" style="min-width:76px">닫기</button></div>';
+    document.body.appendChild(ov);
+    const v = ov.querySelector('video'); let st = null, done = false;
+    function close(file) { if (done) return; done = true; if (st) st.getTracks().forEach(t => t.stop()); ov.remove(); resolve(file); }
+    ov.querySelector('#shX').onclick = () => close(null);
+    ov.querySelector('#shG').onclick = gallery;
+    ov.querySelector('#shS').onclick = () => {
+      if (!v.videoWidth) return toast('카메라가 아직 준비 중이에요');
+      const cv = document.createElement('canvas'); cv.width = v.videoWidth; cv.height = v.videoHeight; cv.getContext('2d').drawImage(v, 0, 0);
+      cv.toBlob(b => close(b ? new File([b], 'shot.jpg', { type: 'image/jpeg' }) : null), 'image/jpeg', .9);
+    };
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('카메라를 쓸 수 없어요. 갤러리에서 골라 주세요'); return; }
+    navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } })
+      .then(s => { if (done) { s.getTracks().forEach(t => t.stop()); return; } st = s; v.srcObject = s; v.play().catch(() => {}); })
+      .catch(() => { toast('카메라 권한이 필요해요. 갤러리에서 고를 수 있어요'); });
+  });
+}
+
 /* 가격표 사진 읽기 */
 function fileToDataUrl(file, max) {
   return loadImg(file).then(im => { let w = im.naturalWidth, h = im.naturalHeight; const k = Math.min(1, max / Math.max(w, h)); w = Math.round(w * k); h = Math.round(h * k); const cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(im, 0, 0, w, h); return cv.toDataURL('image/jpeg', .85); });
 }
-$('btnTag').onclick = () => $('fileTag').click();
-$('fileTag').onchange = async e => {
-  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+$('btnTag').onclick = async () => { const f = await shoot('가격표를 찍어 주세요'); if (f) handleTag(f); };
+$('fileTag').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) handleTag(f); };
+async function handleTag(f) {
   $('tagNote').innerHTML = '<span class="spin"></span>가격표를 읽는 중…'; $('btnTag').disabled = true;
   try {
     const j = await api({ action: 'tag', image: await fileToDataUrl(f, 1600) }, 50000);
@@ -386,7 +416,7 @@ $('fileTag').onchange = async e => {
     if (j.barcode && !S.code && validEan(j.barcode)) { S.code = j.barcode; $('inCode').value = j.barcode; renderProd(); }
   } catch (err) { $('tagNote').textContent = err.message; }
   $('btnTag').disabled = false;
-};
+}
 
 /* 비교 */
 $('btnCmp').onclick = async () => {

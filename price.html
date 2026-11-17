@@ -418,43 +418,45 @@ async function handleTag(f) {
   $('btnTag').disabled = false;
 }
 
-/* 비교 */
+/* 비교 — 몰별 가격 (구글 2,000원 · 쿠팡 1,950원 · 쿠팡 미확인) */
 $('btnCmp').onclick = async () => {
   const q = $('inName').value.trim();
   if (!q) return toast('상품명을 입력해 주세요');
-  show('cRes', true); $('res').innerHTML = '<div class="sub"><span class="spin"></span>온라인몰 가격을 가져오는 중…</div>';
+  show('cRes', true); $('res').innerHTML = '<div class="sub"><span class="spin"></span>몰별 가격을 찾는 중… (최대 40초)</div>';
   $('btnCmp').disabled = true;
   try {
-    const j = await api({ action: 'compare', query: q }, 30000);
+    const j = await api({ action: 'malls', query: q }, 55000);
     S.res = j; renderRes(); addHist(j);
   } catch (e) { $('res').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; }
   $('btnCmp').disabled = false;
   $('cRes').scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
+const okRes = j => ((j && j.results) || []).filter(x => x.price > 0);
 function renderRes() {
-  const j = S.res, mart = S.mart; let h = '';
-  if (!j || !j.items || !j.items.length) { $('res').innerHTML = '<div class="msg">검색 결과가 없어요. 상품명을 더 짧고 일반적으로 바꿔 보세요.</div>'; return; }
-  const good = j.items.filter(x => !x.suspect), best = good[0] || j.items[0];
-  if (mart > 0) {
+  const j = S.res, mart = S.mart; if (!j || !j.results) { $('res').innerHTML = ''; return; }
+  const ok = okRes(j).sort((a, c) => a.price - c.price), best = ok[0]; let h = '';
+  if (!best) h += '<div class="sum even"><b>확인된 가격이 없어요</b><div class="sub">아래 몰 버튼으로 직접 확인해 보세요</div></div>';
+  else if (mart > 0) {
     const d = mart - best.price, p = Math.abs(d) / mart * 100;
-    if (Math.abs(p) < 1) h += '<div class="sum even"><b>마트와 온라인 최저가가 거의 같아요</b><div class="sub">마트 ' + won(mart) + ' · 온라인 최저 ' + won(best.price) + '</div></div>';
-    else if (d > 0) h += '<div class="sum good"><b>온라인이 ' + won(d) + ' (' + p.toFixed(1) + '%) 저렴</b><div class="sub">마트 ' + won(mart) + ' → 온라인 최저 ' + won(best.price) + ' (' + esc(best.mall) + ')</div></div>';
-    else h += '<div class="sum bad"><b>마트가 ' + won(-d) + ' (' + p.toFixed(1) + '%) 저렴</b><div class="sub">마트 ' + won(mart) + ' · 온라인 최저 ' + won(best.price) + ' (' + esc(best.mall) + ')</div></div>';
-  } else h += '<div class="sum even"><b>온라인 최저 ' + won(best.price) + '</b><div class="sub">마트 가격을 입력하면 차이를 계산해 드려요</div></div>';
-  h += '<div class="list">' + j.items.slice(0, 12).map((x, i) => {
-    const diff = mart > 0 ? x.price - mart : null;
-    return '<a class="it' + (x === best ? ' best' : '') + '" href="' + esc(x.link) + '" target="_blank" rel="noopener">' +
-      (x.image ? '<img loading="lazy" src="' + esc(x.image) + '" alt="">' : '') +
-      '<div class="tx"><div class="tt">' + esc(x.title) + '</div><div class="ml">' + esc(x.mall || '쇼핑몰') + (x.suspect ? '<span class="tag-sus">다른 상품일 수 있음</span>' : '') + '</div></div>' +
-      '<div class="pr"><b>' + won(x.price) + '</b>' + (diff != null ? '<small class="' + (diff < 0 ? 'neg' : 'pos') + '">' + (diff < 0 ? '▼ ' : '▲ ') + won(Math.abs(diff)) + '</small>' : '') + '</div></a>';
+    if (p < 1) h += '<div class="sum even"><b>마트와 거의 같아요</b><div class="sub">마트 ' + won(mart) + ' · ' + esc(best.mall) + ' ' + won(best.price) + '</div></div>';
+    else if (d > 0) h += '<div class="sum good"><b>' + esc(best.mall) + '이 ' + won(d) + ' (' + p.toFixed(1) + '%) 저렴</b><div class="sub">마트 ' + won(mart) + ' → ' + won(best.price) + '</div></div>';
+    else h += '<div class="sum bad"><b>마트가 ' + won(-d) + ' (' + p.toFixed(1) + '%) 저렴</b><div class="sub">마트 ' + won(mart) + ' · 온라인 최저 ' + esc(best.mall) + ' ' + won(best.price) + '</div></div>';
+  } else h += '<div class="sum even"><b>확인된 최저 ' + esc(best.mall) + ' ' + won(best.price) + '</b><div class="sub">마트 가격을 입력하면 차이를 계산해 드려요</div></div>';
+  h += '<div class="list">' + j.results.map(x => {
+    const has = x.price > 0, diff = has && mart > 0 ? x.price - mart : null;
+    const href = (has && x.url) ? x.url : x.link;
+    return '<a class="it' + (has && x === best ? ' best' : '') + '" href="' + esc(href) + '" target="_blank" rel="noopener">' +
+      '<div class="tx"><div class="tt"><b>' + esc(x.mall) + '</b> ' + (has ? won(x.price) : '<span style="opacity:.7">미확인</span>') + '</div>' +
+      '<div class="ml">' + (has ? esc(x.title || '') + (x.seller ? ' · ' + esc(x.seller) : '') + (x.status === 'ai' ? '<span class="tag-sus">AI 검색</span>' : '') + (x.note ? ' · ' + esc(x.note) : '') : '가격을 가져오지 못했어요 · 눌러서 ' + esc(x.mall) + '에서 직접 보기') + '</div></div>' +
+      '<div class="pr">' + (diff != null ? '<small class="' + (diff < 0 ? 'neg' : 'pos') + '">' + (diff < 0 ? '▼ ' : '▲ ') + won(Math.abs(diff)) + '</small>' : '<small>›</small>') + '</div></a>';
   }).join('') + '</div>';
-  h += '<div class="note">출처: 네이버 쇼핑 검색 결과(가격 오름차순, 중고·렌탈·해외직구 제외). 표시 가격은 <b>배송비 미포함</b>이고 쿠폰·카드할인도 반영되지 않았어요. 검색어와 비슷한 상품이 섞여 있을 수 있으니 용량·수량이 같은지 상품 페이지에서 꼭 확인하세요.</div>';
+  h += '<div class="note">구글 검색으로 찾은 가격이라 <b>AI가 읽은 값이 틀릴 수 있어요</b>. 해당 몰 검색 근거가 확인된 경우만 가격을 보여 주고, 아니면 "미확인"으로 표시해요. 배송비·쿠폰·카드할인은 반영되지 않았고 용량·수량이 같은지는 상품 페이지에서 꼭 확인하세요.</div>';
   $('res').innerHTML = h;
 }
 
 /* 기록 */
 function addHist(j) {
-  const best = (j.items || []).filter(x => !x.suspect)[0]; if (!best) return;
+  const best = okRes(j).sort((a, c) => a.price - c.price)[0]; if (!best) return;
   DB.hist = [{ t: Date.now(), code: S.code, name: $('inName').value.trim(), mart: S.mart || 0, online: best.price, mall: best.mall }].concat(DB.hist.filter(h => !(h.name === $('inName').value.trim() && h.mart === S.mart))).slice(0, 30);
   saveDB(); renderHist();
 }

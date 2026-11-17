@@ -1986,11 +1986,11 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     const files = [];
     for (const d of list) {
       try {
-        const r = await fetch('__share/' + encodeURIComponent(d.id), { cache: 'no-store' });
+        const r = await fetch('https://simshare.invalid/__share/' + encodeURIComponent(d.id), { cache: 'no-store' });
         if (!r.ok) throw new Error('http');
         const b = await r.blob();
         files.push(new File([b], d.name || d.id, { type: d.type || b.type }));
-      } catch (e) { toast('공유받은 파일을 읽지 못했습니다: ' + (d.name || '')); }
+      } catch (e) { toast('공유받은 파일을 읽지 못했습니다: ' + (d.name || '') + ' (' + (e && e.message || e) + ')'); }
       try { SimShare.release(d.id); } catch (e) {}
     }
     openSharedFiles(files);

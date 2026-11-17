@@ -52,6 +52,7 @@ import java.util.Map;
 /** SIM Tools 의 화면(웹)을 앱으로 띄우는 공용 껍데기. 런처 앱과 도구별 앱이 같이 쓴다. */
 public class MainActivity extends Activity {
     private static final String BASE = "https://jhsim2545.github.io/";
+    private static final String SHARE_HOST = "https://simshare.invalid/__share/";   // 공유받은 파일을 화면(웹)이 가져가는 가짜 주소 (서비스워커를 거치지 않게 다른 출처로 둠)
     private static final int REQ_FILE = 77, REQ_MEDIA = 78, REQ_GEO = 79, REQ_CONTACTS = 80;
 
     String key;                 // null 이면 런처, 아니면 열린 도구의 id (simtools://tool/<id>)
@@ -114,7 +115,7 @@ public class MainActivity extends Activity {
             public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
                 try {
                     String u = r.getUrl().toString();
-                    if ("GET".equals(r.getMethod()) && u.startsWith(BASE + "Webtools/__share/")) return sharedFileResponse(r.getUrl());   // SIM Note 로 공유받은 파일
+                    if ("GET".equals(r.getMethod()) && (u.startsWith(SHARE_HOST) || u.startsWith(BASE + "Webtools/__share/"))) return sharedFileResponse(r.getUrl());   // SIM Note 로 공유받은 파일
                     if (!"GET".equals(r.getMethod()) || !u.startsWith(BASE + "Webtools") || online()) return null;
                     String p = r.getUrl().getPath() == null ? "" : r.getUrl().getPath().replaceFirst("^/Webtools/?", "");
                     if (p.isEmpty()) p = "index.html";
@@ -347,6 +348,7 @@ public class MainActivity extends Activity {
             File f = new File(new File(getCacheDir(), "share"), id);
             Map<String, String> h = new HashMap<>();
             h.put("Cache-Control", "no-store");
+            h.put("Access-Control-Allow-Origin", "*");
             if (!f.isFile()) return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", h, new ByteArrayInputStream(new byte[0]));
             return new WebResourceResponse("application/octet-stream", null, 200, "OK", h, new FileInputStream(f));
         } catch (Exception e) { return null; }

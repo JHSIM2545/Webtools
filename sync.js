@@ -243,7 +243,6 @@
       mk('btnPerm', '<span>🔐 권한 정보</span>', () => { pop.style.display = 'none'; if (window.simAppMenu) window.simAppMenu.open('perm'); });
       const hr = document.createElement('div'); hr.style.cssText = 'height:1px;background:var(--line);margin:4px 6px'; pop.appendChild(hr);
       const it = mk('btnSync', '<span>🔄 기기 동기화</span>', () => { pop.style.display = 'none'; menu(); });
-      paintMv();
       mb.onclick = e => {
         e.stopPropagation();
         if (pop.style.display === 'block') { pop.style.display = 'none'; return; }

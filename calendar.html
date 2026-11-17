@@ -1116,7 +1116,19 @@ async function checkShared() {   // 다른 앱(삼성 캘린더)에서 '공유'�
   } catch (e) { toast('공유받은 일정을 읽지 못했어요', 3200); }
 }
 
-loadAll().then(render).then(checkShared);
+/* 안드로이드 앱(APK): 삼성 캘린더에서 '공유'하면 앱이 받아 두고(SimShare), 화면이 열리거나 새로 공유될 때 여기서 가져간다 */
+let appReady = false;
+async function consumeNative() {
+  if (!window.SimShare || !appReady) return;
+  try {
+    const raw = window.SimShare.take(); if (!raw) return;
+    const items = JSON.parse(raw).filter(t => /BEGIN:VCALENDAR|BEGIN:VEVENT/i.test(t)); if (!items.length) return;
+    await importIcsTexts(items, '삼성 캘린더');
+  } catch (e) { toast('공유받은 일정을 저장하지 못했어요', 3200); }
+}
+window.__simShare = consumeNative;
+
+loadAll().then(render).then(checkShared).then(() => { appReady = true; return consumeNative(); });
 })();
 </script>
 </body>

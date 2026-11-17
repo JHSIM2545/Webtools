@@ -310,7 +310,7 @@ public class MainActivity extends Activity {
                     got.add(t);
                 } catch (Exception e) { /* 읽지 못한 파일은 건너뜀 */ }
             }
-            if (text != null && (text.toUpperCase().contains("BEGIN:VCARD") || "recipe".equals(BuildConfig.APP_KEY))) got.add(text);   // SIM Recipe 는 공유받은 링크(글)를 그대로 받는다
+            if (text != null && (text.toUpperCase().contains("BEGIN:VCARD") || text.toUpperCase().contains("BEGIN:VCALENDAR") || "recipe".equals(BuildConfig.APP_KEY))) got.add(text);   // SIM Recipe 는 공유받은 링크(글)를 그대로 받는다
             runOnUiThread(() -> {
                 if (got.isEmpty()) { Toast.makeText(this, "공유받은 내용을 읽지 못했습니다", Toast.LENGTH_SHORT).show(); return; }
                 synchronized (pendingShare) { pendingShare.addAll(got); }

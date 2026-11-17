@@ -1,4 +1,4 @@
-package kr.simtools.simpad;
+package kr.simtools.suite;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;

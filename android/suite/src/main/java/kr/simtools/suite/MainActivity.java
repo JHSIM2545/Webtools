@@ -7,6 +7,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.os.Bundle;
 import android.database.Cursor;
@@ -68,6 +70,8 @@ public class MainActivity extends Activity {
 
         web = new WebView(this);
         web.setBackgroundColor(Color.parseColor("#0f1117"));
+        web.setOverScrollMode(View.OVER_SCROLL_NEVER);   // 웹 느낌의 당겨 늘어나는 효과 제거
+        web.setVerticalScrollBarEnabled(false);
         setContentView(web);
 
         WebSettings s = web.getSettings();
@@ -95,6 +99,22 @@ public class MainActivity extends Activity {
                     Toast.makeText(MainActivity.this, "열 수 있는 앱이 없습니다", Toast.LENGTH_SHORT).show();
                 }
                 return true;
+            }
+
+            /** 인터넷이 없을 때는 앱 안에 함께 들어 있는 화면 파일로 열어, 네이티브 앱처럼 오프라인에서도 켜지게 한다 */
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
+                try {
+                    String u = r.getUrl().toString();
+                    if (!"GET".equals(r.getMethod()) || !u.startsWith(BASE + "Webtools") || online()) return null;
+                    String p = r.getUrl().getPath() == null ? "" : r.getUrl().getPath().replaceFirst("^/Webtools/?", "");
+                    if (p.isEmpty()) p = "index.html";
+                    InputStream in = getAssets().open("web/" + p);
+                    String ext = p.contains(".") ? p.substring(p.lastIndexOf('.') + 1).toLowerCase() : "";
+                    String mime = "html".equals(ext) ? "text/html" : "js".equals(ext) ? "application/javascript" : "css".equals(ext) ? "text/css" : "png".equals(ext) ? "image/png"
+                            : "svg".equals(ext) ? "image/svg+xml" : "json".equals(ext) || "webmanifest".equals(ext) ? "application/json" : "wav".equals(ext) ? "audio/wav" : "application/octet-stream";
+                    return new WebResourceResponse(mime, "utf-8", in);
+                } catch (Exception e) { return null; }
             }
 
             @Override
@@ -349,6 +369,14 @@ public class MainActivity extends Activity {
         if (k != null && !SuiteExtra.valid(k)) k = null;
         key = k; isLauncher = k == null;
         startUrl = BASE + "Webtools/" + (k == null ? "index.html" : SuiteExtra.page(k));
+    }
+
+    private boolean online() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
+            return nc != null && nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+        } catch (Exception e) { return true; }
     }
 
     private boolean granted(String p) { return checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED; }

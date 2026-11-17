@@ -1,4 +1,4 @@
-package kr.simtools.simpad;
+package kr.simtools.suite;
 
 import android.Manifest;
 import android.app.Activity;
@@ -19,7 +19,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 /** SIM Control 화면(pad.html)을 WebView 로 띄우고, 입력을 블루투스 HID(마우스·키보드)로 내보낸다. */
-public class MainActivity extends Activity {
+public class PadActivity extends Activity {
     static final String URL = "https://jhsim2545.github.io/Webtools/pad.html?app=bt";
     static final String FALLBACK = "file:///android_asset/pad.html?app=bt";
 
@@ -97,7 +97,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        // 뒤로가기로 앱이 닫히지 않게 (차량 연결 유지)
+        // 뒤로가기로 닫히지 않게 (차량 연결 유지) — 런처로 돌아가되 이 창은 살려 둔다
         moveTaskToBack(true);
     }
 

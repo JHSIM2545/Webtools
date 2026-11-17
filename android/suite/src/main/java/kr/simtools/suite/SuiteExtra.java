@@ -25,11 +25,11 @@ final class SuiteExtra {
     private SuiteExtra() {}
 
     /** 이 앱에 들어 있는 도구 id (런처 index.html 의 TOOLS 와 같은 id) */
-    private static final List<String> IDS = Arrays.asList("simtv", "note", "phone", "aitel", "assistant", "calendar", "folder", "message", "kbo", "orchestra", "radio", "calc", "map", "teams", "scan", "recipe", "brief", "price");
+    private static final List<String> IDS = Arrays.asList("simtv", "note", "phone", "aitel", "assistant", "calendar", "folder", "message", "kbo", "orchestra", "radio", "calc", "map", "teams", "scan", "recipe", "brief", "price", "pad");
 
     static boolean valid(String id) { return id != null && IDS.contains(id); }
 
-    static String page(String id) { return "simtv".equals(id) ? "tv.html" : id + ".html"; }
+    static String page(String id) { return "simtv".equals(id) ? "tv.html" : id + ".html"; }   // pad 는 PadActivity 가 따로 연다
 
     static void attach(Activity a, WebView w, boolean launcher) {
         if (launcher) w.addJavascriptInterface(new Bridge(a, w), "SimLauncher");
@@ -72,7 +72,7 @@ final class SuiteExtra {
 
         @JavascriptInterface public void open(String id) {
             if (!valid(id)) return;
-            Intent i = new Intent(a, MainActivity.class).setData(Uri.parse("simtools://tool/" + id));
+            Intent i = "pad".equals(id) ? new Intent(a, PadActivity.class) : new Intent(a, MainActivity.class).setData(Uri.parse("simtools://tool/" + id));
             a.startActivity(i);
         }
 

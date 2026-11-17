@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -20,6 +21,14 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- SIM Control: 차량·PC 에 블루투스 마우스·키보드(HID)로 연결 -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="true" />
+
     <queries>
         <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
     </queries>
@@ -30,7 +39,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:usesCleartextTraffic="false"
-        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        android:theme="@style/SimTheme">
 
         <!-- 런처와 각 도구가 같은 창을 쓰되, 도구마다 최근 앱 목록에 따로 뜨게 한다(documentLaunchMode).
              같은 도구를 다시 열면 이미 열린 창으로 돌아간다. SIM TV 는 화면 속 화면(PIP) 허용. -->
@@ -53,6 +62,14 @@
                 <data android:scheme="kr.simtools.launcher" android:host="auth" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".PadActivity"
+            android:exported="false"
+            android:documentLaunchMode="intoExisting"
+            android:label="SIM Control"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|density|uiMode"
+            android:windowSoftInputMode="adjustResize" />
 
         <service android:name=".TripService" android:exported="false" android:foregroundServiceType="location" />
         <service android:name=".RadioService" android:exported="false" android:foregroundServiceType="mediaPlayback" />

@@ -3,8 +3,12 @@ name: SIM Tools 통합 앱 (단일 APK)
 on:
   push:
     paths:
-      - 'android/suite/**'
-      - 'android/settings.gradle'
+      - 'android/**'
+      - '*.html'              # 화면 파일은 앱 안에도 함께 넣는다(인터넷이 없을 때 대비)
+      - '*.js'
+      - '*.png'
+      - 'appmenu.js'
+      - 'ui-guard.js'
       - 'icon-192.png'
       - '.github/workflows/suite.yml'
   workflow_dispatch:
@@ -32,6 +36,13 @@ jobs:
         run: |
           mkdir -p android/suite/src/main/res/mipmap-xxxhdpi
           cp icon-192.png android/suite/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+      - name: SIM Control 화면 파일을 앱 안에 함께 넣기
+        run: |
+          mkdir -p android/suite/src/main/assets
+          cp pad.html pad-icon-192.png ui-guard.js appmenu.js android/suite/src/main/assets/
+          # 인터넷이 없을 때 쓰는 화면 파일 전체(앱에 함께 들어감)
+          mkdir -p android/suite/src/main/assets/web
+          cp *.html *.js *.png *.svg *.webmanifest android/suite/src/main/assets/web/ 2>/dev/null || true
       - name: 통합 APK 빌드
         run: >
           gradle -p android :suite:assembleDebug --no-daemon --stacktrace

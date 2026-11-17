@@ -226,7 +226,6 @@ button.danger{color:#ff8a8a}
   const SUITE = !!(APP && typeof APP.isSuite === 'function' && APP.isSuite());   // 모든 도구가 한 앱에 들어 있는 통합 SIM Tools
   let INSTALLED = [], UPDATES = [];   // UPDATES: 새 버전이 나온 설치 앱 id
   function readInstalled() { if (!APP) return; try { INSTALLED = JSON.parse(APP.installed()); } catch (e) { INSTALLED = []; } }
-  if (SUITE) { const pi = TOOLS.findIndex(t => t.id === 'pad'); if (pi >= 0) TOOLS.splice(pi, 1); }   // SIM Control(블루투스)은 따로 설치하는 앱
   readInstalled();
   const KEY_ORDER = 'simtools_order';
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };

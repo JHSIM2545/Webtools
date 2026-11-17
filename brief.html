@@ -119,6 +119,19 @@ main{max-width:960px;margin:0 auto;padding:12px 12px calc(40px + env(safe-area-i
 .mkc{font-size:11px;font-weight:700;white-space:nowrap}.mkd{font-size:10px;color:var(--sub);margin-top:2px}
 .mk.up .mkc,.mk.up .mkv{color:#ff5a5f}.mk.dn .mkc,.mk.dn .mkv{color:#4c9bff}.mk.fl .mkc{color:var(--sub)}
 .lv{color:#2fd27f;font-weight:700}
+.mkhd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px}.mkhd h2{margin:0}
+.wlbtn{font-size:12.5px;font-weight:700;color:var(--accent);padding:5px 10px;border-radius:99px;background:var(--panel2);white-space:nowrap}
+.sup{color:#ff5a5f}.sdn{color:#4c9bff}.sfl{color:var(--sub)}
+.stl{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 2px;border-bottom:1px solid var(--line);cursor:pointer}.stl:last-child{border-bottom:0}.stl:active{background:var(--panel2)}
+.stn{min-width:0}.stn b{display:block;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.stn small{color:var(--sub);font-size:12px}
+.stp{text-align:right;white-space:nowrap}.stp b{display:block;font-size:16px}.stp small{font-size:12px;font-weight:700}
+.wlst{font-size:12px;color:var(--sub);margin:0 2px 4px}
+.sdh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:2px 0 8px}.sdh b{font-size:28px;letter-spacing:-.5px}.sdh span{font-size:14px;font-weight:700}
+.sdc{background:#fff;border-radius:12px;padding:6px;text-align:center;margin:6px 0}.sdc img{max-width:100%;height:auto;display:block;margin:0 auto}
+.sdg{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;margin-top:6px}.sdg div{display:flex;justify-content:space-between;gap:8px;padding:8px 2px;border-bottom:1px solid var(--line);font-size:13.5px}.sdg div span{color:var(--sub);white-space:nowrap}.sdg div b{text-align:right}
+.sdt{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px}.sdt th{color:var(--sub);font-weight:500;text-align:right;padding:5px 2px}.sdt td{text-align:right;padding:6px 2px;border-top:1px solid var(--line)}.sdt th:first-child,.sdt td:first-child{text-align:left}
+.sdh2{font-size:13px;color:var(--sub);font-weight:700;margin:12px 2px 2px}
+.wlcnt{color:var(--sub);font-weight:400;font-size:13px}
 .fz{cursor:pointer}
 .fz:active{border-color:var(--accent)}
 .fzh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
@@ -214,7 +227,7 @@ function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('sh
 
 /* ── 설정 (기기에 저장, 로그인 계정 동기화는 sync.js 가 처리) ── */
 const KEY = 'simbrief.v1';
-const DEF = { times: [{ t: '07:30', on: true }], sound: true, cats: { politics: true, economy: true, society: true, culture: true, sports: true, stock: true, custom: true }, mkt: true, kw: [], calSim: true, calDevice: true, weather: { on: true, mode: 'auto', located: false, name: '서울', lat: 37.5665, lon: 126.978 }, fortune: { on: true, birth: '', g: 'M', time: '' } };
+const DEF = { times: [{ t: '07:30', on: true }], sound: true, cats: { politics: true, economy: true, society: true, culture: true, sports: true, stock: true, custom: true }, mkt: true, watch: [], kw: [], calSim: true, calDevice: true, weather: { on: true, mode: 'auto', located: false, name: '서울', lat: 37.5665, lon: 126.978 }, fortune: { on: true, birth: '', g: 'M', time: '' } };
 let CFG = (() => { try { const c = JSON.parse(lsGet(KEY) || 'null'); return c ? Object.assign({}, DEF, c, { cats: Object.assign({}, DEF.cats, c.cats || {}), weather: Object.assign({}, DEF.weather, c.weather || {}), fortune: Object.assign({}, DEF.fortune, c.fortune || {}) }) : JSON.parse(JSON.stringify(DEF)); } catch (e) { return JSON.parse(JSON.stringify(DEF)); } })();
 function save() {
   lsSet(KEY, JSON.stringify(CFG));
@@ -489,6 +502,68 @@ document.addEventListener('click', e => {
 });
 
 /* ── 오늘의 운세 ── */
+const SFN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-stock';
+/* ── 관심종목 (네이버 증권 시세, 국내 종목) ── */
+const stN = (n, d) => n == null ? '–' : Number(n).toLocaleString('ko-KR', { maximumFractionDigits: d == null ? 2 : d });
+const stCl = x => x.chg > 0 ? 'sup' : x.chg < 0 ? 'sdn' : 'sfl';
+const stPre = x => x.st && x.st !== 'OPEN' && x.st !== 'CLOSE' && !x.chg && !x.pct;     // 장 시작 전엔 등락이 0으로 와서 표시하지 않는다
+function stChg(x) { if (stPre(x)) return '<small class="sfl">장 시작 전</small>'; return '<small class="' + stCl(x) + '">' + (x.chg > 0 ? '▲' : x.chg < 0 ? '▼' : '–') + ' ' + stN(Math.abs(x.chg)) + ' (' + (x.pct > 0 ? '+' : x.pct < 0 ? '−' : '') + stN(Math.abs(x.pct)) + '%)</small>'; }
+let WL_T = null;
+async function vWatch() {
+  const my = ++seq, ok = () => my === seq && S.tab === 'watch';
+  clearInterval(WL_T);
+  const bar = '<div class="vbar"><button class="sm" id="toBrief">‹ 뒤로</button><b>⭐ 관심종목</b><span style="flex:1"></span><button class="sm" data-go="stock">종목 편집</button></div>';
+  const w = CFG.watch || [];
+  if (!w.length) { main.innerHTML = bar + '<div class="card"><div class="empty">관심 종목이 없어요.<br><button class="sm" style="margin-top:10px" data-go="stock">종목 추가하기</button></div></div>'; return; }
+  const row = (c, x) => '<div class="stl" data-st="' + c.c + '"><div class="stn"><b>' + esc(c.n) + '</b><small>' + c.c + (c.m ? ' · ' + esc(c.m) : '') + '</small></div><div class="stp">' + (x ? '<b class="' + (stPre(x) ? 'sfl' : stCl(x)) + '">' + stN(x.price) + '</b>' + stChg(x) : '<b class="sfl">–</b>') + '</div></div>';
+  let cache = null; try { cache = JSON.parse(lsGet('simbrief.wl') || 'null'); } catch (e) {}
+  const paint = (v) => {
+    if (!ok() || !$('wl')) return;
+    const m = {}; ((v && v.items) || []).forEach(x => m[x.code] = x);
+    const live = ((v && v.items) || []).some(x => x.st === 'OPEN');
+    $('wl').innerHTML = (v ? '<div class="wlst">' + (live ? '<span class="lv">● 실시간</span> · ' : '장 마감 · 종가 · ') + new Date(v.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' 기준</div>' : '') + w.map(c => row(c, m[c.c])).join('');
+  };
+  main.innerHTML = bar + '<div class="card" id="wl"></div>';
+  paint(cache && cache.k === w.map(c => c.c).join() ? cache.v : { items: [], at: Date.now() });
+  const load = async () => {
+    try { const v = await fetchJ(SFN + '?codes=' + w.map(c => c.c).join(','), 12000); if (!v || !v.ok) throw 0; lsSet('simbrief.wl', JSON.stringify({ k: w.map(c => c.c).join(), v })); paint(v); }
+    catch (e) { if (ok() && $('wl') && !$('wl').querySelector('.stp b:not(.sfl)')) $('wl').insertAdjacentHTML('afterbegin', '<div class="hint warn">시세를 가져오지 못했어요. 새로고침해 주세요.</div>'); }
+  };
+  load();
+  WL_T = setInterval(() => { if (!ok()) { clearInterval(WL_T); return; } if (!document.hidden && !$('plsheet')) load(); }, 20000);
+}
+async function openStock(code) {
+  if ($('plsheet')) return;
+  const c = (CFG.watch || []).find(x => x.c === code) || { c: code, n: code };
+  const el = document.createElement('div'); el.id = 'plsheet'; el.className = 'plov';
+  el.innerHTML = '<div class="plbox"><div class="plh"><b>' + esc(c.n) + ' <small style="color:var(--sub);font-weight:400;font-size:12.5px">' + c.c + '</small></b><button class="x" id="plx" aria-label="닫기">✕</button></div><div id="stb"><div class="empty"><span class="spin"></span>불러오는 중…</div></div></div>';
+  document.body.appendChild(el);
+  let chartKind = 'd';
+  const dfmt = d => d && d.length === 8 ? d.slice(4, 6) + '/' + d.slice(6) : d;
+  const sgn = v => /^-/.test(v || '') ? 'sdn' : /^\+/.test(v || '') ? 'sup' : '';
+  let J = null;
+  const paint = () => {
+    const b = el.querySelector('#stb'); if (!b || !J) return; const q = J.q, cl = stPre(q) ? 'sfl' : stCl(q);
+    const stl = q.halt ? '거래정지' : q.st === 'OPEN' ? '<span class="lv">● 실시간</span>' : q.st === 'CLOSE' ? '장 마감 · 종가' : '장 시작 전';
+    const img = chartKind === 'd' ? J.chart : J.chart3;
+    b.innerHTML = '<div class="sdh"><b class="' + cl + '">' + stN(q.price) + '</b><span class="' + cl + '">' + (stPre(q) ? '' : (q.chg > 0 ? '▲ ' : q.chg < 0 ? '▼ ' : '– ') + stN(Math.abs(q.chg)) + ' (' + (q.pct > 0 ? '+' : q.pct < 0 ? '−' : '') + stN(Math.abs(q.pct)) + '%)') + '</span><span style="color:var(--sub);font-weight:400;font-size:12.5px">' + stl + (q.mkt ? ' · ' + esc(q.mkt) : '') + '</span></div>' +
+      (img ? '<div class="seg" style="margin:0 0 4px"><button data-sc="d"' + (chartKind === 'd' ? ' class="on"' : '') + '>1일</button><button data-sc="m"' + (chartKind === 'm' ? ' class="on"' : '') + '>3개월</button></div><div class="sdc"><img src="' + esc(img) + '" alt="차트" onerror="this.parentNode.style.display=\'none\'"></div>' : '') +
+      '<div class="sdg"><div><span>시가</span><b>' + stN(q.open) + '</b></div><div><span>고가</span><b class="sup">' + stN(q.high) + '</b></div><div><span>저가</span><b class="sdn">' + stN(q.low) + '</b></div>' +
+      (J.info || []).map(x => '<div><span>' + esc(x.k) + '</span><b>' + esc(x.v) + '</b></div>').join('') + '</div>' +
+      (J.deals && J.deals.length ? '<div class="sdh2">투자자별 순매수 (주)</div><table class="sdt"><tr><th>날짜</th><th>외국인</th><th>기관</th><th>개인</th></tr>' + J.deals.map(d => '<tr><td>' + dfmt(d.d) + '</td><td class="' + sgn(d.f) + '">' + esc(d.f) + '</td><td class="' + sgn(d.o) + '">' + esc(d.o) + '</td><td class="' + sgn(d.i) + '">' + esc(d.i) + '</td></tr>').join('') + '</table>' : '') +
+      '<a style="display:block;text-align:center;margin-top:12px;padding:12px;border-radius:12px;background:var(--panel2);color:var(--accent);text-decoration:none;font-weight:700" target="_blank" rel="noopener noreferrer" href="https://m.stock.naver.com/domestic/stock/' + encodeURIComponent(q.code) + '/total">네이버 증권에서 더 보기 ›</a>';
+  };
+  const load = async () => {
+    try { const v = await fetchJ(SFN + '?code=' + encodeURIComponent(code) + '&detail=1', 15000); if (!v || !v.ok) throw 0; J = v; paint(); }
+    catch (e) { if (!J && el.querySelector('#stb')) el.querySelector('#stb').innerHTML = '<div class="empty">종목 정보를 가져오지 못했어요.</div>'; }
+  };
+  load();
+  const tm = setInterval(() => { if (!el.isConnected) { clearInterval(tm); return; } if (!document.hidden && J && J.q.st === 'OPEN') load(); }, 20000);
+  el.addEventListener('click', e => {
+    if (e.target === el || e.target.id === 'plx') { closePlace(); return; }
+    const sc = e.target.closest('[data-sc]'); if (sc) { chartKind = sc.dataset.sc; paint(); }
+  });
+}
 const MFN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-market';
 /* ── 증시 지수 (직전 거래일 종가) ── */
 async function loadMarket(force) {
@@ -648,7 +723,7 @@ async function vBrief(force) {
   const tabs = (tabs0.length > 1 ? [['all', '전체']] : []).concat(tabs0);
   if (!tabs.some(t => t[0] === S.cat)) S.cat = tabs.length ? tabs[0][0] : 'all';
   main.innerHTML = (CFG.weather.on ? '<div class="card"><div class="wxh"><h2>오늘 날씨</h2><span class="wxr">' + (CFG.weather.mode !== 'auto' ? '<button class="wxhome" id="wxHome" aria-label="현재 위치로">⌖ 현재 위치</button>' : '') + '<button class="wxplace" id="wxPlace" aria-label="지역 변경">📍 <span id="wxName">' + esc(CFG.weather.name) + '</span> <i>▾</i></button></span></div><div id="wx"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
-    (CFG.mkt ? '<div class="card"><h2>📈 증시 <span id="mkAt" style="color:var(--sub);font-weight:400;font-size:12.5px"></span></h2><div id="mk"><div class="empty" style="padding:10px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
+    (CFG.mkt ? '<div class="card"><div class="mkhd"><h2>📈 증시 <span id="mkAt" style="color:var(--sub);font-weight:400;font-size:12.5px"></span></h2><button class="wlbtn" data-go="watch">⭐ 관심종목 ›</button></div><div id="mk"><div class="empty" style="padding:10px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
     (CFG.fortune.on ? '<div class="card fz" id="fzCard" role="button" tabindex="0"><div class="fzh"><h2>🔮 오늘의 운세</h2><span class="fzsc" id="fzScore"></span></div><div id="fz"><div class="empty" style="padding:10px"><span class="spin"></span>운세를 보는 중…</div></div></div>' : '') +
     (CFG.calSim || CFG.calDevice ? '<div class="card"><h2>📅 오늘 일정 <span style="color:var(--sub);font-weight:400;font-size:12.5px">' + esc(dt) + '</span></h2><div id="sch"><div class="empty" style="padding:12px"><span class="spin"></span>불러오는 중…</div></div></div>' : '') +
     (tabs.length ? '<div class="seg" id="seg">' + tabs.map(t => '<button data-c="' + t[0] + '"' + (S.cat === t[0] ? ' class="on"' : '') + '>' + t[1] + '</button>').join('') + '</div><div id="news"><div class="empty"><span class="spin"></span>뉴스를 불러오는 중…</div></div>' :
@@ -696,8 +771,19 @@ async function vBrief(force) {
 
 /* ── 화면: 알림 설정 ── */
 const sw = on => '<button class="sw' + (on ? ' on' : '') + '" role="switch" aria-checked="' + !!on + '"></button>';
+let WLR = null;
+function wlCardHtml() {
+  const w = CFG.watch || [];
+  return '<div class="card" id="wlcard"><h2>⭐ 관심 종목 <span class="wlcnt">' + w.length + '/20</span></h2>' +
+    w.map((c, i) => '<div class="set"><div class="tx"><b>' + esc(c.n) + '</b><small>' + c.c + (c.m ? ' · ' + esc(c.m) : '') + '</small></div><button class="x" data-a="wldel" data-k="' + i + '" aria-label="삭제">✕</button></div>').join('') +
+    (w.length < 20 ? '<form id="wlf" class="kwf"><input id="wlIn" type="search" maxlength="30" placeholder="종목명 또는 종목코드 검색 (예: 삼성전자)" autocomplete="off" enterkeyhint="search"><button class="primary" type="submit">검색</button></form>' : '<div class="hint">관심 종목은 최대 20개예요.</div>') +
+    '<div id="wlres">' + (WLR === 'load' ? '<div class="empty" style="padding:12px"><span class="spin"></span>검색 중…</div>' : WLR === 'fail' ? '<div class="empty" style="padding:12px">검색하지 못했어요. 잠시 후 다시 시도해 주세요.</div>' : Array.isArray(WLR) ? (WLR.length ? WLR.map(x => { const has = w.some(c => c.c === x.code); return '<button class="plit"' + (has || w.length >= 20 ? ' disabled' : '') + ' data-a="wladd" data-c="' + esc(x.code) + '" data-n="' + esc(x.name) + '" data-m="' + esc(x.mkt) + '">' + esc(x.name) + (has ? ' ✓' : '') + '<small>' + esc(x.code) + ' · ' + esc(x.mkt) + '</small></button>'; }).join('') : '<div class="empty" style="padding:12px">검색 결과가 없어요</div>') : '') + '</div></div>';
+}
+const wlRefresh = () => { const e = $('wlcard'); if (e) e.outerHTML = wlCardHtml(); };
 async function vSet(kind) {
   kind = kind || (S.tab === 'brief' ? 'alarm' : S.tab);
+  if (kind === 'watch') return vWatch();
+  if (kind === 'stock') WLR = null;
   const apk = !!NA;
   const nat = apk ? { notif: safe(() => NA.hasNotif()), exact: safe(() => NA.canExact()), cal: safe(() => NA.hasCalendar()) } : null;
   function safe(f) { try { return !!f(); } catch (e) { return false; } }
@@ -711,6 +797,7 @@ async function vSet(kind) {
     SOUNDS.filter(x => x[0] !== 'voice' || hasVoice()).map(x => '<div class="set" data-sid="' + x[0] + '" style="cursor:pointer"><div class="tx"><b>' + x[1] + '</b><small>' + x[2] + '</small></div><span style="font-size:20px;color:var(--accent)">' + (curSound() === x[0] ? '●' : '○') + '</span></div>').join('') + '<div class="hint" id="smsg"></div></div>'),
     cats: ('<div class="card"><h2>📰 브리핑 분야</h2>' + CATS.map(c => '<div class="set"><div class="tx"><b>' + CAT_ICON[c[0]] + ' ' + c[1] + '</b></div>' + sw(CFG.cats[c[0]]).replace('class="sw', 'data-a="cat" data-k="' + c[0] + '" class="sw') + '</div>').join('') + '</div>'),
     mk: ('<div class="card"><h2>📈 증시</h2><div class="set"><div class="tx"><b>메인에 증시 지수 넣기</b><small>코스피·코스닥·원/달러, 미국 3대 지수</small></div>' + sw(CFG.mkt).replace('class="sw', 'data-a="mkt" class="sw') + '</div></div>'),
+    wl: wlCardHtml(),
     kw: ('<div class="card"><h2>✨ 맞춤 뉴스</h2><div class="set"><div class="tx"><b>맞춤 뉴스 보기</b><small>키워드별 최근 24시간 뉴스만 모아요</small></div>' + sw(CFG.cats.custom).replace('class="sw', 'data-a="cat" data-k="custom" class="sw') + '</div>' +
       '<div class="kws">' + (CFG.kw || []).map((k, i) => '<span class="kw">' + esc(k) + '<button class="x" data-a="kwdel" data-k="' + i + '" aria-label="삭제">✕</button></span>').join('') + '</div>' +
       ((CFG.kw || []).length < 10 ? '<form id="kwf" class="kwf"><input id="kwIn" type="text" maxlength="24" placeholder="키워드 입력 (예: 삼성전자, 부동산)" autocomplete="off" enterkeyhint="done"><button class="primary" type="submit">추가</button></form>' : '<div class="hint">키워드는 최대 10개예요.</div>') + '</div>'),
@@ -730,9 +817,9 @@ async function vSet(kind) {
     '<button class="primary" id="test" style="width:100%;margin-top:10px">지금 브리핑 알림 테스트</button>' +
     '<div class="hint ' + (apk ? '' : 'warn') + '">' + (apk ? '앱을 꺼 두어도 정한 시간에 알림이 와요. 폰 절전 설정이 앱을 제한하면 알림이 안 올 수 있으니 SIM Brief를 "제한 없음"으로 두세요.' : '웹 브라우저에서는 이 화면이 열려 있는 동안만 정시 알림이 와요. 앱을 꺼 둬도 알림을 받으려면 런처에서 SIM Brief 앱(APK)을 설치해 주세요.') + '</div></div>'),
   };
-  const TT = { news: '📰 뉴스 설정', fortune: '🔮 운세 설정', alarm: '🔔 알림 설정' };
+  const TT = { news: '📰 뉴스 설정', stock: '📈 증권 설정', fortune: '🔮 운세 설정', alarm: '🔔 알림 설정' };
   main.innerHTML = '<div class="vbar"><button class="sm" id="toBrief">‹ 뒤로</button><b>' + (TT[kind] || '') + '</b></div>' +
-    (kind === 'news' ? C.cats + C.mk + C.kw : kind === 'fortune' ? C.fz : C.times + C.sound + C.sched + C.wx + C.test);
+    (kind === 'news' ? C.cats + C.kw : kind === 'stock' ? C.mk + C.wl : kind === 'fortune' ? C.fz : C.times + C.sound + C.sched + C.wx + C.test);
   if (kind === 'alarm') setTimeout(showDiag, 50);
 }
 main.addEventListener('click', async e => {
@@ -746,6 +833,8 @@ main.addEventListener('click', async e => {
   if (a === 'on' && row) { const x = CFG.times[+row.dataset.i]; x.on = !x.on; save(); vSet(); return; }
   if (a === 'snd') { CFG.sound = !CFG.sound; save(); vSet(); if (CFG.sound) playSound(curSound()); return; }
   if (t.id === 'toBrief') { goView('brief'); return; }
+  if (a === 'wladd') { CFG.watch = CFG.watch || []; if (CFG.watch.length >= 20) { toast('관심 종목은 최대 20개예요'); return; } if (!CFG.watch.some(c => c.c === t.dataset.c)) CFG.watch.push({ c: t.dataset.c, n: t.dataset.n, m: t.dataset.m }); save(); wlRefresh(); return; }
+  if (a === 'wldel') { CFG.watch.splice(+t.dataset.k, 1); save(); wlRefresh(); return; }
   if (a === 'kwdel') { CFG.kw.splice(+t.dataset.k, 1); save(); vSet(); return; }
   if (a === 'cat') { CFG.cats[t.dataset.k] = !CFG.cats[t.dataset.k]; save(); vSet(); return; }
   if (a === 'fz') { CFG.fortune.on = !CFG.fortune.on; save(); vSet(); return; }
@@ -773,6 +862,12 @@ main.addEventListener('click', async e => {
   }
 });
 main.addEventListener('submit', e => {
+  if (e.target.id === 'wlf') {
+    e.preventDefault(); const q = ($('wlIn').value || '').trim(); if (!q) return;
+    WLR = 'load'; wlRefresh(); $('wlIn').value = q;
+    fetchJ(SFN + '?q=' + encodeURIComponent(q), 10000).then(r => { WLR = r && r.ok ? r.items : 'fail'; }).catch(() => { WLR = 'fail'; }).then(() => { if (S.tab === 'stock') { wlRefresh(); if ($('wlIn')) $('wlIn').value = q; } });
+    return;
+  }
   if (e.target.id !== 'kwf') return; e.preventDefault();
   const i = $('kwIn'), v = (i.value || '').trim().replace(/[,#]/g, ' ').replace(/\s+/g, ' ').slice(0, 24);
   if (!v) return; CFG.kw = CFG.kw || [];
@@ -813,10 +908,12 @@ if (!NA) setInterval(() => {
 }, 20000);
 
 /* ── 설정 화면 이동·새로고침 ── */
+main.addEventListener('click', e => { const r = S.tab === 'watch' && e.target.closest('[data-st]'); if (r) openStock(r.dataset.st); });
 function goView(v) { S.tab = v || 'brief'; seq++; render(); window.scrollTo(0, 0); }
 // 상단 ⋮ 메뉴(공통 메뉴)에 설정 항목을 넣는다
 (window.simAppMenuExtra = window.simAppMenuExtra || []).push(
   { icon: '📰', label: '뉴스 설정', run: () => goView('news') },
+  { icon: '📈', label: '증권 설정', run: () => goView('stock') },
   { icon: '🔮', label: '운세 설정', run: () => goView('fortune') },
   { icon: '🔔', label: '알림 설정', run: () => goView('alarm') });
 $('refresh').addEventListener('click', () => { if (S.tab === 'brief') vBrief(true); else vSet(); });

@@ -677,7 +677,7 @@ function setMode(m) {
   paintMode(); paintSc(); setStat(); if (m === 'bt') btRefresh();
 }
 if (BT) {
-  document.querySelector('.back').addEventListener('click', e => { e.preventDefault(); try { window.SimPadBT.back(); } catch (x) {} });   // 앱 안: ‹ 는 런처로(연결 유지)
+  document.querySelector('.back').addEventListener('click', e => { e.preventDefault(); if (typeof window.SimPadBT.back === 'function') window.SimPadBT.back(); else toast('앱을 새 버전으로 설치해야 동작해요 (런처 ⋯ → 버전 정보)'); });   // 앱 안: ‹ 는 런처로(연결 유지)
   window.__btUpdate = btRefresh;
   $('modeTabs').style.display = '';
   $('bCode').textContent = '연결 설정 (차량 블루투스 / PC)';

@@ -442,6 +442,7 @@ $('hist').addEventListener('click', e => {
 $('btnClear').onclick = () => { DB.hist = []; saveDB(); renderHist(); };
 window.addEventListener('storage', () => { try { const d = JSON.parse(lsGet(KEY) || 'null'); if (d && Array.isArray(d.hist)) { DB = d; renderHist(); } } catch (e) {} });
 renderHist();
+renderProd();   // 바코드 없이도 상품명 입력·상품 사진 찾기를 바로 쓸 수 있게 처음부터 보여 준다
 </script>
 </body>
 </html>

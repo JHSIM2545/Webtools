@@ -70,7 +70,6 @@ a.card:hover{border-color:var(--accent);transform:translateY(-2px)}
 a.card:active{transform:scale(.98)}
 a.card.dragging{position:relative;z-index:30;transition:none;pointer-events:none;border-color:var(--accent);box-shadow:0 16px 36px rgba(0,0,0,.6);opacity:.97}
 body.dragmode,body.dragmode *{cursor:grabbing!important;-webkit-user-select:none;user-select:none}
-body.moveon a.card{touch-action:none}
 .reorder{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--sub)}
 .reorder:empty{display:none}
 .reorder button{padding:2px 10px;font-size:12px;border-radius:99px}
@@ -236,8 +235,6 @@ button.danger{color:#ff8a8a}
     const rank = new Map(loadOrder().map((id, i) => [id, i]));
     return TOOLS.filter(t => rank.has(t.id)).sort((a, b) => rank.get(a.id) - rank.get(b.id)).concat(TOOLS.filter(t => !rank.has(t.id)));
   }
-  const KEY_MOVE = 'simtools_move';   // 카드 이동 스위치 (기본 꺼짐, 이 기기에만 저장)
-  const moveOn = () => lsGet(KEY_MOVE) === '1';
   function updateHint() { const el = $('reorder'); if (el) el.innerHTML = ''; }
 
   function render() {
@@ -401,20 +398,19 @@ button.danger{color:#ff8a8a}
   { const q = new URLSearchParams(location.search).get('ai'); if (q) { openAiModal(q === '1' ? 'gemini' : q); try { history.replaceState(null, '', location.pathname); } catch (e) {} } }
 
   /* ── 카드 끌어서 순서 바꾸기 ──
-     마우스: 6px 이상 끌면 시작. 터치: 0.4초 길게 누른 뒤 끌기(그 전에 움직이면 일반 스크롤).
+     마우스: 6px 이상 끌면 시작. 터치: 카드를 0.4초 길게 누르면 이동 상태(진동) → 끌어서 놓기. 짧게 터치=열기, 손가락으로 문지르면=스크롤.
      검색 중에는 일부만 보이므로 끌기를 막는다. */
   const grid = $('grid');
-  document.body.classList.toggle('moveon', moveOn());
   let D = null, suppressClick = 0;
   grid.addEventListener('click', e => { if (Date.now() < suppressClick) { e.preventDefault(); e.stopPropagation(); } }, true);
   grid.addEventListener('dragstart', e => e.preventDefault());
-  grid.addEventListener('contextmenu', e => { if (D || moveOn()) e.preventDefault(); });   // 길게 누를 때 뜨는 메뉴·선택을 막는다
+  grid.addEventListener('contextmenu', e => e.preventDefault());   // 길게 누를 때 뜨는 메뉴·선택을 막는다
   grid.addEventListener('pointerdown', e => {
-    if (D || $('q').value.trim() || !moveOn()) return;
+    if (D || $('q').value.trim()) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const el = e.target.closest && e.target.closest('a.card'); if (!el) return;
     D = { el, pid: e.pointerId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, gx: 0, gy: 0, active: false, type: e.pointerType, timer: 0, raf: 0 };
-    if (e.pointerType !== 'mouse') D.timer = setTimeout(startDrag, 250);
+    if (e.pointerType !== 'mouse') D.timer = setTimeout(startDrag, 420);   // 길게 눌러야 카드 이동 상태가 된다
   });
   document.addEventListener('pointermove', e => {
     if (!D || e.pointerId !== D.pid) return;
@@ -422,7 +418,7 @@ button.danger{color:#ff8a8a}
     if (!D.active) {
       const mv = Math.hypot(D.x - D.sx, D.y - D.sy);
       if (D.type === 'mouse') { if (mv > 6) startDrag(); }
-      else if (mv > 8) startDrag();   // 이동 모드에서는 카드에서 터치 스크롤을 막아 두었으므로 조금만 끌어도 바로 시작
+      else if (mv > 10) { clearTimeout(D.timer); D = null; }   // 길게 누르기 전에 손가락이 움직이면 일반 스크롤(카드 이동 아님)
       return;
     }
     e.preventDefault(); moveDrag();
@@ -491,9 +487,7 @@ button.danger{color:#ff8a8a}
 
   window.simLauncher = {
     openAi: () => openAiModal('gemini'),
-    resetOrder: () => { lsDel(KEY_ORDER); render(); toast('카드 순서를 기본으로 되돌렸어요'); },
-    moveOn,
-    setMove: on => { lsSet(KEY_MOVE, on ? '1' : '0'); document.body.classList.toggle('moveon', !!on); toast(on ? '카드 이동 켜짐 — 카드를 끌어서 옮겨요' : '카드 이동 꺼짐'); }
+    resetOrder: () => { lsDel(KEY_ORDER); render(); toast('카드 순서를 기본으로 되돌렸어요'); }
   };
 
   /* ── 앱 설치 (PWA) ── */

@@ -235,11 +235,6 @@
       const L = () => window.simLauncher || {};
       mk('btnAiSet', '<span>🤖 AI 연결 설정</span>', () => { pop.style.display = 'none'; if (L().openAi) L().openAi(); });
       mk('btnOrderReset', '<span>↺ 카드 순서 초기화</span>', () => { pop.style.display = 'none'; if (L().resetOrder) L().resetOrder(); });
-      const sw = on => '<span style="position:relative;display:inline-block;width:38px;height:22px;border-radius:99px;background:' + (on ? 'var(--ok)' : '#3a4056') + ';transition:.15s;flex:none"><span style="position:absolute;top:2px;left:' + (on ? '18px' : '2px') + ';width:18px;height:18px;border-radius:50%;background:#fff;transition:.15s"></span></span>';
-      const mv = mk('btnMoveSw', '', null); mv.setAttribute('role', 'switch');
-      const paintMv = () => { const on = !!(L().moveOn && L().moveOn()); mv.setAttribute('aria-checked', on ? 'true' : 'false'); mv.innerHTML = '<span>↕ 카드 이동</span>' + sw(on); };
-      mv.onclick = e => { e.stopPropagation(); if (L().setMove) L().setMove(!(L().moveOn && L().moveOn())); paintMv(); };
-      mb.addEventListener('click', paintMv);
       const inst = mk('btnInstallMenu', '<span>📲 앱 설치</span>', () => { pop.style.display = 'none'; const bi = $('btnInstall'); if (bi) bi.click(); });
       const paintInst = () => { const bi = $('btnInstall'); inst.style.display = bi && bi.style.display !== 'none' ? 'flex' : 'none'; };
       mb.addEventListener('click', paintInst); paintInst();

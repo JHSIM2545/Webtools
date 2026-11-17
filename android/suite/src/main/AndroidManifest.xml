@@ -41,12 +41,10 @@
         android:usesCleartextTraffic="false"
         android:theme="@style/SimTheme">
 
-        <!-- 런처와 각 도구가 같은 창을 쓰되, 도구마다 최근 앱 목록에 따로 뜨게 한다(documentLaunchMode).
-             같은 도구를 다시 열면 이미 열린 창으로 돌아간다. SIM TV 는 화면 속 화면(PIP) 허용. -->
+        <!-- 런처와 각 도구는 한 창(task) 안에 차례로 쌓인다 → 뒤로가기는 항상 이전 화면(런처)으로 돌아간다. SIM TV 는 화면 속 화면(PIP) 허용. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:documentLaunchMode="intoExisting"
             android:supportsPictureInPicture="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|density|uiMode"
             android:windowSoftInputMode="adjustResize">
@@ -66,7 +64,6 @@
         <activity
             android:name=".PadActivity"
             android:exported="false"
-            android:documentLaunchMode="intoExisting"
             android:label="SIM Control"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|density|uiMode"
             android:windowSoftInputMode="adjustResize" />

@@ -97,8 +97,10 @@ public class PadActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        // 뒤로가기로 닫히지 않게 (차량 연결 유지) — 런처로 돌아가되 이 창은 살려 둔다
-        moveTaskToBack(true);
+        // 뒤로가기로 닫히지 않게 (차량 연결 유지) — 런처를 앞으로 가져오고 이 창은 아래에 살려 둔다
+        Intent i = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        if (i != null) { i.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT); startActivity(i); }
+        else moveTaskToBack(true);
     }
 
     @Override

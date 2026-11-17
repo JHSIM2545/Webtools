@@ -481,8 +481,10 @@ public class MainActivity extends Activity {
         return p.equals("/Webtools/") || p.equals("/Webtools") || p.equals("/Webtools/index.html");
     }
 
+    /** 도구에서 나갈 때: 런처가 아래에 있으면 이 화면만 닫아 런처로 돌아가고, 도구가 맨 처음 화면이었다면(공유로 바로 열린 경우 등) 런처를 새로 연다 */
     private void openLauncher() {
-        Intent i = getPackageManager().getLaunchIntentForPackage(getPackageName());   // 앱 아이콘으로 여는 것과 같은 인텐트 → 이미 열린 런처 창으로 돌아간다
+        if (!isTaskRoot()) { finish(); return; }
+        Intent i = getPackageManager().getLaunchIntentForPackage(getPackageName());
         if (i != null) startActivity(i);
         finish();
     }

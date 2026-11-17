@@ -368,7 +368,7 @@ window.addEventListener('simsync', () => { if (!document.querySelector('.ov.on')
 const idbPut = (db, s, v) => new Promise((res, rej) => { const q = tx(db, s, 'readwrite').put(v); q.onsuccess = () => { res(); syncSoon(); }; q.onerror = () => rej(q.error); });
 const idbDel = (db, s, id) => new Promise((res, rej) => { const q = tx(db, s, 'readwrite').delete(id); q.onsuccess = () => { res(); syncSoon(); }; q.onerror = () => rej(q.error); });
 async function loadAsst() {
-  try { if (!adb) adb = await openDB('simassistant', ['memos', 'events', 'alarms']); asst = await idbAll(adb, 'events'); }
+  try { if (!adb) adb = await openDB('simassistant', ['memos', 'events', 'alarms']); asst = (await idbAll(adb, 'events')).filter(r => !r.hide); }
   catch (e) { adb = null; asst = []; }
 }
 async function loadAll() {
@@ -1015,7 +1015,7 @@ async function deleteType(id) {
 }
 
 /* 음성 비서가 새 일정을 등록하면 곧바로 반영 */
-async function refreshAsst() { if ($('ed').classList.contains('on')) return; await loadAsst(); buildEvents(); render(); }
+async function refreshAsst() { if ($('ed').classList.contains('on')) return; try { if (cdb) own = await idbAll(cdb, 'events'); } catch (e) {} await loadAsst(); buildEvents(); render(); }
 try { const bc = new BroadcastChannel('simcal'); bc.onmessage = () => refreshAsst(); } catch (e) {}
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshAsst(); });
 window.addEventListener('pageshow', e => { if (e.persisted) refreshAsst(); });

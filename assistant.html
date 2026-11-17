@@ -484,6 +484,7 @@ async function put(store, v) {
   calPing(store);
 }
 async function del(store, id) {
+  if (store === 'events') { const m = MEM.events.find(x => x.id === id); if (m && m.hide) { try { await calRemove(id); } catch (e) {} } }
   if (adb) { try { await idbDel(adb, store, id); } catch (e) {} }
   MEM[store] = MEM[store].filter(x => x.id !== id);
   calPing(store);
@@ -576,6 +577,44 @@ async function fireAlarm(a) {
   const missed = late > 90e3;
   showRing('⏰ ' + (a.label || '알람'), (missed ? '놓친 알람 · 예정 ' : '') + fmtDT(at), late > 3600e3, a.label || '알람');
 }
+/* 일정 등록 = SIM Calendar 에 직접 저장 (simcalendar DB). 알림(10분 전)용으로 음성비서 쪽에는 숨김 사본(hide)만 둔다 */
+async function calOpenW() {
+  return new Promise(res => {
+    if (!window.indexedDB) return res(null);
+    const r = indexedDB.open('simcalendar', 1);
+    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('events')) r.result.createObjectStore('events', { keyPath: 'id' }); };
+    r.onsuccess = () => { r.result.onversionchange = () => r.result.close(); res(r.result); }; r.onerror = () => res(null);
+  });
+}
+async function calWrite(rec) {
+  const db = await calOpenW(); if (!db) return false;
+  try { return await new Promise(res => { const q = db.transaction('events', 'readwrite').objectStore('events').put(rec); q.onsuccess = () => res(true); q.onerror = () => res(false); }); } catch (e) { return false; } finally { try { db.close(); } catch (e) {} }
+}
+async function calRemove(id) {
+  const db = await calOpenW(); if (!db) return;
+  try { await new Promise(res => { const q = db.transaction('events', 'readwrite').objectStore('events').delete(id); q.onsuccess = () => res(); q.onerror = () => res(); }); } catch (e) {} finally { try { db.close(); } catch (e) {} }
+}
+async function saveEvent(v) {
+  const st = new Date(v.start), en = v.allDay ? v.start : new Date(st.getTime() + 36e5).toISOString();
+  const rec = { id: v.id, title: v.title, start: v.start, end: en, allDay: !!v.allDay, rep: '', type: v.type || '', color: '', memo: v.memo || '', updated: new Date().toISOString(), src2: 'assistant' };
+  ['loc', 'addr', 'lat', 'lng', 'geoFor', 'geoName'].forEach(k => { if (v[k] != null && v[k] !== '') rec[k] = v[k]; });
+  const ok = await calWrite(rec);
+  await put('events', Object.assign({}, v, ok ? { hide: true } : {}));   // 저장 실패 시엔 예전처럼 음성비서 쪽에 보이게 둔다
+  try { window.simSync && simSync.sync && simSync.sync().catch(() => {}); } catch (e) {}
+  return ok;
+}
+let mirT = 0;
+async function syncMirrors() {   // SIM Calendar 에서 시간·제목을 고치거나 지웠으면 알림용 사본도 맞춘다
+  if (Date.now() - mirT < 30000) return; mirT = Date.now();
+  try {
+    const own = await roAll('simcalendar', 'events'), by = new Map(own.map(r => [r.id, r]));
+    for (const m of MEM.events.filter(x => x.hide)) {
+      const r = by.get(m.id);
+      if (!r) { await del('events', m.id); continue; }
+      if (r.title !== m.title || r.start !== m.start || !!r.allDay !== !!m.allDay) { m.title = r.title; if (r.start !== m.start) m.notified = false; m.start = r.start; m.allDay = !!r.allDay; m.remind = m.allDay ? null : 10; await put('events', m); }
+    }
+  } catch (e) {}
+}
 async function fireEvent(e) {
   e.notified = true; await put('events', e); renderAll();
   const st = new Date(e.start), late = Date.now() - st.getTime();
@@ -583,7 +622,7 @@ async function fireEvent(e) {
   showRing('📅 ' + e.title, fmtDT(st) + (late < 0 ? ' · ' + Math.max(1, Math.round(-late / 60000)) + '분 뒤 시작' : ' · 지금 시작'), false, '일정: ' + e.title);
 }
 function tick() {
-  if (ringing) return;
+  if (ringing) return; syncMirrors();
   const now = Date.now();
   const a = MEM.alarms.find(x => x.active && new Date(x.at).getTime() <= now); if (a) return fireAlarm(a);
   const e = MEM.events.find(x => !x.allDay && !x.notified && x.remind != null && new Date(x.start).getTime() - x.remind * 60000 <= now); if (e) return fireEvent(e);
@@ -865,7 +904,7 @@ async function saveNow(p) {
       bot(row.name + '님을 ' + (p.dup ? '업데이트' : '저장') + '했어요.', { btns: [{ label: 'SIM Phone에서 보기', href: 'phone.html' }] });
     } else if (p.intent === 'event_add') {
       const d = p.when || whenOf(p);
-      await put('events', { id: rid(), title: s.title, start: d.toISOString(), allDay: !!s.when.allDay, remind: s.when.allDay ? null : 10, notified: false }); renderAll(); pending = null;
+      await saveEvent({ id: rid(), title: s.title, start: d.toISOString(), allDay: !!s.when.allDay, remind: s.when.allDay ? null : 10, notified: false }); renderAll(); pending = null;
       askNotifPerm();
       bot('일정을 저장했어요.', { html: '<b>일정을 저장했어요</b>' + kvRows([['제목', s.title], ['일시', fmtDT(d, s.when.allDay)]]), btns: [{ label: '일정 보기', fn: () => setTab('event') }] });
     } else if (p.intent === 'alarm_add') {
@@ -1562,7 +1601,7 @@ const LTOOLS = {
   async add_event(a) {
     const d = L_DT(a.date, a.all_day ? '' : a.time); if (!d) return { ok: false, error: '날짜 형식이 맞지 않아요' };
     const title = String(a.title || '').trim(); if (!title) return { ok: false, error: '제목이 필요해요' };
-    await put('events', { id: rid(), title, start: d.toISOString(), allDay: !!a.all_day || !a.time, remind: (a.all_day || !a.time) ? null : 10, notified: false }); renderAll(); askNotifPerm();
+    await saveEvent({ id: rid(), title, start: d.toISOString(), allDay: !!a.all_day || !a.time, remind: (a.all_day || !a.time) ? null : 10, notified: false }); renderAll(); askNotifPerm();
     liveCard('<b>일정을 저장했어요</b>' + kvRows([['제목', title], ['일시', fmtDT(d, !!a.all_day || !a.time)]]), [{ label: '일정 보기', fn: () => { liveEnd(); setTab('event'); } }]);
     return { ok: true };
   },
@@ -1917,7 +1956,7 @@ async function addFound(list, src, cts) {
       ev.addr = a.address;
       try { const r = await Promise.race([searchPlaces(a.address), new Promise(res => setTimeout(() => res(null), 6000))]); if (r && r[0] && isFinite(+r[0].lat) && isFinite(+r[0].lng)) { ev.lat = +r[0].lat; ev.lng = +r[0].lng; ev.geoFor = a.address; ev.geoName = r[0].name || ''; } } catch (e) {}
     }
-    await put('events', ev); added.push(ev);
+    await saveEvent(ev); added.push(ev);
   }
   // 전화번호 → 연락처(SIM Phone과 같은 저장소). 이미 있는 번호는 건너뜀
   const fallback = (list[0] && (list[0].place || list[0].title)) || '';
@@ -2290,7 +2329,7 @@ async function roAll(name, store) {
 const calTypeList = () => { try { const j = JSON.parse(localStorage.getItem('simcal_types') || 'null'); if (Array.isArray(j)) return j; } catch (e) {} return []; };
 async function calEvs() {   // SIM Calendar 일정(simcalendar) + 음성비서로 등록한 일정(simassistant)
   const own = await roAll('simcalendar', 'events'), ty = calTypeList();
-  return own.map(r => ({ r, src: 'cal' })).concat((MEM.events || []).map(r => ({ r, src: 'asst' })))
+  return own.map(r => ({ r, src: 'cal' })).concat((MEM.events || []).filter(r => !r.hide).map(r => ({ r, src: 'asst' })))
     .filter(x => x.r && x.r.start && !isNaN(new Date(x.r.start)))
     .map(x => { const t = ty.find(o => o.id === x.r.type); return Object.assign(x, { typeName: t ? t.name : '', emoji: t ? t.emoji : '' }); });
 }

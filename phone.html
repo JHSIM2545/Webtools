@@ -279,7 +279,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
       <div class="cd2-tip">👆 <b>명함 글자를 손가락으로 톡 누르면</b> 그 부분에 초점을 맞춰요. 🔍 명함이 작게 보이면 <b>두 손가락으로 벌리거나 줌 버튼</b>으로 키워 글자가 크게 찍히게 하세요. 💡 명함이 번쩍이면 <b>밝기를 낮추거나</b> 명함을 살짝 기울여 조명이 비치지 않게 찍어 보세요. 비스듬히 찍어도 반듯하게 펴 드려요.</div>
     </div>
     <div data-s="crop">
-      <div class="cd2-cropbox"><img id="cdCropImg" alt="자른 명함"></div>
+      <div class="cd2-cropbox"><img id="cdCropImg" alt="자른 명함" data-big="1" style="cursor:zoom-in"></div>
       <div class="cd2-note" id="cdCropNote"></div>
     </div>
     <div data-s="manual">
@@ -315,7 +315,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
       </div>
     </div>
     <div data-s="work fail ok">
-      <div class="cd2-res"><img id="cdThumb" alt="명함"><div class="cd2-resr"><div class="cd-st" id="cdStatus"></div></div></div>
+      <div class="cd2-res"><img id="cdThumb" alt="명함" data-big="1" style="cursor:zoom-in"><div class="cd2-resr"><div class="cd-st" id="cdStatus"></div></div></div>
       <div data-s="fail" class="cd2-lnk"><button type="button" data-a="minput">직접 입력해서 계속하기</button></div>
     </div>
     <div data-s="fail ok">
@@ -412,7 +412,7 @@ const AV = ['#2f6bff', '#0ea5a4', '#d9488a', '#f08c1f', '#7c5cff', '#16a34a', '#
 const S = { q: '', by: 'name', cur: '', ed: null };
 function avatar(c, big) {
   const nm = String(c.name || c.company || '?').trim(), col = AV[(nm.charCodeAt(0) || 0) % AV.length];
-  return c.photo ? '<div class="av' + (big ? ' big' : '') + '"><img src="' + c.photo + '" alt=""></div>' : '<div class="av' + (big ? ' big' : '') + '" style="background:' + col + '">' + esc(nm.charAt(0).toUpperCase()) + '</div>';
+  return c.photo ? '<div class="av' + (big ? ' big' : '') + '"><img src="' + c.photo + '" alt=""' + (big ? ' data-big="1" style="cursor:zoom-in"' : '') + '></div>' : '<div class="av' + (big ? ' big' : '') + '" style="background:' + col + '">' + esc(nm.charAt(0).toUpperCase()) + '</div>';
 }
 const callNo = c => String(c.mobile || c.tel || '').replace(/[^0-9+]/g, '');
 const cmp = (a, b) => String(a.name || a.company || '').localeCompare(String(b.name || b.company || ''), 'ko');
@@ -468,8 +468,11 @@ function renderDetail() {
     '<div class="box">' + row('휴대폰', lnk('tel', c.mobile)) + row('회사전화', lnk('tel', c.tel)) + row('팩스', esc(c.fax)) + row('이메일', lnk('mailto', c.email)) + row('주소', esc(c.address)) + row('회사', esc(c.company)) + row('메모', esc(c.memo).replace(/\n/g, '<br>')) + row('등록일', esc(String(c.created_at || '').slice(0, 10))) + '</div>' +
     (c.card_img ? '<div class="box"><div class="hd">명함</div><img class="cardimg" src="' + c.card_img + '" alt="명함" data-big="1"></div>' : '');
 }
+// 사진·명함 이미지를 누르면 팝업으로 크게 (data-big 이 붙은 이미지)
+document.addEventListener('click', e => {
+  const t = e.target; if (t && t.dataset && t.dataset.big && t.src) { const o = $('imgov'); o.querySelector('img').src = t.src; o.classList.add('on'); e.preventDefault(); }
+}, true);
 $('detBody').addEventListener('click', e => {
-  if (e.target.dataset.big) { const o = $('imgov'); o.querySelector('img').src = e.target.src; o.classList.add('on'); return; }
   const b = e.target.closest('[data-act="save"]'); if (b) saveToPhone(contacts.find(x => x.id === S.cur));
 });
 $('imgov').onclick = () => $('imgov').classList.remove('on');
@@ -582,7 +585,7 @@ function edMedia() {
   const e = S.ed; if (!e) return; const nm = $('fName').value.trim() || $('fCompany').value.trim() || '?';
   $('edPhoto').innerHTML = e.photo ? '<img src="' + e.photo + '" alt="">' : '<span>' + esc(nm.charAt(0).toUpperCase()) + '</span>';
   $('edPhotoDel').style.display = e.photo ? '' : 'none';
-  $('edCardPv').innerHTML = e.card_img ? '<img src="' + e.card_img + '" alt="명함"><button type="button" class="x" id="cardDel">명함 이미지 삭제</button>' : '';
+  $('edCardPv').innerHTML = e.card_img ? '<img src="' + e.card_img + '" alt="명함" data-big="1" style="cursor:zoom-in"><button type="button" class="x" id="cardDel">명함 이미지 삭제</button>' : '';
   $('edCardScan').textContent = e.card_img ? '명함 다시 스캔' : '명함 스캔';
 }
 $('edCardPv').addEventListener('click', e => { if (e.target.id === 'cardDel') { S.ed.card_img = ''; edMedia(); } });

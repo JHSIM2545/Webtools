@@ -119,7 +119,15 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
 #vCard[data-st="cam"] .cd2-ft[data-s~="cam"],#vCard[data-st="crop"] .cd2-ft[data-s~="crop"],#vCard[data-st="manual"] .cd2-ft[data-s~="manual"],#vCard[data-st="work"] .cd2-ft[data-s~="work"],#vCard[data-st="fail"] .cd2-ft[data-s~="fail"],#vCard[data-st="ok"] .cd2-ft[data-s~="ok"]{display:flex}
 .cd2-ft{gap:8px;align-items:center;max-width:760px;margin:0 auto;width:100%}
 .cd2-ft[data-s~="cam"]{justify-content:space-between}
-.cd2-live{position:relative;width:100%;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#000;touch-action:manipulation}
+.cd2-live{position:relative;width:100%;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#000;touch-action:none}
+.cd2-live video{transform-origin:50% 50%}
+.cd2-zoom{display:flex;align-items:center;gap:8px;margin:10px 4px 0}
+.cd2-zoom button{min-width:44px;height:34px;padding:0 10px;border-radius:17px;border:1px solid var(--line,#2a2f3f);background:var(--card,#1f2330);color:var(--text,#e8eaf0);font-size:14px;font-weight:800}
+.cd2-zoom button.on{background:#fde047;border-color:#fde047;color:#111}
+.cd2-zoom input{flex:1;height:28px;padding:0;border:none;background:none;min-width:0}
+.cd2-zoom b{min-width:40px;text-align:right;font-size:13px;color:var(--sub)}
+.cd2-zlive{position:absolute;right:10px;top:10px;padding:3px 9px;border-radius:12px;background:rgba(0,0,0,.55);color:#fde047;font-size:13px;font-weight:800;pointer-events:none;opacity:0;transition:opacity .25s}
+.cd2-zlive.on{opacity:1}
 .cd2-live video{width:100%;height:100%;object-fit:cover;display:block}
 .cd-frame{position:absolute;left:6%;right:6%;top:16.5%;bottom:16.5%;border:2.5px dashed rgba(255,255,255,.9);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.28);pointer-events:none}
 .cd2-cropbox{background:#000;border-radius:14px;padding:10px;display:flex;justify-content:center}
@@ -245,10 +253,11 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
   </div>
   <div class="cdbody"><div class="in cd-form">
     <div data-s="cam">
-      <div class="cd2-live" id="cdLive"><video id="cdVideo" playsinline autoplay muted></video><div class="cd-frame"></div><div class="cd2-fring" id="cdRing"></div></div>
+      <div class="cd2-live" id="cdLive"><video id="cdVideo" playsinline autoplay muted></video><div class="cd-frame"></div><div class="cd2-fring" id="cdRing"></div><div class="cd2-zlive" id="cdZLive">1.0×</div></div>
+      <div class="cd2-zoom" id="cdZoomRow"><button type="button" data-z="1">1×</button><button type="button" data-z="2">2×</button><button type="button" data-z="3">3×</button><input type="range" id="cdZoom" min="1" max="4" step="0.05" value="1" aria-label="줌"><b id="cdZoomVal">1.0×</b></div>
       <div id="cdConRow" class="cd2-exp" style="display:flex"><span>대비 낮게</span><input type="range" id="cdCon" min="0.8" max="1.8" step="0.05" value="1.25"><span>높게</span></div>
       <div id="cdExpRow" class="cd2-exp" style="display:none"><span>어둡게</span><input type="range" id="cdExp" min="-2" max="2" step="0.5" value="-1"><span>밝게</span></div>
-      <div class="cd2-tip">👆 <b>명함 글자를 손가락으로 톡 누르면</b> 그 부분에 초점을 맞춰요. 💡 명함이 번쩍이면 <b>밝기를 낮추거나</b> 명함을 살짝 기울여 조명이 비치지 않게 찍어 보세요. 비스듬히 찍어도 반듯하게 펴 드려요.</div>
+      <div class="cd2-tip">👆 <b>명함 글자를 손가락으로 톡 누르면</b> 그 부분에 초점을 맞춰요. 🔍 명함이 작게 보이면 <b>두 손가락으로 벌리거나 줌 버튼</b>으로 키워 글자가 크게 찍히게 하세요. 💡 명함이 번쩍이면 <b>밝기를 낮추거나</b> 명함을 살짝 기울여 조명이 비치지 않게 찍어 보세요. 비스듬히 찍어도 반듯하게 펴 드려요.</div>
     </div>
     <div data-s="crop">
       <div class="cd2-cropbox"><img id="cdCropImg" alt="자른 명함"></div>
@@ -701,6 +710,33 @@ function ta4CardSharp(v, nx, ny) {
 // 대비(콘트라스트): 미리보기와 촬영본에 같은 값을 적용 + 글자 선명도(샤프닝)
 function ta4CardCon() { const s = $('cdCon'); const v = s ? Number(s.value) : 1.25; return isFinite(v) ? v : 1.25; }
 function ta4CardConPreview() { const v = $('cdVideo'); if (v) v.style.filter = 'contrast(' + ta4CardCon() + ')'; }
+function ta4CardContrast(c, con) {
+  if (Math.abs(con - 1) < 0.01) return;
+  const x = c.getContext('2d'), im = x.getImageData(0, 0, c.width, c.height), d = im.data;
+  for (let i = 0; i < d.length; i += 4) { d[i] = (d[i] - 128) * con + 128; d[i + 1] = (d[i + 1] - 128) * con + 128; d[i + 2] = (d[i + 2] - 128) * con + 128; }
+  x.putImageData(im, 0, 0);
+}
+// 글자 선명화(언샤프): 밝기 성분만, 주변 최소·최대를 넘지 않게 눌러 글자 둘레 '후광'을 막는다
+function ta4CardUnsharp(c, amt) {
+  try {
+    const w = c.width, h = c.height, x = c.getContext('2d'), im = x.getImageData(0, 0, w, h), d = im.data, N = w * h, L = new Float32Array(N), B = new Float32Array(N), T = new Float32Array(N);
+    for (let i = 0; i < N; i++) L[i] = d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114;
+    for (let y = 0; y < h; y++) for (let xx = 1; xx < w - 1; xx++) { const i = y * w + xx; T[i] = (L[i - 1] + L[i] + L[i + 1]) / 3; }
+    for (let y = 1; y < h - 1; y++) for (let xx = 1; xx < w - 1; xx++) { const i = y * w + xx; B[i] = (T[i - w] + T[i] + T[i + w]) / 3; }
+    const a = amt == null ? 0.9 : amt;
+    for (let y = 1; y < h - 1; y++) for (let xx = 1; xx < w - 1; xx++) {
+      const i = y * w + xx; let mn = 255, mx = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const v = L[i + dy * w + dx]; if (v < mn) mn = v; if (v > mx) mx = v; }
+      let nl = L[i] + a * (L[i] - B[i]); nl = nl < mn ? mn : nl > mx ? mx : nl;
+      const g = L[i] > 1 ? nl / L[i] : 1, o = i * 4;
+      for (let k = 0; k < 3; k++) { const v = d[o + k] * g; d[o + k] = v < 0 ? 0 : v > 255 ? 255 : v; }
+    }
+    x.putImageData(im, 0, 0);
+  } catch (e) {}
+  return c;
+}
+// OCR(글자 읽기)용 마무리: 조명 얼룩 펴기 → 글자 선명화 → 높은 화질로 저장
+function ta4CardFinish(c) { ta4Flat(c); ta4CardUnsharp(c, 0.9); return c.toDataURL('image/jpeg', 0.92); }
 function ta4CardEnhance(c, con) {
   const x = c.getContext('2d'), w = c.width, h = c.height, im = x.getImageData(0, 0, w, h), d = im.data, src = new Uint8ClampedArray(d);
   // 선명도: 3x3 언샤프 (중심 +, 주변 -)
@@ -716,14 +752,56 @@ function ta4CardEnhance(c, con) {
   if (Math.abs(con - 1) > 0.01) for (let i = 0; i < d.length; i += 4) { d[i] = (d[i] - 128) * con + 128; d[i + 1] = (d[i + 1] - 128) * con + 128; d[i + 2] = (d[i + 2] - 128) * con + 128; }
   x.putImageData(im, 0, 0);
 }
+
+// ───────── 줌: 폰이 광학/하드웨어 줌을 지원하면 그것을, 아니면 화면 확대(디지털) + 촬영 때 같은 범위만 잘라 쓴다 ─────────
+function ta4CardZoomInit(st) {
+  const C = CARD, tr = st.getVideoTracks()[0]; let cp = {}; try { cp = (tr && tr.getCapabilities) ? tr.getCapabilities() : {}; } catch (e) {}
+  const z = cp.zoom;
+  if (z && z.max > z.min) { C.zhw = true; C.zmin = z.min; C.zmax = Math.min(z.max, 8); C.zstep = z.step || 0.05; }
+  else { C.zhw = false; C.zmin = 1; C.zmax = 4; C.zstep = 0.05; }
+  const sl = $('cdZoom'); sl.min = C.zmin; sl.max = C.zmax; sl.step = C.zstep;
+  const lv = $('cdLive'), pt = new Map(); let g = null;
+  sl.oninput = () => ta4CardZoomSet(Number(sl.value));
+  document.querySelectorAll('#cdZoomRow [data-z]').forEach(b => { const v = Number(b.dataset.z); b.style.display = (v >= C.zmin && v <= C.zmax) ? '' : 'none'; b.onclick = () => ta4CardZoomSet(v); });
+  // 두 손가락 벌리기/오므리기 = 줌, 한 번 톡 = 초점
+  lv.onpointerdown = e => {
+    pt.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { lv.setPointerCapture(e.pointerId); } catch (x) {}
+    if (pt.size === 2) { const a = [...pt.values()]; g = { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1, z: C.zoom || 1, pinch: true }; }
+    else if (pt.size === 1) g = { x: e.clientX, y: e.clientY, t: Date.now(), moved: false, pinch: false };
+  };
+  lv.onpointermove = e => {
+    if (!pt.has(e.pointerId)) return; pt.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pt.size === 2 && g && g.pinch) { const a = [...pt.values()], d = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); ta4CardZoomSet(g.z * d / g.d); }
+    else if (g && !g.pinch && Math.hypot(e.clientX - g.x, e.clientY - g.y) > 12) g.moved = true;
+  };
+  const up = e => {
+    if (!pt.has(e.pointerId)) return; pt.delete(e.pointerId);
+    if (g && !g.pinch && !g.moved && pt.size === 0 && Date.now() - g.t < 600) ta4CardTapFocus(e);   // 줌 조작이 아닌 '톡'일 때만 초점
+    if (pt.size === 0) g = null;
+  };
+  lv.onpointerup = up; lv.onpointercancel = up;
+  lv.onwheel = e => { e.preventDefault(); ta4CardZoomSet((C.zoom || 1) * (e.deltaY < 0 ? 1.12 : 1 / 1.12)); };
+  C.zoom = 0; ta4CardZoomSet(C.zmin <= 1 ? 1 : C.zmin);
+}
+let zoomT = null;
+function ta4CardZoomSet(z) {
+  const C = CARD; if (!C || !C.stream) return;
+  z = Math.max(C.zmin || 1, Math.min(C.zmax || 4, isFinite(z) ? z : 1)); if (Math.abs(z - C.zoom) < 0.005) return; C.zoom = z;
+  const v = $('cdVideo'), tr = C.stream.getVideoTracks()[0];
+  if (C.zhw) { tr.applyConstraints({ advanced: [{ zoom: z }] }).catch(() => {}); v.style.transform = ''; }
+  else v.style.transform = z > 1.001 ? 'scale(' + z + ')' : '';
+  $('cdZoom').value = z; const t = z.toFixed(1) + '×'; $('cdZoomVal').textContent = t;
+  document.querySelectorAll('#cdZoomRow [data-z]').forEach(b => b.classList.toggle('on', Math.abs(Number(b.dataset.z) - z) < 0.08));
+  const zl = $('cdZLive'); zl.textContent = t; zl.classList.add('on'); clearTimeout(zoomT); zoomT = setTimeout(() => zl.classList.remove('on'), 900);
+}
 async function ta4CardCamStart() {
   ta4CardCamStop();
   const v = $('cdVideo');
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { ta4CardStatus('실시간 카메라를 쓸 수 없어 사진 앱으로 촬영합니다', 'err'); try { $('cdCam').click(); } catch (e) {} return false; }
   try {
-    const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1440 } }, audio: false });
+    const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } }, audio: false });
     CARD.stream = st; v.srcObject = st; try { await v.play(); } catch (e) {}
-    try { const lv = $('cdLive'), cs = $('cdCon'); lv.onpointerdown = ta4CardTapFocus; cs.oninput = ta4CardConPreview; ta4CardConPreview(); } catch (x) {}
+    try { const cs = $('cdCon'); cs.oninput = ta4CardConPreview; ta4CardConPreview(); ta4CardZoomInit(st); } catch (x) {}
     ta4CardCamTune(st);   // 반사가 심한 명함용: 플래시 끄고 노출을 낮추고 초점을 계속 맞춘다
     ta4CardStatus('명함을 틀 안에 맞추고 아래 촬영 버튼을 누르세요', 'busy'); return true;
   } catch (e) {
@@ -735,7 +813,8 @@ async function ta4CardCamStart() {
 function ta4CardCamStop() {
   const s = CARD && CARD.stream; if (s) s.getTracks().forEach(t => t.stop());
   if (CARD) CARD.stream = null;
-  const v = $('cdVideo'); if (v) v.srcObject = null;
+  const v = $('cdVideo'); if (v) { v.srcObject = null; v.style.transform = ''; }
+  if (CARD) CARD.zoom = 0;
   const er = $('cdExpRow'); if (er) er.style.display = 'none';
 }
 function ta4CardSharpCv(cv) {
@@ -750,10 +829,13 @@ function ta4CardSharpCv(cv) {
 async function ta4CardShoot() {
   if (!CARD.stream) { await ta4CardCamStart(); return; }
   const v = $('cdVideo'); if (!v.videoWidth) { ta4CardStatus('카메라 준비 중입니다. 잠시 후 다시 눌러주세요', 'busy'); return; }
+  const C = CARD, dz = (!C.zhw && C.zoom > 1.001) ? C.zoom : 1;   // 디지털 줌이면 화면에 보이는 확대 범위만 쓴다
   // 화면에 보이는 4:3 창(명함 틀)과 같은 범위만 촬영한다
   const vw = v.videoWidth, vh = v.videoHeight, ra = 4 / 3; let sw = vw, sh = vh;
   if (vw / vh < ra) sh = Math.round(vw / ra); else sw = Math.round(vh * ra);
+  sw = Math.round(sw / dz); sh = Math.round(sh / dz);
   const sx = Math.round((vw - sw) / 2), sy = Math.round((vh - sh) / 2);
+  ta4CardStatus('촬영 중… 폰을 잠깐 가만히 들고 계세요', 'busy');
   // 손떨림·초점 흔들림 대비: 짧게 5장 받아 가장 선명한 한 장을 쓴다
   let c = null, bestS = -1;
   for (let k = 0; k < 5; k++) {
@@ -762,8 +844,24 @@ async function ta4CardShoot() {
     if (sc2 > bestS) { bestS = sc2; c = t; }
     if (k < 4) await new Promise(res => setTimeout(res, 90));
   }
-  try { ta4CardEnhance(c, ta4CardCon()); } catch (x) {}
-  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92));
+  // 정지 사진(센서 최대 해상도)을 지원하면 그걸 우선 쓴다: 영상 프레임보다 글자가 훨씬 또렷하다. 디지털 줌일 땐 범위가 달라 쓰지 않는다.
+  let still = null;
+  if (dz === 1 && window.ImageCapture) {
+    try {
+      const tr = C.stream.getVideoTracks()[0], ic = new ImageCapture(tr), opt = {};
+      try { const pc = await ic.getPhotoCapabilities(); if (pc.imageWidth && pc.imageHeight && pc.imageWidth.max) { const f = Math.min(1, 4200 / pc.imageWidth.max); opt.imageWidth = Math.round(pc.imageWidth.max * f); opt.imageHeight = Math.round(pc.imageHeight.max * f); } } catch (x) {}
+      const blob = await Promise.race([ic.takePhoto(opt), new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 4000))]);
+      const bm = await createImageBitmap(blob);
+      if (bm.width >= c.width * 1.15) {
+        const k = Math.min(1, 3200 / Math.max(bm.width, bm.height)), t = document.createElement('canvas'); t.width = Math.round(bm.width * k); t.height = Math.round(bm.height * k);
+        t.getContext('2d').drawImage(bm, 0, 0, t.width, t.height); still = t;
+      }
+      try { bm.close(); } catch (x) {}
+    } catch (x) { still = null; }
+  }
+  if (still) c = still;
+  try { ta4CardContrast(c, ta4CardCon()); } catch (x) {}   // 선명화는 반듯하게 편 뒤 마지막에 한 번만 (여기서 하면 노이즈까지 키움)
+  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.93));
   ta4CardCamStop(); ta4CardGot(new File([blob], 'card.jpg', { type: 'image/jpeg' }));
 }
 function ta4CardPick(inp) { const f = inp.files && inp.files[0]; inp.value = ''; if (f) { ta4CardCamStop(); ta4CardGot(f); } }
@@ -776,8 +874,8 @@ async function ta4CardGot(f) {
   const C = CARD; if (!f || C.busy) return;
   C.busy = true; C.man = null; C.lastQuad = null; ta4CardStage('crop'); $('cdCropImg').removeAttribute('src'); $('cdCropNote').textContent = '명함을 찾는 중…'; $('cdCropNote').className = 'cd2-note busy';
   try {
-    const url = await compressFile(f, 1800, 0.88), img = await ta4LoadImg(url); C.src = img; C.srcUrl = url;
-    let crop = ta4CardDeskew(img, 1400), how = 'auto';
+    const url = await compressFile(f, 2600, 0.92), img = await ta4LoadImg(url); C.src = img; C.srcUrl = url;
+    let crop = ta4CardDeskew(img, 1600), how = 'auto';
     if (!crop) { let box = null; try { box = ta4CardAutoCrop(img); } catch (x) {} if (box) { crop = ta4CardCropImg(img, box); how = 'box'; } }
     if (!crop) { crop = ta4CardCropImg(img, null); how = 'none'; }
     ta4CardSetCrop(crop, how);
@@ -791,6 +889,24 @@ function ta4CardSetCrop(crop, how) {
   const n = $('cdCropNote');
   n.textContent = how === 'auto' ? '명함을 찾아 수평으로 맞춰 잘랐어요. 맞으면 [인식하기]를 누르세요' : how === 'box' ? '명함 부분을 잘랐어요. 틀어졌으면 [직접 자르기]를 눌러 주세요' : how === 'manual' ? '맞춘 네 점 기준으로 반듯하게 폈어요. 맞으면 [인식하기]를 누르세요' : '명함을 정확히 찾지 못했어요. [직접 자르기]로 명함 부분을 맞춰 주세요';
   n.className = 'cd2-note ' + (how === 'none' ? 'err' : 'ok');
+  ta4CardQuality(crop).then(h => { if (h && CARD.crop === crop) { n.textContent += '\n' + h; n.className = 'cd2-note err'; } }).catch(() => {});
+}
+// 인식 전에 글자가 읽을 만큼 또렷한지 점검: 흐림·어두움·빛 반사가 심하면 재촬영을 권한다 (OCR 정확도는 사진 품질이 거의 결정)
+const CARD_BLUR_MIN = 60;
+async function ta4CardQuality(url) {
+  const im = await ta4LoadImg(url), W = 640, k = W / im.naturalWidth, H = Math.max(8, Math.round(im.naturalHeight * k));
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(im, 0, 0, W, H);
+  const d = g.getImageData(0, 0, W, H).data, N = W * H, L = new Float32Array(N); let sum = 0, hi = 0;
+  for (let i = 0; i < N; i++) { const l = d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114; L[i] = l; sum += l; if (l > 250) hi++; }
+  let s1 = 0, s2 = 0, n = 0;
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x, l = 4 * L[i] - L[i - 1] - L[i + 1] - L[i - W] - L[i + W]; s1 += l; s2 += l * l; n++; }
+  const blur = s2 / n - (s1 / n) * (s1 / n), mean = sum / N, glare = hi / N;
+  CARD.q = { blur: Math.round(blur), mean: Math.round(mean), glare: +glare.toFixed(3) };
+  const out = [];
+  if (blur < CARD_BLUR_MIN) out.push('⚠ 글자가 흐려요. 화면을 톡 눌러 초점을 맞추고 다시 찍으면 인식이 훨씬 정확해요');
+  if (mean < 95) out.push('⚠ 너무 어두워요. 밝은 곳에서 다시 찍어 보세요');
+  if (glare > 0.12) out.push('⚠ 빛 반사가 있어요. 명함을 살짝 기울이거나 조명을 피해 다시 찍어 보세요');
+  return out.join('\n');
 }
 // 직접 자르기: 네 점(왼위·오른위·오른아래·왼아래)을 각각 따로 끌어 명함 모서리에 맞추면, 그 점 기준으로 원근을 펴 반듯한 직사각형으로 만든다
 function ta4ManInit() {
@@ -845,7 +961,7 @@ function ta4CardManualDone() {
   let sg = 0, ok = true;   // 네 점이 꼬이지 않은 볼록 사각형인지 확인
   for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4], c = q[(i + 2) % 4], z = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]); if (Math.abs(z) < 1e-5 || (sg && Math.sign(z) !== sg)) ok = false; sg = sg || Math.sign(z); }
   if (!ok) { toast('점이 꼬였어요. 왼위→오른위→오른아래→왼아래 순서로 명함 모서리에 맞춰 주세요', 3500); return; }
-  let crop = ta4Warp(C.src, q.map(p => [p[0] * iw, p[1] * ih]), 1400);   // 점 기준 원근 보정
+  let crop = ta4Warp(C.src, q.map(p => [p[0] * iw, p[1] * ih]), 1600);   // 점 기준 원근 보정
   if (!crop) { const xs = q.map(p => p[0]), ys = q.map(p => p[1]); crop = ta4CardCropImg(C.src, [Math.min(...ys) * 1000, Math.min(...xs) * 1000, Math.max(...ys) * 1000, Math.max(...xs) * 1000].map(Math.round)); }
   ta4CardSetCrop(crop, 'manual');
 }
@@ -913,7 +1029,7 @@ function ta4Warp(img, Q, outMax) {
     const d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
     let W = (d(Q[0], Q[1]) + d(Q[3], Q[2])) / 2, H = (d(Q[0], Q[3]) + d(Q[1], Q[2])) / 2; if (W < 40 || H < 40) return null;
     const k = Math.min(1, outMax / Math.max(W, H)); W = Math.max(2, Math.round(W * k)); H = Math.max(2, Math.round(H * k));
-    const sw = Math.min(img.naturalWidth, 2400), ks = sw / img.naturalWidth, sh = Math.round(img.naturalHeight * ks);
+    const sw = Math.min(img.naturalWidth, 3200), ks = sw / img.naturalWidth, sh = Math.round(img.naturalHeight * ks);
     const sc = document.createElement('canvas'); sc.width = sw; sc.height = sh; const sx = sc.getContext('2d'); sx.drawImage(img, 0, 0, sw, sh);
     const S = sx.getImageData(0, 0, sw, sh).data, q = Q.map(p => [p[0] * ks, p[1] * ks]);
     const dst = [[0, 0], [W, 0], [W, H], [0, H]], M = [], B = [];   // dst(u,v) -> src(x,y) 의 호모그래피 8개 계수
@@ -933,7 +1049,7 @@ function ta4Warp(img, Q, outMax) {
       D[o4 + 3] = 255;
     }
     ox.putImageData(out, 0, 0);
-    return ta4Flat(o).toDataURL('image/jpeg', 0.88);
+    return ta4CardFinish(o);
   } catch (e) { return null; }
 }
 // 조명 얼룩·그림자를 고르게 펴고 약간 선명하게 (스캔한 느낌)
@@ -985,18 +1101,18 @@ function ta4CardDeskew(img, outMax) {
     if (!best || best.score < 0.5) return null;
     // 1순위: 4개 모서리를 찾아 원근을 펴서 스캔한 것처럼 반듯하게 (비스듬히 찍어도 직사각형)
     const q = ta4CardQuad(best, w, h);
-    if (q) { const qi = q.map(p => [p[0] / sc, p[1] / sc]); const o = ta4Warp(img, qi, outMax || 1100); if (o) { CARD.lastQuad = qi; return o; } }
+    if (q) { const qi = q.map(p => [p[0] / sc, p[1] / sc]); const o = ta4Warp(img, qi, outMax || 1600); if (o) { CARD.lastQuad = qi; return o; } }
     // 2순위: 기울기만 바로잡아 자르기
     let { cs, sn, x0, x1, y0, y1 } = best;
     const inset = 0.01 * Math.min(x1 - x0, y1 - y0); x0 += inset; x1 -= inset; y0 += inset; y1 -= inset;
     const rw = x1 - x0, rh = y1 - y0; if (rw < w * 0.15 || rh < h * 0.15) return null;
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, ox = (cx * cs - cy * sn) / sc, oy = (cx * sn + cy * cs) / sc;
-    const OW = rw / sc, OH = rh / sc, k = Math.min(1, (outMax || 1100) / Math.max(OW, OH));
+    const OW = rw / sc, OH = rh / sc, k = Math.min(1, (outMax || 1600) / Math.max(OW, OH));
     const o = document.createElement('canvas'); o.width = Math.max(1, Math.round(OW * k)); o.height = Math.max(1, Math.round(OH * k));
     const qx = o.getContext('2d'); qx.fillStyle = '#fff'; qx.fillRect(0, 0, o.width, o.height);
     qx.setTransform(cs * k, -sn * k, sn * k, cs * k, o.width / 2 - (ox * cs + oy * sn) * k, o.height / 2 - (-ox * sn + oy * cs) * k);
     qx.drawImage(img, 0, 0);
-    return ta4Flat(o).toDataURL('image/jpeg', 0.88);
+    return ta4CardFinish(o);
   } catch (e) { return null; }
 }
 // 연락처 사진용: 작은 JPEG (vCard 에 넣어도 가볍게)
@@ -1015,9 +1131,9 @@ function ta4CardCropImg(img, box) {
     const m = 12, y0 = Math.max(0, box[0] - m), x0 = Math.max(0, box[1] - m), y1 = Math.min(1000, box[2] + m), x1 = Math.min(1000, box[3] + m);
     sx = Math.round(x0 / 1000 * iw); sy = Math.round(y0 / 1000 * ih); sw = Math.round((x1 - x0) / 1000 * iw); sh = Math.round((y1 - y0) / 1000 * ih);
   }
-  const sc = Math.min(1, 1100 / Math.max(sw, sh)), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(sw * sc)); c.height = Math.max(1, Math.round(sh * sc));
+  const sc = Math.min(1, 1600 / Math.max(sw, sh)), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(sw * sc)); c.height = Math.max(1, Math.round(sh * sc));
   const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
-  return c.toDataURL('image/jpeg', 0.85);
+  return ta4CardFinish(c);
 }
 function ta4CardAutoCrop(img) {
   const W = 180, sc = W / Math.max(img.naturalWidth, img.naturalHeight), w = Math.max(8, Math.round(img.naturalWidth * sc)), h = Math.max(8, Math.round(img.naturalHeight * sc));

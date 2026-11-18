@@ -6,7 +6,7 @@
     const st = document.createElement('style');
     st.textContent =
       ':is(h1,h2,h3,h4,h5,h6,th,thead,caption,legend,header,.bar,.tabs,[class*="title"],[class*="ttl"]):not(input):not(textarea):not([contenteditable="true"]){-webkit-user-select:none;user-select:none;cursor:default}' +
-      '.modal,.ov,.sheet,#ov,#viewer,#imgov,#busy,#live,#ring,dialog,[role="dialog"]{overscroll-behavior:contain}' +
+      '.modal,.ov,.sheet,.plov,.simvm-ov,#syov,#dev,#cook,#ov,#viewer,#imgov,#busy,#live,#ring,dialog,[role="dialog"]{overscroll-behavior:contain}' +
       /* 전체 창·팝업의 스크롤바를 굵게 직접 그려 항상 보이게(스크롤할 내용이 있을 때). 터치 화면의 기본 스크롤바는 숨겨져 스크롤 가능한지 알 수 없었다 */
       '::-webkit-scrollbar{width:14px;height:14px}' +
       '::-webkit-scrollbar-track{background:rgba(127,127,127,.18)}' +
@@ -16,7 +16,7 @@
     document.head.appendChild(st);
   } catch (e) {}
 
-  const SEL = '.modal,.ov,.sheet,#ov,#viewer,#imgov,#busy,#live,#ring,dialog,[role="dialog"],[aria-modal="true"]';
+  const SEL = '.modal,.ov,.sheet,.plov,.simvm-ov,#syov,#dev,#cook,#ov,#viewer,#imgov,#busy,#live,#ring,dialog,[role="dialog"],[aria-modal="true"]';
   const SKIP = /^(SCRIPT|STYLE|LINK|META)$/;
   let inerted = [], saved = null, locked = false, prevHtml = '', prevBody = '';
 
@@ -144,6 +144,11 @@
   const clickable = b => b && !b.disabled && b.getClientRects().length;
   window.__simPopupBack = () => {
     try {
+      const menu = document.querySelector('.simvm-pop');               // ⋯ 메뉴(작은 드롭다운)가 열려 있으면 그것부터 닫는다
+      if (menu) { menu.remove(); return true; }
+      if (document.body.classList.contains('drawer') && document.body.classList.contains('open')) {   // 라디오 서랍
+        const bg = document.getElementById('drawerBg'); if (bg) { bg.click(); return true; }
+      }
       const top = shown().sort((a, b) => z(b) - z(a))[0];
       if (!top) return false;
       if (isBusy(top)) return true;                                   // 처리 중 표시는 닫을 수 없으니 뒤로가기만 삼킨다

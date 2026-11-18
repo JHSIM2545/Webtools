@@ -146,7 +146,7 @@
   const close = () => { if (abort) { abort(); abort = null; } if (ov) { ov.remove(); ov = null; } };
   function modal(title, html) {
     if (abort) { abort(); abort = null; }
-    if (!ov) { ov = document.createElement('div'); ov.style.cssText = 'position:fixed;inset:0;z-index:99;background:#000a;display:flex;justify-content:center;padding:16px;overflow-y:auto;overscroll-behavior:contain'; document.body.appendChild(ov); }
+    if (!ov) { ov = document.createElement('div'); ov.id = 'syov'; ov.style.cssText = 'position:fixed;inset:0;z-index:99;background:#000a;display:flex;justify-content:center;padding:16px;overflow-y:auto;overscroll-behavior:contain'; document.body.appendChild(ov); }
     ov.innerHTML = '<div style="background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;max-width:400px;width:100%;margin:auto"><b style="font-size:16px">' + esc(title) + '</b><div id="syBody" style="margin-top:10px;font-size:14px;line-height:1.6">' + html + '</div></div>';
     return ov.querySelector('#syBody');
   }

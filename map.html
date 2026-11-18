@@ -318,7 +318,16 @@ function loadKakao() {
   });
   return kakaoP;
 }
-const LL = (la, ln) => new kakao.maps.LatLng(la, ln);
+const LL = (la, ln) => new kakao.maps.LatLng(+la, +ln);
+const okXY = p => Number.isFinite(+p.lat) && Number.isFinite(+p.lng) && p.lat !== null && p.lng !== null && p.lat !== '' && p.lng !== '';
+// 여러 지점이 모두 보이게 지도 범위를 맞춤 (panTo 애니메이션 등으로 무시되면 한 번 더 시도)
+function fitPoints(pts, pad) {
+  if (!map || !pts.length) return; pad = pad || 70;
+  const b = new kakao.maps.LatLngBounds(); pts.forEach(p => b.extend(LL(p.lat, p.lng)));
+  const apply = () => { try { map.relayout(); map.setBounds(b, pad, pad, pad, pad); } catch (e) {} };
+  apply();
+  setTimeout(() => { try { const vb = map.getBounds(); if (!pts.every(p => vb.contain(LL(p.lat, p.lng)))) apply(); } catch (e) {} }, 450);
+}
 function mapFail() {
   $('mapmsgIn').innerHTML = '<div style="font-size:30px">🗺️</div><div>카카오 지도를 불러오지 못했어요.<br>네트워크를 확인하거나, 카카오 개발자 콘솔에 이 사이트 주소가 등록되어 있는지 확인해 주세요.<br>지도 없이도 저장한 장소 목록과 길안내는 쓸 수 있어요.</div><button id="mapRetry">다시 시도</button><button id="mapKeyBtn">내 카카오 JavaScript 키 입력</button>';
   $('mapmsg').classList.add('on');
@@ -354,7 +363,7 @@ function refreshMarkers() {
   savedMk.forEach(m => m.setMap(null)); savedMk.clear();
   const img = new kakao.maps.MarkerImage('pin-icon.svg', new kakao.maps.Size(30, 30), { offset: new kakao.maps.Point(15, 30) });
   visiblePlaces().forEach(p => {
-    if (!isFinite(p.lat) || !isFinite(p.lng)) return;
+    if (!okXY(p)) return;
     const m = new kakao.maps.Marker({ position: LL(p.lat, p.lng), image: img, title: p.name, map });
     kakao.maps.event.addListener(m, 'click', () => openDetail(p.id));
     savedMk.set(p.id, m);
@@ -362,11 +371,10 @@ function refreshMarkers() {
 }
 function fitSaved(initial) {
   if (!map) return;
-  const pts = visiblePlaces().filter(p => isFinite(p.lat) && isFinite(p.lng));
+  const pts = visiblePlaces().filter(okXY);
   if (!pts.length) return;
   if (initial && myPos) return;
-  const b = new kakao.maps.LatLngBounds(); pts.forEach(p => b.extend(LL(p.lat, p.lng)));
-  try { map.setBounds(b, 70, 70, 70, 70); } catch (e) {}
+  fitPoints(pts, 70);
 }
 function syncResultVisibility() {   // 검색 결과 표시는 '검색 결과' 탭에서만
   if (!map) return; const m = tab === 'res' ? map : null;
@@ -374,8 +382,7 @@ function syncResultVisibility() {   // 검색 결과 표시는 '검색 결과' �
 }
 function fitResults() {
   if (!map || !RES || (!RES.items.length && !RES.anchor)) return;
-  const b = new kakao.maps.LatLngBounds(); if (RES.anchor) b.extend(LL(RES.anchor.lat, RES.anchor.lng)); RES.items.forEach(r => b.extend(LL(r.lat, r.lng)));
-  try { map.setBounds(b, 60, 60, 60, 60); } catch (e) {}
+  fitPoints((RES.anchor ? [RES.anchor] : []).concat(RES.items), 60);
 }
 function clearResultMarks() { resMk.forEach(o => o.setMap(null)); resMk = []; if (anchorOv) { anchorOv.setMap(null); anchorOv = null; } }
 function drawResultMarks(anchor, items) {

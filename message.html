@@ -871,7 +871,7 @@ async function aiCall(payload, ms, fn) {
     const r = await fetch('https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/' + (fn || 'message-ai'), { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ phone }, payload)) });
     const j = await r.json().catch(() => ({}));
     if (r.ok) return j;
-    throw new Error(r.status === 403 ? '등록되지 않은 전화번호예요' : r.status === 429 ? (j.error === 'quota' ? 'AI 사용 한도에 도달했어요' : '잠시 뒤 다시 눌러 주세요') : 'AI 응답 실패 (' + r.status + ')');
+    throw new Error(r.status === 403 ? '등록되지 않은 전화번호예요' : r.status === 429 ? (j.error === 'quota' ? 'AI 사용 한도에 도달했어요' : j.error === 'limit' ? '오늘 AI 사용 한도를 넘었어요. 내일 다시 사용해 주세요' : '잠시 뒤 다시 눌러 주세요') : 'AI 응답 실패 (' + r.status + ')');
   } catch (e) { throw e && e.name === 'AbortError' ? new Error('응답이 너무 늦어요') : (e instanceof TypeError ? new Error('네트워크 연결 실패') : e); }
   finally { clearTimeout(to); }
 }

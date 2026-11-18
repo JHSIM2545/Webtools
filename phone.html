@@ -326,7 +326,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
         <div class="cd-g2 f"><div><label>팩스</label><input type="tel" inputmode="tel" id="cdFax" autocomplete="off"></div><div><label>이메일</label><input type="email" inputmode="email" id="cdEmail" autocomplete="off" autocapitalize="off"></div></div>
         <div class="f"><label>주소</label><input type="text" id="cdAddr" autocomplete="off"></div>
       </div>
-      <div class="box" style="padding:6px 14px"><label class="ck" id="cdPhoneRow"><input type="checkbox" id="cdPhoneOpt"> 내 휴대폰 연락처에도 같이 저장<small>저장 후 연락처 앱의 저장 화면이 열려요</small></label></div>
+      <div class="box" style="padding:6px 14px"><label class="ck" id="cdPhoneRow"><input type="checkbox" id="cdPhoneOpt"> 내 휴대폰 연락처에도 같이 저장<small id="cdPhoneHint">저장 후 연락처 앱의 저장 화면이 열려요</small></label></div>
       <details class="cd-raw"><summary>인식된 원문</summary><pre id="cdRaw"></pre></details>
     </div>
     <div class="cd-st" id="cdStatusCam" data-s="cam"></div>
@@ -499,7 +499,20 @@ function download(name, text, type) {
   a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 8000);
 }
 async function saveToPhone(c) {
-  if (!c) return; const text = vcard(c), fname = ((c.name || 'contact').replace(/[^\w가-힣]/g, '_')) + '.vcf';
+  if (!c) return;
+  // 안드로이드 앱(APK): 공유 창·저장 화면 없이 폰 연락처에 바로 저장 (처음 한 번 연락처 쓰기 권한). 안 되면 아래 공유 방식으로
+  const NB = window.SimContacts;
+  if (NB && typeof NB.save === 'function') {
+    const r = await new Promise(res => {
+      window.__simPhoneSaved = (ok, why) => res({ ok, why });
+      try { NB.save(JSON.stringify(c)); } catch (e) { res({ ok: false, why: 'err' }); }
+      setTimeout(() => res({ ok: false, why: 'timeout' }), 60000);
+    });
+    window.__simPhoneSaved = null;
+    if (r.ok) { toast((c.name || '연락처') + ' 님을 내 휴대폰 연락처에 저장했습니다', 3500); return; }
+    if (r.why === 'perm') toast('연락처 쓰기 권한이 없어 공유 방식으로 저장합니다', 3000);
+  }
+  const text = vcard(c), fname = ((c.name || 'contact').replace(/[^\w가-힣]/g, '_')) + '.vcf';
   try {
     const file = new File([text], fname, { type: 'text/vcard' });
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -1207,6 +1220,7 @@ function ta4CardOpen(mode) {
   ta4CardFill(c);
   $('cdRaw').textContent = ''; ta4CardStatus('', ''); $('cdThumb').removeAttribute('src'); ta4CardEngine('');
   let o = {}; try { o = JSON.parse(localStorage.getItem(LS_CARDOPT) || '{}'); } catch (e) {}
+  try { const hn = $('cdPhoneHint'); if (hn && window.SimContacts && typeof window.SimContacts.save === 'function') hn.textContent = '확인 화면 없이 바로 저장돼요 (처음 한 번 권한 허용)'; } catch (e) {}
   $('cdPhoneOpt').checked = !!o.phone; $('cdPhoneRow').style.display = mode === 'edit' ? 'none' : '';
   $('cdApply').textContent = mode === 'edit' ? '입력란에 적용' : '저장';
   ta4CardStage('cam');

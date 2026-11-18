@@ -3,6 +3,7 @@ package kr.simtools.suite;
 import android.Manifest;
 import android.app.Activity;
 import android.app.DownloadManager;
+import android.content.ContentProviderOperation;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -13,6 +14,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.database.Cursor;
 import android.os.Environment;
+import android.util.Base64;
 import android.provider.OpenableColumns;
 import android.provider.ContactsContract;
 import android.view.View;
@@ -53,7 +55,7 @@ import java.util.Map;
 public class MainActivity extends Activity {
     private static final String BASE = "https://jhsim2545.github.io/";
     private static final String SHARE_HOST = "https://simshare.invalid/__share/";   // 공유받은 파일을 화면(웹)이 가져가는 가짜 주소 (서비스워커를 거치지 않게 다른 출처로 둠)
-    private static final int REQ_FILE = 77, REQ_MEDIA = 78, REQ_GEO = 79, REQ_CONTACTS = 80;
+    private static final int REQ_FILE = 77, REQ_MEDIA = 78, REQ_GEO = 79, REQ_CONTACTS = 80, REQ_WCONTACTS = 81;
 
     String key;                 // null 이면 런처, 아니면 열린 도구의 id (simtools://tool/<id>)
     boolean isLauncher = true;
@@ -269,8 +271,18 @@ public class MainActivity extends Activity {
     }
 
     /** 폰 연락처 읽기(SIM Message 앱 전용): 권한 확인·요청, 전체 연락처를 JSON 으로 넘긴다. 화면(웹)이 검색·선택을 처리한다. */
+    private String pendingSave;
+
     private class ContactsBridge {
         @JavascriptInterface public boolean has() { return granted(Manifest.permission.READ_CONTACTS); }
+
+        /** SIM Phone: 연락처 한 명을 확인 화면 없이 바로 내 휴대폰 연락처에 저장 (처음 한 번 '연락처 쓰기' 권한 허용). 결과는 window.__simPhoneSaved(ok, 사유) 로 알린다 */
+        @JavascriptInterface public void save(final String json) {
+            runOnUiThread(() -> {
+                if (granted(Manifest.permission.WRITE_CONTACTS)) saveContactNow(json);
+                else { pendingSave = json; requestPermissions(new String[]{Manifest.permission.WRITE_CONTACTS}, REQ_WCONTACTS); }
+            });
+        }
 
         @JavascriptInterface public void request() {
             runOnUiThread(() -> requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, REQ_CONTACTS));
@@ -307,6 +319,50 @@ public class MainActivity extends Activity {
             } catch (Exception e) { /* 읽다가 실패하면 지금까지 모은 것만 */ }
             return out.toString();
         }
+    }
+
+
+    private static ContentProviderOperation.Builder dataOp(String mime) {
+        return ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0).withValue(ContactsContract.Data.MIMETYPE, mime);
+    }
+
+    /** {name,title,company,mobile,tel,fax,email,address,memo,photo(dataURL)} 를 폰 연락처에 넣는다 */
+    private void saveContactNow(final String json) {
+        new Thread(() -> {
+            boolean ok = false; String why = "";
+            try {
+                JSONObject o = new JSONObject(json);
+                String name = o.optString("name", "").trim(), com = o.optString("company", "").trim(), ti = o.optString("title", "").trim();
+                String mo = o.optString("mobile", "").trim(), te = o.optString("tel", "").trim(), fx = o.optString("fax", "").trim();
+                String em = o.optString("email", "").trim(), ad = o.optString("address", "").trim(), me = o.optString("memo", "").trim(), ph = o.optString("photo", "");
+                if (name.isEmpty() && com.isEmpty() && mo.isEmpty() && te.isEmpty() && em.isEmpty()) throw new IllegalArgumentException("empty");
+                ArrayList<ContentProviderOperation> ops = new ArrayList<>();
+                ops.add(ContentProviderOperation.newInsert(ContactsContract.RawContacts.CONTENT_URI)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null).withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null).build());
+                if (!name.isEmpty()) ops.add(dataOp(ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE).withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, name).build());
+                if (!com.isEmpty() || !ti.isEmpty()) ops.add(dataOp(ContactsContract.CommonDataKinds.Organization.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.Organization.COMPANY, com).withValue(ContactsContract.CommonDataKinds.Organization.TITLE, ti)
+                        .withValue(ContactsContract.CommonDataKinds.Organization.TYPE, ContactsContract.CommonDataKinds.Organization.TYPE_WORK).build());
+                String[] nums = {mo, te, fx};
+                int[] types = {ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE, ContactsContract.CommonDataKinds.Phone.TYPE_WORK, ContactsContract.CommonDataKinds.Phone.TYPE_FAX_WORK};
+                for (int i = 0; i < 3; i++) if (!nums[i].isEmpty()) ops.add(dataOp(ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, nums[i]).withValue(ContactsContract.CommonDataKinds.Phone.TYPE, types[i]).build());
+                if (!em.isEmpty()) ops.add(dataOp(ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.Email.ADDRESS, em).withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_WORK).build());
+                if (!ad.isEmpty()) ops.add(dataOp(ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS, ad).withValue(ContactsContract.CommonDataKinds.StructuredPostal.TYPE, ContactsContract.CommonDataKinds.StructuredPostal.TYPE_WORK).build());
+                if (!me.isEmpty()) ops.add(dataOp(ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE).withValue(ContactsContract.CommonDataKinds.Note.NOTE, me).build());
+                int comma = ph.indexOf(',');
+                if (ph.startsWith("data:image") && comma > 0) {
+                    try { byte[] jpg = Base64.decode(ph.substring(comma + 1), Base64.DEFAULT); ops.add(dataOp(ContactsContract.CommonDataKinds.Photo.CONTENT_ITEM_TYPE).withValue(ContactsContract.CommonDataKinds.Photo.PHOTO, jpg).build()); } catch (Exception e) { /* 사진만 건너뜀 */ }
+                }
+                getContentResolver().applyBatch(ContactsContract.AUTHORITY, ops);
+                ok = true;
+            } catch (Exception e) { why = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(); }
+            final boolean fo = ok; final String fw = why;
+            runOnUiThread(() -> { if (web != null) web.evaluateJavascript("window.__simPhoneSaved&&window.__simPhoneSaved(" + fo + "," + JSONObject.quote(fw) + ")", null); });
+        }).start();
     }
 
     /** 화면(웹)이 공유받은 연락처를 가져가는 창구: JSON 문자열 배열을 돌려주고 비운다 */
@@ -519,6 +575,10 @@ public class MainActivity extends Activity {
         } else if (code == REQ_CONTACTS) {
             final boolean g = ok;
             if (web != null) web.post(() -> web.evaluateJavascript("window.__simContactsPerm&&window.__simContactsPerm(" + g + ")", null));
+        } else if (code == REQ_WCONTACTS) {
+            if (ok && pendingSave != null) saveContactNow(pendingSave);
+            else if (web != null) web.post(() -> web.evaluateJavascript("window.__simPhoneSaved&&window.__simPhoneSaved(false,'perm')", null));
+            pendingSave = null;
         } else if (code == AppBridge.REQ_FIRST) {
             AppBridge.askExact(this);
         } else if (code == AppBridge.REQ_APP && appBridge != null) {

@@ -88,6 +88,8 @@ img.ci{width:1.25em;height:1.25em;object-fit:contain;vertical-align:-.25em}
 .anchor{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:8px;font-size:13px;line-height:1.5}
 .anchor b{color:var(--accent)}
 .more{width:100%;margin-top:8px}
+.acts .fv{color:#ffc94d;font-size:17px;padding:4px 9px;line-height:1}
+.chip.fvon{background:#ffc94d;border-color:#ffc94d;color:#3a2a00;font-weight:700}
 .row.hi{background:rgba(255,120,73,.12)}
 .star{color:#ffc94d;letter-spacing:1px}
 
@@ -182,7 +184,7 @@ label.lb{display:block;font-size:12px;color:var(--sub);margin-bottom:5px}
   </div>
   <section id="dock" class="s1">
     <button id="handle" aria-label="목록 크기"><i></i></button>
-    <div id="dtabs"><button id="tMy" class="on">내 장소</button><button id="tRes">검색 결과</button></div>
+    <div id="dtabs"><button id="tMy" class="on">내 장소</button><button id="tFav">⭐ 즐겨찾기</button><button id="tRes">검색 결과</button></div>
     <div id="dbody"></div>
   </section>
 </div>
@@ -192,7 +194,7 @@ label.lb{display:block;font-size:12px;color:var(--sub);margin-bottom:5px}
   <div class="card">
     <header><b id="eTitle">장소 등록</b><button id="eClose">닫기</button></header>
     <div class="cbody">
-      <div class="fld"><label class="lb">이름</label><input id="eName" placeholder="맛집·명소 이름" maxlength="60"></div>
+      <div class="fld"><label class="lb">이름</label><input id="eName" placeholder="맛집·명소 이름" maxlength="60"><div style="margin-top:6px"><span class="chip" id="eFav">☆ 즐겨찾기</span></div></div>
       <div class="fld"><label class="lb">종류</label><div class="cats" id="eCats"></div></div>
       <div class="fld">
         <label class="lb">위치</label>
@@ -223,7 +225,7 @@ label.lb{display:block;font-size:12px;color:var(--sub);margin-bottom:5px}
   <div class="card">
     <header><b id="dName"></b><button id="dClose">닫기</button></header>
     <div class="cbody" id="dBody"></div>
-    <div class="cfoot"><button id="dNear">📍 인근 찾기</button><button id="dEdit">수정</button></div>
+    <div class="cfoot"><button id="dFav">☆ 즐겨찾기</button><button id="dNear">📍 인근 찾기</button><button id="dEdit">수정</button></div>
   </div>
 </div>
 
@@ -514,29 +516,32 @@ async function runSearch(raw) {
 let tab = 'my', catFilter = '', sortBy = 'recent';
 function setDock(n) { const d = $('dock'); d.classList.remove('s0', 's1', 's2'); d.classList.add('s' + n); }
 function dockLevel() { const d = $('dock'); return d.classList.contains('s0') ? 0 : d.classList.contains('s2') ? 2 : 1; }
-function showTab(t) { tab = t; $('tMy').classList.toggle('on', t === 'my'); $('tRes').classList.toggle('on', t === 'res'); if (t === 'my') renderMy(); else renderRes(); }
+function showTab(t) { tab = t; $('tMy').classList.toggle('on', t === 'my'); $('tFav').classList.toggle('on', t === 'fav'); $('tRes').classList.toggle('on', t === 'res'); if (t === 'res') renderRes(); else renderMy(); }
 $('tMy').onclick = () => { showTab('my'); if (dockLevel() === 0) setDock(1); };
+$('tFav').onclick = () => { showTab('fav'); if (dockLevel() === 0) setDock(1); };
 $('tRes').onclick = () => { showTab('res'); if (dockLevel() === 0) setDock(1); };
 $('handle').onclick = () => setDock({ 0: 1, 1: 2, 2: 0 }[dockLevel()]);
 function stars(n) { n = +n || 0; return n ? '<span class="star">' + '★'.repeat(n) + '<span style="color:#444b60">' + '★'.repeat(5 - n) + '</span></span>' : ''; }
 function renderMy() {
   $('tMy').textContent = '내 장소 ' + places.length;
-  if (tab !== 'my') return;
-  const used = CATS.filter(c => places.some(p => p.cat === c.k));
-  let list = places.filter(p => !catFilter || p.cat === catFilter);
+  const nFav = places.filter(p => p.fav).length; $('tFav').textContent = '⭐ 즐겨찾기' + (nFav ? ' ' + nFav : '');
+  if (tab !== 'my' && tab !== 'fav') return;
+  const base = tab === 'fav' ? places.filter(p => p.fav) : places;
+  const used = CATS.filter(c => base.some(p => p.cat === c.k));
+  let list = base.filter(p => !catFilter || p.cat === catFilter);
   if (sortBy === 'dist' && myPos) list = list.slice().sort((a, b) => dist(myPos, a) - dist(myPos, b)); else list = list.slice().sort((a, b) => String(b.updated || '').localeCompare(String(a.updated || '')));
   let h = '';
-  if (places.length) {
+  if (base.length) {
     h += '<div class="chips"><span class="chip' + (!catFilter ? ' on' : '') + '" data-cat="">전체</span>' + used.map(c => '<span class="chip' + (catFilter === c.k ? ' on' : '') + '" data-cat="' + c.k + '">' + catEmoji(c.k) + ' ' + c.k + '</span>').join('') +
       '<span class="chip" id="sortBtn" style="margin-left:auto">' + (sortBy === 'dist' ? '📏 거리순' : '🕘 최근순') + '</span></div>';
   }
-  if (!list.length) h += '<div class="empty">' + (places.length ? '이 종류로 저장한 장소가 없어요.' : '아직 저장한 장소가 없어요.<br>오른쪽 아래 <b>＋</b>를 눌러 지금 있는 곳을 등록하거나,<br>위 검색창에서 장소를 찾아 저장해 보세요.') + '</div>';
+  if (!list.length) h += '<div class="empty">' + (base.length ? '이 종류로 저장한 장소가 없어요.' : tab === 'fav' ? '즐겨찾기한 장소가 없어요.<br>장소 목록이나 상세 화면의 <b>☆</b>를 눌러 지정해 보세요.' : '아직 저장한 장소가 없어요.<br>오른쪽 아래 <b>＋</b>를 눌러 지금 있는 곳을 등록하거나,<br>위 검색창에서 장소를 찾아 저장해 보세요.') + '</div>';
   h += list.map(p => {
     const th = p.photos && p.photos[0] ? '<img src="' + esc(p.photos[0]) + '" alt="">' : catEmoji(p.cat);
     const d = myPos && isFinite(p.lat) ? fmtDist(dist(myPos, p)) : '';
     const meta = [stars(p.rating), (p.photos || []).length ? '📷' + p.photos.length : '', (p.audio || []).length ? '🎙' + p.audio.length : '', d].filter(Boolean).join(' · ');
     return '<div class="row" data-id="' + esc(p.id) + '"><div class="thumb">' + th + '</div><div class="rt"><b>' + (p.photos && p.photos[0] ? catEmoji(p.cat) + ' ' : '') + esc(p.name) + '</b><small>' + esc(p.addr || '') + '</small>' + (meta ? '<div class="meta">' + meta + '</div>' : '') + '</div>' +
-      '<div class="acts"><a class="nv" href="' + esc(naviHref(p.lat, p.lng, p.name)) + '"' + naviAttrs() + ' data-nav>🧭</a></div></div>';
+      '<div class="acts"><button class="fv" data-fav="' + esc(p.id) + '" aria-label="즐겨찾기">' + (p.fav ? '★' : '☆') + '</button><a class="nv" href="' + esc(naviHref(p.lat, p.lng, p.name)) + '"' + naviAttrs() + ' data-nav>🧭</a></div></div>';
   }).join('');
   $('dbody').innerHTML = h;
 }
@@ -568,6 +573,7 @@ function focusResult(i) {
 }
 $('dbody').addEventListener('click', e => {
   if (e.target.closest('[data-nav]')) return;
+  const fv = e.target.closest('[data-fav]'); if (fv) { toggleFav(fv.dataset.fav); return; }
   const cc = e.target.closest('[data-cat]'); if (cc) { catFilter = cc.dataset.cat; renderMy(); return; }
   if (e.target.closest('#sortBtn')) { if (sortBy === 'recent' && !myPos) { locateMe().then(p => { if (p) { sortBy = 'dist'; renderMy(); } }); return; } sortBy = sortBy === 'dist' ? 'recent' : 'dist'; renderMy(); return; }
   if (e.target.closest('#chgAnchor')) { openAnchorPick(); return; }
@@ -597,14 +603,16 @@ $('rad').onchange = () => { if (RES.raw && !searching) runSearch(RES.raw); };
 
 /* ───────── 장소 등록·수정 ───────── */
 let ED = null, PICK = false;
-const blank = () => ({ id: '', name: '', cat: '맛집', addr: '', phone: '', lat: null, lng: null, memo: '', rating: 0, photos: [], audio: [], kakaoId: '', url: '', acc: null, isNew: true });
+const blank = () => ({ id: '', fav: false, name: '', cat: '맛집', addr: '', phone: '', lat: null, lng: null, memo: '', rating: 0, photos: [], audio: [], kakaoId: '', url: '', acc: null, isNew: true });
 const fromResult = r => Object.assign(blank(), { name: r.name, cat: r.cat, addr: r.addr, phone: r.phone || '', lat: r.lat, lng: r.lng, kakaoId: r.id || '', url: r.url || '' });
+function renderEditFav() { const b = $('eFav'); b.classList.toggle('fvon', !!ED.fav); b.textContent = ED.fav ? '★ 즐겨찾기' : '☆ 즐겨찾기'; }
+$('eFav').onclick = () => { if (ED) { ED.fav = !ED.fav; renderEditFav(); } };
 function openEdit(p, auto) {
   ED = p && p.id ? Object.assign(blank(), JSON.parse(JSON.stringify(p)), { isNew: false }) : Object.assign(blank(), p || {});
   $('eTitle').textContent = ED.isNew ? '장소 등록' : '장소 수정';
   $('eName').value = ED.name; $('eAddr').value = ED.addr; $('ePhone').value = ED.phone || ''; $('eMemo').value = ED.memo;
   $('eDel').hidden = ED.isNew; $('eCands').innerHTML = '';
-  renderEditCats(); renderStars(); renderGps(); renderMedia();
+  renderEditCats(); renderStars(); renderGps(); renderMedia(); renderEditFav();
   $('ovDetail').classList.remove('on'); $('ovEdit').classList.add('on');
   if (auto && ED.lat == null) doLocate();
 }
@@ -752,7 +760,7 @@ $('eSave').onclick = async () => {
   if (ED.lat == null || ED.lng == null) { toast('위치를 지정해 주세요 (현재 위치·지도·이름 찾기)'); return; }
   if (MR) { toast('녹음을 먼저 끝내 주세요'); return; }
   const now = new Date().toISOString(), old = places.find(x => x.id === ED.id);
-  const p = { id: ED.id || uid(), name, cat: ED.cat, addr: $('eAddr').value.trim(), phone: $('ePhone').value.trim(), lat: +ED.lat, lng: +ED.lng, memo: $('eMemo').value.trim(), rating: ED.rating || 0, photos: ED.photos, audio: ED.audio, kakaoId: ED.kakaoId || '', url: ED.url || '', created: (old && old.created) || now, updated: now };
+  const p = { id: ED.id || uid(), name, cat: ED.cat, addr: $('eAddr').value.trim(), phone: $('ePhone').value.trim(), lat: +ED.lat, lng: +ED.lng, memo: $('eMemo').value.trim(), fav: !!ED.fav, rating: ED.rating || 0, photos: ED.photos, audio: ED.audio, kakaoId: ED.kakaoId || '', url: ED.url || '', created: (old && old.created) || now, updated: now };
   await savePlace(p); closeEdit(); refreshAll(); toast('저장했어요');
   if (map && isFinite(p.lat)) map.panTo(LL(p.lat, p.lng));
 };
@@ -763,9 +771,15 @@ $('eDel').onclick = async () => {
 
 /* ───────── 상세 ───────── */
 let DID = '';
+async function toggleFav(id) {
+  const p = places.find(x => x.id === id); if (!p) return;
+  const np = Object.assign({}, p, { fav: !p.fav, updated: new Date().toISOString() });
+  await savePlace(np); refreshAll(); if ($('ovDetail').classList.contains('on') && DID === id) $('dFav').textContent = np.fav ? '★ 즐겨찾기 해제' : '☆ 즐겨찾기';
+  toast(np.fav ? '즐겨찾기에 추가했어요' : '즐겨찾기에서 뺐어요');
+}
 function openDetail(id) {
   const p = places.find(x => x.id === id); if (!p) return; DID = id;
-  $('dName').innerHTML = catEmoji(p.cat) + ' ' + esc(p.name);
+  $('dName').innerHTML = catEmoji(p.cat) + ' ' + esc(p.name); $('dFav').textContent = p.fav ? '★ 즐겨찾기 해제' : '☆ 즐겨찾기';
   const d = myPos && isFinite(p.lat) ? fmtDist(dist(myPos, p)) : '';
   let h = '';
   if ((p.photos || []).length) h += '<div id="dPhotos">' + p.photos.map((s, i) => '<img src="' + esc(s) + '" data-big="' + i + '" alt="">').join('') + '</div>';
@@ -780,6 +794,7 @@ function openDetail(id) {
 }
 $('dClose').onclick = () => $('ovDetail').classList.remove('on');
 $('dBody').onclick = e => { const b = e.target.closest('[data-big]'); if (!b) return; const p = places.find(x => x.id === DID); if (p) showBig(p.photos[+b.dataset.big]); };
+$('dFav').onclick = () => toggleFav(DID);
 $('dEdit').onclick = () => { const p = places.find(x => x.id === DID); if (p) openEdit(p); };
 $('dNear').onclick = () => {
   const p = places.find(x => x.id === DID); if (!p) return; $('ovDetail').classList.remove('on');

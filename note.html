@@ -1869,15 +1869,29 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
     }
     return out;
   }
-  function saveBlob(name, blob) { const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
+  /* 저장: APK 에서는 WebView 가 blob 다운로드를 못 받으므로 앱의 'SimFiles' 창구로 다운로드 폴더(SIM Note)에 직접 쓴다. 웹은 기존처럼 다운로드 */
+  const NF = window.SimFiles && typeof window.SimFiles.begin === 'function' ? window.SimFiles : null;
+  function blobB64(bl) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(r.error); r.readAsDataURL(bl); }); }
+  async function saveBlob(name, blob) {
+    if (NF) {
+      const id = NF.beginIn ? NF.beginIn(name, blob.type || 'application/octet-stream', 'SIM Note') : NF.begin(name, blob.type || 'application/octet-stream', 'download');
+      if (!id || /^ERR/.test(id)) throw new Error('save ' + id);
+      const STEP = 384 * 1024;   // 3의 배수여야 base64 가 조각마다 끊기지 않는다
+      for (let o = 0; o < blob.size; o += STEP) { if (!NF.chunk(id, await blobB64(blob.slice(o, o + STEP)))) throw new Error('chunk'); }
+      const w = NF.end(id); if (/^ERR/.test(w)) throw new Error(w);
+      return w;
+    }
+    const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000); return '';
+  }
   async function expSave() {
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    let where = '';
     try {
       const files = await makeFiles(expFmt);
-      if (files.length > 1) { busy('압축 중…'); await loadLib('jszip'); const z = new window.JSZip(); files.forEach(f => z.file(f.name, f.blob)); saveBlob(safeName() + '.zip', await z.generateAsync({ type: 'blob' })); }
-      else saveBlob(files[0].name, files[0].blob);
-      unbusy(); $('mExp').classList.remove('show'); toast('파일로 저장했습니다. (다운로드 폴더)');
-    } catch (e) { unbusy(); toast('내보내지 못했습니다. 페이지 수를 줄여 다시 시도하세요.'); }
+      if (files.length > 1) { busy('압축 중…'); await loadLib('jszip'); const z = new window.JSZip(); files.forEach(f => z.file(f.name, f.blob)); where = await saveBlob(safeName() + '.zip', await z.generateAsync({ type: 'blob' })); }
+      else where = await saveBlob(files[0].name, files[0].blob);
+      unbusy(); $('mExp').classList.remove('show'); toast('파일로 저장했습니다. (' + (where || '다운로드 폴더') + ')', 4000);
+    } catch (e) { unbusy(); toast('내보내지 못했습니다. ' + (NF ? '(' + (e && e.message || e) + ')' : '페이지 수를 줄여 다시 시도하세요.')); }
   }
   async function tryShare(files, title) {
     const fl = files.map(f => new File([f.blob], f.name, { type: f.blob.type }));
@@ -1892,14 +1906,14 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
       const t0 = Date.now(), files = await makeFiles(fmt); unbusy();
       let r = await tryShare(files, safeName());
       if (r === 'blocked' && Date.now() - t0 > 2000) { pendingShare = { files, samsung }; $('expReady').style.display = 'block'; toast('준비 완료 — 아래 버튼을 눌러 공유 창을 여세요', 3500); return; }
-      if (r === 'unsupported' || r === 'blocked') { files.forEach((f, i) => setTimeout(() => saveBlob(f.name, f.blob), i * 400)); toast('이 브라우저는 공유 기능이 없어 파일로 저장했습니다.', 3500); }
+      if (r === 'unsupported' || r === 'blocked') { (async () => { try { let w = ''; for (const f of files) w = await saveBlob(f.name, f.blob); $('mExp').classList.remove('show'); toast('공유 기능이 없어 파일로 저장했습니다. (' + (w || '다운로드 폴더') + ')', 4000); } catch (e) { toast('저장하지 못했습니다.'); } })(); }
       else if (r === 'ok') { $('mExp').classList.remove('show'); if (samsung) toast('공유 창에서 "삼성 노트"를 고르세요. 안 보이면 삼성 노트 앱의 가져오기로 이 PDF를 불러오세요.', 5000); }
     } catch (e) { unbusy(); toast('공유 파일을 만들지 못했습니다.'); }
   }
   $('expReadyBtn').onclick = async () => {
     if (!pendingShare) return; const ps = pendingShare, r = await tryShare(ps.files, safeName());
     if (r === 'ok') { pendingShare = null; $('expReady').style.display = 'none'; $('mExp').classList.remove('show'); }
-    else if (r !== 'cancel') { ps.files.forEach((f, i) => setTimeout(() => saveBlob(f.name, f.blob), i * 400)); toast('공유할 수 없어 파일로 저장했습니다.'); }
+    else if (r !== 'cancel') { (async () => { try { for (const f of ps.files) await saveBlob(f.name, f.blob); toast('공유할 수 없어 파일로 저장했습니다.'); } catch (e) { toast('저장하지 못했습니다.'); } })(); }
   };
   $('btnExport').onclick = () => {
     $('expSub').textContent = '현재 페이지: ' + (activePage + 1) + ' / ' + note.pages.length; $('expReady').style.display = 'none'; pendingShare = null;
@@ -1917,6 +1931,17 @@ a.back{display:flex;align-items:center;justify-content:center;width:34px;height:
   /* ───────── 인쇄 ───────── */
   async function doPrint() {
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    if (NF && NF.print) {   // APK: 인쇄 창(window.print)이 없으므로 PDF 를 만들어 안드로이드 인쇄 창으로 보낸다
+      try {
+        const files = await makeFiles('pdf'), bl = files[0].blob;
+        const id = NF.begin('print.pdf', 'application/pdf', 'cache');
+        if (!id || /^ERR/.test(id)) throw new Error(id);
+        for (let o = 0; o < bl.size; o += 384 * 1024) { if (!NF.chunk(id, await blobB64(bl.slice(o, o + 384 * 1024)))) throw new Error('chunk'); }
+        const path = NF.end(id); if (/^ERR/.test(path)) throw new Error(path);
+        unbusy(); NF.print(path, safeName());
+      } catch (e) { unbusy(); toast('인쇄를 시작하지 못했습니다.'); }
+      return;
+    }
     const root = $('printRoot'); root.innerHTML = '';
     busy('인쇄 준비 중…');
     try {

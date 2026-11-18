@@ -52,7 +52,7 @@ final class ScanExtra {
         OutputStream os;
         Uri uri;          // 다운로드 폴더(MediaStore) 항목
         File file;        // 캐시·구형 기기 저장 파일
-        String name;
+        String name, folder = "SIM Scan";
         boolean pending;
     }
 
@@ -70,10 +70,19 @@ final class ScanExtra {
 
         /** 저장 시작. mode: "download"(다운로드/SIM Scan 폴더) 또는 "cache"(인쇄용 임시 파일). 반환: 작업 번호 (실패하면 "ERR...") */
         @JavascriptInterface
-        public synchronized String begin(String name, String mime, String mode) {
+        public synchronized String begin(String name, String mime, String mode) { return open(name, mime, mode, "SIM Scan"); }
+
+        /** 다른 도구(SIM Note 등)가 자기 이름의 하위 폴더(다운로드/<folder>)에 저장할 때 쓴다 */
+        @JavascriptInterface
+        public synchronized String beginIn(String name, String mime, String folder) {
+            String f = folder == null ? "" : folder.replaceAll("[\\\\/:*?\"<>|\\x00-\\x1f]", "_").trim();
+            return open(name, mime, "download", f.isEmpty() ? "SIM Scan" : f);
+        }
+
+        private String open(String name, String mime, String mode, String folder) {
             try {
                 Out o = new Out();
-                o.name = clean(name);
+                o.name = clean(name); o.folder = folder;
                 if ("cache".equals(mode)) {
                     o.file = new File(act.getCacheDir(), "scan-" + System.nanoTime() + "-" + o.name);
                     o.os = new FileOutputStream(o.file);
@@ -82,14 +91,14 @@ final class ScanExtra {
                     ContentValues cv = new ContentValues();
                     cv.put(MediaStore.MediaColumns.DISPLAY_NAME, o.name);
                     cv.put(MediaStore.MediaColumns.MIME_TYPE, mime == null || mime.isEmpty() ? "application/octet-stream" : mime);
-                    cv.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/SIM Scan");
+                    cv.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + folder);
                     cv.put(MediaStore.MediaColumns.IS_PENDING, 1);
                     o.uri = cr.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
                     if (o.uri == null) return "ERR:insert";
                     o.pending = true;
                     o.os = cr.openOutputStream(o.uri);
                 } else {
-                    File dir = new File(act.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "SIM Scan");
+                    File dir = new File(act.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), folder);
                     dir.mkdirs();
                     o.file = new File(dir, o.name);
                     o.os = new FileOutputStream(o.file);
@@ -127,7 +136,7 @@ final class ScanExtra {
                     ContentValues cv = new ContentValues();
                     cv.put(MediaStore.MediaColumns.IS_PENDING, 0);
                     act.getContentResolver().update(o.uri, cv, null, null);
-                    return "Download/SIM Scan/" + o.name;
+                    return "Download/" + o.folder + "/" + o.name;
                 }
                 return o.file != null ? o.file.getAbsolutePath() : o.name;
             } catch (Exception e) {

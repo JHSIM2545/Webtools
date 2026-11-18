@@ -97,6 +97,13 @@ public class PadActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        // 팝업이 떠 있으면 팝업만 닫는다(ui-guard.js)
+        try {
+            web.evaluateJavascript("(function(){try{return window.__simPopupBack&&window.__simPopupBack()?1:0}catch(e){return 0}})()", v -> { if (!"1".equals(v)) leavePad(); });
+        } catch (Exception e) { leavePad(); }
+    }
+
+    private void leavePad() {
         // 뒤로가기로 닫히지 않게 (차량 연결 유지) — 런처를 앞으로 가져오고 이 창은 아래에 살려 둔다
         Intent i = getPackageManager().getLaunchIntentForPackage(getPackageName());
         if (i != null) { i.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT); startActivity(i); }

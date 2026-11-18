@@ -134,4 +134,27 @@
   document.addEventListener('mousemove', dragMove, true);
   document.addEventListener('touchmove', dragMove, { capture: true, passive: false });
   ['mouseup', 'touchend', 'touchcancel', 'blur'].forEach(t => window.addEventListener(t, dragEnd, true));
+
+  /* ── 폰의 뒤로가기 버튼 ──
+     앱(MainActivity)이 뒤로가기를 누르면 먼저 이 함수를 부른다. 팝업이 떠 있으면 맨 위 팝업만 닫고 true 를 돌려줘
+     화면·앱은 그대로 둔다. 팝업이 없으면 false → 앱이 평소처럼 이전 화면/런처로 나간다.
+     닫는 순서: ① 페이지가 'simpopupclose' 를 받아 직접 처리(preventDefault) ② 팝업 안의 닫기·취소 버튼 ③ dialog.close() ④ 바깥(배경) 눌러 닫기 */
+  const CLOSE_SEL = '[data-close],[data-dismiss],[aria-label="닫기"],[aria-label="Close"],[title="닫기"],.close,.x,.cls,#close,[id$="Close"],[id$="close"],[id^="close"],[id^="cancel"],[data-p="cancel"],[data-a="cancel"],[data-a="mcancel"],[data-a="sclose"],[data-a="close"]';
+  const CLOSE_TXT = /^(닫기|닫음|취소|아니오|나중에|×|✕|✖|x|X)$/;
+  const clickable = b => b && !b.disabled && b.getClientRects().length;
+  window.__simPopupBack = () => {
+    try {
+      const top = shown().sort((a, b) => z(b) - z(a))[0];
+      if (!top) return false;
+      if (isBusy(top)) return true;                                   // 처리 중 표시는 닫을 수 없으니 뒤로가기만 삼킨다
+      const ev = new CustomEvent('simpopupclose', { bubbles: true, cancelable: true });
+      if (!top.dispatchEvent(ev)) return true;                        // ① 페이지가 직접 처리
+      const btn = [...top.querySelectorAll(CLOSE_SEL)].find(clickable) ||
+        [...top.querySelectorAll('button,[role="button"],a')].find(b => clickable(b) && CLOSE_TXT.test((b.textContent || '').trim()));
+      if (btn) { btn.click(); return true; }                          // ②
+      if (top.tagName === 'DIALOG' && top.close) { top.close(); return true; }   // ③
+      top.click();                                                    // ④ 배경을 눌러 닫는 팝업
+      return true;
+    } catch (e) { return false; }
+  };
 })();

@@ -545,6 +545,16 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
         if (customView != null) { web.getWebChromeClient().onHideCustomView(); return; }
+        // 팝업이 떠 있으면 팝업만 닫고 끝(ui-guard.js 의 __simPopupBack). 없을 때만 화면/앱이 뒤로 간다
+        try {
+            web.evaluateJavascript("(function(){try{return window.__simPopupBack&&window.__simPopupBack()?1:0}catch(e){return 0}})()", v -> {
+                if ("1".equals(v)) return;
+                goBackOrExit();
+            });
+        } catch (Exception e) { goBackOrExit(); }
+    }
+
+    private void goBackOrExit() {
         if (web.canGoBack()) { web.goBack(); return; }
         if (isLauncher) moveTaskToBack(true);
         else openLauncher();

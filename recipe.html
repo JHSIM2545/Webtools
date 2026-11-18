@@ -324,11 +324,11 @@ async function ai(payload, ms, signal) {
     const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), ms || 60000);
     if (signal) signal.addEventListener('abort', () => ctl.abort());
     try {
-      const r = await fetch(FN, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ss.access_token }, body: JSON.stringify(payload) });
+      const r = await fetch(FN, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ss.access_token }, body: JSON.stringify(Object.assign({ phone: (localStorage.getItem('SIMAS_AI_PHONE') || '') }, payload)) });
       const j = await r.json().catch(() => ({}));
       if (r.ok) return j;
       if (r.status === 429 && j.error === 'rate') { await sleep(900); continue; }
-      const m = { page: '이 주소의 페이지를 읽지 못했어요 (로그인이 필요하거나 막혀 있어요)', empty_page: '페이지에서 읽을 내용이 없어요', quota: 'AI 사용 한도에 도달했어요', no_recipe: '공유하신 링크에는 레시피 정보가 없습니다', forbidden: '로그인이 만료됐어요. 런처에서 다시 로그인해 주세요', ai: 'AI가 레시피를 만들지 못했어요. 잠시 뒤 다시 시도해 주세요' };
+      const m = { page: '이 주소의 페이지를 읽지 못했어요 (로그인이 필요하거나 막혀 있어요)', empty_page: '페이지에서 읽을 내용이 없어요', quota: 'AI 사용 한도에 도달했어요', no_recipe: '공유하신 링크에는 레시피 정보가 없습니다', forbidden: '로그인이 만료됐거나 AI 사용 번호가 등록되지 않았어요. 런처 ⋯ → AI 연결 설정에서 번호를 확인해 주세요',limit: '오늘 AI 사용 한도를 넘었어요. 내일 다시 시도해 주세요', ai: 'AI가 레시피를 만들지 못했어요. 잠시 뒤 다시 시도해 주세요' };
       const er = new Error(m[j.error] || 'AI 응답 실패 (' + r.status + ')'); er.code = j.error; throw er;
     } catch (e) { if (e && e.name === 'AbortError') { if (signal && signal.aborted) throw new Error('취소했어요'); throw new Error('응답이 너무 늦어요'); } if (e instanceof TypeError) throw new Error('네트워크 연결 실패'); throw e; }
     finally { clearTimeout(to); }
@@ -684,7 +684,7 @@ function ttsFetch(text) {
     const ss = await session(); if (!ss) return null;
     let r, j = {};
     for (let k = 0; k < 3; k++) {
-      try { r = await fetch(FN.replace('recipe-ai', 'recipe-tts'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ss.access_token }, body: JSON.stringify({ text, voice: 'Kore' }) }); j = await r.json().catch(() => ({})); } catch (e) { r = null; }
+      try { r = await fetch(FN.replace('recipe-ai', 'recipe-tts'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ss.access_token }, body: JSON.stringify({ text, voice: 'Kore', phone: (localStorage.getItem('SIMAS_AI_PHONE') || '') }) }); j = await r.json().catch(() => ({})); } catch (e) { r = null; }
       if (r && r.ok) break; if (r && r.status === 429 && j.error !== 'quota') { await sleep(1000); continue; } break;
     }
     if (!r || !r.ok || !j.data) { if (!ttsWarned) { ttsWarned = true; toast('음성을 가져오지 못했어요 (' + (j.error === 'quota' ? 'AI 한도' : '네트워크') + '). 화면 글을 따라가 주세요', 4000); } return null; }

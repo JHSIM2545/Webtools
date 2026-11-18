@@ -344,11 +344,16 @@ async function initMap() {
 
 /* 지도 위 표시: 저장한 장소(공통 핀 이미지) / 검색 결과(번호) / 기준 장소 / 내 위치 */
 let savedMk = new Map(), resMk = [], anchorOv = null, meOv = null;
+// 선택된 탭에 따라 지도에 보일 저장 장소: 내 장소=전체, 즐겨찾기=즐겨찾기만, 검색 결과=저장 장소 숨김(검색 결과만 표시)
+function visiblePlaces() {
+  if (tab === 'res') return [];
+  return places.filter(p => (tab !== 'fav' || p.fav) && (!catFilter || p.cat === catFilter));
+}
 function refreshMarkers() {
   if (!map) return;
   savedMk.forEach(m => m.setMap(null)); savedMk.clear();
   const img = new kakao.maps.MarkerImage('pin-icon.svg', new kakao.maps.Size(30, 30), { offset: new kakao.maps.Point(15, 30) });
-  places.forEach(p => {
+  visiblePlaces().forEach(p => {
     if (!isFinite(p.lat) || !isFinite(p.lng)) return;
     const m = new kakao.maps.Marker({ position: LL(p.lat, p.lng), image: img, title: p.name, map });
     kakao.maps.event.addListener(m, 'click', () => openDetail(p.id));
@@ -357,11 +362,20 @@ function refreshMarkers() {
 }
 function fitSaved(initial) {
   if (!map) return;
-  const pts = places.filter(p => isFinite(p.lat) && isFinite(p.lng));
+  const pts = visiblePlaces().filter(p => isFinite(p.lat) && isFinite(p.lng));
   if (!pts.length) return;
   if (initial && myPos) return;
   const b = new kakao.maps.LatLngBounds(); pts.forEach(p => b.extend(LL(p.lat, p.lng)));
   try { map.setBounds(b, 70, 70, 70, 70); } catch (e) {}
+}
+function syncResultVisibility() {   // 검색 결과 표시는 '검색 결과' 탭에서만
+  if (!map) return; const m = tab === 'res' ? map : null;
+  resMk.forEach(o => o.setMap(m)); if (anchorOv) anchorOv.setMap(m);
+}
+function fitResults() {
+  if (!map || !RES || (!RES.items.length && !RES.anchor)) return;
+  const b = new kakao.maps.LatLngBounds(); if (RES.anchor) b.extend(LL(RES.anchor.lat, RES.anchor.lng)); RES.items.forEach(r => b.extend(LL(r.lat, r.lng)));
+  try { map.setBounds(b, 60, 60, 60, 60); } catch (e) {}
 }
 function clearResultMarks() { resMk.forEach(o => o.setMap(null)); resMk = []; if (anchorOv) { anchorOv.setMap(null); anchorOv = null; } }
 function drawResultMarks(anchor, items) {
@@ -515,7 +529,7 @@ async function runSearch(raw) {
 let tab = 'my', catFilter = '', sortBy = 'recent';
 function setDock(n) { const d = $('dock'); d.classList.remove('s0', 's1', 's2'); d.classList.add('s' + n); }
 function dockLevel() { const d = $('dock'); return d.classList.contains('s0') ? 0 : d.classList.contains('s2') ? 2 : 1; }
-function showTab(t) { tab = t; $('tMy').classList.toggle('on', t === 'my'); $('tFav').classList.toggle('on', t === 'fav'); $('tRes').classList.toggle('on', t === 'res'); if (t === 'res') renderRes(); else renderMy(); }
+function showTab(t) { tab = t; $('tMy').classList.toggle('on', t === 'my'); $('tFav').classList.toggle('on', t === 'fav'); $('tRes').classList.toggle('on', t === 'res'); if (t === 'res') renderRes(); else renderMy(); refreshMarkers(); syncResultVisibility(); if (t === 'res') fitResults(); else fitSaved(); }
 $('tMy').onclick = () => { showTab('my'); if (dockLevel() === 0) setDock(1); };
 $('tFav').onclick = () => { showTab('fav'); if (dockLevel() === 0) setDock(1); };
 $('tRes').onclick = () => { showTab('res'); if (dockLevel() === 0) setDock(1); };
@@ -573,7 +587,7 @@ function focusResult(i) {
 $('dbody').addEventListener('click', e => {
   if (e.target.closest('[data-nav]')) return;
   const fv = e.target.closest('[data-fav]'); if (fv) { toggleFav(fv.dataset.fav); return; }
-  const cc = e.target.closest('[data-cat]'); if (cc) { catFilter = cc.dataset.cat; renderMy(); return; }
+  const cc = e.target.closest('[data-cat]'); if (cc) { catFilter = cc.dataset.cat; renderMy(); refreshMarkers(); fitSaved(); return; }
   if (e.target.closest('#sortBtn')) { if (sortBy === 'recent' && !myPos) { locateMe().then(p => { if (p) { sortBy = 'dist'; renderMy(); } }); return; } sortBy = sortBy === 'dist' ? 'recent' : 'dist'; renderMy(); return; }
   if (e.target.closest('#chgAnchor')) { openAnchorPick(); return; }
   if (e.target.closest('#moreBtn')) { try { RES.pg.nextPage(); } catch (er) {} return; }

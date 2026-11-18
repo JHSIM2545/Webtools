@@ -95,7 +95,7 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
 #busy.show{display:flex}
 #busy div{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 26px;max-width:320px;line-height:1.6}
 #imgov{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;padding:12px}
-#imgov.on{display:flex}#imgov img{max-width:100%;max-height:100%;border-radius:8px}
+#imgov.on{display:flex}#imgov img{width:100%;height:100%;object-fit:contain;border-radius:8px}   /* 작은 사진도 화면 가득 키워서 */
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222a3d;border:1px solid var(--line);padding:9px 16px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:90vw;text-align:center}
 .toast.show{opacity:1}
 /* 명함 인식 화면 (TA 관리 앱과 같은 흐름: 촬영 → 크롭 → 인식 → 저장) */
@@ -597,13 +597,14 @@ function thumb(file, size) {
     const url = URL.createObjectURL(file), im = new Image();
     im.onload = () => {
       const s = Math.min(im.naturalWidth, im.naturalHeight), sx = (im.naturalWidth - s) / 2, sy = (im.naturalHeight - s) / 2;
+      size = Math.max(1, Math.min(size, s));   // 원본보다 키우지 않는다
       const c = document.createElement('canvas'); c.width = c.height = size; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, size, size);
       x.drawImage(im, sx, sy, s, s, 0, 0, size, size); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.82));
     };
     im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('이미지를 읽을 수 없습니다')); }; im.src = url;
   });
 }
-$('photoFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { S.ed.photo = await thumb(f, 256); edMedia(); } catch (er) { toast(er.message); } });
+$('photoFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { S.ed.photo = await thumb(f, 720); edMedia(); } catch (er) { toast(er.message); } });
 function readForm() { const c = Object.assign({}, S.ed); Object.keys(FIELD).forEach(k => { c[k] = ($(FIELD[k]).value || '').trim(); }); ['mobile', 'tel', 'fax'].forEach(k => { if (c[k]) c[k] = ta4FmtPhone(c[k]) || c[k]; }); return c; }
 $('edCancel').onclick = back;
 $('edSave').onclick = async () => {

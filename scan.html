@@ -700,25 +700,23 @@ function targetSize(o, longSide) {
   if (o.ratio === 'auto') { const z = aspectZhang(P, o.src.width / 2, o.src.height / 2); if (z && z > edgeR * 0.65 && z < edgeR * 1.55) r = z; }
   else if (o.ratio === 'a4') r = edgeR >= 1 ? 1.4142 : 1 / 1.4142;
   r = clamp(r, 0.1, 10);
-  const nat = Math.max(wT, wB, hL, hR), L = Math.min(longSide, Math.max(nat, longSide >= 1500 ? 1600 : 0));
+  const nat = Math.max(wT, wB, hL, hR), L = Math.min(longSide, Math.max(nat, longSide >= 1500 ? 2000 : 0));
   let W, H; if (r >= 1) { W = L; H = L / r; } else { H = L; W = L * r; }
   return { W: Math.max(40, Math.round(W)), H: Math.max(40, Math.round(H)) };
 }
-function warp(o, W, H) {
+function warp(o, W, H) {                      // 원근 보정 + 쌍삼차(캐트멀-롬) 보간: 쌍선형보다 글자 획이 덜 번진다
   const sw = o.src.width, sh = o.src.height; if (!o.data) o.data = o.src.getContext('2d').getImageData(0, 0, sw, sh);
-  const sd = o.data.data, [a, b, c, dd, e, f, g, h] = quadMap(o.pts), id = new ImageData(W, H), od = id.data;
+  const sd = o.data.data, [a, b, c, dd, e, f, g, h] = quadMap(o.pts), id = new ImageData(W, H), od = id.data, wx = new Float32Array(4), wy = new Float32Array(4), xi = new Int32Array(4), yi = new Int32Array(4);
+  const cr = (t, w) => { const t2 = t * t, t3 = t2 * t; w[0] = -0.5 * t3 + t2 - 0.5 * t; w[1] = 1.5 * t3 - 2.5 * t2 + 1; w[2] = -1.5 * t3 + 2 * t2 + 0.5 * t; w[3] = 0.5 * t3 - 0.5 * t2; };
   for (let y = 0; y < H; y++) {
     const v = (y + 0.5) / H;
     for (let x = 0; x < W; x++) {
-      const u = (x + 0.5) / W, w = g * u + h * v + 1, X = (a * u + b * v + c) / w - 0.5, Y = (dd * u + e * v + f) / w - 0.5;
-      const x0 = Math.floor(X), y0 = Math.floor(Y), fx = X - x0, fy = Y - y0, i = (y * W + x) * 4;
-      const xa = clamp(x0, 0, sw - 1), xb = clamp(x0 + 1, 0, sw - 1), ya = clamp(y0, 0, sh - 1), yb = clamp(y0 + 1, 0, sh - 1);
-      const p00 = (ya * sw + xa) * 4, p10 = (ya * sw + xb) * 4, p01 = (yb * sw + xa) * 4, p11 = (yb * sw + xb) * 4;
-      const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
-      od[i] = sd[p00] * w00 + sd[p10] * w10 + sd[p01] * w01 + sd[p11] * w11;
-      od[i + 1] = sd[p00 + 1] * w00 + sd[p10 + 1] * w10 + sd[p01 + 1] * w01 + sd[p11 + 1] * w11;
-      od[i + 2] = sd[p00 + 2] * w00 + sd[p10 + 2] * w10 + sd[p01 + 2] * w01 + sd[p11 + 2] * w11;
-      od[i + 3] = 255;
+      const u = (x + 0.5) / W, w = g * u + h * v + 1, X = (a * u + b * v + c) / w - 0.5, Y = (dd * u + e * v + f) / w - 0.5, x0 = Math.floor(X), y0 = Math.floor(Y), i = (y * W + x) * 4;
+      cr(X - x0, wx); cr(Y - y0, wy);
+      for (let k = 0; k < 4; k++) { const xx = x0 - 1 + k, yy = y0 - 1 + k; xi[k] = xx < 0 ? 0 : xx > sw - 1 ? sw - 1 : xx; yi[k] = yy < 0 ? 0 : yy > sh - 1 ? sh - 1 : yy; }
+      let r = 0, gg = 0, bb = 0;
+      for (let m = 0; m < 4; m++) { const row = yi[m] * sw, wm = wy[m]; for (let n = 0; n < 4; n++) { const p = (row + xi[n]) * 4, ww = wm * wx[n]; r += sd[p] * ww; gg += sd[p + 1] * ww; bb += sd[p + 2] * ww; } }
+      od[i] = r < 0 ? 0 : r > 255 ? 255 : r; od[i + 1] = gg < 0 ? 0 : gg > 255 ? 255 : gg; od[i + 2] = bb < 0 ? 0 : bb > 255 ? 255 : bb; od[i + 3] = 255;
     }
   }
   return id;
@@ -727,24 +725,32 @@ const smooth = t => t * t * (3 - 2 * t);
 function enhance(id, filter, sharp, stain) {
   const W = id.width, H = id.height, o = id.data, N = W * H;
   if (filter !== 'orig') {
-    // ① 조명 얼룩 제거: 글자를 지운 '종이 바탕'을 추정(작게 줄여 밝은 값 확장 → 흐림)해서 나눈다
+    // ① 조명 불균일 보정: 글자를 지운 '종이 바탕 밝기'만 추정해 한 가지 배율로 나눈다(색은 건드리지 않으므로 노란 표머리·색 박스가 하얗게 날아가지 않는다)
     const sw = Math.max(8, Math.round(W / 12)), sh = Math.max(8, Math.round(H / 12));
     const full = newCanvas(W, H); full.getContext('2d').putImageData(id, 0, 0);
     const s = newCanvas(sw, sh), sg = s.getContext('2d', { willReadFrequently: true }); sg.imageSmoothingQuality = 'high'; sg.drawImage(full, 0, 0, sw, sh);
-    const sd = sg.getImageData(0, 0, sw, sh).data, bgc = [];
-    for (let ch = 0; ch < 3; ch++) { const f = new Float32Array(sw * sh); for (let i = 0; i < sw * sh; i++) f[i] = sd[i * 4 + ch]; bgc.push(boxBlur(maxFilter(f, sw, sh, 3), sw, sh, 1, 2)); }
-    const bi = sg.createImageData(sw, sh); for (let i = 0; i < sw * sh; i++) { bi.data[i * 4] = bgc[0][i]; bi.data[i * 4 + 1] = bgc[1][i]; bi.data[i * 4 + 2] = bgc[2][i]; bi.data[i * 4 + 3] = 255; }
-    sg.putImageData(bi, 0, 0);
+    const sd = sg.getImageData(0, 0, sw, sh).data, f = new Float32Array(sw * sh), rgb = [new Float32Array(sw * sh), new Float32Array(sw * sh), new Float32Array(sw * sh)];
+    for (let i = 0; i < sw * sh; i++) { f[i] = 0.299 * sd[i * 4] + 0.587 * sd[i * 4 + 1] + 0.114 * sd[i * 4 + 2]; rgb[0][i] = sd[i * 4]; rgb[1][i] = sd[i * 4 + 1]; rgb[2][i] = sd[i * 4 + 2]; }
+    const bgL = boxBlur(maxFilter(f, sw, sh, 4), sw, sh, 2, 2), bgI = sg.createImageData(sw, sh);
+    for (let i = 0; i < sw * sh; i++) { bgI.data[i * 4] = bgI.data[i * 4 + 1] = bgI.data[i * 4 + 2] = bgL[i]; bgI.data[i * 4 + 3] = 255; }
+    sg.putImageData(bgI, 0, 0);
     const bc = newCanvas(W, H), bg = bc.getContext('2d', { willReadFrequently: true }); bg.imageSmoothingEnabled = true; bg.imageSmoothingQuality = 'high'; bg.drawImage(s, 0, 0, W, H);
     const bd = bg.getImageData(0, 0, W, H).data;
-    // ② 밝기 곡선
-    const lut = new Uint8Array(256), lo = filter === 'bw' ? 92 : 52, hi = filter === 'bw' ? 192 : 226;
-    for (let x = 0; x < 256; x++) { const t = clamp((x - lo) / (hi - lo), 0, 1); lut[x] = Math.round(255 * (filter === 'bw' ? smooth(t) : filter === 'doc' ? 0.5 * t + 0.5 * smooth(t) : t)); }
-    const gray = filter === 'bw' || filter === 'gray';
+    // 종이 색 보정(색조): 가장 밝은 바탕 칸들의 평균 색을 흰색으로
+    const idx = Array.from({ length: sw * sh }, (_, i) => i).sort((a, b) => bgL[b] - bgL[a]).slice(0, Math.max(4, (sw * sh) >> 3));
+    const pc = [0, 1, 2].map(ch => { let t = 0; for (const k of idx) t += rgb[ch][k]; return t / idx.length; }), pm = Math.max(pc[0], pc[1], pc[2], 1);
+    const wb = pc.map(v => clamp(pm / Math.max(v, 40), 0.85, 1.25));
+    // ② 밝기 곡선(밝기만 바꾸고 색의 비율은 유지)
+    const bw = filter === 'bw', gray = bw || filter === 'gray', lo = bw ? 96 : 38, hi = bw ? 196 : 238;
+    const lut = new Float32Array(257);
+    for (let x = 0; x < 256; x++) { const t = clamp((x - lo) / (hi - lo), 0, 1); lut[x] = 255 * (bw ? smooth(t) : filter === 'doc' ? 0.4 * t + 0.6 * smooth(t) : t); } lut[256] = lut[255];
     for (let i = 0; i < o.length; i += 4) {
-      let r = o[i] * 255 / Math.max(bd[i], 40), g2 = o[i + 1] * 255 / Math.max(bd[i + 1], 40), b2 = o[i + 2] * 255 / Math.max(bd[i + 2], 40);
-      if (gray) r = g2 = b2 = 0.299 * r + 0.587 * g2 + 0.114 * b2;
-      o[i] = lut[r > 255 ? 255 : r | 0]; o[i + 1] = lut[g2 > 255 ? 255 : g2 | 0]; o[i + 2] = lut[b2 > 255 ? 255 : b2 | 0];
+      const gn = 255 / Math.max(bd[i], 50);
+      let r = o[i] * gn * wb[0], g2 = o[i + 1] * gn * wb[1], b2 = o[i + 2] * gn * wb[2], y = 0.299 * r + 0.587 * g2 + 0.114 * b2;
+      const yc = y > 255 ? 255 : y < 0 ? 0 : y, y0 = yc | 0, yo = lut[y0] + (lut[y0 + 1] - lut[y0]) * (yc - y0);
+      if (gray) { r = g2 = b2 = yo; }
+      else { const k = y > 1 ? yo / y : 1; r *= k; g2 *= k; b2 *= k; }
+      o[i] = r > 255 ? 255 : r < 0 ? 0 : r; o[i + 1] = g2 > 255 ? 255 : g2 < 0 ? 0 : g2; o[i + 2] = b2 > 255 ? 255 : b2 < 0 ? 0 : b2;
     }
   }
   // ②-2 얼룩·그림자 잔여 제거: 글자(잉크)와 그 주변은 건드리지 않고, 잉크가 아닌 '종이 바탕'의 옅은 얼룩만 흰색 쪽으로 보낸다
@@ -755,16 +761,21 @@ function enhance(id, filter, sharp, stain) {
     for (let i = 0; i < N; i++) {
       if (near[i] > 0.0005) continue;
       const j = i * 4, r = o[j], g = o[j + 1], b = o[j + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b), L = 0.299 * r + 0.587 * g + 0.114 * b;
-      const t = smooth(clamp((L - 140) / 75, 0, 1)) * (1 - clamp(((mx - mn) / (mx + 1)) / 0.35, 0, 1)) * k;
+      const t = smooth(clamp((L - 190) / 55, 0, 1)) * (1 - clamp(((mx - mn) / (mx + 1)) / 0.2, 0, 1)) * k;   // 거의 흰 바탕이면서 색이 없는 곳만
       if (t > 0) { o[j] = r + (255 - r) * t; o[j + 1] = g + (255 - g) * t; o[j + 2] = b + (255 - b) * t; }
     }
   }
-  // ③ 선명화 (밝기 성분만 언샤프 마스크 → 글자 윤곽이 또렷해지고 색 번짐이 없다)
-  const amount = sharp / 100 * 1.8;
+  // ③ 선명화: 밝기 성분만, 작은 반경 + 헤일로(번짐) 억제 — 결과가 주변 최소·최대를 넘지 않게 눌러서 글자 둘레에 하얀 테두리가 생기지 않는다
+  const amount = sharp / 100 * 2.0;
   if (amount > 0.01) {
     const Y = new Float32Array(N); for (let i = 0; i < N; i++) Y[i] = 0.299 * o[i * 4] + 0.587 * o[i * 4 + 1] + 0.114 * o[i * 4 + 2];
-    const B = boxBlur(Y, W, H, Math.max(1, Math.round(Math.max(W, H) / 1400)), 2);
-    for (let i = 0; i < N; i++) { const dlt = (Y[i] - B[i]) * amount, j = i * 4; o[j] += dlt; o[j + 1] += dlt; o[j + 2] += dlt; }
+    const rad = Math.max(1, Math.round(Math.max(W, H) / 1800)), B = boxBlur(Y, W, H, rad, 2), mxF = maxFilter(Y, W, H, 1), neg = new Float32Array(N); for (let i = 0; i < N; i++) neg[i] = -Y[i];
+    const mnF = maxFilter(neg, W, H, 1);
+    for (let i = 0; i < N; i++) {
+      let ny = Y[i] + (Y[i] - B[i]) * amount; const hiL = mxF[i], loL = -mnF[i]; if (ny > hiL) ny = hiL; if (ny < loL) ny = loL;
+      const dlt = ny - Y[i], j = i * 4, r = o[j] + dlt, g = o[j + 1] + dlt, b = o[j + 2] + dlt;
+      o[j] = r > 255 ? 255 : r < 0 ? 0 : r; o[j + 1] = g > 255 ? 255 : g < 0 ? 0 : g; o[j + 2] = b > 255 ? 255 : b < 0 ? 0 : b;
+    }
   }
   return id;
 }

@@ -504,7 +504,7 @@ function renderDetail() {
     '<div class="row"><button id="dBack">‹ 목록</button><div class="spacer"></div>' + (ro ? '<span class="tag">' + esc(row.owner_name || '익명') + ' 님의 레시피</span>' : '<button class="dng" id="dDel">삭제</button>') + '</div>' +
     '<div class="hero" data-pic="cover">' + picInner(row, 'cover') + '</div>' +
     '<div class="dt"><h2>' + esc(d.title) + '</h2><p>' + esc(d.desc || '') + '</p></div>' +
-    '<div class="acts"><button class="pri" id="dCook">▶ 요리 시작</button>' + (ro ? '' : '<button id="dEdit">✏️ 수정 요청</button>') + '<button id="dUndo"' + (S.prev ? '' : ' hidden') + '>↩ 되돌리기</button></div>' + share +
+    '<div class="acts"><button class="pri" id="dCook">▶ 요리 시작</button>' + (ro ? '' : '<button id="dEdit">✏️ 수정 요청</button>') + '<button id="dUndo"' + (S.prev ? '' : ' hidden') + '>↩ 되돌리기</button><button id="dPdf">📄 PDF</button></div>' + share +
     '<div class="card"><div class="row"><h3>재료</h3><div class="spacer"></div><button id="easyB" class="easy">간편용량</button><div class="step-r"><button id="sMinus">−</button><span id="sVal"></span><button id="sPlus">+</button></div></div><div class="ing" id="ingList"></div></div>' +
     '<div class="card"><h3>조리 순서</h3><div id="stepList" style="display:flex;flex-direction:column;gap:18px"></div></div>' +
     (d.tips && d.tips.length ? '<div class="card"><h3>팁</h3>' + d.tips.map(t => '<div class="tip">• ' + esc(t) + '</div>').join('') + '</div>' : '') +
@@ -518,6 +518,7 @@ function renderDetail() {
   }
   $('dUndo').onclick = undoEdit;
   $('dCook').onclick = startCook;
+  $('dPdf').onclick = exportPdf;
   $('sMinus').onclick = () => { setServ(Math.max(1, Math.round(curServ()) - 1)); };
   $('sPlus').onclick = () => { setServ(Math.round(curServ()) + 1); };
   $('easyB').onclick = () => toggleEasy();
@@ -933,6 +934,100 @@ $('cBgm').onclick = e => { e.stopPropagation(); bgmOpen(); };
 (window.simAppMenuExtra = window.simAppMenuExtra || []).push(
   { icon: '🎵', label: '배경음악', get: () => pref.bgm !== false, set: v => { pref.bgm = !!v; savePref(); bgmPaint(); bgmSync(); } },
   { icon: '🔉', label: '배경음악 볼륨 · 음성 시 낮추기', run: bgmOpen });
+
+/* ═══════ PDF 내보내기: 지금 화면의 인분·간편용량 설정 그대로, 사진 포함 A4 여러 장 ═══════ */
+const NF = window.SimFiles && typeof window.SimFiles.begin === 'function' ? window.SimFiles : null;
+const pdfStr = t => { let h = 'FEFF'; for (let i = 0; i < t.length; i++) h += t.charCodeAt(i).toString(16).padStart(4, '0'); return '<' + h + '>'; };
+async function buildPdf(list, title) {
+  const enc = new TextEncoder(), chunks = []; let len = 0; const offs = [];
+  const put = d => { const u = typeof d === 'string' ? enc.encode(d) : d; chunks.push(u); len += u.length; };
+  const obj = (n, body) => { offs[n] = len; put(n + ' 0 obj\n'); put(body); put('\nendobj\n'); };
+  put('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  const n = list.length; let next = 3; const ids = [];
+  for (let i = 0; i < n; i++) ids.push({ img: next++, cont: next++, page: next++ });
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, '<< /Type /Pages /Count ' + n + ' /Kids [' + ids.map(x => x.page + ' 0 R').join(' ') + '] >>');
+  for (let i = 0; i < n; i++) {
+    const p = list[i], jp = new Uint8Array(await p.blob.arrayBuffer()), x = ids[i], pw = 595, ph = 842;
+    offs[x.img] = len; put(x.img + ' 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + p.w + ' /Height ' + p.h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jp.length + ' >>\nstream\n'); put(jp); put('\nendstream\nendobj\n');
+    const cs = 'q ' + pw + ' 0 0 ' + ph + ' 0 0 cm /Im0 Do Q';
+    obj(x.cont, '<< /Length ' + cs.length + ' >>\nstream\n' + cs + '\nendstream');
+    obj(x.page, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + pw + ' ' + ph + '] /Resources << /XObject << /Im0 ' + x.img + ' 0 R >> >> /Contents ' + x.cont + ' 0 R >>');
+  }
+  const infoId = next++; obj(infoId, '<< /Title ' + pdfStr(title || 'SIM Recipe') + ' /Producer ' + pdfStr('SIM Recipe') + ' >>');
+  const xref = len; put('xref\n0 ' + next + '\n0000000000 65535 f \n');
+  for (let i = 1; i < next; i++) put(String(offs[i]).padStart(10, '0') + ' 00000 n \n');
+  put('trailer\n<< /Size ' + next + ' /Root 1 0 R /Info ' + infoId + ' 0 R >>\nstartxref\n' + xref + '\n%%EOF');
+  return new Blob(chunks, { type: 'application/pdf' });
+}
+async function pdfImage(url) {   // CORS 로 받을 수 있는 사진만 (못 받으면 건너뜀)
+  if (!url) return null;
+  try { const r = await fetch(url, { referrerPolicy: 'no-referrer' }); if (!r.ok) return null; return await createImageBitmap(await r.blob()); } catch (e) { return null; }
+}
+async function makeRecipePdf(row) {
+  const d = row.data, W = 1240, H = 1754, M = 90, CW = W - M * 2, FONT = '"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo","Nanum Gothic",sans-serif';
+  const pages = []; let cv, cx, y;
+  const newPage = () => { cv = document.createElement('canvas'); cv.width = W; cv.height = H; cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H); cx.textBaseline = 'top'; pages.push(cv); y = M; };
+  const need = h => { if (y + h > H - M - 40) newPage(); };
+  const font = (px, b) => { cx.font = (b ? '700 ' : '400 ') + px + 'px ' + FONT; };
+  const wrap = (t, px, maxW, b) => { font(px, b); const out = []; String(t).split('\n').forEach(par => { let line = ''; for (const ch of par) { if (cx.measureText(line + ch).width > maxW && line) { out.push(line); line = ch.trim() ? ch : ''; } else line += ch; } out.push(line); }); return out; };
+  const text = (t, px, color, b, lh, x0, maxW) => { const ls = wrap(t, px, maxW || CW, b); lh = lh || Math.round(px * 1.5); ls.forEach(l => { need(lh); font(px, b); cx.fillStyle = color; cx.fillText(l, x0 == null ? M : x0, y); y += lh; }); };
+  const photo = (bm, maxH, maxW) => {
+    if (!bm) return; maxW = maxW || CW; const k = Math.min(maxW / bm.width, maxH / bm.height, 1), w = Math.round(bm.width * k), h = Math.round(bm.height * k);
+    need(h + 24); const x0 = M + Math.round((CW - w) / 2); cx.save(); cx.beginPath(); cx.roundRect(x0, y, w, h, 18); cx.clip(); cx.drawImage(bm, x0, y, w, h); cx.restore(); y += h + 24;
+  };
+  const head = (t) => { need(120); y += 18; font(36, true); cx.fillStyle = '#d9480f'; cx.fillText(t, M, y); y += 52; cx.fillStyle = '#e5e5e5'; cx.fillRect(M, y - 6, CW, 3); y += 16; };
+  const plain = h => { const t = document.createElement('div'); t.innerHTML = h; return (t.textContent || '').replace(/\s+/g, ' ').trim(); };
+  newPage();
+  const sv = Math.round(curServ() * 10) / 10;
+  text(d.title || '레시피', 58, '#1a1a1a', true, 76); y += 6;
+  if (d.desc) { text(d.desc, 28, '#555', false, 42); y += 6; }
+  text(sv + '인분 기준' + (pref.easy ? ' · 간편용량(밥숟가락·종이컵)' : '') + (row.owner_name && S.ro ? ' · ' + row.owner_name + ' 님의 레시피' : ''), 24, '#888', false, 36); y += 14;
+  photo(await pdfImage(d.cover || d.coverAlt), 640);
+  head('재료');
+  for (const g of d.ingredients || []) {
+    need(46); const q = qty(g) + (g.unverified ? ' *' : ''); font(30, false); cx.fillStyle = '#222'; cx.fillText(g.name + (g.note ? ' (' + g.note + ')' : ''), M + 10, y);
+    font(30, true); const qw = cx.measureText(q).width; cx.fillText(q, W - M - 10 - qw, y); y += 46; cx.fillStyle = '#eee'; cx.fillRect(M + 10, y - 6, CW - 20, 2);
+  }
+  if ((d.ingredients || []).some(g => g.unverified)) { y += 6; text('* 원본에 양이 없어 AI가 추정한 값이에요', 22, '#999', false, 32); }
+  head('조리 순서');
+  const steps = d.steps || [];
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i], bm = await pdfImage(s.img); need(90 + (bm ? 200 : 0));
+    font(34, true); cx.fillStyle = '#1a1a1a'; cx.fillText((i + 1) + '. ' + s.title, M, y); y += 52;
+    photo(bm, 480, CW * 0.8);
+    text(plain(stepText(d, s, false)), 29, '#222', false, 44);
+    if (s.timerSec) text('⏱ 약 ' + (s.timerSec >= 60 ? Math.round(s.timerSec / 60) + '분' : s.timerSec + '초'), 24, '#d9480f', true, 36);
+    const mine = (d.photos && d.photos.steps && d.photos.steps[s.k]) || []; for (const u of mine.slice(0, 2)) photo(await pdfImage(u), 420, CW * 0.7);
+    y += 22;
+  }
+  if (d.tips && d.tips.length) { head('팁'); d.tips.forEach(t => text('• ' + t, 28, '#222', false, 42)); }
+  const fin = (d.photos && d.photos.final) || [];
+  if (fin.length) { head('완성 사진'); for (const u of fin.slice(0, 4)) photo(await pdfImage(u), 600); }
+  if (d.source && (d.source.url || d.source.title)) { y += 10; text('출처: ' + (d.source.title || '') + (d.source.url ? '  ' + d.source.url : ''), 22, '#888', false, 32); }
+  const list = [];
+  for (let i = 0; i < pages.length; i++) {
+    const c = pages[i], g = c.getContext('2d'); g.textBaseline = 'top'; g.font = '400 22px ' + FONT; g.fillStyle = '#aaa';
+    g.fillText('SIM Recipe', M, H - 70); const pn = (i + 1) + ' / ' + pages.length; g.fillText(pn, W - M - g.measureText(pn).width, H - 70);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88)); list.push({ blob, w: W, h: H });
+  }
+  return buildPdf(list, d.title);
+}
+async function exportPdf() {
+  const row = S.row; if (!row) return; busy(true, 'PDF 만드는 중… (사진이 많으면 조금 걸려요)');
+  try {
+    const pdf = await makeRecipePdf(row), name = String(row.data.title || '레시피').replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').trim().slice(0, 60) + '.pdf';
+    if (NF) {
+      const id = NF.begin(name, 'application/pdf', 'download'); if (!id || /^ERR/.test(id)) throw new Error('저장 시작 실패');
+      const u = new Uint8Array(await pdf.arrayBuffer()), CH = 3 * 120000, b64 = a => { let t = ''; for (let i = 0; i < a.length; i += 0x2000) t += String.fromCharCode.apply(null, a.subarray(i, i + 0x2000)); return btoa(t); };
+      for (let o = 0; o < u.length; o += CH) { if (!NF.chunk(id, b64(u.subarray(o, o + CH)))) { NF.end(id); throw new Error('저장 실패'); } await sleep(0); }
+      const r = NF.end(id); if (!r || /^ERR/.test(r)) throw new Error('저장 실패');
+      busy(false); await noticeBox('PDF로 저장했어요\n' + r);
+    } else {
+      const url = URL.createObjectURL(pdf), a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000); busy(false); toast('PDF를 내려받았어요');
+    }
+  } catch (e) { busy(false); toast('PDF를 만들지 못했어요: ' + (e.message || e), 4000); }
+}
 $('cX').onclick = () => closeCook(false);
 $('cPrev').onclick = () => goto(G.i - 1, true);
 $('cNext').onclick = () => goto(G.i + 1, true);

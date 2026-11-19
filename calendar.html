@@ -62,7 +62,8 @@ textarea{resize:vertical}
 .hn{font-size:9px;height:11px;line-height:11px;color:var(--sun);text-align:center;overflow:hidden;white-space:nowrap;text-overflow:clip}
 .chips{margin-top:1px}
 .chip{font-size:9px;line-height:1.25;margin-top:1px;border-radius:3px;padding:0 1px;letter-spacing:-.2px;overflow:hidden;white-space:nowrap;text-overflow:clip;color:#10131a;font-weight:600;background:var(--c);background:color-mix(in srgb,var(--c) 62%,#fff)}
-.chip.l2{line-height:1.08;padding:0 1px;white-space:normal;word-break:break-all;display:block;max-height:2.16em}
+.chip.l2{line-height:1.08;padding:0 1px;white-space:normal;word-break:break-all;display:block;max-height:2.24em}
+.chip .ce{display:inline-block;height:1em;line-height:1;vertical-align:top;font-size:.95em}
 .more{font-size:9px;line-height:1.3;margin-top:1px;color:var(--sub);text-align:left;padding-left:1px}
 /* 화면이 좌우로 긴 경우(차량 디스플레이·가로 모드·PC): 달력은 왼쪽, 선택한 날의 일정 목록은 오른쪽 */
 @media (min-aspect-ratio:13/10) and (min-width:600px){
@@ -313,7 +314,9 @@ function loadTypes() {
 let TYPES = loadTypes();
 const saveTypes = () => { ls.set('simcal_types', JSON.stringify(TYPES)); syncSoon(); };
 const typeById = id => id ? TYPES.find(t => t.id === id) : null;
-const evTitle = ev => ev.title + (ev.emoji ? ' ' + ev.emoji : '');   // 아이콘은 제목 맨 뒤
+const evTitle = ev => ev.title + (ev.emoji ? ' ' + ev.emoji : '');
+/* 달력 칸 일정 상자용: 이모지를 따로 감싸 줄 높이가 커지지 않게 한다(2번째 줄이 잘리던 원인) */
+const chipTxt = ev => esc(ev.title) + (ev.emoji ? ' <span class="ce">' + esc(ev.emoji) + '</span>' : '');   // 아이콘은 제목 맨 뒤
 
 /* ───────── 공휴일 (양력 고정 + 음력 계산 + 대체공휴일). 임시공휴일·선거일은 포함하지 않음 ───────── */
 const HCACHE = {};
@@ -525,7 +528,7 @@ function fitMonth(root, mbx) {
   root.querySelectorAll('.cell').forEach(c => {
     const list = mbx.get(c.dataset.d) || [], box = c.querySelector('.chips'); box.innerHTML = '';
     if (!list.length) return;
-    const mk = (n, two) => { let h = ''; for (let i = 0; i < n; i++) h += '<div class="chip' + (two ? ' l2' : '') + '" style="--c:' + list[i].ev.color + '">' + esc(evTitle(list[i].ev)) + '</div>'; if (list.length > n) h += '<div class="more">+' + (list.length - n) + '</div>'; return h; };
+    const mk = (n, two) => { let h = ''; for (let i = 0; i < n; i++) h += '<div class="chip' + (two ? ' l2' : '') + '" style="--c:' + list[i].ev.color + '">' + chipTxt(list[i].ev) + '</div>'; if (list.length > n) h += '<div class="more">+' + (list.length - n) + '</div>'; return h; };
     const fits = () => c.scrollHeight <= c.clientHeight + 1;
     box.innerHTML = mk(list.length, true); if (fits()) return;
     box.innerHTML = mk(list.length, false); if (fits()) return;

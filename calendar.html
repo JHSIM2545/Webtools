@@ -32,11 +32,17 @@ textarea{resize:vertical}
 .nlabel{flex:1;text-align:center;font-size:18px;font-weight:700;position:relative;padding:6px 0}
 .nlabel input{position:absolute;inset:0;opacity:0;width:100%;height:100%;padding:0;cursor:pointer}
 .tabs{display:flex;background:var(--panel);border-bottom:1px solid var(--line)}
-/* 월·주·일·목록 구분은 맨 위 메뉴 줄로 올렸다(달력이 그만큼 커진다) */
-.bar .tabs{flex:1;min-width:0;background:none;border-bottom:none;gap:2px}
-.bar .tabs button{padding:7px 0;font-size:14px;border-bottom:2px solid transparent}
-.bar h1{display:none}
-@media (min-width:760px){.bar h1{display:block;flex:none}}
+/* ⋯ 메뉴: 일정 도구는 위쪽, 월·주·일·목록 보기 전환은 맨 아래 */
+.mwrap{position:relative}
+#calMenu{position:absolute;right:0;top:calc(100% + 8px);z-index:60;min-width:236px;background:var(--panel2,var(--panel));border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 8px 24px #0009}
+#calMenu[hidden]{display:none}
+#calMenu .mi{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:11px 12px;border:0;background:none;color:inherit;font:inherit;font-size:15px;border-radius:8px;text-decoration:none;cursor:pointer}
+#calMenu .mi:active{background:rgba(127,127,127,.22)}
+#calMenu .msep{height:1px;background:var(--line);margin:4px 6px}
+#calMenu .mview small{display:block;color:var(--sub);font-size:11px;padding:4px 8px 2px}
+#calMenu .tabs{display:flex;gap:4px;background:none;border:none;padding:2px 4px 4px}
+#calMenu .tabs button{flex:1;padding:9px 0;font-size:14px;border:1px solid var(--line);border-radius:8px}
+#calMenu .tabs button.on{background:rgba(79,140,255,.18);border-color:var(--accent);color:var(--accent)}
 .tabs button{flex:1;border:none;border-radius:0;background:none;padding:11px 0;font-weight:700;color:var(--sub);border-bottom:2px solid transparent}
 .tabs button.on{color:var(--accent);border-bottom-color:var(--accent)}
 #view{flex:1;min-height:0;position:relative;width:100%;max-width:980px;margin:0 auto}
@@ -171,16 +177,24 @@ textarea{resize:vertical}
 <div class="bar">
   <a class="back" href="index.html" title="SIM Tools">‹</a>
   <h1>SIM <span>Calendar</span></h1>
-  <div class="tabs" id="tabs">
-    <button data-v="month">월</button>
-    <button data-v="week">주</button>
-    <button data-v="day">일</button>
-    <button data-v="list">목록</button>
-  </div>
   <button class="txtbtn" id="btnToday" title="오늘로 이동">오늘</button>
-  <button class="iconbtn" id="btnIcs" title="일정 가져오기·내보내기 (ICS · 삼성 캘린더 등)">📥</button><input type="file" id="icsFile" accept=".ics,.ical,.ifb,text/calendar,application/ics,text/x-vcalendar" multiple hidden>
-  <button class="iconbtn" id="btnTypes" title="일정 종류 관리">🏷️</button>
-  <a class="iconbtn" href="assistant.html" title="음성 비서로 일정 추가">🎤</a>
+  <div class="mwrap">
+    <button class="iconbtn" id="btnMore" aria-label="메뉴" aria-haspopup="true">⋯</button>
+    <div id="calMenu" data-simmenu hidden>
+      <button class="mi" id="btnIcs" title="일정 가져오기·내보내기 (ICS · 삼성 캘린더 등)">📥 <span>일정 가져오기·내보내기</span></button><input type="file" id="icsFile" accept=".ics,.ical,.ifb,text/calendar,application/ics,text/x-vcalendar" multiple hidden>
+      <button class="mi" id="btnTypes">🏷️ <span>일정 종류 관리</span></button>
+      <a class="mi" href="assistant.html">🎤 <span>음성 비서로 일정 추가</span></a>
+      <div class="msep"></div>
+      <div class="mview"><small>보기</small>
+        <div class="tabs" id="tabs">
+          <button data-v="month">월</button>
+          <button data-v="week">주</button>
+          <button data-v="day">일</button>
+          <button data-v="list">목록</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 <div class="nav" id="nav">
   <button class="navb" id="btnPrev" aria-label="이전">‹</button>
@@ -1110,6 +1124,15 @@ async function importIcsTexts(texts, label) {
   const note = [skip.rrule ? '반복 조건 ' + skip.rrule + '건은 단순 반복으로 바뀜' : '', skip.override ? '반복 예외 ' + skip.override + '건 제외' : '', skip.cancelled ? '취소된 일정 ' + skip.cancelled + '건 제외' : '', skip.bad ? '읽지 못한 일정 ' + skip.bad + '건' : ''].filter(Boolean).join(' · ');
   toast('📅 ' + (label || 'ICS') + ': ' + (added ? added + '개 등록' : '') + (added && updated ? ', ' : '') + (updated ? updated + '개 갱신' : '') + (note ? ' (' + note + ')' : '') + (memOnly ? ' · 이 브라우저는 저장소를 쓸 수 없어 앱을 닫으면 사라져요' : ''), 5200);
 }
+
+/* ⋯ 메뉴: 열기/닫기(바깥 터치·뒤 화면 스크롤·메뉴 항목 선택 시 닫힘) */
+(() => {
+  const m = $('calMenu'), b = $('btnMore'), close = () => { m.hidden = true; };
+  b.onclick = e => { e.stopPropagation(); m.hidden = !m.hidden; };
+  m.addEventListener('click', e => { if (e.target.closest('button,a')) setTimeout(close, 0); });
+  document.addEventListener('click', e => { if (!m.hidden && !m.contains(e.target) && e.target !== b) close(); }, true);
+  ['touchmove', 'wheel', 'scroll'].forEach(t => document.addEventListener(t, e => { if (!m.hidden && !(e.target && e.target.nodeType === 1 && m.contains(e.target))) close(); }, { capture: true, passive: true }));
+})();
 $('btnIcs').onclick = async () => {
   const k = await choose('일정 가져오기·내보내기', 'ICS 파일(.ics)은 삼성·구글 캘린더 등 대부분의 캘린더가 읽을 수 있어요.', [
     { key: 'imp', label: '📥 일정 가져오기', sub: '다른 캘린더에서 받은 .ics 파일을 읽어 와요.' },

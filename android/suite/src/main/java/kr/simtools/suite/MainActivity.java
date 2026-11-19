@@ -616,9 +616,15 @@ public class MainActivity extends Activity {
 
     private void goBackOrExit() {
         if (web.canGoBack()) { web.goBack(); return; }
-        if (isLauncher) moveTaskToBack(true);
-        else openLauncher();
+        if (isLauncher) {
+            // 런처에서 뒤로가기: 한 번 더 누르면 앱 종료(2초 안에)
+            long now = android.os.SystemClock.uptimeMillis();
+            if (now - lastBackAt < 2000) { finishAffinity(); return; }
+            lastBackAt = now;
+            Toast.makeText(this, "한 번 더 누르면 앱이 종료됩니다", Toast.LENGTH_SHORT).show();
+        } else openLauncher();
     }
+    private long lastBackAt = 0;
 
     @Override
     protected void onDestroy() {

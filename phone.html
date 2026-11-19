@@ -131,6 +131,17 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
 .cd2-zoom button.on{background:#fde047;border-color:#fde047;color:#111}
 .cd2-zoom input{flex:1;height:28px;padding:0;border:none;background:none;min-width:0}
 .cd2-zoom b{min-width:40px;text-align:right;font-size:13px;color:var(--sub)}
+.cd2-freeze{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;background:#000}
+.cd2-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+.cd2-flash.go{animation:cd2fl .28s ease-out}
+@keyframes cd2fl{0%{opacity:.85}100%{opacity:0}}
+.cd2-proc{position:absolute;left:0;right:0;bottom:0;padding:12px 14px;display:none;align-items:center;justify-content:center;gap:10px;background:linear-gradient(0deg,rgba(0,0,0,.82),rgba(0,0,0,.45));color:#fff;font-size:14px;font-weight:800;z-index:3}
+.cd2-proc.on{display:flex}
+.cd2-proc .sp{width:20px;height:20px;border-radius:50%;border:3px solid rgba(255,255,255,.28);border-top-color:#fde047;animation:cd2spin .8s linear infinite;flex:none}
+@keyframes cd2spin{to{transform:rotate(360deg)}}
+.cd2-cropbox{position:relative;overflow:hidden}
+.cd2-cropbox.busy>img{filter:brightness(.7)}
+.cd2-shut-busy{opacity:.45;pointer-events:none}
 .cd2-zlive{position:absolute;right:10px;top:10px;padding:3px 9px;border-radius:12px;background:rgba(0,0,0,.55);color:#fde047;font-size:13px;font-weight:800;pointer-events:none;opacity:0;transition:opacity .25s}
 .cd2-zlive.on{opacity:1}
 .cd2-live video{width:100%;height:100%;object-fit:cover;display:block}
@@ -277,14 +288,14 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
   </div>
   <div class="cdbody"><div class="in cd-form">
     <div data-s="cam">
-      <div class="cd2-live" id="cdLive"><video id="cdVideo" playsinline autoplay muted></video><div class="cd-frame"></div><div class="cd2-fring" id="cdRing"></div><div class="cd2-zlive" id="cdZLive">1.0×</div></div>
+      <div class="cd2-live" id="cdLive"><video id="cdVideo" playsinline autoplay muted></video><div class="cd-frame"></div><div class="cd2-fring" id="cdRing"></div><div class="cd2-zlive" id="cdZLive">1.0×</div><canvas class="cd2-freeze" id="cdFreeze"></canvas><div class="cd2-flash" id="cdFlash"></div><div class="cd2-proc" id="cdProc"><i class="sp"></i><span id="cdProcTx">촬영했어요</span></div></div>
       <div class="cd2-zoom" id="cdZoomRow"><button type="button" data-z="1">1×</button><button type="button" data-z="2">2×</button><button type="button" data-z="3">3×</button><input type="range" id="cdZoom" min="1" max="4" step="0.05" value="1" aria-label="줌"><b id="cdZoomVal">1.0×</b></div>
       <div id="cdConRow" class="cd2-exp" style="display:flex"><span>대비 낮게</span><input type="range" id="cdCon" min="0.8" max="1.8" step="0.05" value="1.25"><span>높게</span></div>
       <div id="cdExpRow" class="cd2-exp" style="display:none"><span>어둡게</span><input type="range" id="cdExp" min="-2" max="2" step="0.5" value="-1"><span>밝게</span></div>
       <div class="cd2-tip">👆 <b>명함 글자를 손가락으로 톡 누르면</b> 그 부분에 초점을 맞춰요. 🔍 명함이 작게 보이면 <b>두 손가락으로 벌리거나 줌 버튼</b>으로 키워 글자가 크게 찍히게 하세요. 💡 명함이 번쩍이면 <b>밝기를 낮추거나</b> 명함을 살짝 기울여 조명이 비치지 않게 찍어 보세요. 비스듬히 찍어도 반듯하게 펴 드려요.</div>
     </div>
     <div data-s="crop">
-      <div class="cd2-cropbox"><img id="cdCropImg" alt="자른 명함" data-big="1" style="cursor:zoom-in"></div>
+      <div class="cd2-cropbox" id="cdCropBox"><div class="cd2-proc" id="cdProc2"><i class="sp"></i><span id="cdProc2Tx">명함을 맞추는 중…</span></div><img id="cdCropImg" alt="자른 명함" data-big="1" style="cursor:zoom-in"></div>
       <div class="cd2-note" id="cdCropNote"></div>
     </div>
     <div data-s="manual">
@@ -820,7 +831,7 @@ function ta4CardUnsharp(c, amt) {
   return c;
 }
 // OCR(글자 읽기)용 마무리: 조명 얼룩 펴기 → 글자 선명화 → 높은 화질로 저장
-function ta4CardFinish(c) { ta4Flat(c); ta4CardUnsharp(c, 0.9); return c.toDataURL('image/jpeg', 0.92); }
+function ta4CardFinish(c) { try { if (CARD && CARD.con && Math.abs(CARD.con - 1) > 0.01) ta4CardContrast(c, CARD.con); } catch (e) {} ta4Flat(c); ta4CardUnsharp(c, 0.9); return c.toDataURL('image/jpeg', 0.92); }
 function ta4CardEnhance(c, con) {
   const x = c.getContext('2d'), w = c.width, h = c.height, im = x.getImageData(0, 0, w, h), d = im.data, src = new Uint8ClampedArray(d);
   // 선명도: 3x3 언샤프 (중심 +, 주변 -)
@@ -910,6 +921,17 @@ function ta4CardSharpCv(cv) {
   for (let y = 1; y < S - 1; y++) for (let x = 1; x < S - 1; x++) { const i = y * S + x, l = 4 * gr[i] - gr[i - 1] - gr[i + 1] - gr[i - S] - gr[i + S]; sum += l; sq += l * l; n++; }
   const m = sum / n; return sq / n - m * m;
 }
+// 무거운 계산 사이사이에 화면을 한 번 그려서(스피너·문구가 보이게) 멈춘 것처럼 보이지 않게 한다
+const paint = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+function ta4ProcSet(on, tx, which) {   // which: 'cam'(촬영 화면 위) | 'crop'(크롭 화면 위)
+  const el = $(which === 'crop' ? 'cdProc2' : 'cdProc'), t = $(which === 'crop' ? 'cdProc2Tx' : 'cdProcTx'); if (!el) return;
+  el.classList.toggle('on', !!on); if (tx && t) t.textContent = tx;
+  const cb = $('cdCropBox'); if (cb && which === 'crop') cb.classList.toggle('busy', !!on);
+}
+function ta4ShootReset() {
+  const f = $('cdFreeze'); if (f) f.style.display = 'none'; ta4ProcSet(false, '', 'cam');
+  const sb = document.querySelector('.cd2-shutter'); if (sb) sb.classList.remove('cd2-shut-busy'); if (CARD) CARD.shooting = false;
+}
 // 촬영 효과: 찰칵 소리(합성)와 진동. 사용자가 촬영 버튼을 누른 순간에 호출한다
 let shutterCtx = null;
 function ta4ShutterFx() {
@@ -932,61 +954,80 @@ function ta4ShutterFx() {
 }
 async function ta4CardShoot() {
   if (!CARD.stream) { await ta4CardCamStart(); return; }
+  const C = CARD; if (C.shooting) return;
   const v = $('cdVideo'); if (!v.videoWidth) { ta4CardStatus('카메라 준비 중입니다. 잠시 후 다시 눌러주세요', 'busy'); return; }
-  ta4ShutterFx();   // 누르는 순간 찰칵 + 진동
-  const C = CARD, dz = (!C.zhw && C.zoom > 1.001) ? C.zoom : 1;   // 디지털 줌이면 화면에 보이는 확대 범위만 쓴다
+  C.shooting = true;
+  ta4ShutterFx();   // 누르는 순간 찰칵 + 진동 + 화면 번쩍
+  const fl = $('cdFlash'); if (fl) { fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go'); }
+  const sbtn = document.querySelector('.cd2-shutter'); if (sbtn) sbtn.classList.add('cd2-shut-busy');   // 또 눌러도 반응 없이 이미 찍힌 것으로 보이게
+  const dz = (!C.zhw && C.zoom > 1.001) ? C.zoom : 1;   // 디지털 줌이면 화면에 보이는 확대 범위만 쓴다
   // 화면에 보이는 4:3 창(명함 틀)과 같은 범위만 촬영한다
   const vw = v.videoWidth, vh = v.videoHeight, ra = 4 / 3; let sw = vw, sh = vh;
   if (vw / vh < ra) sh = Math.round(vw / ra); else sw = Math.round(vh * ra);
   sw = Math.round(sw / dz); sh = Math.round(sh / dz);
   const sx = Math.round((vw - sw) / 2), sy = Math.round((vh - sh) / 2);
-  ta4CardStatus('촬영 중… 폰을 잠깐 가만히 들고 계세요', 'busy');
-  // 손떨림·초점 흔들림 대비: 짧게 5장 받아 가장 선명한 한 장을 쓴다
-  let c = null, bestS = -1;
-  for (let k = 0; k < 5; k++) {
-    const t = document.createElement('canvas'); t.width = sw; t.height = sh; t.getContext('2d').drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh);
-    let sc2 = 0; try { sc2 = ta4CardSharpCv(t); } catch (x) {}
-    if (sc2 > bestS) { bestS = sc2; c = t; }
-    if (k < 4) await new Promise(res => setTimeout(res, 90));
-  }
-  // 정지 사진(센서 최대 해상도)을 지원하면 그걸 우선 쓴다: 영상 프레임보다 글자가 훨씬 또렷하다. 디지털 줌일 땐 범위가 달라 쓰지 않는다.
-  let still = null;
-  if (dz === 1 && window.ImageCapture) {
-    try {
-      const tr = C.stream.getVideoTracks()[0], ic = new ImageCapture(tr), opt = {};
-      try { const pc = await ic.getPhotoCapabilities(); if (pc.imageWidth && pc.imageHeight && pc.imageWidth.max) { const f = Math.min(1, 4200 / pc.imageWidth.max); opt.imageWidth = Math.round(pc.imageWidth.max * f); opt.imageHeight = Math.round(pc.imageHeight.max * f); } } catch (x) {}
-      const blob = await Promise.race([ic.takePhoto(opt), new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 4000))]);
-      const bm = await createImageBitmap(blob);
-      if (bm.width >= c.width * 1.15) {
-        const k = Math.min(1, 3200 / Math.max(bm.width, bm.height)), t = document.createElement('canvas'); t.width = Math.round(bm.width * k); t.height = Math.round(bm.height * k);
-        t.getContext('2d').drawImage(bm, 0, 0, t.width, t.height); still = t;
-      }
-      try { bm.close(); } catch (x) {}
-    } catch (x) { still = null; }
-  }
-  if (still) c = still;
-  try { ta4CardContrast(c, ta4CardCon()); } catch (x) {}   // 선명화는 반듯하게 편 뒤 마지막에 한 번만 (여기서 하면 노이즈까지 키움)
-  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.93));
-  ta4CardCamStop(); ta4CardGot(new File([blob], 'card.jpg', { type: 'image/jpeg' }));
+  try {
+    // 찍힌 순간의 장면을 바로 화면에 고정해 '찍혔다'는 것이 한눈에 보이게 한다
+    const fz = $('cdFreeze'); if (fz) { fz.width = 640; fz.height = 480; fz.getContext('2d').drawImage(v, sx, sy, sw, sh, 0, 0, 640, 480); fz.style.display = 'block'; }
+    ta4ProcSet(true, '📸 촬영했어요! 선명한 사진을 고르는 중…', 'cam');
+    await paint();
+    // 손떨림·초점 흔들림 대비: 짧게 3장 받아 가장 선명한 한 장을 쓴다
+    let c = null, bestS = -1;
+    for (let k = 0; k < 3; k++) {
+      const t = document.createElement('canvas'); t.width = sw; t.height = sh; t.getContext('2d').drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh);
+      let sc2 = 0; try { sc2 = ta4CardSharpCv(t); } catch (x) {}
+      if (sc2 > bestS) { bestS = sc2; c = t; }
+      if (k < 2) await new Promise(res => setTimeout(res, 70));
+    }
+    // 정지 사진(센서 최대 해상도)을 지원하면 그걸 우선 쓴다: 영상 프레임보다 글자가 훨씬 또렷하다. 디지털 줌일 땐 범위가 달라 쓰지 않는다.
+    let still = null;
+    if (dz === 1 && window.ImageCapture) {
+      try {
+        const tr = C.stream.getVideoTracks()[0], ic = new ImageCapture(tr), opt = {};
+        try { const pc = await ic.getPhotoCapabilities(); if (pc.imageWidth && pc.imageHeight && pc.imageWidth.max) { const f = Math.min(1, 4200 / pc.imageWidth.max); opt.imageWidth = Math.round(pc.imageWidth.max * f); opt.imageHeight = Math.round(pc.imageHeight.max * f); } } catch (x) {}
+        const blob = await Promise.race([ic.takePhoto(opt), new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 2500))]);
+        const bm = await createImageBitmap(blob);
+        if (bm.width >= c.width * 1.15) {
+          const k = Math.min(1, 3000 / Math.max(bm.width, bm.height)), t = document.createElement('canvas'); t.width = Math.round(bm.width * k); t.height = Math.round(bm.height * k);
+          t.getContext('2d').drawImage(bm, 0, 0, t.width, t.height); still = t;
+        }
+        try { bm.close(); } catch (x) {}
+      } catch (x) { still = null; }
+    }
+    if (still) c = still;
+    C.con = ta4CardCon();   // 대비는 작게 줄인 최종본에만 적용(여기서 큰 사진 전체에 하면 오래 걸림)
+    ta4CardCamStop();
+    ta4ShootReset();
+    await ta4CardGot(c);   // 캔버스를 그대로 넘겨 저장·재읽기 단계를 줄인다
+  } catch (e) { ta4ShootReset(); ta4CardStatus('촬영 처리 중 오류가 났어요. 다시 찍어 주세요', 'err'); }
 }
 function ta4CardPick(inp) { const f = inp.files && inp.files[0]; inp.value = ''; if (f) { ta4CardCamStop(); ta4CardGot(f); } }
 function ta4CardRetake() {   // 재촬영: 촬영부터 다시
+  ta4ShootReset(); ta4ProcSet(false, '', 'crop');
   CARD.crop = ''; CARD.how = ''; CARD.small = ''; CARD.busy = false;
   ta4CardStage('cam'); ta4CardStatus('', ''); ta4CardCamStart();
 }
 // 1단계: 크롭 먼저 — 명함을 찾아 기울기를 바로잡고 명함 부분만 자른다
 async function ta4CardGot(f) {
   const C = CARD; if (!f || C.busy) return;
+  const isCv = !!(f && f.getContext);   // 촬영본은 캔버스 그대로, 앨범은 파일
+  if (!isCv) C.con = 1;
   C.busy = true; C.man = null; C.lastQuad = null; ta4CardStage('crop'); $('cdCropImg').removeAttribute('src'); $('cdCropNote').textContent = '명함을 찾는 중…'; $('cdCropNote').className = 'cd2-note busy';
+  ta4ProcSet(true, '명함을 찾아 반듯하게 맞추는 중…', 'crop');
   try {
-    const url = await compressFile(f, 2600, 0.92), img = await ta4LoadImg(url); C.src = img; C.srcUrl = url;
+    let url;
+    if (isCv) { const k = Math.min(1, 2600 / Math.max(f.width, f.height)), t = document.createElement('canvas'); t.width = Math.round(f.width * k); t.height = Math.round(f.height * k); t.getContext('2d').drawImage(f, 0, 0, t.width, t.height); url = t.toDataURL('image/jpeg', 0.92); }
+    else url = await compressFile(f, 2600, 0.92);
+    $('cdCropImg').src = url; await paint();   // 찍은 사진을 먼저 보여 주고 그 위에서 보정 중임을 알린다
+    const img = await ta4LoadImg(url); C.src = img; C.srcUrl = url;
+    ta4ProcSet(true, '명함을 찾아 반듯하게 맞추는 중…', 'crop'); await paint();
     let crop = ta4CardDeskew(img, 1600), how = 'auto';
     if (!crop) { let box = null; try { box = ta4CardAutoCrop(img); } catch (x) {} if (box) { crop = ta4CardCropImg(img, box); how = 'box'; } }
     if (!crop) { crop = ta4CardCropImg(img, null); how = 'none'; }
     ta4CardSetCrop(crop, how);
     if (how === 'none') { ta4CardManual(); }   // 명함을 못 찾으면 바로 직접 자르기 화면으로
   } catch (e) { $('cdCropNote').textContent = '이미지를 읽지 못했어요. 재촬영해 주세요. (' + ((e && e.message) || '오류') + ')'; $('cdCropNote').className = 'cd2-note err'; }
-  C.busy = false;
+  ta4ProcSet(false, '', 'crop'); C.busy = false;
 }
 function ta4CardSetCrop(crop, how) {
   const C = CARD; C.crop = crop; C.how = how; C.small = '';
@@ -1259,6 +1300,7 @@ function ta4CardAutoCrop(img) {
 }
 function ta4CardOpen(mode) {
   CARD = { mode, src: null, srcUrl: '', crop: '', how: '', small: '', busy: false, stage: 'cam', man: null, stream: null };
+  try { ta4ShootReset(); ta4ProcSet(false, '', 'crop'); } catch (e) {}
   const c = {};
   if (mode === 'edit' && S.ed) Object.keys(ta4CardFields()).forEach(k => { c[k] = ($(FIELD[k]) || {}).value || ''; });
   $('cdSub').textContent = mode === 'edit' ? ($('fName').value.trim() || $('fCompany').value.trim()) : '연락처에 저장';

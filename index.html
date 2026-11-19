@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script src="aiphone.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f1117">
@@ -161,11 +162,10 @@ button.danger{color:#ff8a8a}
     <div class="aihead"><img id="aiImg" alt=""><h2 id="aiTitle">AI 연결 설정</h2></div>
     <div class="aist" id="aiSt"></div>
     <div class="aimsg" id="aiNow"></div>
-    <label for="aiPhone">등록된 사용자 전화번호</label>
-    <input id="aiPhone" type="tel" placeholder="010-0000-0000" autocomplete="off">
+    <input id="aiPhone" type="tel" hidden autocomplete="off">
     <div class="aimsg" id="aiMsg"></div>
-    <div class="warn">AI 키는 서버에만 있고 이 기기에는 저장되지 않아요. 전화번호는 SIM Message·Assistant가 같이 써요.</div>
-    <div class="row multi"><button id="aiDel" class="danger">번호 삭제</button><button id="aiTest">응답 테스트</button><button id="aiSave" class="primary">저장·확인</button><button id="aiClose">닫기</button></div>
+    <div class="warn">AI 키는 서버에만 있고 이 기기에는 저장되지 않아요. 연결은 자동으로 등록돼 있어요.</div>
+    <div class="row multi"><button id="aiDel" class="danger" hidden>번호 삭제</button><button id="aiTest">응답 테스트</button><button id="aiSave" class="primary">연결 확인</button><button id="aiClose">닫기</button></div>
   </div>
 </div>
 <div class="modal" id="mApps">

@@ -32,6 +32,11 @@ textarea{resize:vertical}
 .nlabel{flex:1;text-align:center;font-size:18px;font-weight:700;position:relative;padding:6px 0}
 .nlabel input{position:absolute;inset:0;opacity:0;width:100%;height:100%;padding:0;cursor:pointer}
 .tabs{display:flex;background:var(--panel);border-bottom:1px solid var(--line)}
+/* 월·주·일·목록 구분은 맨 위 메뉴 줄로 올렸다(달력이 그만큼 커진다) */
+.bar .tabs{flex:1;min-width:0;background:none;border-bottom:none;gap:2px}
+.bar .tabs button{padding:7px 0;font-size:14px;border-bottom:2px solid transparent}
+.bar h1{display:none}
+@media (min-width:760px){.bar h1{display:block;flex:none}}
 .tabs button{flex:1;border:none;border-radius:0;background:none;padding:11px 0;font-weight:700;color:var(--sub);border-bottom:2px solid transparent}
 .tabs button.on{color:var(--accent);border-bottom-color:var(--accent)}
 #view{flex:1;min-height:0;position:relative;width:100%;max-width:980px;margin:0 auto}
@@ -40,7 +45,7 @@ textarea{resize:vertical}
 .mv{display:flex;flex-direction:column;height:100%}
 .dow{display:grid;grid-template-columns:repeat(7,1fr);padding:6px 0 4px;font-size:12px;color:var(--sub);text-align:center}
 .dow span:first-child{color:var(--sun)}.dow span:last-child{color:var(--sat)}
-.mgrid{flex:0 1 76%;min-height:250px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;padding:1px}   /* 삼성 캘린더처럼 칸을 띄우고, 달력을 크게 잡아 일정이 3개까지 보이게 */
+.mgrid{flex:0 1 80%;min-height:250px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;padding:1px}   /* 삼성 캘린더처럼 칸을 띄우고, 달력을 크게 잡아 일정이 3개까지 보이게 */
 .cell{background:rgba(255,255,255,.035);border-radius:6px;padding:1px 0 0;overflow:hidden;cursor:pointer;min-width:0}
 .cell:nth-child(7n+1){background:rgba(255,107,107,.06)}.cell:nth-child(7n){background:rgba(91,155,255,.06)}
 .cell.out{opacity:.4}
@@ -166,6 +171,12 @@ textarea{resize:vertical}
 <div class="bar">
   <a class="back" href="index.html" title="SIM Tools">‹</a>
   <h1>SIM <span>Calendar</span></h1>
+  <div class="tabs" id="tabs">
+    <button data-v="month">월</button>
+    <button data-v="week">주</button>
+    <button data-v="day">일</button>
+    <button data-v="list">목록</button>
+  </div>
   <button class="txtbtn" id="btnToday" title="오늘로 이동">오늘</button>
   <button class="iconbtn" id="btnIcs" title="일정 가져오기·내보내기 (ICS · 삼성 캘린더 등)">📥</button><input type="file" id="icsFile" accept=".ics,.ical,.ifb,text/calendar,application/ics,text/x-vcalendar" multiple hidden>
   <button class="iconbtn" id="btnTypes" title="일정 종류 관리">🏷️</button>
@@ -176,12 +187,6 @@ textarea{resize:vertical}
   <label class="nlabel"><span id="nlabel"></span><input type="date" id="jump" aria-label="날짜로 이동"></label>
   <button class="navb" id="btnNext" aria-label="다음">›</button>
   <button class="navb" id="btnCloud" aria-label="동기화 상태" title="기기 간 동기화 상태" style="font-size:16px">☁️</button>
-</div>
-<div class="tabs" id="tabs">
-  <button data-v="month">월</button>
-  <button data-v="week">주</button>
-  <button data-v="day">일</button>
-  <button data-v="list">목록</button>
 </div>
 <div id="view"></div>
 <button class="fab" id="fab" title="일정 추가" aria-label="일정 추가">+</button>

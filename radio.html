@@ -129,7 +129,7 @@ body.drawer .drawerTab{display:flex;align-items:center;justify-content:center;po
 body.drawer .drawerTab::before{content:"";position:absolute;left:4px;top:50%;width:3px;height:26px;margin-top:-13px;border-radius:2px;background:var(--accent);opacity:.8}
 body.drawer .drawerBg{display:block;position:fixed;inset:0;z-index:28;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .26s}
 body.drawer.open .drawerBg{opacity:1;pointer-events:auto}
-body.drawer.drag .presets,body.drawer.drag .drawerBg{transition:none}
+body.drawer.drag .presets,body.drawer.drag .drawerBg,body.measuring .presets,body.measuring .drawerBg,body.measuring .presets>h2,body.measuring .presets>.scroll{transition:none!important}
 /* ── 가로로 길고 세로가 짧은 화면(차량 디스플레이·가로 모드 폰): 좌우 배치 ──
    왼쪽: 라디오 본체(이미지) / 오른쪽: 주파수·채널명 + 방송국 목록 */
 .side{display:contents}
@@ -554,10 +554,12 @@ audio{display:none}
   /* 세로 화면에서 목록 칸이 너무 낮으면(2줄도 안 보임) 목록을 오른쪽 서랍으로 */
   function setDrawer(off) {
     const b = document.body;
-    b.classList.remove('drawer'); if (off) { b.classList.remove('open'); return; }
+    b.classList.add('measuring');   // 측정하느라 클래스를 뗐다 붙이는 동안 서랍이 번쩍 열리고 닫히지 않게 전환 효과를 끈다
+    b.classList.remove('drawer'); if (off) { b.classList.remove('open'); void b.offsetWidth; requestAnimationFrame(() => b.classList.remove('measuring')); return; }
     const hd = document.querySelector('header'); if (hd) b.style.setProperty('--hh', hd.offsetHeight + 'px');
     const need = document.querySelector('.presets').clientHeight < 170;
     if (need) b.classList.add('drawer'); else b.classList.remove('open');
+    void b.offsetWidth; requestAnimationFrame(() => b.classList.remove('measuring'));
   }
   const openDrawer = on => document.body.classList.toggle('open', on && document.body.classList.contains('drawer'));
   $('drawerBg').addEventListener('click', () => openDrawer(false));

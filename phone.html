@@ -94,6 +94,11 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
 #busy{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:90;color:#fff;font-size:15px;text-align:center;padding:20px}
 #busy.show{display:flex}
 #busy div{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 26px;max-width:320px;line-height:1.6}
+#mDup .row2 button{min-height:42px;padding:0 14px;border-radius:10px;font-weight:800;font-size:14px}
+#mDup .go{background:var(--accent,#f59e0b);color:#111;border:none}
+#mDup .tool{background:var(--card,#1f2330);color:var(--text,#e8eaf0);border:1px solid var(--line,#2a2f3f)}
+#mDup .dl{margin:6px 0 0;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.05);font-size:13px;line-height:1.55;color:var(--text,#e8eaf0)}
+#mDup .dl b{color:#fde047}
 #imgov{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;padding:12px}
 #imgov.on{display:flex}#imgov img{width:100%;height:100%;object-fit:contain;border-radius:8px}   /* 작은 사진도 화면 가득 키워서 */
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222a3d;border:1px solid var(--line);padding:9px 16px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:90vw;text-align:center}
@@ -343,6 +348,11 @@ a.back{display:flex;align-items:center;justify-content:center;width:38px;height:
   </div>
 </section>
 
+<div class="modal" id="mDup"><div class="mbox">
+  <h2>이미 등록된 연락처예요</h2>
+  <div class="sub" id="dupInfo"></div>
+  <div class="row2" style="flex-wrap:wrap"><button id="dupNo" type="button" class="tool">취소</button><button id="dupNew" type="button" class="tool">따로 등록</button><button id="dupMerge" type="button" class="go">정보 합치기</button></div>
+</div></div>
 <div id="imgov"><img alt=""></div>
 <div id="busy"><div id="busyMsg">처리 중…</div></div>
 <div class="toast" id="toast"></div>
@@ -382,9 +392,19 @@ async function saveContact(c) {
 }
 async function deleteContact(id) { if (db) await dbDel(id); contacts = contacts.filter(c => c.id !== id); }
 const digits = s => String(s || '').replace(/\D/g, '');
+// 중복 = 같은 사람: '이름'과 '휴대폰'이 모두 같을 때. (같은 회사 직원은 대표번호·메일 도메인이 같아도 다른 사람이다)
+// 휴대폰이 한쪽에 없으면 이름이 같고 이메일 또는 일반전화가 같은 경우만 같은 사람으로 본다.
+const normName = v => String(v || '').replace(/\s+/g, '').toLowerCase();
 function findDup(c, selfId) {
-  const ph = [c.mobile, c.tel].map(digits).filter(d => d.length >= 8), em = String(c.email || '').trim().toLowerCase();
-  return contacts.find(o => o.id !== selfId && ((ph.length && [o.mobile, o.tel].map(digits).some(d => d && ph.includes(d))) || (em && String(o.email || '').trim().toLowerCase() === em)));
+  const n = normName(c.name); if (!n) return null;
+  const mo = digits(c.mobile), te = digits(c.tel), em = String(c.email || '').trim().toLowerCase();
+  return contacts.find(o => {
+    if (o.id === selfId || normName(o.name) !== n) return false;
+    const om = digits(o.mobile);
+    if (mo.length >= 8 && om.length >= 8) return mo === om;
+    const ot = digits(o.tel), oe = String(o.email || '').trim().toLowerCase();
+    return !!((em && oe && em === oe) || (te.length >= 8 && ot.length >= 8 && te === ot));
+  }) || null;
 }
 
 /* ───────── 가나다 정렬·전화번호 서식 (TA 관리 앱의 연락처 코드에서 가져옴) ───────── */
@@ -611,7 +631,7 @@ $('edSave').onclick = async () => {
   const c = readForm();
   if (!c.name && !c.company && !c.mobile && !c.tel) { toast('이름이나 전화번호를 입력해 주세요'); return; }
   const dup = findDup(c, c.id);
-  if (dup && !confirm('같은 번호/이메일의 연락처가 이미 있습니다: ' + (dup.name || dup.company || '') + '\n그래도 저장할까요?')) return;
+  if (dup && !confirm('이름과 휴대폰이 같은 연락처가 이미 있습니다: ' + (dup.name || dup.company || '') + '\n그래도 저장할까요?')) return;
   try {
     const row = await saveContact(c); S.cur = row.id;
     if (stack.includes('vDet')) back();
@@ -890,9 +910,30 @@ function ta4CardSharpCv(cv) {
   for (let y = 1; y < S - 1; y++) for (let x = 1; x < S - 1; x++) { const i = y * S + x, l = 4 * gr[i] - gr[i - 1] - gr[i + 1] - gr[i - S] - gr[i + S]; sum += l; sq += l * l; n++; }
   const m = sum / n; return sq / n - m * m;
 }
+// 촬영 효과: 찰칵 소리(합성)와 진동. 사용자가 촬영 버튼을 누른 순간에 호출한다
+let shutterCtx = null;
+function ta4ShutterFx() {
+  try { if (navigator.vibrate) navigator.vibrate([22, 40, 16]); } catch (e) {}
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    const ac = shutterCtx || (shutterCtx = new AC()); if (ac.state === 'suspended') ac.resume();
+    const t0 = ac.currentTime, click = (at, dur, f0, vol) => {
+      const n = Math.max(1, Math.floor(ac.sampleRate * dur)), buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3);   // 빠르게 사라지는 잡음 = 셔터 기계음
+      const src = ac.createBufferSource(); src.buffer = buf;
+      const hp = ac.createBiquadFilter(); hp.type = 'bandpass'; hp.frequency.value = f0; hp.Q.value = 0.9;
+      const g = ac.createGain(); g.gain.value = vol; src.connect(hp); hp.connect(g); g.connect(ac.destination); src.start(at);
+    };
+    click(t0, 0.05, 3200, 0.9);          // 찰
+    click(t0 + 0.075, 0.09, 1500, 0.8);  // 칵
+    const o = ac.createOscillator(), og = ac.createGain(); o.type = 'square'; o.frequency.setValueAtTime(900, t0); o.frequency.exponentialRampToValueAtTime(260, t0 + 0.05);
+    og.gain.setValueAtTime(0.12, t0); og.gain.exponentialRampToValueAtTime(0.001, t0 + 0.06); o.connect(og); og.connect(ac.destination); o.start(t0); o.stop(t0 + 0.07);
+  } catch (e) {}
+}
 async function ta4CardShoot() {
   if (!CARD.stream) { await ta4CardCamStart(); return; }
   const v = $('cdVideo'); if (!v.videoWidth) { ta4CardStatus('카메라 준비 중입니다. 잠시 후 다시 눌러주세요', 'busy'); return; }
+  ta4ShutterFx();   // 누르는 순간 찰칵 + 진동
   const C = CARD, dz = (!C.zhw && C.zoom > 1.001) ? C.zoom : 1;   // 디지털 줌이면 화면에 보이는 확대 범위만 쓴다
   // 화면에 보이는 4:3 창(명함 틀)과 같은 범위만 촬영한다
   const vw = v.videoWidth, vh = v.videoHeight, ra = 4 / 3; let sw = vw, sh = vh;
@@ -1258,6 +1299,24 @@ async function ta4CardRecognize() {
   } catch (e) { C.busy = false; ta4CardFail('인식 중 오류: ' + ta4CardWhy((e && e.message) || e), true); }
 }
 // 저장: 새 연락처로 저장(같은 번호·이메일이 있으면 합침) / 편집 중이면 입력란에 채움
+// 명함 정보를 기존 연락처에 합친다: 명함에 값이 있는 항목은 새 값으로, 비어 있는 항목은 기존 값을 그대로 둔다
+const MERGE_KEYS = [['title', '직책'], ['company', '회사'], ['mobile', '휴대폰'], ['tel', '전화'], ['fax', '팩스'], ['email', '이메일'], ['address', '주소']];
+const fmtMerge = (k, v) => ['mobile', 'tel', 'fax'].includes(k) ? (ta4FmtPhone(v) || v) : v;
+function mergeDiff(old, c) {
+  const out = [];
+  MERGE_KEYS.forEach(([k, lb]) => { const nv = c[k] ? fmtMerge(k, c[k]) : ''; if (!nv || nv === (old[k] || '')) return; out.push(old[k] ? lb + ': ' + esc(old[k]) + ' → <b>' + esc(nv) + '</b>' : lb + ' 추가: <b>' + esc(nv) + '</b>'); });
+  return out;
+}
+function askDup(old, c) {
+  return new Promise(res => {
+    const d = mergeDiff(old, c), nm = esc(old.name || old.company || '이 연락처'), sub = [old.company, old.title, old.mobile].filter(Boolean).map(esc).join(' · ');
+    $('dupInfo').innerHTML = '<b>' + nm + '</b>' + (sub ? ' (' + sub + ')' : '') + ' 님이 이미 있어요. 새 명함 정보를 합칠까요?' +
+      (d.length ? '<div class="dl">' + d.slice(0, 7).join('<br>') + (d.length > 7 ? '<br>…외 ' + (d.length - 7) + '건' : '') + '</div>' : '<div class="dl">바뀌는 항목은 없고 명함 이미지만 새것으로 바뀌어요.</div>');
+    const m = $('mDup'), done = v => { m.classList.remove('show'); res(v); };
+    $('dupMerge').onclick = () => done('merge'); $('dupNew').onclick = () => done('new'); $('dupNo').onclick = () => done('no');
+    m.classList.add('show');
+  });
+}
 async function ta4CardApply() {
   const C = CARD, c = ta4CardRead();
   if (!c.name && !c.mobile && !c.tel && !c.email) { toast('저장할 정보가 없습니다'); return; }
@@ -1268,14 +1327,17 @@ async function ta4CardApply() {
     Object.keys(ta4CardFields()).forEach(k => { if (c[k]) $(FIELD[k]).value = c[k]; });
     if (img) S.ed.card_img = img; edMedia(); back(); toast('명함 정보 입력됨'); return;
   }
-  if (wantPhone) { const pc = Object.assign({}, c); if (C.small) pc.photo = C.small; saveToPhone(pc); }   // 누른 직후 바로 공유 창을 연다
+  // 같은 사람(이름+휴대폰이 같음)이 이미 있으면 합칠지 묻는다. 취소하면 아무것도 저장하지 않는다
+  let old = {}, merged = false; const dup = findDup(c, '');
+  if (dup) { const a = await askDup(dup, c); if (a === 'no') return; if (a === 'merge') { old = dup; merged = true; } }
+  if (wantPhone) { const pc = Object.assign({}, c); if (C.small) pc.photo = C.small; saveToPhone(pc); }   // 누른 직후 바로 저장/공유
   try {
-    const old = findDup(c, '') || {}, m = Object.assign({}, old);
-    ['name', 'title', 'company', 'mobile', 'tel', 'fax', 'email', 'address'].forEach(k => { if (c[k]) m[k] = ['mobile', 'tel', 'fax'].includes(k) ? (ta4FmtPhone(c[k]) || c[k]) : c[k]; });
+    const m = Object.assign({}, old);
+    ['name', 'title', 'company', 'mobile', 'tel', 'fax', 'email', 'address'].forEach(k => { if (c[k]) m[k] = fmtMerge(k, c[k]); });
     if (C.crop) m.card_img = C.crop;
     await saveContact(m);
   } catch (e) { toast('저장하지 못했습니다. 저장 공간을 확인하세요.', 3500); return; }
-  back(); toast('연락처에 저장됨');
+  back(); toast(merged ? '기존 연락처에 정보를 합쳤습니다' : '연락처에 저장됨');
 }
 $('btnCard').onclick = () => ta4CardOpen('new');
 $('edCardScan').onclick = () => ta4CardOpen('edit');

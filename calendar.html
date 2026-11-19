@@ -479,17 +479,21 @@ function cardHtml(o) {
 }
 
 /* 월 */
-function renderMonth() {
-  const y = cur.getFullYear(), m = cur.getMonth(), first = new Date(y, m, 1);
+function monthBuild(dt) {
+  const y = dt.getFullYear(), m = dt.getMonth(), first = new Date(y, m, 1);
   const gs = addDays(first, -first.getDay()), rows = Math.ceil((first.getDay() + daysIn(y, m)) / 7), ge = addDays(gs, rows * 7);
-  MB = bucket(occurrences(gs, ge), gs, ge);
+  const mb = bucket(occurrences(gs, ge), gs, ge);
   const today = sod(new Date());
   let cells = '';
   for (let i = 0; i < rows * 7; i++) {
     const d = addDays(gs, i), h = holName(d), wd = d.getDay();
-    cells += '<div class="cell' + (d.getMonth() !== m ? ' out' : '') + (sameDay(d, today) ? ' today' : '') + (sameDay(d, cur) ? ' sel' : '') + '" data-d="' + ymd(d) + '"><div class="dn' + (h || wd === 0 ? ' sun' : wd === 6 ? ' sat' : '') + '">' + d.getDate() + '</div>' + (h ? '<div class="hn">' + esc(h) + '</div>' : '') + '<div class="chips"></div></div>';
+    cells += '<div class="cell' + (d.getMonth() !== m ? ' out' : '') + (sameDay(d, today) ? ' today' : '') + (sameDay(d, dt) ? ' sel' : '') + '" data-d="' + ymd(d) + '"><div class="dn' + (h || wd === 0 ? ' sun' : wd === 6 ? ' sat' : '') + '">' + d.getDate() + '</div>' + (h ? '<div class="hn">' + esc(h) + '</div>' : '') + '<div class="chips"></div></div>';
   }
-  view.innerHTML = '<div class="mv"><div class="dow">' + WD.map(w => '<span>' + w + '</span>').join('') + '</div><div class="mgrid" style="grid-template-rows:repeat(' + rows + ',minmax(0,1fr))">' + cells + '</div><div class="mgrip" id="mgrip" title="아래로 끌면 달력이 커져요 (두 번 누르면 원래대로)"><i></i></div><div class="agenda" id="agenda"></div></div>';
+  return { cells, rows, mb };
+}
+function renderMonth() {
+  const b = monthBuild(cur); MB = b.mb;
+  view.innerHTML = '<div class="mv"><div class="dow">' + WD.map(w => '<span>' + w + '</span>').join('') + '</div><div class="mgrid" style="grid-template-rows:repeat(' + b.rows + ',minmax(0,1fr))">' + b.cells + '</div><div class="mgrip" id="mgrip" title="아래로 끌면 달력이 커져요 (두 번 누르면 원래대로)"><i></i></div><div class="agenda" id="agenda"></div></div>';
   applyMH(); fitMonth(); renderAgenda();
 }
 /* 달력 높이 조절: 손잡이를 아래로 끌면 달력(칸)이 위아래로 커지고 일정 목록은 줄어든다. 비율은 기억해 둠 */
@@ -515,10 +519,11 @@ view.addEventListener('pointerdown', e => {
   gp.addEventListener('pointermove', mv); gp.addEventListener('pointerup', up); gp.addEventListener('pointercancel', up);
 });
 view.addEventListener('dblclick', e => { if (!e.target.closest('#mgrip')) return; mhFrac = null; try { localStorage.removeItem('simcal_mh'); } catch (x) {} applyMH(); fitMonth(); });
-function fitMonth() {
+function fitMonth(root, mbx) {
+  root = root || view; mbx = mbx || MB;
   // 칸 높이에 맞춰 실제로 그려 보고 넘치는지 확인한다(글자 크기 설정이 달라도 안 잘리게): 모두 2줄 → 모두 1줄 → 일정 수를 줄이고 '+N'
-  view.querySelectorAll('.cell').forEach(c => {
-    const list = MB.get(c.dataset.d) || [], box = c.querySelector('.chips'); box.innerHTML = '';
+  root.querySelectorAll('.cell').forEach(c => {
+    const list = mbx.get(c.dataset.d) || [], box = c.querySelector('.chips'); box.innerHTML = '';
     if (!list.length) return;
     const mk = (n, two) => { let h = ''; for (let i = 0; i < n; i++) h += '<div class="chip' + (two ? ' l2' : '') + '" style="--c:' + list[i].ev.color + '">' + esc(evTitle(list[i].ev)) + '</div>'; if (list.length > n) h += '<div class="more">+' + (list.length - n) + '</div>'; return h; };
     const fits = () => c.scrollHeight <= c.clientHeight + 1;
@@ -638,41 +643,51 @@ view.addEventListener('touchend', e => {
   const t = e.changedTouches[0], dx = t.clientX - tx0, dy = t.clientY - ty0; tx0 = null;
   if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) step(dx < 0 ? 1 : -1);
 }, { passive: true });
-/* 월 보기 달력 끌기: 좌우 = 손가락을 따라 부드럽게 넘어가는 달 이동, 위아래 = 달력 크기 늘이기·줄이기(아래 일정 목록과의 경계) */
+/* 월 보기 달력 끌기: 좌우 = 이전·다음 달이 손가락을 따라 함께 밀려 들어오는 부드러운 달 이동, 위아래 = 달력 크기 늘이기·줄이기(아래 일정 목록과의 경계) */
 (() => {
-  let g = null, x0 = 0, y0 = 0, h0 = 0, lock = '', B = null, t0 = 0, swallow = false, raf = 0, ly = 0;
+  let g = null, x0 = 0, y0 = 0, h0 = 0, lock = '', B = null, t0 = 0, swallow = false, raf = 0, ly = 0, nb = null;
   view.addEventListener('click', e => { if (swallow) { e.stopPropagation(); e.preventDefault(); } }, true);
+  // 이전·다음 달 칸을 만들어 현재 달력 양옆에 붙인다
+  function makeNeighbors() {
+    const mv = g.parentElement; mv.style.position = 'relative'; mv.style.overflowX = 'hidden';
+    const mk = dir => {
+      const dt = shiftMonths(cur, dir), bd = monthBuild(dt), el = document.createElement('div');
+      el.className = 'mgrid'; el.style.cssText = g.style.cssText; el.style.gridTemplateRows = 'repeat(' + bd.rows + ',minmax(0,1fr))';
+      el.style.position = 'absolute'; el.style.left = g.offsetLeft + 'px'; el.style.top = g.offsetTop + 'px'; el.style.width = g.offsetWidth + 'px'; el.style.height = g.offsetHeight + 'px'; el.style.flex = 'none'; el.style.transition = 'none';
+      el.innerHTML = bd.cells; el.querySelectorAll('.cell').forEach(c => c.classList.remove('sel')); mv.appendChild(el); fitMonth(el, bd.mb); return el;
+    };
+    nb = { prev: mk(-1), next: mk(1), mv };
+  }
+  function place(dx, anim) {
+    const t = anim ? 'transform .2s ease-out' : 'none';
+    g.style.transition = t; g.style.transform = 'translateX(' + dx + 'px)';
+    if (nb) { const w = g.offsetWidth; nb.prev.style.transition = t; nb.next.style.transition = t; nb.prev.style.transform = 'translateX(' + (dx - w - 4) + 'px)'; nb.next.style.transform = 'translateX(' + (dx + w + 4) + 'px)'; }
+  }
+  function cleanup() { if (nb) { nb.prev.remove(); nb.next.remove(); nb.mv.style.overflowX = ''; nb = null; } if (g) { g.style.transition = ''; g.style.transform = ''; } }
   view.addEventListener('pointerdown', e => {
     if (mode !== 'month' || (e.pointerType === 'mouse' && e.button) || e.target.closest('#mgrip')) return;
     const gr = e.target.closest('.mgrid'); if (!gr || g) return;
-    g = gr; x0 = e.clientX; y0 = e.clientY; h0 = gr.getBoundingClientRect().height; lock = ''; B = mhBounds(); t0 = Date.now();
-    gr.style.transition = 'none';
+    g = gr; x0 = e.clientX; y0 = e.clientY; h0 = gr.getBoundingClientRect().height; lock = ''; B = mhBounds(); t0 = Date.now(); gr.style.transition = 'none';
   });
   window.addEventListener('pointermove', e => {
     if (!g) return;
     const dx = e.clientX - x0, dy = e.clientY - y0;
-    if (!lock) { if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; lock = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'; try { g.setPointerCapture(e.pointerId); } catch (x) {} }
-    if (lock === 'x') g.style.transform = 'translateX(' + dx + 'px)';
+    if (!lock) { if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; lock = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'; try { g.setPointerCapture(e.pointerId); } catch (x) {} if (lock === 'x') makeNeighbors(); }
+    if (lock === 'x') place(dx, false);
     else if (B) { ly = dy; if (!raf) raf = requestAnimationFrame(() => { raf = 0; applyMH(h0 + ly); fitMonth(); }); }
   });
   const end = e => {
     if (!g) return;
-    const gr = g, dx = e.clientX - x0, dt = Math.max(1, Date.now() - t0), l = lock; g = null; lock = '';
-    if (!l) return;
+    const gr = g, dx = e.clientX - x0, dt = Math.max(1, Date.now() - t0), l = lock; lock = '';
+    if (!l) { g = null; return; }
     swallow = true; setTimeout(() => { swallow = false; }, 350);
-    if (l === 'y') { if (B) { const h = gr.getBoundingClientRect().height; mhFrac = h / B.avail; try { localStorage.setItem('simcal_mh', String(mhFrac)); } catch (x) {} } return; }
-    const w = gr.getBoundingClientRect().width || 1;
+    if (l === 'y') { g = null; if (B) { const h = gr.getBoundingClientRect().height; mhFrac = h / B.avail; try { localStorage.setItem('simcal_mh', String(mhFrac)); } catch (x) {} } return; }
+    const w = gr.offsetWidth || 1;
     if (e.type !== 'pointercancel' && (Math.abs(dx) > w * 0.22 || (Math.abs(dx) > 36 && Math.abs(dx) / dt > 0.45))) {
       const dir = dx < 0 ? 1 : -1;
-      gr.style.transition = 'transform .16s ease-out'; gr.style.transform = 'translateX(' + (dx < 0 ? -105 : 105) + '%)';
-      setTimeout(() => {
-        step(dir);
-        const ng = view.querySelector('.mgrid'); if (!ng) return;
-        ng.style.transition = 'none'; ng.style.transform = 'translateX(' + (dx < 0 ? 105 : -105) + '%)'; void ng.offsetWidth;
-        ng.style.transition = 'transform .2s ease-out'; ng.style.transform = '';
-        setTimeout(() => { ng.style.transition = ''; }, 260);
-      }, 150);
-    } else { gr.style.transition = 'transform .18s ease-out'; gr.style.transform = ''; setTimeout(() => { gr.style.transition = ''; }, 220); }
+      place(dx < 0 ? -(w + 4) : (w + 4), true);
+      setTimeout(() => { const keep = g; cleanup(); g = null; step(dir); }, 210);
+    } else { place(0, true); setTimeout(() => { cleanup(); g = null; }, 230); }
   };
   window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
 })();

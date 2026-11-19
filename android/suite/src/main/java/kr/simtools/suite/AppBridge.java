@@ -288,15 +288,70 @@ final class AppBridge {
         }).start();
     }
 
-    /** 새 앱 파일은 브라우저로 내려받아 직접 설치한다(앱이 스스로 설치하지 않는다) */
-    @JavascriptInterface public void installUpdate() {
+    private boolean canInstall() { return Build.VERSION.SDK_INT < 26 || a.getPackageManager().canRequestPackageInstalls(); }
+    private void openInstallSettings() {
         try {
-            String u = dlUrl.isEmpty() ? "https://github.com/JHSIM2545/Webtools/releases/tag/suite-latest" : dlUrl;
-            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(u));
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            a.startActivity(i);
-            js("window.__simAppUpdSt&&window.__simAppUpdSt('browser')");
-        } catch (Exception e) { js("window.__simAppUpdSt&&window.__simAppUpdSt('fail')"); }
+            Intent i = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + a.getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); a.startActivity(i);
+        } catch (Exception e) { /* 무시 */ }
+    }
+    private void tell(String st) { js("window.__simAppUpdSt&&window.__simAppUpdSt('" + st + "')"); }
+    private long dlId = -1;
+
+    /** 새 앱(APK)을 앱 안에서 내려받고, 끝나면 설치 화면을 바로 연다 → window.__simAppUpdSt('start'|'prog:..'|'done'|'fail'|'perm'|'wait') */
+    @JavascriptInterface public void installUpdate() {
+        a.runOnUiThread(new Runnable() {
+            @Override public void run() {
+                try {
+                    if (!canInstall()) { tell("perm"); openInstallSettings(); return; }
+                    final String file = "SIM-Tools.apk";
+                    try { new File(a.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), file).delete(); } catch (Exception e) { /* 무시 */ }
+                    String u = dlUrl.isEmpty() ? "https://github.com/JHSIM2545/Webtools/releases/download/suite-latest/SIM-Tools.apk" : dlUrl;
+                    DownloadManager dm = (DownloadManager) a.getSystemService(Context.DOWNLOAD_SERVICE);
+                    DownloadManager.Request r = new DownloadManager.Request(Uri.parse(u));
+                    r.setTitle("SIM Tools 업데이트 내려받는 중");
+                    r.setMimeType("application/vnd.android.package-archive");
+                    r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                    r.setDestinationInExternalFilesDir(a, Environment.DIRECTORY_DOWNLOADS, file);
+                    dlId = dm.enqueue(r); dlWaitTold = false;
+                    tell("start"); dlH.removeCallbacks(dlTick); dlH.postDelayed(dlTick, 700);
+                } catch (Exception e) { tell("fail"); }
+            }
+        });
+    }
+
+    /* 받기 상태를 직접 확인한다 — 진행률을 보여 주고, 끝나면(앱이 앞에 있을 때) 설치 화면을 연다 */
+    private final Handler dlH = new Handler(Looper.getMainLooper());
+    private boolean dlWaitTold;
+    private final Runnable dlTick = new Runnable() { @Override public void run() { pollDl(); } };
+    private void pollDl() {
+        if (dlId < 0) return;
+        android.database.Cursor c = null;
+        try {
+            DownloadManager dm = (DownloadManager) a.getSystemService(Context.DOWNLOAD_SERVICE);
+            c = dm.query(new DownloadManager.Query().setFilterById(dlId));
+            if (c == null || !c.moveToFirst()) { dlId = -1; tell("fail"); return; }
+            int st = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+            int reason = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
+            long got = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+            long tot = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+            if (st == DownloadManager.STATUS_FAILED) { dlId = -1; tell("failc" + reason); return; }
+            if (st == DownloadManager.STATUS_SUCCESSFUL) {
+                if (!a.hasWindowFocus()) { if (!dlWaitTold) { dlWaitTold = true; tell("wait"); } dlH.postDelayed(dlTick, 700); return; }
+                Uri u = dm.getUriForDownloadedFile(dlId); dlId = -1;
+                if (u == null) { tell("fail"); return; }
+                tell("done");
+                Intent inst = new Intent(Intent.ACTION_VIEW);
+                inst.setDataAndType(u, "application/vnd.android.package-archive");
+                inst.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                try { a.startActivity(inst); } catch (Exception e) { tell("fail"); }
+                return;
+            }
+            String note = st == DownloadManager.STATUS_PAUSED ? (reason == DownloadManager.PAUSED_QUEUED_FOR_WIFI ? "Wi-Fi 대기" : reason == DownloadManager.PAUSED_WAITING_FOR_NETWORK ? "네트워크 대기" : "대기 중") : (st == DownloadManager.STATUS_PENDING ? "시작 대기" : "");
+            tell("prog:" + (tot > 0 ? (int) (got * 100 / tot) : 0) + ":" + note);
+            dlH.postDelayed(dlTick, 700);
+        } catch (Exception e) { dlH.postDelayed(dlTick, 1000); }
+        finally { if (c != null) c.close(); }
     }
 
     void destroy() { }

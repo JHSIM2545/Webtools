@@ -74,6 +74,8 @@ textarea{resize:vertical}
 .ac .tm b{display:block;color:var(--text);font-size:11px}
 .ac .bar2{flex:none;width:3px;border-radius:2px;background:var(--c)}
 .ac .tx{flex:1;min-width:0}
+.ac .cpb{flex:none;align-self:center;border:1px solid var(--line);background:transparent;color:var(--sub);border-radius:6px;font-size:11px;padding:3px 7px;cursor:pointer}
+.ac .cpb:active{background:var(--line)}
 .ac .tx b{display:block;font-size:12.5px;line-height:1.3;word-break:break-word}
 .ac .tx small{display:block;color:var(--sub);font-size:10.5px;line-height:1.25;margin-top:0;word-break:break-word}
 .pill{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:99px;background:#10304a;color:var(--asst);align-self:flex-start;white-space:nowrap}
@@ -454,7 +456,7 @@ const timeText = o => o.ev.allDay ? '종일' : fmtTime(o.start);
 function cardHtml(o) {
   const ev = o.ev, sub = [ev.typeName, ev.loc || ev.addr, ev.rep ? ({ daily: '매일 반복', weekly: '매주 반복', monthly: '매월 반복', yearly: '매년 반복' })[ev.rep] : '', ev.memo].filter(Boolean).join(' · ');
   const tm = ev.allDay ? '<b>종일</b>' : '<b>' + esc(fmtTime(o.start)) + '</b>' + esc(fmtTime(o.endX));
-  return '<div class="ac" data-ev="' + ev.src + ':' + esc(ev.id) + '" data-o="' + +o.start + '" style="--c:' + ev.color + '"><div class="tm">' + tm + '</div><i class="bar2"></i><div class="tx"><b>' + esc(evTitle(ev)) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>' + (ev.src === 'asst' ? '<span class="pill">🎤 음성비서</span>' : '') + '</div>';
+  return '<div class="ac" data-ev="' + ev.src + ':' + esc(ev.id) + '" data-o="' + +o.start + '" style="--c:' + ev.color + '"><div class="tm">' + tm + '</div><i class="bar2"></i><div class="tx"><b>' + esc(evTitle(ev)) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>' + (ev.src === 'asst' ? '<span class="pill">🎤 음성비서</span>' : '') + '<button type="button" class="cpb" data-copy="1" aria-label="일정 복사">복사</button></div>';
 }
 
 /* 월 */
@@ -600,6 +602,8 @@ $('tabs').addEventListener('click', e => { const b = e.target.closest('button[da
 $('jump').addEventListener('change', e => { const d = pDate(e.target.value); if (d) { cur = d; render(); } });
 
 view.addEventListener('click', e => {
+  const cpb = e.target.closest('[data-copy]');
+  if (cpb) { const ac = cpb.closest('[data-ev]'); if (ac) { const p = ac.dataset.ev.split(':'), ev = findEv(p.shift(), p.join(':')); if (ev) copyEvent(ev, +ac.dataset.o || null); } return; }
   const evEl = e.target.closest('[data-ev]');
   if (evEl) { const p = evEl.dataset.ev.split(':'), ev = findEv(p.shift(), p.join(':')); if (ev) openDetail(ev, +evEl.dataset.o || null); return; }
   if (e.target.closest('[data-add]')) return openEditor(null, { date: cur });

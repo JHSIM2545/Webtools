@@ -59,10 +59,10 @@ textarea{resize:vertical}
 .dn{font-size:12px;width:18px;height:18px;line-height:18px;text-align:center;border-radius:50%;margin:0 auto}
 .dn.sun{color:var(--sun)}.dn.sat{color:var(--sat)}
 .cell.today .dn{background:var(--accent);color:#fff;font-weight:700}
-.hn{font-size:9px;height:11px;line-height:11px;color:var(--sun);text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.hn{font-size:9px;height:11px;line-height:11px;color:var(--sun);text-align:center;overflow:hidden;white-space:nowrap;text-overflow:clip}
 .chips{margin-top:1px}
-.chip{font-size:9px;line-height:1.25;margin-top:1px;border-radius:3px;padding:0 1px;letter-spacing:-.2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#10131a;font-weight:600;background:var(--c);background:color-mix(in srgb,var(--c) 62%,#fff)}
-.chip.l2{line-height:1.08;padding:0 1px;white-space:normal;word-break:break-all;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.chip{font-size:9px;line-height:1.25;margin-top:1px;border-radius:3px;padding:0 1px;letter-spacing:-.2px;overflow:hidden;white-space:nowrap;text-overflow:clip;color:#10131a;font-weight:600;background:var(--c);background:color-mix(in srgb,var(--c) 62%,#fff)}
+.chip.l2{line-height:1.08;padding:0 1px;white-space:normal;word-break:break-all;display:block;max-height:2.16em}
 .more{font-size:9px;line-height:1.3;margin-top:1px;color:var(--sub);text-align:left;padding-left:1px}
 /* 화면이 좌우로 긴 경우(차량 디스플레이·가로 모드·PC): 달력은 왼쪽, 선택한 날의 일정 목록은 오른쪽 */
 @media (min-aspect-ratio:13/10) and (min-width:600px){
@@ -99,7 +99,7 @@ textarea{resize:vertical}
 .wk-head .hd.sun small,.wk-head .hd.sun b,.wk-head .hd.hol b{color:var(--sun)}.wk-head .hd.sat small,.wk-head .hd.sat b{color:var(--sat)}
 .wk-head .hd b{display:inline-block;min-width:26px;height:26px;line-height:26px;border-radius:50%;font-size:14px}
 .wk-head .hd.today b{background:var(--accent);color:#fff!important}
-.wk-head .hd em{display:block;font-style:normal;font-size:9px;color:var(--sun);height:11px;line-height:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.wk-head .hd em{display:block;font-style:normal;font-size:9px;color:var(--sun);height:11px;line-height:11px;overflow:hidden;white-space:nowrap;text-overflow:clip}
 .wk-all .lab{font-size:10px;color:var(--sub);padding:5px 4px 0 0;text-align:right}
 .wk-all .c{padding:2px;border-left:1px solid var(--line);min-height:24px;min-width:0;overflow:hidden}
 .wk-all .chip{height:16px;line-height:16px;font-size:11px;cursor:pointer}
@@ -110,8 +110,8 @@ textarea{resize:vertical}
 .col{position:relative;border-left:1px solid var(--line);background-image:linear-gradient(var(--line) 1px,transparent 1px);background-size:100% var(--hh)}
 .col.today{background-color:rgba(255,107,107,.04)}
 .blk{position:absolute;border-radius:6px;padding:2px 4px;font-size:11px;line-height:1.3;overflow:hidden;cursor:pointer;border-left:3px solid var(--c);background:rgba(255,255,255,.14);background:color-mix(in srgb,var(--c) 32%,var(--bg))}
-.blk b{display:block;font-weight:700;overflow:hidden;text-overflow:ellipsis}
-.blk small{display:block;font-size:10px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blk b{display:block;font-weight:700;overflow:hidden;text-overflow:clip}
+.blk small{display:block;font-size:10px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:clip}
 .nowline{position:absolute;left:0;right:0;height:2px;background:var(--accent);z-index:3;pointer-events:none}
 .nowline::before{content:"";position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
 /* 목록 */

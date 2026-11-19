@@ -51,7 +51,7 @@ textarea{resize:vertical}
 .mv{display:flex;flex-direction:column;height:100%}
 .dow{display:grid;grid-template-columns:repeat(7,1fr);padding:6px 0 4px;font-size:12px;color:var(--sub);text-align:center}
 .dow span:first-child{color:var(--sun)}.dow span:last-child{color:var(--sat)}
-.mgrid{flex:0 1 80%;min-height:250px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;padding:1px}   /* 삼성 캘린더처럼 칸을 띄우고, 달력을 크게 잡아 일정이 3개까지 보이게 */
+.mgrid{touch-action:none;will-change:transform;flex:0 1 80%;min-height:250px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;padding:1px}   /* 삼성 캘린더처럼 칸을 띄우고, 달력을 크게 잡아 일정이 3개까지 보이게 */
 .cell{background:rgba(255,255,255,.035);border-radius:6px;padding:1px 0 0;overflow:hidden;cursor:pointer;min-width:0}
 .cell:nth-child(7n+1){background:rgba(255,107,107,.06)}.cell:nth-child(7n){background:rgba(91,155,255,.06)}
 .cell.out{opacity:.4}
@@ -632,12 +632,50 @@ view.addEventListener('click', e => {
   const cell = e.target.closest('.cell[data-d]'); if (cell) { cur = pDate(cell.dataset.d); render(); }
 });
 let tx0 = null, ty0 = null;
-view.addEventListener('touchstart', e => { if (e.touches.length === 1) { tx0 = e.touches[0].clientX; ty0 = e.touches[0].clientY; } else tx0 = null; }, { passive: true });
+view.addEventListener('touchstart', e => { if (e.touches.length === 1 && !(mode === 'month' && e.target.closest('.mgrid'))) { tx0 = e.touches[0].clientX; ty0 = e.touches[0].clientY; } else tx0 = null; }, { passive: true });   // 월 보기 달력은 아래의 끌기 동작이 따로 처리
 view.addEventListener('touchend', e => {
   if (tx0 == null || mode === 'list' || $('ed').classList.contains('on')) return;
   const t = e.changedTouches[0], dx = t.clientX - tx0, dy = t.clientY - ty0; tx0 = null;
   if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) step(dx < 0 ? 1 : -1);
 }, { passive: true });
+/* 월 보기 달력 끌기: 좌우 = 손가락을 따라 부드럽게 넘어가는 달 이동, 위아래 = 달력 크기 늘이기·줄이기(아래 일정 목록과의 경계) */
+(() => {
+  let g = null, x0 = 0, y0 = 0, h0 = 0, lock = '', B = null, t0 = 0, swallow = false, raf = 0, ly = 0;
+  view.addEventListener('click', e => { if (swallow) { e.stopPropagation(); e.preventDefault(); } }, true);
+  view.addEventListener('pointerdown', e => {
+    if (mode !== 'month' || (e.pointerType === 'mouse' && e.button) || e.target.closest('#mgrip')) return;
+    const gr = e.target.closest('.mgrid'); if (!gr || g) return;
+    g = gr; x0 = e.clientX; y0 = e.clientY; h0 = gr.getBoundingClientRect().height; lock = ''; B = mhBounds(); t0 = Date.now();
+    gr.style.transition = 'none';
+  });
+  window.addEventListener('pointermove', e => {
+    if (!g) return;
+    const dx = e.clientX - x0, dy = e.clientY - y0;
+    if (!lock) { if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; lock = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'; try { g.setPointerCapture(e.pointerId); } catch (x) {} }
+    if (lock === 'x') g.style.transform = 'translateX(' + dx + 'px)';
+    else if (B) { ly = dy; if (!raf) raf = requestAnimationFrame(() => { raf = 0; applyMH(h0 + ly); fitMonth(); }); }
+  });
+  const end = e => {
+    if (!g) return;
+    const gr = g, dx = e.clientX - x0, dt = Math.max(1, Date.now() - t0), l = lock; g = null; lock = '';
+    if (!l) return;
+    swallow = true; setTimeout(() => { swallow = false; }, 350);
+    if (l === 'y') { if (B) { const h = gr.getBoundingClientRect().height; mhFrac = h / B.avail; try { localStorage.setItem('simcal_mh', String(mhFrac)); } catch (x) {} } return; }
+    const w = gr.getBoundingClientRect().width || 1;
+    if (e.type !== 'pointercancel' && (Math.abs(dx) > w * 0.22 || (Math.abs(dx) > 36 && Math.abs(dx) / dt > 0.45))) {
+      const dir = dx < 0 ? 1 : -1;
+      gr.style.transition = 'transform .16s ease-out'; gr.style.transform = 'translateX(' + (dx < 0 ? -105 : 105) + '%)';
+      setTimeout(() => {
+        step(dir);
+        const ng = view.querySelector('.mgrid'); if (!ng) return;
+        ng.style.transition = 'none'; ng.style.transform = 'translateX(' + (dx < 0 ? 105 : -105) + '%)'; void ng.offsetWidth;
+        ng.style.transition = 'transform .2s ease-out'; ng.style.transform = '';
+        setTimeout(() => { ng.style.transition = ''; }, 260);
+      }, 150);
+    } else { gr.style.transition = 'transform .18s ease-out'; gr.style.transform = ''; setTimeout(() => { gr.style.transition = ''; }, 220); }
+  };
+  window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+})();
 window.addEventListener('resize', () => { if (mode === 'month') { applyMH(); fitMonth(); } });
 
 /* ───────── 일정 편집 ───────── */

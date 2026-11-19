@@ -144,6 +144,7 @@
   const clickable = b => b && !b.disabled && b.getClientRects().length;
   window.__simPopupBack = () => {
     try {
+      const more = document.getElementById('morePop'); if (more && more.style.display === 'block') { more.style.display = 'none'; return true; }   // 런처 ⋯ 메뉴
       const menu = document.querySelector('.simvm-pop');               // ⋯ 메뉴(작은 드롭다운)가 열려 있으면 그것부터 닫는다
       if (menu) { menu.remove(); return true; }
       if (document.body.classList.contains('drawer') && document.body.classList.contains('open')) {   // 라디오 서랍

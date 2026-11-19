@@ -253,6 +253,9 @@
         pop.style.maxHeight = Math.max(120, Math.round(vh - r.bottom - 14)) + 'px'; pop.style.overflowY = 'auto'; pop.style.webkitOverflowScrolling = 'touch'; pop.style.overscrollBehavior = 'contain';
       };
       document.addEventListener('click', e => { if (!w.contains(e.target)) pop.style.display = 'none'; });
+      // 메뉴가 열린 채 뒤 화면을 밀거나(터치·휠·스크롤) 화면 크기가 바뀌면 닫는다(메뉴 안쪽은 제외)
+      ['touchmove', 'wheel', 'scroll'].forEach(t => document.addEventListener(t, e => { if (pop.style.display === 'block' && !(e.target && e.target.nodeType === 1 && pop.contains(e.target))) pop.style.display = 'none'; }, { capture: true, passive: true }));
+      window.addEventListener('resize', () => { pop.style.display = 'none'; });
       w.appendChild(mb); w.appendChild(pop);
       hd.appendChild(w);
     }

@@ -498,8 +498,8 @@ function fitMonth() {
   view.querySelectorAll('.cell').forEach(c => {
     const list = MB.get(c.dataset.d) || [], box = c.querySelector('.chips'); box.innerHTML = '';
     if (!list.length) return;
-    // 일정 3개는 보이게: 칸이 넉넉하면 제목을 2줄로, 아니면 1줄로 그린다. 그래도 넘치면 마지막 자리에 '+N'
-    const avail = c.clientHeight - 20 - (c.querySelector('.hn') ? 11 : 0) - 1, two = avail >= 3 * 23;
+    // 칸에 여유가 있어 모든 일정을 2줄로 보여 줄 수 있으면 2줄로, 아니면 1줄로 그린다. 그래도 넘치면 마지막 자리에 '+N'
+    const avail = c.clientHeight - 20 - (c.querySelector('.hn') ? 11 : 0) - 1, two = list.length * 23 <= avail;   // 일정이 적어 자리가 남으면 모두 2줄로, 많으면 1줄로
     const ih = two ? 23 : 14, cap = Math.floor(avail / ih);
     const show = list.length <= cap ? list.length : Math.max(Math.floor((avail - 12) / ih), 0);   // '+N' 줄(13px) 자리는 따로 남긴다
     let h = ''; for (let i = 0; i < show; i++) h += '<div class="chip' + (two ? ' l2' : '') + '" style="--c:' + list[i].ev.color + '">' + esc(evTitle(list[i].ev)) + '</div>';

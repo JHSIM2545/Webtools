@@ -40,8 +40,8 @@ textarea{resize:vertical}
 .mv{display:flex;flex-direction:column;height:100%}
 .dow{display:grid;grid-template-columns:repeat(7,1fr);padding:6px 0 4px;font-size:12px;color:var(--sub);text-align:center}
 .dow span:first-child{color:var(--sun)}.dow span:last-child{color:var(--sat)}
-.mgrid{flex:0 1 76%;min-height:250px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;padding:3px}   /* 삼성 캘린더처럼 칸을 띄우고, 달력을 크게 잡아 일정이 3개까지 보이게 */
-.cell{background:rgba(255,255,255,.035);border-radius:8px;padding:2px 2px 0;overflow:hidden;cursor:pointer;min-width:0}
+.mgrid{flex:0 1 76%;min-height:250px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;padding:1px}   /* 삼성 캘린더처럼 칸을 띄우고, 달력을 크게 잡아 일정이 3개까지 보이게 */
+.cell{background:rgba(255,255,255,.035);border-radius:6px;padding:1px 0 0;overflow:hidden;cursor:pointer;min-width:0}
 .cell:nth-child(7n+1){background:rgba(255,107,107,.06)}.cell:nth-child(7n){background:rgba(91,155,255,.06)}
 .cell.out{opacity:.4}
 .cell.sel{box-shadow:inset 0 0 0 1.5px var(--accent)}
@@ -50,9 +50,9 @@ textarea{resize:vertical}
 .cell.today .dn{background:var(--accent);color:#fff;font-weight:700}
 .hn{font-size:9px;height:11px;line-height:11px;color:var(--sun);text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .chips{margin-top:1px}
-.chip{font-size:10.5px;height:14px;line-height:14px;margin-top:1px;border-radius:4px;padding:0 3px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#10131a;font-weight:600;background:var(--c);background:color-mix(in srgb,var(--c) 62%,#fff)}
-.chip.l2{height:28px;line-height:12px;padding:2px 3px;white-space:normal;word-break:break-all;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.more{font-size:10px;height:13px;line-height:13px;margin-top:1px;color:var(--sub);text-align:left;padding-left:3px}
+.chip{font-size:9px;height:13px;line-height:13px;margin-top:1px;border-radius:3px;padding:0 1px;letter-spacing:-.2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#10131a;font-weight:600;background:var(--c);background:color-mix(in srgb,var(--c) 62%,#fff)}
+.chip.l2{height:22px;line-height:10.5px;padding:0 1px;white-space:normal;word-break:break-all;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.more{font-size:9px;height:12px;line-height:12px;margin-top:1px;color:var(--sub);text-align:left;padding-left:1px}
 /* 화면이 좌우로 긴 경우(차량 디스플레이·가로 모드·PC): 달력은 왼쪽, 선택한 날의 일정 목록은 오른쪽 */
 @media (min-aspect-ratio:13/10) and (min-width:600px){
   #view:has(.mv){max-width:none}   /* 월 보기는 화면 폭을 다 쓴다 */
@@ -66,16 +66,16 @@ textarea{resize:vertical}
 .mgrip i{width:42px;height:4px;border-radius:2px;background:var(--sub);opacity:.6}
 .mgrip.drag i{background:var(--accent);opacity:1}
 .agenda{flex:1 1 0;min-height:0;overflow-y:auto;border-top:1px solid var(--line);background:var(--panel);padding:10px 12px 90px;-webkit-overflow-scrolling:touch}
-.ahead{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ahead{display:flex;align-items:center;gap:6px;margin-bottom:3px}
 .ahead b{font-size:15px}.ahead .hol{font-size:12px;color:var(--sun)}.ahead .cnt{font-size:12px;color:var(--sub)}
 .mini{padding:5px 10px;font-size:13px;border-radius:99px}
-.ac{display:flex;align-items:stretch;gap:10px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;cursor:pointer}
-.ac .tm{flex:none;width:56px;font-size:12px;color:var(--sub);line-height:1.5;text-align:right}
-.ac .tm b{display:block;color:var(--text);font-size:12.5px}
-.ac .bar2{flex:none;width:4px;border-radius:2px;background:var(--c)}
+.ac{display:flex;align-items:stretch;gap:5px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:3px 4px;margin-bottom:2px;cursor:pointer}
+.ac .tm{flex:none;width:42px;font-size:10.5px;color:var(--sub);line-height:1.3;text-align:right}
+.ac .tm b{display:block;color:var(--text);font-size:11px}
+.ac .bar2{flex:none;width:3px;border-radius:2px;background:var(--c)}
 .ac .tx{flex:1;min-width:0}
-.ac .tx b{display:block;font-size:15px;word-break:break-word}
-.ac .tx small{display:block;color:var(--sub);font-size:12.5px;margin-top:2px;word-break:break-word}
+.ac .tx b{display:block;font-size:12.5px;line-height:1.3;word-break:break-word}
+.ac .tx small{display:block;color:var(--sub);font-size:10.5px;line-height:1.25;margin-top:0;word-break:break-word}
 .pill{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:99px;background:#10304a;color:var(--asst);align-self:flex-start;white-space:nowrap}
 .empty{padding:26px 10px;text-align:center;color:var(--sub);font-size:14px;line-height:1.7}
 /* 주·일 */
@@ -292,7 +292,7 @@ function loadTypes() {
 let TYPES = loadTypes();
 const saveTypes = () => { ls.set('simcal_types', JSON.stringify(TYPES)); syncSoon(); };
 const typeById = id => id ? TYPES.find(t => t.id === id) : null;
-const evTitle = ev => (ev.emoji ? ev.emoji + ' ' : '') + ev.title;
+const evTitle = ev => ev.title + (ev.emoji ? ' ' + ev.emoji : '');   // 아이콘은 제목 맨 뒤
 
 /* ───────── 공휴일 (양력 고정 + 음력 계산 + 대체공휴일). 임시공휴일·선거일은 포함하지 않음 ───────── */
 const HCACHE = {};
@@ -499,9 +499,9 @@ function fitMonth() {
     const list = MB.get(c.dataset.d) || [], box = c.querySelector('.chips'); box.innerHTML = '';
     if (!list.length) return;
     // 일정 3개는 보이게: 칸이 넉넉하면 제목을 2줄로, 아니면 1줄로 그린다. 그래도 넘치면 마지막 자리에 '+N'
-    const avail = c.clientHeight - 22 - (c.querySelector('.hn') ? 11 : 0) - 2, two = avail >= 3 * 29;
-    const ih = two ? 29 : 15, cap = Math.floor(avail / ih);
-    const show = list.length <= cap ? list.length : Math.max(Math.floor((avail - 13) / ih), 0);   // '+N' 줄(13px) 자리는 따로 남긴다
+    const avail = c.clientHeight - 20 - (c.querySelector('.hn') ? 11 : 0) - 1, two = avail >= 3 * 23;
+    const ih = two ? 23 : 14, cap = Math.floor(avail / ih);
+    const show = list.length <= cap ? list.length : Math.max(Math.floor((avail - 12) / ih), 0);   // '+N' 줄(13px) 자리는 따로 남긴다
     let h = ''; for (let i = 0; i < show; i++) h += '<div class="chip' + (two ? ' l2' : '') + '" style="--c:' + list[i].ev.color + '">' + esc(evTitle(list[i].ev)) + '</div>';
     if (list.length > show) h += '<div class="more">+' + (list.length - show) + '</div>';
     box.innerHTML = h;

@@ -354,5 +354,35 @@ final class AppBridge {
         finally { if (c != null) c.close(); }
     }
 
+    private Uri lastSaved = null;
+    /** 문자 파일을 다운로드/SIM Calendar 폴더에 저장 → 저장한 위치(실패하면 빈 문자열) */
+    @JavascriptInterface public String saveText(String name, String mime, String text) {
+        try {
+            if (Build.VERSION.SDK_INT < 29) return "";
+            android.content.ContentValues cv = new android.content.ContentValues();
+            cv.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name);
+            cv.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mime);
+            cv.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Download/SIM Calendar");
+            Uri u = a.getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+            if (u == null) return "";
+            java.io.OutputStream o = a.getContentResolver().openOutputStream(u);
+            try { o.write(text.getBytes("UTF-8")); } finally { o.close(); }
+            lastSaved = u;
+            return "Download/SIM Calendar/" + name;
+        } catch (Exception e) { return ""; }
+    }
+    /** 방금 저장한 파일을 공유 창으로 보낸다(다른 캘린더·메신저·메일) */
+    @JavascriptInterface public void shareSaved(final String mime, final String title) {
+        a.runOnUiThread(new Runnable() { @Override public void run() {
+            try {
+                if (lastSaved == null) return;
+                Intent i = new Intent(Intent.ACTION_SEND);
+                i.setType(mime); i.putExtra(Intent.EXTRA_STREAM, lastSaved); i.putExtra(Intent.EXTRA_SUBJECT, title);
+                i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                a.startActivity(Intent.createChooser(i, title));
+            } catch (Exception e) { /* 무시 */ }
+        } });
+    }
+
     void destroy() { }
 }

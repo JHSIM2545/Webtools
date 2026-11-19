@@ -167,7 +167,7 @@ textarea{resize:vertical}
   <a class="back" href="index.html" title="SIM Tools">‹</a>
   <h1>SIM <span>Calendar</span></h1>
   <button class="txtbtn" id="btnToday" title="오늘로 이동">오늘</button>
-  <button class="iconbtn" id="btnIcs" title="ICS 파일 가져오기 (삼성 캘린더 등)">📥</button><input type="file" id="icsFile" accept=".ics,.ical,.ifb,text/calendar,application/ics,text/x-vcalendar" multiple hidden>
+  <button class="iconbtn" id="btnIcs" title="일정 가져오기·내보내기 (ICS · 삼성 캘린더 등)">📥</button><input type="file" id="icsFile" accept=".ics,.ical,.ifb,text/calendar,application/ics,text/x-vcalendar" multiple hidden>
   <button class="iconbtn" id="btnTypes" title="일정 종류 관리">🏷️</button>
   <a class="iconbtn" href="assistant.html" title="음성 비서로 일정 추가">🎤</a>
 </div>
@@ -1105,7 +1105,57 @@ async function importIcsTexts(texts, label) {
   const note = [skip.rrule ? '반복 조건 ' + skip.rrule + '건은 단순 반복으로 바뀜' : '', skip.override ? '반복 예외 ' + skip.override + '건 제외' : '', skip.cancelled ? '취소된 일정 ' + skip.cancelled + '건 제외' : '', skip.bad ? '읽지 못한 일정 ' + skip.bad + '건' : ''].filter(Boolean).join(' · ');
   toast('📅 ' + (label || 'ICS') + ': ' + (added ? added + '개 등록' : '') + (added && updated ? ', ' : '') + (updated ? updated + '개 갱신' : '') + (note ? ' (' + note + ')' : '') + (memOnly ? ' · 이 브라우저는 저장소를 쓸 수 없어 앱을 닫으면 사라져요' : ''), 5200);
 }
-$('btnIcs').onclick = () => $('icsFile').click();
+$('btnIcs').onclick = async () => {
+  const k = await choose('일정 가져오기·내보내기', 'ICS 파일(.ics)은 삼성·구글 캘린더 등 대부분의 캘린더가 읽을 수 있어요.', [
+    { key: 'imp', label: '📥 일정 가져오기', sub: '다른 캘린더에서 받은 .ics 파일을 읽어 와요.' },
+    { key: 'all', label: '📤 전체 일정 내보내기', sub: '반복 일정은 반복 그대로 담아요.' },
+    { key: 'month', label: '📤 이 달 일정 내보내기', sub: cur.getFullYear() + '년 ' + (cur.getMonth() + 1) + '월에 걸친 일정만 담아요.' },
+    { key: 'day', label: '📤 선택한 날 일정 내보내기', sub: fmtMD(cur) + ' 일정만 담아요.' }
+  ]);
+  if (k === 'imp') $('icsFile').click(); else if (k) exportIcs(k);
+};
+/* ───── ICS 내보내기 ───── */
+const icsEsc = t => String(t == null ? '' : t).replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/([,;])/g, '\\$1');
+const icsFold = l => { const out = []; let s = l; while (s.length > 72) { out.push(s.slice(0, 72)); s = ' ' + s.slice(72); } out.push(s); return out.join('\r\n'); };
+const icsUtc = d => new Date(d).toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+const icsDay = d => { const x = new Date(d); return x.getFullYear() + String(x.getMonth() + 1).padStart(2, '0') + String(x.getDate()).padStart(2, '0'); };
+function icsEvent(ev, start, endX, withRep) {
+  const L = ['BEGIN:VEVENT', 'UID:' + ev.src + '-' + ev.id + (withRep ? '' : '-' + +start) + '@simtools', 'DTSTAMP:' + icsUtc(Date.now())];
+  if (ev.allDay) { L.push('DTSTART;VALUE=DATE:' + icsDay(start)); L.push('DTEND;VALUE=DATE:' + icsDay(endX)); }
+  else { L.push('DTSTART:' + icsUtc(start)); L.push('DTEND:' + icsUtc(endX)); }
+  L.push('SUMMARY:' + icsEsc(evTitle(ev)));
+  const place = [ev.loc, ev.raw && ev.raw.addr].filter(Boolean).join(' · '); if (place) L.push('LOCATION:' + icsEsc(place));
+  const memo = [ev.typeName ? '[' + ev.typeName + ']' : '', ev.memo].filter(Boolean).join(' '); if (memo) L.push('DESCRIPTION:' + icsEsc(memo));
+  if (withRep && ev.rep) {
+    const f = { daily: 'DAILY', weekly: 'WEEKLY', monthly: 'MONTHLY', yearly: 'YEARLY' }[ev.rep];
+    if (f) {
+      L.push('RRULE:FREQ=' + f + (ev.until != null ? ';UNTIL=' + (ev.allDay ? icsDay(ev.until - 1) : icsUtc(ev.until - 1)) : ''));
+      if (ev.ex && ev.ex.size) L.push((ev.allDay ? 'EXDATE;VALUE=DATE:' : 'EXDATE:') + [...ev.ex].map(x => ev.allDay ? icsDay(x) : icsUtc(x)).join(','));
+    }
+  }
+  const rm = ev.raw && ev.raw.remind; if (!ev.allDay && rm != null && +rm >= 0) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(ev.title), 'TRIGGER:-PT' + Math.round(+rm) + 'M', 'END:VALARM');
+  L.push('END:VEVENT');
+  return L.map(icsFold).join('\r\n');
+}
+async function exportIcs(kind) {
+  let ev = [], what = '전체';
+  if (kind === 'all') ev = EVS.map(e => icsEvent(e, e.start, e.endX, true));
+  else {
+    const rs = kind === 'month' ? new Date(cur.getFullYear(), cur.getMonth(), 1) : sod(cur), re = kind === 'month' ? new Date(cur.getFullYear(), cur.getMonth() + 1, 1) : addDays(sod(cur), 1);
+    ev = occurrences(rs, re).map(o => icsEvent(o.ev, o.start, o.endX, false));
+    what = kind === 'month' ? cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') : ymd(cur);
+  }
+  if (!ev.length) { toast('내보낼 일정이 없어요'); return; }
+  const text = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//SIM Tools//SIM Calendar//KO\r\nCALSCALE:GREGORIAN\r\nX-WR-CALNAME:SIM Calendar\r\n' + ev.join('\r\n') + '\r\nEND:VCALENDAR\r\n';
+  const name = 'SIM_Calendar_' + what + '.ics', NA = window.SimApp;
+  if (NA && typeof NA.saveText === 'function') {
+    const where = NA.saveText(name, 'text/calendar', text);
+    if (where) { toast('일정 ' + ev.length + '개를 저장했어요 (' + where + ')', 4200); try { NA.shareSaved('text/calendar', 'SIM Calendar 일정'); } catch (e) {} return; }
+  }
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/calendar;charset=utf-8' })), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 8000);
+  toast('일정 ' + ev.length + '개를 .ics 파일로 내보냈어요', 3200);
+}
 $('icsFile').onchange = async e => {
   const fs = [...e.target.files]; e.target.value = ''; if (!fs.length) return;
   const texts = []; for (const f of fs) texts.push(await f.text());

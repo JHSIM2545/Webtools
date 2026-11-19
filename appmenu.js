@@ -216,6 +216,10 @@
   }
   function open(kind) { closePop(); return kind === 'perm' ? openPerm() : openVer(); }
   document.addEventListener('click', e => { if (pop && !pop.contains(e.target) && !(e.target.closest && e.target.closest('.simvm-btn'))) closePop(); }, true);
+  // 메뉴가 열린 채 뒤 화면을 밀거나(터치·휠·스크롤) 화면 크기가 바뀌면 메뉴를 닫는다(메뉴 안쪽 스크롤은 제외)
+  const outside = e => !(pop && e.target && e.target.nodeType === 1 && pop.contains(e.target));
+  ['touchmove', 'wheel', 'scroll'].forEach(t => document.addEventListener(t, e => { if (pop && outside(e)) closePop(); }, { capture: true, passive: true }));
+  window.addEventListener('resize', () => closePop());
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closePop(); closeModal(); } });
 
   function mountBar(back) {

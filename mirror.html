@@ -36,6 +36,10 @@ button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(
 .srow b{flex:1;font-size:15.5px}
 .srow input[type=range]{flex:2;accent-color:#aab6d0}
 .srow .vv{width:40px;text-align:right;color:var(--sub);font-size:13px}
+.seg{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.seg button{padding:7px 12px;font-size:13px;border-radius:99px;font-weight:700}
+.seg button.on{background:linear-gradient(135deg,#f4f7ff,#aab6d0);color:var(--ink);border-color:transparent}
+.hint{font-size:12px;color:var(--warn);padding:0 2px 10px}
 
 .app{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
 
@@ -311,19 +315,18 @@ const MirrorDSP = (() => {
 
   const median = a => { const b = a.slice().sort((x, y) => x - y), n = b.length; return n ? (n % 2 ? b[(n - 1) >> 1] : (b[n / 2 - 1] + b[n / 2]) / 2) : NaN; };
 
-  /* 최종 판정: 전체 20초 추정과, 서로 겹치지 않는 앞 10초·뒤 10초 추정이 모두 일치할 때만 '믿을 수 있는 값'으로 본다.
-     잡음만 있는 신호는 앞·뒤 구간이 따로 놀아서 걸러진다. strong=확실, weak=참고(신뢰 낮음) */
+  /* 최종 판정: POS 를 한 번 계산한 뒤, 전체 구간 추정과 서로 겹치지 않는 앞·뒤 절반 추정이 일치할 때만 '믿을 수 있는 값'으로 본다.
+     잡음만 있는 신호는 앞·뒤가 따로 놀아 걸러진다. 구간이 짧을수록 주파수 해상도가 떨어져 허용 오차를 조금 넓힌다. strong=확실, weak=참고 */
   function measure(ts, r, g, b) {
-    const full = analyze(ts, r, g, b, 20); if (!full) return null;
-    const tEnd = ts[ts.length - 1];
-    let m = ts.length; while (m > 0 && ts[m - 1] > tEnd - 10) m--;           // m: 뒤 10초 시작 위치
-    if (m < 100) return { bpm: full.bpm, snr: full.snr, diff: 99, strong: false, weak: false, wave: full.wave };
-    const A = analyze(ts.slice(0, m), r.slice(0, m), g.slice(0, m), b.slice(0, m), 10);
-    const Bq = analyze(ts.slice(m), r.slice(m), g.slice(m), b.slice(m), 10);
-    const diff = A && Bq ? Math.abs(A.bpm - Bq.bpm) : 99;
-    const strong = full.snr >= 0.3 && diff <= 4;
-    const weak = !strong && full.snr >= 0.22 && diff <= 6;
-    return { bpm: full.bpm, snr: full.snr, diff, strong, weak, wave: full.wave };
+    const rs = resample(ts, [r, g, b]); if (!rs) return null;
+    const H = pos(rs[0], rs[1], rs[2]), seg = H.subarray(Math.round(1.6 * FS)), n = seg.length;   // POS 첫 창은 비어 있음
+    if (n < FS * 7) return null;
+    const mid = n >> 1, full = heartRate(seg), A = heartRate(seg.subarray(0, mid)), B = heartRate(seg.subarray(mid));
+    if (!full) return null;
+    const diff = A && B ? Math.abs(A.bpm - B.bpm) : 99, half = mid / FS;
+    const tolS = half >= 8 ? 4 : half >= 6 ? 5 : 6, tolW = half >= 8 ? 6 : 8;
+    const snrS = half >= 9 ? 0.3 : 0.33, strong = full.snr >= snrS && diff <= tolS, weak = !strong && full.snr >= 0.22 && diff <= tolW;
+    return { bpm: full.bpm, snr: full.snr, diff, strong, weak, wave: seg };
   }
 
   return { FS, resample, pos, fft, heartRate, analyze, measure };
@@ -339,14 +342,14 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
 const LS = 'simmirror.v1';
-const DUR = 25;                       // 측정 시간(초)
+const DUR = 18;                       // 측정 시간(초) — 시뮬레이션상 18초면 25초와 거의 같은 신뢰도(확실 판정 통과율 약 -2~5%p)
 const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3';
 const MODEL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
 
 /* ── 저장 ── */
 let S = { hist: [] };
 try { const j = JSON.parse(localStorage.getItem(LS) || 'null'); if (j && Array.isArray(j.hist)) S = j; } catch (e) {}
-S.set = Object.assign({ voice: true, bgm: true, vol: 35 }, S.set || {});
+S.set = Object.assign({ voice: true, bgm: true, vol: 35, ai: true, vid: 'Kore' }, S.set || {});
 const save = () => { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) {} };
 
 function toast(m, ms) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), ms || 2200); }
@@ -404,13 +407,96 @@ const bgm = (() => {
   };
 })();
 
+/* AI 음성(Gemini) — SIM Recipe 와 같은 서버 함수(recipe-tts)·로그인 세션을 쓴다. 고정 멘트는 한 번 받아 기기에 저장해 두고 다시는 요청하지 않는다 */
+const AI = (() => {
+  const FN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/recipe-tts';
+  const SB_URL = 'https://rgamgjdnhunzzwzsbnbs.supabase.co', SB_KEY = 'sb_publishable_hnBcVEuMXFRdFRqJhOM0OQ_rp72JywU';
+  const mem = new Map(), pend = new Set(); let bad = false, fails = 0, warned = false, sb = null, lib = null, warming = false;
+  const phone = () => { try { return localStorage.getItem('SIMAS_AI_PHONE') || ''; } catch (e) { return ''; } };
+  const vid = () => S.set.vid || 'Kore';
+  const hash = t => { let a = 0x811c9dc5; for (let i = 0; i < t.length; i++) a = Math.imul(a ^ t.charCodeAt(i), 16777619) >>> 0; return a.toString(36) + t.length.toString(36); };
+  const ck = t => '/__mirror_voice/' + vid() + '/' + hash(t);
+  const ready = () => !!(S.set.ai && !bad && navigator.onLine !== false && phone());
+  const note = () => { if (!warned) { warned = true; toast('고품질 음성을 쓸 수 없어 기기 음성으로 읽어요', 3200); } };
+  function loadLib() {
+    if (window.supabase) return Promise.resolve(true); if (lib) return lib;
+    lib = new Promise(res => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; sc.onload = () => res(!!window.supabase); sc.onerror = () => res(false); document.head.appendChild(sc); setTimeout(() => res(!!window.supabase), 7000); });
+    return lib;
+  }
+  const NS = () => window.SimSession || null;
+  async function client() {
+    if (sb) return sb; if (!(await loadLib())) return null; const ns = NS();
+    sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: !ns, detectSessionInUrl: false } });
+    if (ns) sb.auth.onAuthStateChange((ev, s) => { if (s && ev === 'TOKEN_REFRESHED') { try { ns.put(JSON.stringify({ access_token: s.access_token, refresh_token: s.refresh_token })); } catch (e) {} } });
+    return sb;
+  }
+  async function token() {                                                  // 런처와 공유하는 로그인 세션
+    const c = await client(); if (!c) return null; const ns = NS();
+    if (ns) {
+      let raw = null; try { raw = ns.get(); } catch (e) {}
+      if (raw && raw !== 'NA' && raw !== 'OUT') {
+        let t = null; try { t = JSON.parse(raw); } catch (e) {}
+        const cur = (await c.auth.getSession()).data.session;
+        if (t && t.refresh_token && (!cur || cur.refresh_token !== t.refresh_token)) { try { await c.auth.setSession({ access_token: t.access_token, refresh_token: t.refresh_token }); } catch (e) {} }
+      }
+    }
+    const s = (await c.auth.getSession()).data.session; return s ? s.access_token : null;
+  }
+  const cache = () => (window.caches ? caches.open('simmirror-voice-v1') : Promise.resolve(null));
+  async function cHas(t) { try { const c = await cache(); return !!(c && await c.match(ck(t))); } catch (e) { return false; } }
+  async function cGet(t) { try { const c = await cache(); if (!c) return null; const r = await c.match(ck(t)); return r ? URL.createObjectURL(await r.blob()) : null; } catch (e) { return null; } }
+  async function cPut(t, blob) { try { const c = await cache(); if (c) await c.put(ck(t), new Response(blob, { headers: { 'content-type': blob.type || 'audio/wav' } })); } catch (e) {} }
+  async function net(t, o) {
+    const tk = await token(); if (!tk) { bad = true; return null; }          // 로그인 안 됨 → 조용히 기기 음성
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), o.timeout || 12000);
+    try {
+      const r = await fetch(FN, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tk }, body: JSON.stringify({ text: t, voice: vid(), phone: phone() }) });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 403 || r.status === 429) { bad = true; note(); return null; }   // 미등록·하루 한도·AI 한도
+      if (!r.ok || !j.data) { if (++fails >= 3) { bad = true; note(); } return null; }
+      fails = 0; const bin = atob(j.data), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      const blob = new Blob([u], { type: j.mime || 'audio/wav' }); if (o.static) cPut(t, blob);
+      return URL.createObjectURL(blob);
+    } catch (e) { if (++fails >= 3) { bad = true; note(); } return null; } finally { clearTimeout(to); }
+  }
+  function get(t, o = {}) {                                                  // → 재생할 주소 또는 null(기기 음성으로)
+    if (!ready()) return Promise.resolve(null);
+    const k = ck(t); if (mem.has(k)) return mem.get(k);
+    const p = (async () => {
+      const c = await cGet(t); if (c) return c;
+      if (o.cueOnly) {                                                       // 측정 중 멘트는 기다리지 않는다. 대신 다음을 위해 받아 둔다
+        if (!pend.has(k)) { pend.add(k); net(t, { static: true, timeout: 20000 }).then(u => { if (u) mem.set(k, Promise.resolve(u)); }).finally(() => pend.delete(k)); }
+        return null;
+      }
+      return net(t, o);
+    })();
+    mem.set(k, p); p.then(u => { if (!u && mem.get(k) === p) mem.delete(k); });
+    return p;
+  }
+  async function prewarm(lines) {                                            // 고정 멘트를 미리 받아 둔다(한 번만)
+    if (warming || !ready()) return; warming = true;
+    try {
+      const todo = []; for (const t of lines) { if (!(await cHas(t))) todo.push(t); }
+      let i = 0; const run = async () => { while (i < todo.length && ready()) { const t = todo[i++]; const u = await net(t, { static: true, timeout: 20000 }); if (u) mem.set(ck(t), Promise.resolve(u)); } };
+      await Promise.all([run(), run()]);
+    } finally { warming = false; }
+  }
+  return { ready, get, prewarm, retry() { bad = false; fails = 0; warned = false; }, get bad() { return bad; }, why() { return !S.set.ai ? '' : !phone() ? '등록 번호 필요' : navigator.onLine === false ? '오프라인' : bad ? '로그인·한도 확인 필요' : ''; } };
+})();
+
 const TTS = (() => {
-  let gen = 0, busy = 0, tok = 0, koVoice = null, bad = false, warned = false, seqN = 0; const cb = {};
+  let gen = 0, busy = 0, tok = 0, koVoice = null, dbad = false, warned = false, seqN = 0, aud = null, audDone = null; const cb = {};
   window.__simTts = (id, ev) => { const f = cb[id]; if (f) f(ev); };       // 안드로이드 앱이 알려주는 음성 진행 상태
   const nat = () => { try { return window.SimTts && typeof window.SimTts.status === 'function' ? window.SimTts : null; } catch (e) { return null; } };
-  const pickVoice = () => { try { const vs = speechSynthesis.getVoices ? speechSynthesis.getVoices() : []; koVoice = vs.find(v => /ko[-_]KR/i.test(v.lang)) || vs.find(v => /^ko/i.test(v.lang)) || null; } catch (e) {} };
+  const pickVoice = () => {                                                  // 기기에 한국어 음성이 여러 개면 품질이 좋아 보이는 것을 고른다
+    try {
+      const vs = (speechSynthesis.getVoices ? speechSynthesis.getVoices() : []).filter(v => /^ko/i.test(v.lang));
+      const sc = v => (/ko[-_]KR/i.test(v.lang) ? 1 : 0) + (/google/i.test(v.name) ? 3 : 0) + (/neural|natural|premium|enhanced|wavenet|online/i.test(v.name) ? 4 : 0) + (v.localService === false ? 1 : 0) - (/compact|espeak/i.test(v.name) ? 5 : 0);
+      koVoice = vs.sort((a, b) => sc(b) - sc(a))[0] || null;
+    } catch (e) {}
+  };
   try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
-  async function viaApp(text) {                                              // 1) 앱(APK) 자체 음성
+  async function viaApp(text) {                                              // 앱(APK) 자체 음성
     const T = nat(); if (!T) return 'nostart';
     for (let k = 0; k < 8 && T.status() === 'init'; k++) await sleep(250);
     if (T.status() !== 'ready') return 'nostart';
@@ -422,7 +508,7 @@ const TTS = (() => {
       let k = false; try { k = T.speak(text, id, .95); } catch (e) {} if (!k) fin('nostart');
     });
   }
-  function viaWeb(text) {                                                    // 2) 브라우저 음성
+  function viaWeb(text) {                                                    // 브라우저 음성
     return new Promise(ok => {
       try {
         if (!('speechSynthesis' in window)) return ok('nostart');
@@ -434,28 +520,39 @@ const TTS = (() => {
       } catch (e) { ok('nostart'); }
     });
   }
-  async function one(text, g) {
+  function playUrl(url) {                                                    // AI 음성 재생
+    return new Promise(ok => {
+      const a = new Audio(url); aud = a; audDone = ok;
+      const end = r => { if (aud === a) { aud = null; audDone = null; } ok(r); };
+      a.onended = () => end(true); a.onerror = () => end(false); a.play().catch(() => end(false));
+    });
+  }
+  async function one(text, g, o) {
+    if (AI.ready()) { const u = await AI.get(text, o); if (g !== gen) return false; if (u) { const ok = await playUrl(u); if (g !== gen) return false; if (ok) return true; } }
+    if (dbad) return false;
     let r = await viaApp(text); if (r === 'ok') return true; if (g !== gen) return false;
     r = await viaWeb(text); if (r === 'ok') return true; if (g !== gen) return false;
-    bad = true; if (!warned) { warned = true; toast('음성을 낼 수 없어요. 기기 설정에서 한국어 음성을 확인해 주세요', 3800); } return false;
+    dbad = true; if (!warned) { warned = true; toast('음성을 낼 수 없어요. 기기 설정에서 한국어 음성을 확인해 주세요', 3800); } return false;
   }
   const api = {
-    get busy() { return !!busy; }, get bad() { return bad; },
-    retry() { bad = false; warned = false; },
-    cancel() { gen++; busy = 0; bgm.duckReset(); try { const T = nat(); T && T.stop(); } catch (e) {} try { speechSynthesis.cancel(); } catch (e) {} },
-    async say(text, force) {
-      if (!S.set.voice || bad || !text) return false; if (busy && !force) return false;
-      const g = gen, my = ++tok; busy = my; bgm.duck(1);
-      try { return await one(text, g); } finally { if (g === gen) { if (busy === my) busy = 0; bgm.duck(-1); } }
+    get busy() { return !!busy; },
+    retry() { dbad = false; warned = false; AI.retry(); },
+    cancel() {
+      gen++; busy = 0; bgm.duckReset(); try { const T = nat(); T && T.stop(); } catch (e) {} try { speechSynthesis.cancel(); } catch (e) {}
+      if (aud) { try { aud.pause(); } catch (e) {} aud = null; } if (audDone) { const f = audDone; audDone = null; f(false); }
     },
-    async seq(lines) {                                                        // 여러 문장을 끊김 없이 차례로
+    async say(text, force, o) {
+      if (!S.set.voice || !text) return false; if (busy && !force) return false; if (dbad && !AI.ready()) return false;
+      const g = gen, my = ++tok; busy = my; bgm.duck(1);
+      try { return await one(text, g, o || {}); } finally { if (g === gen) { if (busy === my) busy = 0; bgm.duck(-1); } }
+    },
+    async seq(lines, o) {                                                     // 여러 문장을 끊김 없이 차례로
       const g = gen; bgm.duck(1);
-      try { for (const l of lines) { if (g !== gen) return; await api.say(l, true); if (g !== gen) return; await sleep(220); } } finally { if (g === gen) bgm.duck(-1); }
+      try { for (const l of lines) { if (g !== gen) return; await api.say(l, true, o && o(l)); if (g !== gen) return; await sleep(120); } } finally { if (g === gen) bgm.duck(-1); }
     }
   };
   return api;
 })();
-
 
 /* ── 시계 ── */
 function tick() {
@@ -620,7 +717,7 @@ async function beginMeasure() {
   if (state !== 'idle') return;
   state = 'measuring'; $('mirror').classList.add('run'); $('mirror').classList.remove('off');
   narrGen++; TTS.cancel(); RT = {}; CUED = {}; CL = 0; MV = 0; lastSay = 0; TTS.retry();
-  bgm.start(); speakM('측정을 시작할게요. 편안하게 거울을 바라봐 주세요.');
+  bgm.start(); speakM(OPEN);
   const b = $('startBtn'); b.disabled = true; b.textContent = '준비…';
   $('priv').textContent = '';
   for (const n of [3, 2, 1]) { const c = $('count'); c.textContent = n; c.classList.remove('show'); void c.offsetWidth; c.classList.add('show'); setMsg('가만히 거울을 봐 주세요'); await new Promise(r => setTimeout(r, 900)); if (state !== 'measuring') return; }
@@ -643,7 +740,7 @@ function measureFrame(R, lm, tSec) {
     if (!M.lostAt) M.lostAt = nowMs;
     if (nowMs - M.lostAt > 1200 && M.ts.length) { const keep = newM(); keep.t0 = nowMs; keep.lostAt = M.lostAt; M = keep; $('prog').style.strokeDashoffset = 100; }
     setMsg(!faceOk ? '얼굴이 안 보여요 · 가운데로' : '얼굴(피부)이 잘 안 보여요', 'warn');
-    if (nowMs - M.lostAt > 800) react('lost', '얼굴이 안 보여요. 화면 가운데로 와 주세요.', 8);
+    if (nowMs - M.lostAt > 800) react('lost', RL.lost, 8);
     return;
   }
   if (M.lostAt) { M.lostAt = 0; M.t0 = nowMs - (M.ts.length ? (M.ts[M.ts.length - 1] - M.ts[0]) * 1000 : 0); }
@@ -658,17 +755,17 @@ function measureFrame(R, lm, tSec) {
     M.sm.push(smile); M.br.push(brow); M.fr.push(frown); M.pr.push(press); M.bl.push(blink); M.sq.push(squint); M.jo.push(bs(shapes, 'jawOpen'));
     if (!M.closed && blink > .55) { M.closed = true; M.blinks++; } else if (M.closed && blink < .35) M.closed = false;
     reactEmoji(smile, brow, blink);
-    if (smile > .45) react('sm', '와, 환하게 웃으셨네요! 보기 좋아요.', 1e9);
-    if (brow > .45) react('bw', '미간에 힘이 들어갔어요. 살짝 풀어 볼까요?', 1e9);
-    CL = blink > .7 ? CL + 1 : 0; if (CL > 25) react('ey', '잠깐 눈을 감으셨네요. 졸리신가요?', 1e9);
+    if (smile > .45) react('sm', RL.sm, 1e9);
+    if (brow > .45) react('bw', RL.bw, 1e9);
+    CL = blink > .7 ? CL + 1 : 0; if (CL > 25) react('ey', RL.ey, 1e9);
   }
   // 움직임
   if (R.nose) { if (M.prevNose) { const dd = Math.hypot(R.nose.x - M.prevNose.x, R.nose.y - M.prevNose.y) / R.fw; M.motion.push(dd); if (M.motion.length > 20) M.motion.shift(); } M.prevNose = R.nose; }
   const mo = mean(M.motion) * 30;                    // 얼굴 폭/초
   // 안내
   const el = (nowMs - M.t0) / 1000;
-  MV = mo > .35 ? MV + 1 : 0; if (MV > 20) react('mv', '조금만 가만히 계셔 주세요.', 12);
-  if (luma < 55) react('dk', '조금 더 밝은 곳이면 좋겠어요.', 20); else if (luma > 238) react('br', '빛이 너무 강해요. 조금만 피해 볼까요?', 20);
+  MV = mo > .35 ? MV + 1 : 0; if (MV > 20) react('mv', RL.mv, 12);
+  if (luma < 55) react('dk', RL.dk, 20); else if (luma > 238) react('br', RL.br, 20);
   cueTick(el);
   if (mo > .35) setMsg('가만히 있어 주세요', 'warn');
   else if (luma < 55) setMsg('조금 더 밝은 곳으로 가 주세요', 'warn');
@@ -682,53 +779,61 @@ function measureFrame(R, lm, tSec) {
 
 /* ══ 측정 중 음성 안내 · 결과 낭독 ══ */
 let RT = {}, CUED = {}, lastSay = 0, CL = 0, MV = 0;
-function speakM(text) { lastSay = performance.now(); TTS.say(text).then(() => { lastSay = performance.now(); }); }
+const OPEN = '측정을 시작할게요. 편안하게 거울을 바라봐 주세요.';
+const RL = { lost: '얼굴이 안 보여요. 화면 가운데로 와 주세요.', sm: '와, 환하게 웃으셨네요! 보기 좋아요.', bw: '미간에 힘이 들어갔어요. 살짝 풀어 볼까요?', ey: '잠깐 눈을 감으셨네요. 졸리신가요?', mv: '조금만 가만히 계셔 주세요.', dk: '조금 더 밝은 곳이면 좋겠어요.', br: '빛이 너무 강해요. 조금만 피해 볼까요?' };
+const INTRO = ['수고하셨어요! 결과를 알려 드릴게요.', '측정이 끝났어요. 같이 볼까요?'];
+const TEST_LINE = '안녕하세요, 저는 스마트 거울이에요. 오늘도 컨디션 같이 확인해 봐요.';
+const C4A = '오, 표정이 좋은데요? 기분 좋은 일이 있으셨나 봐요.', C4B = '표정이 아주 편안해 보여요. 좋아요.';
+const CUES = [
+  { t: 2.5,  k: 'c1', say: () => '좋아요, 편하게 숨 쉬어 주세요.' },
+  { t: 6,    k: 'c2', say: () => '어깨에 힘을 빼 볼까요?' },
+  { t: 9.5,  k: 'c3', say: () => '절반 넘었어요. 심장 소리를 듣고 있어요.' },
+  { t: 13,   k: 'c4', say: () => { const v = smileNow(); return v != null && v > .25 ? C4A : C4B; } },
+  { t: 16.2, k: 'c5', say: () => '거의 다 됐어요. 조금만 더요!' }
+];
+const STATIC = [OPEN, TEST_LINE, C4A, C4B, ...CUES.filter(c => c.k !== 'c4').map(c => c.say()), ...Object.values(RL), ...INTRO];   // 매번 같은 멘트 → 한 번만 받아 저장
+const SOPT = { cueOnly: true, static: true };
+function speakM(text) { lastSay = performance.now(); TTS.say(text, false, SOPT).then(() => { lastSay = performance.now(); }); }
 function react(k, text, gap) {                                       // 상황 반응(쿨다운·1회 제한, 말하는 중엔 끼어들지 않음)
   const n = performance.now(); if (TTS.busy || n - lastSay < 900 || (RT[k] !== undefined && n - RT[k] < gap * 1000)) return;
   RT[k] = n; speakM(text);
 }
 const smileNow = () => M && M.sm.length ? mean(M.sm.slice(-30)) : null;
-const CUES = [
-  { t: 3,    k: 'c1', say: () => '좋아요, 아주 잘하고 계세요. 숨은 평소처럼 편하게 쉬어 주세요.' },
-  { t: 8,    k: 'c2', say: () => '어깨에 힘을 빼고, 천천히 숨을 한 번 쉬어 볼까요?' },
-  { t: 12.5, k: 'c3', say: () => M && M.liveHr ? '벌써 절반이에요. 아직 잠정이지만, 심박수는 분당 ' + Math.round(M.liveHr) + '회쯤으로 보여요.' : '벌써 절반이 지났어요. 지금 심장 소리를 듣고 있어요.' },
-  { t: 17,   k: 'c4', say: () => { const v = smileNow(); return v == null ? '아주 좋아요. 조금만 더 힘내요.' : v > .25 ? '오, 표정이 좋은데요? 기분 좋은 일이 있으셨나 봐요.' : '표정이 아주 편안해 보여요. 좋아요.'; } },
-  { t: 20.5, k: 'c5', say: () => '이제 오 초 남았어요. 조금만 더 가만히 계셔 주세요.' },
-  { t: 23.8, k: 'c6', say: () => '거의 다 됐어요.' }
-];
 function cueTick(el) {
   for (const c of CUES) {
     if (CUED[c.k] || el < c.t) continue;
-    if (el - c.t > 6) { CUED[c.k] = 1; continue; }                    // 너무 늦었으면 건너뜀
-    if (TTS.busy || performance.now() - lastSay < 1800) continue;   // 상황 반응이 먼저 끼어들 틈을 남겨 둔다
+    if (el - c.t > 4.5) { CUED[c.k] = 1; continue; }                  // 너무 늦었으면 건너뜀
+    if (TTS.busy || performance.now() - lastSay < 1800) continue;     // 상황 반응이 먼저 끼어들 틈을 남겨 둔다
     CUED[c.k] = 1; speakM(c.say()); break;
   }
 }
 const strip = t => String(t).replace(/[\p{Extended_Pictographic}️‍]/gu, '').replace(/\s+/g, ' ').trim();
 const MOODSAY = { sunny: '방긋 웃는 맑은 날씨예요', calm: '잔잔한 구름처럼 편안해 보여요', cloudy: '살짝 흐린 편이에요', stormy: '미간에 힘이 들어간 폭풍 날씨예요', foggy: '졸린 안개가 끼어 있어요' };
 const hrSay = b => b < 60 ? '느긋한 편이에요' : b <= 85 ? '편안한 편이에요' : b <= 100 ? '조금 빠른 편이에요' : '빠른 편이에요';
+/* 결과 낭독 — 세 덩어리로 나눈다: 고정 인사(저장된 음성, 바로 재생) → 점수·심박·표정·눈 → 혈압 느낌·처방·마무리. 뒤의 두 덩어리는 인사가 나오는 동안 미리 받는다 */
 function narration(r) {
-  const L = [pick(['수고하셨어요! 결과를 알려 드릴게요.', '측정이 끝났어요. 같이 볼까요?'])];
-  L.push('오늘의 컨디션은 ' + r.score + '점. ' + (r.score >= 85 ? '아주 좋아요!' : r.score >= 70 ? '꽤 좋은 편이에요.' : r.score >= 55 ? '무난한 하루가 될 것 같아요.' : '오늘은 조금 쉬어 가면 좋겠어요.'));
+  const a = ['오늘의 컨디션은 ' + r.score + '점. ' + (r.score >= 85 ? '아주 좋아요!' : r.score >= 70 ? '꽤 좋은 편이에요.' : r.score >= 55 ? '무난한 하루가 될 것 같아요.' : '오늘은 조금 쉬어 가면 좋겠어요.')];
   if (r.bpm) {
     let t = '심박수는 분당 ' + r.bpm + '회' + (r.q === 'weak' ? '쯤으로 나왔어요. 신호가 조금 약해서 참고만 해 주세요.' : ', ' + hrSay(r.bpm) + '.');
     if (r.q === 'good' && r.base) { const d = r.bpm - r.base; t += Math.abs(d) <= 3 ? ' 평소와 비슷해요.' : d > 0 ? ' 평소보다 ' + d + '회 빨라요.' : ' 평소보다 ' + (-d) + '회 느려요.'; }
-    L.push(t);
-  } else L.push('심박은 신호가 불안정해서 이번에는 재지 못했어요. 밝은 곳에서 가만히 다시 해 보세요.');
-  if (r.mood) L.push('표정은 ' + MOODSAY[r.mood] + '.');
-  if (r.fatigue != null) L.push(r.fatigue >= 50 ? '눈이 많이 피곤해 보여요.' : r.fatigue >= 25 ? '눈 피로는 보통이에요.' : '눈은 말짱해 보여요.');
-  const bp = bpTier(r.bp); if (bp) L.push('혈압 느낌은 ' + bp[1] + '. 이건 재미로만 봐 주세요.');
-  if (r.rx && r.rx[0]) L.push('거울의 처방은, ' + strip(r.rx[0]) + '.');
-  L.push(r.score >= 70 ? '오늘도 좋은 하루 보내세요!' : '무리하지 말고, 오늘은 천천히 가요.');
-  return L;
+    a.push(t);
+  } else a.push('심박은 신호가 불안정해서 이번에는 재지 못했어요. 밝은 곳에서 가만히 다시 해 보세요.');
+  if (r.mood) a.push('표정은 ' + MOODSAY[r.mood] + '.');
+  if (r.fatigue != null) a.push(r.fatigue >= 50 ? '눈이 많이 피곤해 보여요.' : r.fatigue >= 25 ? '눈 피로는 보통이에요.' : '눈은 말짱해 보여요.');
+  const c = []; const bp = bpTier(r.bp); if (bp) c.push('혈압 느낌은 ' + bp[1] + '. 이건 재미로만 봐 주세요.');
+  if (r.rx && r.rx[0]) c.push('거울의 처방은, ' + strip(r.rx[0]) + '.');
+  c.push(r.score >= 70 ? '오늘도 좋은 하루 보내세요!' : '무리하지 말고, 오늘은 천천히 가요.');
+  return [pick(INTRO), a.join(' '), c.join(' ')];
 }
 let narrGen = 0;
 async function narrate(r) {
-  const g = ++narrGen; await sleep(700);
+  const g = ++narrGen, L = narration(r), opt = l => ({ static: INTRO.includes(l), timeout: 10000 });
+  if (S.set.voice && AI.ready()) L.slice(1).forEach(l => AI.get(l, opt(l)));   // 인사가 나오는 동안 뒤 내용을 미리 만든다
+  await sleep(500);
   for (let i = 0; i < 40 && TTS.busy && g === narrGen; i++) await sleep(100);   // 진행 중인 안내가 끝나길 잠깐 기다림
   if (g !== narrGen || state !== 'result') return;
   bgm.start();
-  if (S.set.voice) await TTS.seq(narration(r)); else await sleep(5000);
+  if (S.set.voice) await TTS.seq(L, opt); else await sleep(5000);
   if (g === narrGen) setTimeout(() => { if (g === narrGen) bgm.stop(); }, 1800);
 }
 function silence() { narrGen++; TTS.cancel(); bgm.stop(); }
@@ -755,7 +860,7 @@ function drawWave() {
 }
 
 function liveHr() {
-  if (!M || M.ts.length < 300) return;               // 10초 이상 모였을 때부터
+  if (!M || M.ts.length < 240) return;               // 8초 이상 모였을 때부터
   const a = D.analyze(M.ts, M.r, M.g, M.b, 12);
   if (!a || a.snr < .22) { $('hrLive').textContent = '--'; return; }
   M.liveHr = M.liveHr ? M.liveHr * .6 + a.bpm * .4 : a.bpm;
@@ -923,6 +1028,9 @@ function openSound() {
     '<div class="srow"><b>음성 안내</b><button class="sw' + (S.set.voice ? ' on' : '') + '" id="swV" aria-label="음성 안내"></button></div>' +
     '<div class="srow"><b>배경음악</b><button class="sw' + (S.set.bgm ? ' on' : '') + '" id="swB" aria-label="배경음악"></button></div>' +
     '<div class="srow"><b>음악 볼륨</b><input type="range" id="vol" min="0" max="100" step="1" value="' + S.set.vol + '"><span class="vv" id="vv">' + S.set.vol + '%</span></div>' +
+    '<div class="srow"><b>AI 음성</b><button class="sw' + (S.set.ai ? ' on' : '') + '" id="swA" aria-label="AI 음성"></button></div>' +
+    '<div class="hint" id="aiHint"' + (S.set.ai && !AI.why() ? ' hidden' : '') + '>' + (S.set.ai ? '지금은 기기 음성으로 읽어요 · ' + AI.why() : '') + '</div>' +
+    '<div class="srow" id="vrow"' + (S.set.ai ? '' : ' hidden') + '><b>목소리</b><div class="seg" id="seg">' + ['Kore', 'Aoede', 'Leda', 'Charon'].map(v => '<button data-v="' + v + '" class="' + (S.set.vid === v ? 'on' : '') + '">' + v + '</button>').join('') + '</div></div>' +
     '<div class="srow"><button id="sTest" style="flex:1;padding:12px;font-weight:800">🔊 목소리 들어보기</button></div></div></div>';
   document.body.appendChild(o);
   const prev = () => { if (state === 'idle' && S.set.bgm) bgm.start(true); };
@@ -933,7 +1041,11 @@ function openSound() {
   o.querySelector('#swV').onclick = e => { S.set.voice = !S.set.voice; e.currentTarget.classList.toggle('on', S.set.voice); save(); paintSnd(); if (!S.set.voice) TTS.cancel(); };
   o.querySelector('#swB').onclick = e => { S.set.bgm = !S.set.bgm; e.currentTarget.classList.toggle('on', S.set.bgm); save(); paintSnd(); if (S.set.bgm) prev(); else bgm.stop(); };
   o.querySelector('#vol').oninput = e => { S.set.vol = +e.target.value; o.querySelector('#vv').textContent = S.set.vol + '%'; save(); bgm.update(); };
-  o.querySelector('#sTest').onclick = () => { TTS.retry(); if (!S.set.voice) { S.set.voice = true; o.querySelector('#swV').classList.add('on'); save(); paintSnd(); } TTS.say('안녕하세요, 저는 스마트 거울이에요. 오늘도 컨디션 같이 확인해 봐요.', true); };
+  const hint = () => { const h = o.querySelector('#aiHint'), w = AI.why(); h.hidden = !(S.set.ai && w); h.textContent = '지금은 기기 음성으로 읽어요 · ' + w; };
+  const test = () => { TTS.retry(); hint(); if (!S.set.voice) { S.set.voice = true; o.querySelector('#swV').classList.add('on'); save(); paintSnd(); } TTS.say(TEST_LINE, true, { static: true, timeout: 15000 }).then(hint); };
+  o.querySelector('#sTest').onclick = test;
+  o.querySelector('#swA').onclick = e => { S.set.ai = !S.set.ai; e.currentTarget.classList.toggle('on', S.set.ai); o.querySelector('#vrow').hidden = !S.set.ai; save(); TTS.cancel(); AI.retry(); hint(); if (S.set.ai) AI.prewarm(STATIC); };
+  o.querySelectorAll('#seg button').forEach(b => b.onclick = () => { S.set.vid = b.dataset.v; save(); o.querySelectorAll('#seg button').forEach(x => x.classList.toggle('on', x === b)); AI.prewarm(STATIC); test(); });
 }
 $('sBtn').onclick = openSound; paintSnd();
 
@@ -941,10 +1053,11 @@ $('hBtn').onclick = openHist;
 $('startBtn').onclick = () => { bgm.unlock(); if (state === 'measuring') cancelMeasure(''), setMsg('얼굴을 동그라미 안에 맞춰 주세요'); else beginMeasure(); };
 
 /* 테스트용 노출 */
-window.__mirror = { grade, rxFor, narration, TTS, bgm, S };
+window.__mirror = { grade, rxFor, narration, TTS, bgm, S, AI, STATIC };
 
 startCam();
 loadLM();
+setTimeout(() => AI.prewarm(STATIC), 5000);
 })();
 </script>
 <script src="ui-guard.js" defer></script>

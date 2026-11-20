@@ -27,9 +27,13 @@ public class TtsBridge {
                     int r = tts.setLanguage(Locale.KOREAN);
                     if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) { state = "nolang"; return; }
                     try {   // 인터넷이 필요 없는 한국어 음성을 우선 고른다
+                        Voice best = null;   // 한국어 오프라인 음성 중 품질이 가장 높은 것
                         for (Voice v : tts.getVoices()) {
-                            if (v.getLocale() != null && "ko".equals(v.getLocale().getLanguage()) && !v.isNetworkConnectionRequired()) { tts.setVoice(v); break; }
+                            if (v.getLocale() != null && "ko".equals(v.getLocale().getLanguage()) && !v.isNetworkConnectionRequired()) {
+                                if (best == null || v.getQuality() > best.getQuality()) best = v;
+                            }
                         }
+                        if (best != null) tts.setVoice(best);
                     } catch (Exception ignore) { }
                     tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                         @Override public void onStart(String id) { emit(id, "start"); }

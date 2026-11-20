@@ -62,7 +62,7 @@ button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(
 .guide .prog{stroke:var(--heart);stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset .3s linear}
 .guide.ready .base{stroke:var(--ok);stroke-dasharray:none;stroke-width:3}
 .mirror.run .guide .base{stroke:rgba(255,255,255,.14)}
-.scan{position:absolute;left:50%;top:46%;width:64%;max-width:360px;aspect-ratio:3/4;transform:translate(-50%,-50%);pointer-events:none;border-radius:50%;overflow:hidden;display:none}
+.scan{position:absolute;left:50%;top:46%;width:64%;max-width:360px;aspect-ratio:3/4;transform:translate(-50%,-50%);pointer-events:none;clip-path:url(#fcl);overflow:hidden;display:none}
 .mirror.run .scan{display:block}
 .scan::after{content:"";position:absolute;left:0;right:0;height:22%;top:-22%;background:linear-gradient(180deg,transparent,rgba(120,220,255,.35),transparent);animation:scan 2.2s ease-in-out infinite}
 @keyframes scan{0%{top:-22%}50%{top:100%}100%{top:-22%}}
@@ -186,8 +186,10 @@ canvas.wave{position:absolute;left:0;right:0;bottom:0;width:100%;height:70px;poi
     <div class="glass"></div>
     <div class="clock" id="clock"><b id="clkT">--:--</b><span id="clkD"></span></div>
     <svg class="guide" id="guide" viewBox="0 0 300 400" preserveAspectRatio="none">
-      <ellipse class="base" cx="150" cy="200" rx="140" ry="190"/>
-      <path class="prog" id="prog" d="M150 10A140 190 0 0 1 150 390A140 190 0 0 1 150 10" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/>
+      <defs><clipPath id="fcl" clipPathUnits="objectBoundingBox"><path transform="scale(.003333 .0025)" d="M150 10C214 10 254 58 254 128C254 172 246 212 236 252C228 312 192 390 150 390C108 390 72 312 64 252C54 212 46 172 46 128C46 58 86 10 150 10Z"/></clipPath></defs>
+      <path class="base" d="M150 10C214 10 254 58 254 128C254 172 246 212 236 252C228 312 192 390 150 390C108 390 72 312 64 252C54 212 46 172 46 128C46 58 86 10 150 10Z"/>
+      <path class="base" d="M47 150C26 148 24 196 48 202M253 150C274 148 276 196 252 202"/>
+      <path class="prog" id="prog" d="M150 10C214 10 254 58 254 128C254 172 246 212 236 252C228 312 192 390 150 390C108 390 72 312 64 252C54 212 46 172 46 128C46 58 86 10 150 10Z" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/>
     </svg>
     <div class="scan"></div>
     <div class="hud" id="hud">
@@ -602,7 +604,7 @@ async function startCam() {
   v.onresize = () => { if (v.videoWidth) { vw = v.videoWidth; vh = v.videoHeight; fx.width = vw; fx.height = vh; } };
   $('mirror').classList.remove('off');
   $('startBtn').disabled = false;
-  setMsg(lmState === 'ready' ? '얼굴을 동그라미 안에 맞춰 주세요' : '얼굴을 동그라미 안에 맞춰 주세요');
+  setMsg(lmState === 'ready' ? '얼굴을 윤곽 안에 맞춰 주세요' : '얼굴을 윤곽 안에 맞춰 주세요');
   startLoop();
   return true;
 }
@@ -626,7 +628,7 @@ async function loadLM() {
     try { LM = await mk('GPU'); } catch (e) { LM = await mk('CPU'); }
     lmState = 'ready';
   } catch (e) { lmState = 'fail'; LM = null; console.warn('face model', e); }
-  if (state === 'idle' && stream) setMsg(lmState === 'ready' ? '얼굴을 동그라미 안에 맞춰 주세요' : '표정 분석 없이 심박만 측정해요', lmState === 'ready' ? '' : 'warn');
+  if (state === 'idle' && stream) setMsg(lmState === 'ready' ? '얼굴을 윤곽 안에 맞춰 주세요' : '표정 분석 없이 심박만 측정해요', lmState === 'ready' ? '' : 'warn');
 }
 
 /* ── 프레임 루프 ── */
@@ -717,7 +719,7 @@ function rois(lm) {
     const vx0 = vw - (dx1 - ox) / sc, vx1 = vw - (dx0 - ox) / sc;     // 화면은 좌우 반전
     return { x: vx0, y: (dy0 - oy) / sc, w: vx1 - vx0, h: (dy1 - dy0) / sc };
   };
-  return { boxes: [box(.32, .15, .68, .27), box(.13, .5, .31, .62), box(.69, .5, .87, .62)], fw: gr.width / sc, fh: gr.height / sc, cxn: .5, cyn: .46, nose: null };
+  return { boxes: [box(.32, .15, .68, .27), box(.2, .5, .37, .62), box(.63, .5, .8, .62)], fw: gr.width / sc, fh: gr.height / sc, cxn: .5, cyn: .46, nose: null };
 }
 function sample(b0) {
   const x0 = clamp(b0.x, 0, vw - 2), y0 = clamp(b0.y, 0, vh - 2), box = { x: x0, y: y0, w: Math.min(b0.w, vw - x0), h: Math.min(b0.h, vh - y0) };
@@ -763,7 +765,7 @@ function idleHint(R, lm) {
     g.classList.toggle('ready', !!ok);
     if (!idleHint.t || performance.now() - idleHint.t > 400) {
       idleHint.t = performance.now();
-      setMsg(!lm ? '얼굴을 동그라미 안에 맞춰 주세요' : R.fw / vw <= .3 ? '조금 더 가까이 와 주세요' : Math.abs(R.cxn - .5) >= .15 ? '얼굴을 가운데로' : '좋아요! 측정을 시작해 보세요', ok ? 'ok' : '');
+      setMsg(!lm ? '얼굴을 윤곽 안에 맞춰 주세요' : R.fw / vw <= .3 ? '조금 더 가까이 와 주세요' : Math.abs(R.cxn - .5) >= .15 ? '얼굴을 가운데로' : '좋아요! 측정을 시작해 보세요', ok ? 'ok' : '');
     }
   }
 }
@@ -1052,7 +1054,7 @@ function showResult(r, fromHist) {
 function closeResult() {
   silence(); $('res').classList.remove('show'); $('app').classList.remove('hasres');
   state = 'idle'; const b = $('startBtn'); b.textContent = '측정 시작'; b.classList.remove('stop'); b.disabled = !stream; $('priv').textContent = '영상은 이 기기 안에서만 분석돼요';
-  $('prog').style.strokeDashoffset = 100; setMsg('얼굴을 동그라미 안에 맞춰 주세요');
+  $('prog').style.strokeDashoffset = 100; setMsg('얼굴을 윤곽 안에 맞춰 주세요');
   if (!stream) startCam();
 }
 function confetti() {
@@ -1128,7 +1130,7 @@ function openSound() {
 $('sBtn').onclick = openSound; paintSnd();
 
 $('hBtn').onclick = openHist;
-$('startBtn').onclick = () => { bgm.unlock(); if (state === 'measuring') cancelMeasure(''), setMsg('얼굴을 동그라미 안에 맞춰 주세요'); else beginMeasure(); };
+$('startBtn').onclick = () => { bgm.unlock(); if (state === 'measuring') cancelMeasure(''), setMsg('얼굴을 윤곽 안에 맞춰 주세요'); else beginMeasure(); };
 
 /* 테스트용 노출 */
 window.__mirror = { grade, rxFor, narration, TTS, bgm, S, AI, STATIC };

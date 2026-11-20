@@ -877,7 +877,7 @@ const bgm = (() => {
   }
   /* 준비된 음악 파일(bgm/list.json)이 있으면 그중에서 랜덤으로 골라 이어서 재생, 없으면 위의 자체 연주 */
   let tracks = null, el = null, last = -1, ramp = null, fileMode = false;
-  async function loadList() { if (tracks) return tracks; try { const r = await fetch('bgm/list.json', { cache: 'no-cache' }); const j = await r.json(); tracks = (Array.isArray(j) ? j : []).map(x => typeof x === 'string' ? { f: x } : x).filter(x => x && typeof x.f === 'string' && x.f);   // 문자열=통파일, {f,s,e}=한 파일 안의 곡 구간(초) } catch (e) { tracks = []; } return tracks; }
+  async function loadList() { if (tracks) return tracks; try { const r = await fetch('bgm/list.json', { cache: 'no-cache' }); const j = await r.json(); tracks = (Array.isArray(j) ? j : []).map(x => typeof x === 'string' ? { f: x } : x).filter(x => x && typeof x.f === 'string' && x.f); /* 문자열=통파일, {f,s,e}=한 파일 안의 곡 구간(초) */ } catch (e) { tracks = []; } return tracks; }
   const fileLevel = () => Math.pow(vol(), 1.5) * (duckN > 0 && pref.bgmDuck !== false ? 0.3 : 1);
   function fileApply(fast) {
     if (!el) return; clearInterval(ramp); const to = fileLevel();

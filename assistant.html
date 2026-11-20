@@ -1481,6 +1481,10 @@ const Busy = (() => {
   return { start, stop, all, isOn: () => n > 0 };
 })();
 (window.simAppMenuExtra = window.simAppMenuExtra || []).push({
+  icon: '✋', label: '스피커폰 끼어들기', hint: 'AI가 말하는 중 큰 목소리로 끊기 (에코로 말이 끊기면 끄세요)',
+  get: () => ls.get('SIMAS_BARGE', '1') === '1', set: v => { ls.set('SIMAS_BARGE', v ? '1' : '0'); toast(v ? '스피커폰 끼어들기를 켰어요' : '스피커폰 끼어들기를 껐어요'); }
+});
+(window.simAppMenuExtra = window.simAppMenuExtra || []).push({
   icon: '🥁', label: '처리 중 효과음', hint: 'AI가 찾는 동안 뚜둑뚜두 소리를 들려줘요',
   get: () => ls.get('SIMAS_BUSYSND', '1') === '1',
   set: v => { ls.set('SIMAS_BUSYSND', v ? '1' : '0'); toast(v ? '처리 중 효과음을 켰어요' : '처리 중 효과음을 껐어요'); }
@@ -1779,18 +1783,20 @@ async function liveStart() {
     try { LIVE.ictx = new AC({ sampleRate: 16000 }); } catch (e) { LIVE.ictx = new AC(); } try { await LIVE.ictx.resume(); } catch (e) {}
     await LIVE.ictx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' })));
     const srcN = LIVE.ictx.createMediaStreamSource(LIVE.stream); LIVE.node = new AudioWorkletNode(LIVE.ictx, 'pcm-cap');
-    LIVE.pre = []; LIVE.bargeMs = 0;
+    LIVE.pre = []; LIVE.bargeMs = 0; LIVE.echoK = 0;
     const sendPcm = buf => liveSend({ realtimeInput: { audio: { data: b64(buf), mimeType: 'audio/pcm;rate=16000' } } });
     LIVE.node.port.onmessage = ev => {
       if (LIVE.muted || !LIVE.ready) return;
       if (!(LIVE.speaker && (LIVE.srcs.length || Date.now() < LIVE.quietUntil))) { LIVE.bargeMs = 0; LIVE.pre = []; return sendPcm(ev.data); }
-      /* 스피커폰 모드로 AI가 말하는 중: 에코와 구분되는 '큰 사람 목소리'가 0.3초 이상 들어오면 말을 끊고 듣는다 */
+      /* 스피커폰 모드로 AI가 말하는 중: 이 폰이 자기 스피커 소리를 얼마나 크게 듣는지(에코 비율)를 배우고, 그보다 확실히 큰 사람 목소리가 0.5초 넘게 이어질 때만 끊는다 */
+      if (ls.get('SIMAS_BARGE', '1') !== '1') return;
       try {
         const pcm = new Int16Array(ev.data); let sq = 0; for (let i = 0; i < pcm.length; i += 4) { const x = pcm[i] / 32768; sq += x * x; } const m = Math.sqrt(sq / Math.ceil(pcm.length / 4));
         let o = 0; if (LIVE.oan) { const a = new Uint8Array(LIVE.oan.fftSize); LIVE.oan.getByteTimeDomainData(a); let q = 0; for (let i = 0; i < a.length; i++) { const y = (a[i] - 128) / 128; q += y * y; } o = Math.sqrt(q / a.length); }
-        LIVE.pre.push(ev.data); if (LIVE.pre.length > 4) LIVE.pre.shift();
-        if (m > Math.max(0.07, o * 1.6 + 0.05)) LIVE.bargeMs += 100; else LIVE.bargeMs = Math.max(0, LIVE.bargeMs - 150);
-        if (LIVE.bargeMs >= 300) {
+        LIVE.pre.push(ev.data); if (LIVE.pre.length > 5) LIVE.pre.shift();
+        const k = Math.max(LIVE.echoK || 1, .8), thr = Math.max(0.12, o * k * 2.4 + 0.05);
+        if (m > thr) LIVE.bargeMs += 100; else { LIVE.bargeMs = Math.max(0, LIVE.bargeMs - 200); if (o > 0.02) { const r = m / o; LIVE.echoK = LIVE.echoK ? LIVE.echoK * 0.85 + Math.min(r, 6) * 0.15 : r; } }
+        if (LIVE.bargeMs >= 500) {
           LIVE.bargeMs = 0; LIVE.drop = true; liveFlush(); LIVE.quietUntil = 0; liveSet('듣고 있어요', '🎙', false);
           const pre = LIVE.pre; LIVE.pre = []; pre.forEach(sendPcm);
         }

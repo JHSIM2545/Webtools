@@ -1779,7 +1779,23 @@ async function liveStart() {
     try { LIVE.ictx = new AC({ sampleRate: 16000 }); } catch (e) { LIVE.ictx = new AC(); } try { await LIVE.ictx.resume(); } catch (e) {}
     await LIVE.ictx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' })));
     const srcN = LIVE.ictx.createMediaStreamSource(LIVE.stream); LIVE.node = new AudioWorkletNode(LIVE.ictx, 'pcm-cap');
-    LIVE.node.port.onmessage = ev => { if (LIVE.muted || !LIVE.ready) return; if (LIVE.speaker && (LIVE.srcs.length || Date.now() < LIVE.quietUntil)) return; liveSend({ realtimeInput: { audio: { data: b64(ev.data), mimeType: 'audio/pcm;rate=16000' } } }); };
+    LIVE.pre = []; LIVE.bargeMs = 0;
+    const sendPcm = buf => liveSend({ realtimeInput: { audio: { data: b64(buf), mimeType: 'audio/pcm;rate=16000' } } });
+    LIVE.node.port.onmessage = ev => {
+      if (LIVE.muted || !LIVE.ready) return;
+      if (!(LIVE.speaker && (LIVE.srcs.length || Date.now() < LIVE.quietUntil))) { LIVE.bargeMs = 0; LIVE.pre = []; return sendPcm(ev.data); }
+      /* 스피커폰 모드로 AI가 말하는 중: 에코와 구분되는 '큰 사람 목소리'가 0.3초 이상 들어오면 말을 끊고 듣는다 */
+      try {
+        const pcm = new Int16Array(ev.data); let sq = 0; for (let i = 0; i < pcm.length; i += 4) { const x = pcm[i] / 32768; sq += x * x; } const m = Math.sqrt(sq / Math.ceil(pcm.length / 4));
+        let o = 0; if (LIVE.oan) { const a = new Uint8Array(LIVE.oan.fftSize); LIVE.oan.getByteTimeDomainData(a); let q = 0; for (let i = 0; i < a.length; i++) { const y = (a[i] - 128) / 128; q += y * y; } o = Math.sqrt(q / a.length); }
+        LIVE.pre.push(ev.data); if (LIVE.pre.length > 4) LIVE.pre.shift();
+        if (m > Math.max(0.07, o * 1.6 + 0.05)) LIVE.bargeMs += 100; else LIVE.bargeMs = Math.max(0, LIVE.bargeMs - 150);
+        if (LIVE.bargeMs >= 300) {
+          LIVE.bargeMs = 0; LIVE.drop = true; liveFlush(); LIVE.quietUntil = 0; liveSet('듣고 있어요', '🎙', false);
+          const pre = LIVE.pre; LIVE.pre = []; pre.forEach(sendPcm);
+        }
+      } catch (e) {}
+    };
     if (LIVE.ictx.createAnalyser) { LIVE.an = LIVE.ictx.createAnalyser(); LIVE.an.fftSize = 512; srcN.connect(LIVE.an); }
     const mute = LIVE.ictx.createGain(); mute.gain.value = 0; srcN.connect(LIVE.node); LIVE.node.connect(mute); mute.connect(LIVE.ictx.destination);
     try { LIVE.octx = new AC({ sampleRate: 24000 }); } catch (e) { LIVE.octx = new AC(); }

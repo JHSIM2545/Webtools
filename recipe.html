@@ -877,7 +877,7 @@ const bgm = (() => {
   }
   /* 준비된 음악 파일(bgm/list.json)이 있으면 그중에서 랜덤으로 골라 이어서 재생, 없으면 위의 자체 연주 */
   let tracks = null, el = null, last = -1, ramp = null, fileMode = false;
-  async function loadList() { if (tracks) return tracks; try { const r = await fetch('bgm/list.json', { cache: 'no-cache' }); const j = await r.json(); tracks = (Array.isArray(j) ? j : []).filter(x => typeof x === 'string' && x); } catch (e) { tracks = []; } return tracks; }
+  async function loadList() { if (tracks) return tracks; try { const r = await fetch('bgm/list.json', { cache: 'no-cache' }); const j = await r.json(); tracks = (Array.isArray(j) ? j : []).map(x => typeof x === 'string' ? { f: x } : x).filter(x => x && typeof x.f === 'string' && x.f);   // 문자열=통파일, {f,s,e}=한 파일 안의 곡 구간(초) } catch (e) { tracks = []; } return tracks; }
   const fileLevel = () => Math.pow(vol(), 1.5) * (duckN > 0 && pref.bgmDuck !== false ? 0.3 : 1);
   function fileApply(fast) {
     if (!el) return; clearInterval(ramp); const to = fileLevel();
@@ -888,6 +888,7 @@ const bgm = (() => {
   let wd = null;
   function kick() {
     if (!on) return;
+    try { if (fileMode && el && seg.e && el.currentTime >= seg.e) nextTrack(); } catch (e) {}
     try { if (fileMode && el && el.src && el.paused && !el.ended) { const pr = el.play(); if (pr && pr.catch) pr.catch(() => {}); } } catch (e) {}
     try { if (!fileMode && ctx && ctx.state !== 'running') ctx.resume(); } catch (e) {}
   }
@@ -896,10 +897,14 @@ const bgm = (() => {
   function nextTrack() {
     if (!on || !fileMode || !el) return; const n = tracks.length; if (bad >= n * 2) { fileMode = false; startSynth(); return; }   // 파일을 못 읽으면 자체 연주로
     let i = Math.floor(Math.random() * n); if (n > 1 && i === last) i = (i + 1 + Math.floor(Math.random() * (n - 1))) % n; last = i;
-    el.src = 'bgm/' + encodeURIComponent(tracks[i]); const pr = el.play(); if (pr && pr.catch) pr.catch(() => { bad++; setTimeout(nextTrack, 300); });
+    const tr = tracks[i], url = 'bgm/' + encodeURIComponent(tr.f); seg = { s: +tr.s || 0, e: tr.e > 0 ? +tr.e : 0 };
+    const go = () => { try { if (seg.s > 0) el.currentTime = seg.s; } catch (e) {} const pr = el.play(); if (pr && pr.catch) pr.catch(() => { bad++; setTimeout(nextTrack, 300); }); };
+    if (el.src && el.src.endsWith(url) && el.readyState >= 1) go();   // 같은 파일이면 다시 받지 않고 위치만 옮김
+    else { el.src = url; el.addEventListener('loadedmetadata', go, { once: true }); try { el.load(); } catch (e) {} }
   }
+  let seg = { s: 0, e: 0 };
   function startFiles() {
-    fileMode = true; bad = 0; watch(); if (!el) { el = new Audio(); el.preload = 'auto'; el.onended = () => { bad = 0; nextTrack(); }; el.onerror = () => { bad++; setTimeout(nextTrack, 300); }; el.onplaying = () => { bad = 0; }; el.onpause = () => { if (on && !el.ended) setTimeout(kick, 250); }; }
+    fileMode = true; bad = 0; watch(); if (!el) { el = new Audio(); el.preload = 'auto'; el.onended = () => { bad = 0; nextTrack(); }; el.ontimeupdate = () => { if (seg.e && el.currentTime >= seg.e - 0.15) nextTrack(); }; el.onerror = () => { bad++; setTimeout(nextTrack, 300); }; el.onplaying = () => { bad = 0; }; el.onpause = () => { if (on && !el.ended) setTimeout(kick, 250); }; }
     el.volume = 0; nextTrack(); let t = 0; clearInterval(ramp); ramp = setInterval(() => { t++; fileApply(true); try { el.volume = Math.min(fileLevel(), el.volume + 0.02 * t); } catch (e) {} if (t > 40) clearInterval(ramp); }, 100);
   }
   function startSynth() {

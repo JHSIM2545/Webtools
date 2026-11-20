@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0d1019">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SIM Mirror">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" sizes="192x192" href="mirror-icon-192.png">
+<title>SIM Mirror</title>
+<style>
+:root{
+  --bg:#0d1019; --panel:#161a26; --panel2:#1e2332; --line:#2a3044;
+  --text:#e9ecf4; --sub:#8f98b0; --accent:#dfe6f5; --accent2:#9aa8c4; --ink:#141a2b;
+  --heart:#ff5d7a; --ok:#47d7a0; --warn:#ffc46b; --danger:#ff6b6b;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));background:var(--panel);border-bottom:1px solid var(--line);flex:none;z-index:5}
+header h1{font-size:17px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:8px}
+header h1 span{color:var(--accent);margin-left:-5px}
+.appicon{width:30px;height:30px;border-radius:8px;display:block}
+.back{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:20px;line-height:1}
+.spacer{flex:1}
+button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:8px 13px;cursor:pointer;touch-action:manipulation}
+.hbtn{width:36px;height:34px;padding:0;font-size:17px;border-radius:10px}
+
+.app{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+
+/* ── 거울 ── */
+.mirror{position:relative;flex:1;min-height:0;margin:10px 10px 0;border-radius:26px;overflow:hidden;background:#000;
+  box-shadow:0 0 0 2px #cfd8ea,0 0 0 6px #5b6685,0 10px 34px rgba(0,0,0,.6),inset 0 0 40px rgba(180,200,255,.12)}
+.mirror video,.mirror canvas.fx{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.mirror .glass{position:absolute;inset:0;pointer-events:none;background:
+  linear-gradient(115deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,.04) 22%,transparent 38%,transparent 70%,rgba(255,255,255,.07) 88%,transparent 100%)}
+.mirror.off video{opacity:0}
+.clock{position:absolute;left:16px;top:14px;text-shadow:0 2px 12px rgba(0,0,0,.7);pointer-events:none;transition:opacity .4s}
+.clock b{display:block;font-size:44px;font-weight:200;letter-spacing:-1px;line-height:1}
+.clock span{display:block;margin-top:4px;font-size:13px;opacity:.85}
+.mirror.run .clock{opacity:0}
+
+/* 얼굴 가이드 + 진행 링 */
+.guide{position:absolute;left:50%;top:46%;width:64%;max-width:360px;aspect-ratio:3/4;transform:translate(-50%,-50%);pointer-events:none;overflow:visible}
+.guide ellipse,.guide path{fill:none}
+.guide .base{stroke:rgba(255,255,255,.32);stroke-width:2.5;stroke-dasharray:6 8}
+.guide .prog{stroke:var(--heart);stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset .3s linear}
+.guide.ready .base{stroke:var(--ok);stroke-dasharray:none;stroke-width:3}
+.mirror.run .guide .base{stroke:rgba(255,255,255,.14)}
+.scan{position:absolute;left:50%;top:46%;width:64%;max-width:360px;aspect-ratio:3/4;transform:translate(-50%,-50%);pointer-events:none;border-radius:50%;overflow:hidden;display:none}
+.mirror.run .scan{display:block}
+.scan::after{content:"";position:absolute;left:0;right:0;height:22%;top:-22%;background:linear-gradient(180deg,transparent,rgba(120,220,255,.35),transparent);animation:scan 2.2s ease-in-out infinite}
+@keyframes scan{0%{top:-22%}50%{top:100%}100%{top:-22%}}
+
+/* HUD */
+.hud{position:absolute;left:0;right:0;top:12px;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:99px;background:rgba(14,17,27,.62);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.14);font-size:13.5px;font-weight:700}
+.chip.hr{font-size:15px}
+.chip.hr .heart{display:inline-block;color:var(--heart);animation:beat var(--bt,.8s) ease-in-out infinite}
+@keyframes beat{0%,100%{transform:scale(1)}18%{transform:scale(1.35)}36%{transform:scale(1)}}
+.chip.warn{color:var(--warn)}
+.chip.ok{color:var(--ok)}
+.react{position:absolute;right:16px;top:14px;font-size:44px;filter:drop-shadow(0 3px 8px rgba(0,0,0,.6));transition:transform .25s;pointer-events:none}
+.react.pop{animation:pop .45s}
+@keyframes pop{0%{transform:scale(.4)}60%{transform:scale(1.3)}100%{transform:scale(1)}}
+canvas.wave{position:absolute;left:0;right:0;bottom:0;width:100%;height:70px;pointer-events:none;opacity:0;transition:opacity .3s}
+.mirror.run canvas.wave{opacity:1}
+.count{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);font-size:110px;font-weight:800;color:#fff;text-shadow:0 4px 30px rgba(0,0,0,.6);pointer-events:none;display:none}
+.count.show{display:block;animation:cnt .9s ease-out}
+@keyframes cnt{0%{transform:translate(-50%,-50%) scale(1.6);opacity:0}30%{opacity:1}100%{transform:translate(-50%,-50%) scale(.8);opacity:0}}
+
+/* ── 하단 패널 ── */
+.panel{flex:none;padding:12px 14px calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:8px}
+.start{width:100%;max-width:420px;border:0;border-radius:18px;padding:15px 18px;font-size:17px;font-weight:800;color:var(--ink);background:linear-gradient(135deg,#f4f7ff,#aab6d0);box-shadow:0 5px 0 #6c7896;transition:transform .08s,box-shadow .08s}
+.start:active{transform:translateY(4px);box-shadow:0 1px 0 #6c7896}
+.start:disabled{opacity:.5}
+.start.stop{background:var(--panel2);color:var(--text);box-shadow:0 5px 0 #0a0c13;border:1px solid var(--line)}
+.priv{font-size:11.5px;color:var(--sub)}
+
+/* ── 결과 ── */
+.res{position:absolute;left:0;right:0;bottom:0;height:82%;background:var(--panel);border-radius:26px 26px 0 0;border:1px solid var(--line);border-bottom:0;box-shadow:0 -14px 40px rgba(0,0,0,.55);display:flex;flex-direction:column;transform:translateY(105%);transition:transform .5s cubic-bezier(.2,.9,.25,1);z-index:6}
+.res.show{transform:none}
+.res .grab{flex:none;width:44px;height:5px;border-radius:9px;background:#3a4258;margin:9px auto 4px}
+.res .body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:8px 14px 12px;display:flex;flex-direction:column;gap:12px}
+.hero{display:flex;align-items:center;gap:14px;padding:14px;border-radius:22px;background:linear-gradient(135deg,#222a40,#171c2c);border:1px solid var(--line)}
+.scoreRing{position:relative;flex:none;width:104px;height:104px;border-radius:50%;background:conic-gradient(var(--c,#47d7a0) calc(var(--p,0)*1%),#2a3044 0);display:flex;align-items:center;justify-content:center}
+.scoreRing::before{content:"";position:absolute;inset:9px;border-radius:50%;background:#171c2c}
+.scoreRing b{position:relative;font-size:34px;font-weight:800;line-height:1}
+.scoreRing small{position:absolute;bottom:20px;font-size:10.5px;color:var(--sub)}
+.say{flex:1;min-width:0}
+.say .t{font-size:12px;color:var(--sub);margin-bottom:5px}
+.say .m{font-size:16px;font-weight:700;line-height:1.45;word-break:keep-all}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:var(--panel2);border:1px solid var(--line);border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:3px;min-height:104px}
+.tile .k{font-size:12.5px;color:var(--sub);display:flex;align-items:center;gap:5px}
+.tile .v{font-size:25px;font-weight:800;line-height:1.15}
+.tile .v small{font-size:13px;font-weight:600;color:var(--sub);margin-left:3px}
+.tile .d{font-size:12.5px;color:var(--sub);line-height:1.4}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:99px;background:#2d3550;color:#c8d2ee;margin-left:auto}
+.tag.good{background:#173a2e;color:var(--ok)} .tag.weak{background:#41351a;color:var(--warn)} .tag.na{background:#3a2226;color:#ff9aa8} .tag.fun{background:#3a2d4e;color:#d2b6ff}
+.bar{height:7px;border-radius:9px;background:#2a3044;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;border-radius:9px;background:var(--c,#47d7a0);width:0;transition:width 1s}
+.rx{background:var(--panel2);border:1px solid var(--line);border-radius:18px;padding:12px 14px}
+.rx h3{font-size:14px;margin-bottom:7px}
+.rx li{list-style:none;font-size:14px;line-height:1.55;padding:3px 0}
+.acts{display:flex;gap:10px}
+.acts button{flex:1;padding:13px 10px;font-weight:800;font-size:15px;border-radius:15px}
+.acts .pri{background:linear-gradient(135deg,#f4f7ff,#aab6d0);color:var(--ink);border:0}
+.note{font-size:11px;color:var(--sub);text-align:center;padding-bottom:4px}
+
+/* 팝업 */
+.ov{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.62);display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:min(520px,100%);max-height:84dvh;background:var(--panel);border:1px solid var(--line);border-bottom:0;border-radius:24px 24px 0 0;display:flex;flex-direction:column;overflow:hidden}
+.sheet .hd{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.sheet .hd b{flex:1;font-size:17px}
+.sheet .bd{overflow-y:auto;padding:6px 14px 16px;overscroll-behavior:contain}
+.hrow{display:flex;align-items:center;gap:11px;padding:11px 2px;border-bottom:1px solid var(--line)}
+.hrow:last-child{border-bottom:0}
+.hrow .ic{font-size:26px;width:34px;text-align:center}
+.hrow .tx{flex:1;min-width:0}
+.hrow .tx b{display:block;font-size:15px}
+.hrow .tx small{color:var(--sub);font-size:12.5px}
+.hrow .x{padding:5px 9px;border-radius:9px;font-size:13px;color:var(--sub)}
+.avg{display:flex;gap:8px;padding:10px 0 4px}
+.avg div{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:10px;text-align:center;font-size:12px;color:var(--sub)}
+.avg b{display:block;font-size:20px;color:var(--text);margin-top:2px}
+.empty{padding:30px 0;text-align:center;color:var(--sub);font-size:14px}
+.toast{position:fixed;left:50%;bottom:calc(30px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);opacity:0;background:rgba(20,22,32,.96);border:1px solid #3b4258;border-radius:12px;padding:10px 16px;font-size:14px;z-index:99;transition:.25s;pointer-events:none;max-width:86vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.confetti{position:fixed;top:-30px;font-size:24px;z-index:70;pointer-events:none;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(112vh) rotate(540deg);opacity:.9}}
+
+/* 가로로 길고 세로가 짧은 화면(차량 디스플레이 등): 거울 좌측, 패널·결과 우측 */
+@media (orientation:landscape) and (max-height:560px){
+  .app{flex-direction:row}
+  .mirror{margin:10px 0 10px 10px}
+  .panel{width:300px;justify-content:center;padding:12px 14px}
+  .res{position:static;transform:none;height:auto;width:380px;border-radius:0;border:0;border-left:1px solid var(--line);box-shadow:none;display:none}
+  .res.show{display:flex}
+  .app.hasres .panel{display:none}
+  .clock b{font-size:34px}
+  .count{font-size:80px}
+  .guide,.scan{width:auto;height:84%;max-width:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html" aria-label="런처로">‹</a>
+  <h1><img class="appicon" src="mirror-icon-192.png" alt="">SIM <span>Mirror</span></h1>
+  <div class="spacer"></div>
+  <button class="hbtn" id="hBtn" aria-label="기록">🕘</button>
+</header>
+
+<div class="app" id="app">
+  <section class="mirror off" id="mirror">
+    <video id="vid" playsinline muted autoplay></video>
+    <canvas class="fx" id="fx"></canvas>
+    <div class="glass"></div>
+    <div class="clock" id="clock"><b id="clkT">--:--</b><span id="clkD"></span></div>
+    <svg class="guide" id="guide" viewBox="0 0 300 400" preserveAspectRatio="none">
+      <ellipse class="base" cx="150" cy="200" rx="140" ry="190"/>
+      <path class="prog" id="prog" d="M150 10A140 190 0 0 1 150 390A140 190 0 0 1 150 10" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/>
+    </svg>
+    <div class="scan"></div>
+    <div class="hud" id="hud">
+      <div class="chip" id="msg">거울을 켜는 중…</div>
+      <div class="chip hr" id="hrChip" hidden><span class="heart">❤</span><b id="hrLive">--</b><span style="font-weight:600;font-size:12px">bpm</span></div>
+    </div>
+    <div class="react" id="react"></div>
+    <div class="count" id="count"></div>
+    <canvas class="wave" id="wave"></canvas>
+  </section>
+
+  <div class="panel" id="panel">
+    <button class="start" id="startBtn" disabled>측정 시작</button>
+    <div class="priv" id="priv">영상은 이 기기 안에서만 분석돼요</div>
+  </div>
+
+  <section class="res" id="res">
+    <div class="grab"></div>
+    <div class="body" id="resBody"></div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* SIM Mirror 신호처리: 얼굴 피부색 시계열 → 심박수(rPPG, POS 방식)
+   입력: 프레임별 시각(초)과 ROI 평균 R,G,B. 출력: 추정 BPM 과 신뢰도(snr 비율). */
+const MirrorDSP = (() => {
+  const FS = 30;                       // 균일 재표본 주파수(Hz)
+  const BAND = [0.7, 3.0];             // 심박 탐색 대역: 42~180 bpm
+  const TOT = [0.7, 4.0];              // 신뢰도 계산용 전체 대역
+
+  /* 불규칙한 프레임 간격 → 균일 간격(선형 보간) */
+  function resample(ts, chans, fs = FS) {
+    const n = ts.length; if (n < 2) return null;
+    const t0 = ts[0], t1 = ts[n - 1], m = Math.floor((t1 - t0) * fs) + 1;
+    if (m < 8) return null;
+    const out = chans.map(() => new Float64Array(m));
+    let j = 0;
+    for (let i = 0; i < m; i++) {
+      const t = t0 + i / fs;
+      while (j < n - 2 && ts[j + 1] < t) j++;
+      const a = ts[j], b = ts[j + 1], k = b > a ? Math.min(1, Math.max(0, (t - a) / (b - a))) : 0;
+      for (let c = 0; c < chans.length; c++) out[c][i] = chans[c][j] * (1 - k) + chans[c][j + 1] * k;
+    }
+    return out;
+  }
+
+  /* POS (Wang et al. 2017): 조명 변화·움직임에 비교적 강한 색 투영 */
+  function pos(R, G, B, fs = FS) {
+    const N = R.length, L = Math.round(1.6 * fs), H = new Float64Array(N);
+    if (N < L) return H;
+    const s1 = new Float64Array(L), s2 = new Float64Array(L);
+    for (let n = L - 1; n < N; n++) {
+      const m = n - L + 1;
+      let mr = 0, mg = 0, mb = 0;
+      for (let i = m; i <= n; i++) { mr += R[i]; mg += G[i]; mb += B[i]; }
+      mr /= L; mg /= L; mb /= L;
+      if (mr < 1e-6 || mg < 1e-6 || mb < 1e-6) continue;
+      let a1 = 0, a2 = 0;
+      for (let i = 0; i < L; i++) {
+        const r = R[m + i] / mr, g = G[m + i] / mg, b = B[m + i] / mb;
+        s1[i] = g - b; s2[i] = -2 * r + g + b; a1 += s1[i]; a2 += s2[i];
+      }
+      a1 /= L; a2 /= L;
+      let v1 = 0, v2 = 0;
+      for (let i = 0; i < L; i++) { v1 += (s1[i] - a1) ** 2; v2 += (s2[i] - a2) ** 2; }
+      const alpha = v2 > 1e-18 ? Math.sqrt(v1 / v2) : 0;
+      let hm = 0;
+      for (let i = 0; i < L; i++) { s1[i] = (s1[i] - a1) + alpha * (s2[i] - a2); hm += s1[i]; }
+      hm /= L;
+      for (let i = 0; i < L; i++) H[m + i] += s1[i] - hm;
+    }
+    return H;
+  }
+
+  /* 복소 FFT (radix-2, 제자리) */
+  function fft(re, im) {
+    const n = re.length;
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+      for (let i = 0; i < n; i += len) {
+        let cr = 1, ci = 0;
+        for (let k = 0; k < len / 2; k++) {
+          const a = i + k, b = a + len / 2;
+          const tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr;
+          re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+          const nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr;
+        }
+      }
+    }
+  }
+
+  /* 신호 구간 → 심박수. snr = (피크±0.1Hz + 2배 고조파±0.1Hz 전력) / 전체 대역 전력 */
+  function heartRate(x, fs = FS) {
+    const N = x.length; if (N < fs * 6) return null;
+    let sx = 0, sxx = 0, sy = 0, sxy = 0;
+    for (let i = 0; i < N; i++) { sx += i; sxx += i * i; sy += x[i]; sxy += i * x[i]; }
+    const den = N * sxx - sx * sx, b = den ? (N * sxy - sx * sy) / den : 0, a = (sy - b * sx) / N;
+    let P = 1; while (P < N * 8) P <<= 1;
+    const re = new Float64Array(P), im = new Float64Array(P);
+    for (let i = 0; i < N; i++) re[i] = (x[i] - (a + b * i)) * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1)));
+    fft(re, im);
+    const df = fs / P, pw = i => re[i] * re[i] + im[i] * im[i];
+    const lo = Math.ceil(BAND[0] / df), hi = Math.floor(BAND[1] / df);
+    // 기본 주파수 + 2배 고조파 전력의 합이 가장 큰 곳을 고른다(2배 고조파를 심박으로 착각하는 '옥타브 오류' 방지)
+    const sc = i => pw(i) + (2 * i < P / 2 ? pw(2 * i) : 0);
+    let pk = lo;
+    for (let i = lo; i <= hi; i++) if (sc(i) > sc(pk)) pk = i;
+    const tlo = Math.ceil(TOT[0] / df), thi = Math.floor(TOT[1] / df);
+    let tot = 0; for (let i = tlo; i <= thi; i++) tot += pw(i);
+    const w = Math.round(0.1 / df);
+    let sig = 0;
+    for (let i = Math.max(tlo, pk - w); i <= Math.min(thi, pk + w); i++) sig += pw(i);
+    const h2 = pk * 2;
+    if (h2 + w <= thi) for (let i = h2 - w; i <= h2 + w; i++) sig += pw(i);
+    return { bpm: pk * df * 60, snr: tot > 0 ? sig / tot : 0 };
+  }
+
+  /* 한 번에: 원시 시계열 → {bpm, snr, wave} (마지막 sec 초 구간) */
+  function analyze(ts, r, g, b, sec = 20) {
+    const rs = resample(ts, [r, g, b]); if (!rs) return null;
+    const H = pos(rs[0], rs[1], rs[2]);
+    const skip = Math.round(1.6 * FS);                 // POS 첫 창은 비어 있음
+    const n = Math.min(H.length - skip, Math.round(sec * FS)); if (n < FS * 6) return null;
+    const seg = H.subarray(H.length - n);
+    const hr = heartRate(seg); if (!hr) return null;
+    hr.wave = seg; return hr;
+  }
+
+  const median = a => { const b = a.slice().sort((x, y) => x - y), n = b.length; return n ? (n % 2 ? b[(n - 1) >> 1] : (b[n / 2 - 1] + b[n / 2]) / 2) : NaN; };
+
+  /* 최종 판정: 전체 20초 추정과, 서로 겹치지 않는 앞 10초·뒤 10초 추정이 모두 일치할 때만 '믿을 수 있는 값'으로 본다.
+     잡음만 있는 신호는 앞·뒤 구간이 따로 놀아서 걸러진다. strong=확실, weak=참고(신뢰 낮음) */
+  function measure(ts, r, g, b) {
+    const full = analyze(ts, r, g, b, 20); if (!full) return null;
+    const tEnd = ts[ts.length - 1];
+    let m = ts.length; while (m > 0 && ts[m - 1] > tEnd - 10) m--;           // m: 뒤 10초 시작 위치
+    if (m < 100) return { bpm: full.bpm, snr: full.snr, diff: 99, strong: false, weak: false, wave: full.wave };
+    const A = analyze(ts.slice(0, m), r.slice(0, m), g.slice(0, m), b.slice(0, m), 10);
+    const Bq = analyze(ts.slice(m), r.slice(m), g.slice(m), b.slice(m), 10);
+    const diff = A && Bq ? Math.abs(A.bpm - Bq.bpm) : 99;
+    const strong = full.snr >= 0.3 && diff <= 4;
+    const weak = !strong && full.snr >= 0.22 && diff <= 6;
+    return { bpm: full.bpm, snr: full.snr, diff, strong, weak, wave: full.wave };
+  }
+
+  return { FS, resample, pos, fft, heartRate, analyze, measure };
+})();
+
+</script>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const D = MirrorDSP;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+const LS = 'simmirror.v1';
+const DUR = 25;                       // 측정 시간(초)
+const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3';
+const MODEL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+
+/* ── 저장 ── */
+let S = { hist: [] };
+try { const j = JSON.parse(localStorage.getItem(LS) || 'null'); if (j && Array.isArray(j.hist)) S = j; } catch (e) {}
+const save = () => { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) {} };
+
+function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200); }
+
+/* ── 시계 ── */
+function tick() {
+  const d = new Date();
+  $('clkT').textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  $('clkD').textContent = d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
+}
+tick(); setInterval(tick, 10000);
+
+/* ── 상태 ── */
+let state = 'idle';                   // idle | measuring | result
+let stream = null, LM = null, lmState = 'loading';   // loading | ready | fail
+let vw = 0, vh = 0, lastTs = 0, loopOn = false, loopId = 0;
+const cvs = document.createElement('canvas'); cvs.width = cvs.height = 16;
+const cx = cvs.getContext('2d', { willReadFrequently: true });
+const fx = $('fx'), octx = fx.getContext('2d');
+const wave = $('wave'), wctx = wave.getContext('2d');
+
+let M = null;                         // 측정 중 데이터
+function newM() { return { ts: [], r: [], g: [], b: [], sm: [], br: [], fr: [], pr: [], bl: [], jo: [], sq: [], blinks: 0, closed: false, frames: 0, t0: 0, lastLive: 0, liveHr: null, liveSnr: 0, lostAt: 0, motion: [], prevNose: null, gAvg: [], lumas: [] }; }
+
+/* ── 카메라 ── */
+async function startCam() {
+  if (stream) return true;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { setMsg('이 기기에서는 카메라를 쓸 수 없어요', 'warn'); return false; }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 960 }, frameRate: { ideal: 30 } } });
+  } catch (e) {
+    setMsg('카메라 권한이 필요해요 · 눌러서 다시 시도', 'warn'); $('msg').style.pointerEvents = 'auto'; $('msg').onclick = () => { $('msg').onclick = null; $('msg').style.pointerEvents = ''; startCam(); };
+    return false;
+  }
+  const v = $('vid'); v.srcObject = stream;
+  try { await v.play(); } catch (e) {}
+  await new Promise(r => { if (v.videoWidth) r(); else v.addEventListener('loadedmetadata', r, { once: true }); });
+  vw = v.videoWidth; vh = v.videoHeight; fx.width = vw; fx.height = vh;
+  v.onresize = () => { if (v.videoWidth) { vw = v.videoWidth; vh = v.videoHeight; fx.width = vw; fx.height = vh; } };
+  $('mirror').classList.remove('off');
+  $('startBtn').disabled = false;
+  setMsg(lmState === 'ready' ? '얼굴을 동그라미 안에 맞춰 주세요' : '얼굴을 동그라미 안에 맞춰 주세요');
+  startLoop();
+  return true;
+}
+function stopCam() {
+  loopOn = false;
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  $('vid').srcObject = null; $('mirror').classList.add('off'); $('startBtn').disabled = true;
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (state === 'measuring') cancelMeasure('중단됐어요'); stopCam(); }
+  else if (state !== 'result') startCam();
+});
+addEventListener('pagehide', stopCam);
+
+/* ── 표정·랜드마크 모델 (인터넷 필요, 실패해도 심박만 측정) ── */
+async function loadLM() {
+  try {
+    const mod = await import(MP + '/vision_bundle.mjs');
+    const fs = await mod.FilesetResolver.forVisionTasks(MP + '/wasm');
+    const mk = delegate => mod.FaceLandmarker.createFromOptions(fs, { baseOptions: { modelAssetPath: MODEL, delegate }, runningMode: 'VIDEO', numFaces: 1, outputFaceBlendshapes: true, minFaceDetectionConfidence: .5, minFacePresenceConfidence: .5, minTrackingConfidence: .5 });
+    try { LM = await mk('GPU'); } catch (e) { LM = await mk('CPU'); }
+    lmState = 'ready';
+  } catch (e) { lmState = 'fail'; LM = null; console.warn('face model', e); }
+  if (state === 'idle' && stream) setMsg(lmState === 'ready' ? '얼굴을 동그라미 안에 맞춰 주세요' : '표정 분석 없이 심박만 측정해요', lmState === 'ready' ? '' : 'warn');
+}
+
+/* ── 프레임 루프 ── */
+function startLoop() {
+  if (loopOn) return; loopOn = true; const id = ++loopId;
+  const v = $('vid');
+  const step = (now, meta) => {
+    if (!loopOn || id !== loopId) return;
+    try { frame(v, (meta && (meta.captureTime || meta.presentationTime) ? (meta.captureTime || meta.presentationTime) : now) / 1000, now); } catch (e) { console.warn(e); }
+    if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); else requestAnimationFrame(step);
+  };
+  if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); else requestAnimationFrame(step);
+}
+setInterval(() => { if (state === 'measuring') liveHr(); }, 1000);
+
+/* 얼굴 ROI(이마·양 볼) — 랜드마크가 있으면 얼굴에 맞추고, 없으면 가이드 타원 기준 고정 위치 */
+function rois(lm) {
+  if (lm) {
+    const P = i => ({ x: lm[i].x * vw, y: lm[i].y * vh });
+    let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+    for (const p of lm) { if (p.x < minx) minx = p.x; if (p.x > maxx) maxx = p.x; if (p.y < miny) miny = p.y; if (p.y > maxy) maxy = p.y; }
+    const fw = (maxx - minx) * vw, fh = (maxy - miny) * vh;
+    const top = P(10), gl = P(9), bl = P(107), br = P(336), cl = P(205), cr = P(425);
+    const yb = Math.min(bl.y, br.y) - fh * 0.02, yt = top.y + (gl.y - top.y) * 0.3;
+    const fx0 = Math.min(bl.x, br.x) - fw * 0.04, fx1 = Math.max(bl.x, br.x) + fw * 0.04;
+    const cw = fw * 0.15, ch = fh * 0.11;
+    return { boxes: [{ x: fx0, y: yt, w: fx1 - fx0, h: Math.max(4, yb - yt) }, { x: cl.x - cw / 2 - fw * 0.02, y: cl.y - ch / 2, w: cw, h: ch }, { x: cr.x - cw / 2 + fw * 0.02, y: cr.y - ch / 2, w: cw, h: ch }], fw, fh, cxn: (minx + maxx) / 2, cyn: (miny + maxy) / 2, nose: P(1) };
+  }
+  const mr = $('mirror').getBoundingClientRect(), gr = $('guide').getBoundingClientRect();
+  if (!mr.width || !gr.width) return { boxes: [], fw: vw * .5, fh: vh * .6, cxn: .5, cyn: .46, nose: null };
+  const sc = Math.max(mr.width / vw, mr.height / vh), ox = (mr.width - vw * sc) / 2, oy = (mr.height - vh * sc) / 2;
+  const box = (fx0, fy0, fx1, fy1) => {                              // 가이드 타원 안의 비율 → 영상 픽셀
+    const dx0 = gr.left - mr.left + gr.width * fx0, dx1 = gr.left - mr.left + gr.width * fx1, dy0 = gr.top - mr.top + gr.height * fy0, dy1 = gr.top - mr.top + gr.height * fy1;
+    const vx0 = vw - (dx1 - ox) / sc, vx1 = vw - (dx0 - ox) / sc;     // 화면은 좌우 반전
+    return { x: vx0, y: (dy0 - oy) / sc, w: vx1 - vx0, h: (dy1 - dy0) / sc };
+  };
+  return { boxes: [box(.32, .15, .68, .27), box(.13, .5, .31, .62), box(.69, .5, .87, .62)], fw: gr.width / sc, fh: gr.height / sc, cxn: .5, cyn: .46, nose: null };
+}
+function sample(b0) {
+  const x0 = clamp(b0.x, 0, vw - 2), y0 = clamp(b0.y, 0, vh - 2), box = { x: x0, y: y0, w: Math.min(b0.w, vw - x0), h: Math.min(b0.h, vh - y0) };
+  if (box.w < 3 || box.h < 3) return null;
+  cx.drawImage($('vid'), box.x, box.y, box.w, box.h, 0, 0, 16, 16);
+  const d = cx.getImageData(0, 0, 16, 16).data; let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4) { const R = d[i], G = d[i + 1], B = d[i + 2]; if (R > 250 || G > 250 || R < 15) continue; r += R; g += G; b += B; n++; }
+  return n > 40 ? [r / n, g / n, b / n] : null;
+}
+const skinLike = c => { const [R, G, B] = c, Y = .299 * R + .587 * G + .114 * B, Cr = (R - Y) * .713 + 128, Cb = (B - Y) * .564 + 128; return Cr > 132 && Cr < 175 && Cb > 75 && Cb < 128 && Y > 30; };
+const bs = (cats, name) => { const c = cats.find(x => x.categoryName === name); return c ? c.score : 0; };
+
+let lastFace = false, faceInfo = null, shapes = null;
+function frame(v, tSec, nowMs) {
+  if (v.readyState < 2 || !vw || state === 'result') return;
+  let lm = null; shapes = null;
+  if (LM && (state !== 'idle' || (frame.n = (frame.n || 0) + 1) % 2 === 0)) {
+    const t = Math.max(Math.round(nowMs), lastTs + 1); lastTs = t;
+    try { const res = LM.detectForVideo(v, t); if (res.faceLandmarks && res.faceLandmarks[0]) { lm = res.faceLandmarks[0]; if (res.faceBlendshapes && res.faceBlendshapes[0]) shapes = res.faceBlendshapes[0].categories; } } catch (e) {}
+    lastFace = !!lm;
+  } else if (!LM) lastFace = null;
+  else lm = frame.keep || null;                    // 대기 중 격프레임은 직전 결과 재사용
+  frame.keep = lm;
+  const R = rois(lm); faceInfo = R;
+  drawOv(R, lm);
+  if (state !== 'measuring') { idleHint(R, lm); return; }
+  measureFrame(R, lm, tSec);
+}
+
+function drawOv(R, lm) {
+  octx.clearRect(0, 0, fx.width, fx.height);
+  if (state !== 'measuring' || !lm) return;
+  octx.lineWidth = Math.max(2, vw / 220); octx.shadowBlur = 12; octx.shadowColor = '#7fe3ff'; octx.strokeStyle = 'rgba(160,235,255,.85)';
+  for (const b of R.boxes) { octx.beginPath(); octx.roundRect ? octx.roundRect(b.x, b.y, b.w, b.h, 8) : octx.rect(b.x, b.y, b.w, b.h); octx.stroke(); }
+  octx.shadowBlur = 0;
+}
+
+function idleHint(R, lm) {
+  if (state !== 'idle' || !stream) return;
+  const g = $('guide');
+  if (lmState === 'ready') {
+    const ok = lm && R.fw / vw > .3 && Math.abs(R.cxn - .5) < .15;
+    g.classList.toggle('ready', !!ok);
+    if (!idleHint.t || performance.now() - idleHint.t > 400) {
+      idleHint.t = performance.now();
+      setMsg(!lm ? '얼굴을 동그라미 안에 맞춰 주세요' : R.fw / vw <= .3 ? '조금 더 가까이 와 주세요' : Math.abs(R.cxn - .5) >= .15 ? '얼굴을 가운데로' : '좋아요! 측정을 시작해 보세요', ok ? 'ok' : '');
+    }
+  }
+}
+
+/* ── 측정 ── */
+function setMsg(t, cls) { const k = t + '|' + (cls || ''); if (setMsg.k === k) return; setMsg.k = k; const m = $('msg'); m.textContent = t; m.className = 'chip' + (cls ? ' ' + cls : ''); }
+
+async function beginMeasure() {
+  if (state !== 'idle') return;
+  if (!(await startCam())) return;
+  if (lmState === 'loading') {                                       // 표정 분석 모델이 아직이면 잠깐 기다린다(최대 8초)
+    setMsg('표정 분석 준비 중…'); const b0 = $('startBtn'); b0.disabled = true;
+    for (let i = 0; i < 40 && lmState === 'loading'; i++) await new Promise(r => setTimeout(r, 200));
+    b0.disabled = false;
+  }
+  if (state !== 'idle') return;
+  state = 'measuring'; $('mirror').classList.add('run'); $('mirror').classList.remove('off');
+  const b = $('startBtn'); b.disabled = true; b.textContent = '준비…';
+  $('priv').textContent = '';
+  for (const n of [3, 2, 1]) { const c = $('count'); c.textContent = n; c.classList.remove('show'); void c.offsetWidth; c.classList.add('show'); setMsg('가만히 거울을 봐 주세요'); await new Promise(r => setTimeout(r, 900)); if (state !== 'measuring') return; }
+  $('count').classList.remove('show');
+  M = newM(); M.t0 = performance.now();
+  b.disabled = false; b.textContent = '취소'; b.classList.add('stop');
+  $('hrChip').hidden = false; $('hrLive').textContent = '--';
+  $('prog').style.strokeDashoffset = 100;
+}
+
+function measureFrame(R, lm, tSec) {
+  if (!M || !M.t0 || state !== 'measuring') return;
+  const nowMs = performance.now();
+  const faceOk = lmState === 'ready' ? !!lm : true;
+  // 얼굴을 놓치면 데이터를 버리고 다시 모은다
+  const cols = R.boxes.map(sample);
+  const good = cols.filter(Boolean);
+  const skinOk = good.length >= 2 && (lmState === 'ready' || good.filter(skinLike).length >= 2);
+  if (!faceOk || !skinOk) {
+    if (!M.lostAt) M.lostAt = nowMs;
+    if (nowMs - M.lostAt > 1200 && M.ts.length) { const keep = newM(); keep.t0 = nowMs; keep.lostAt = M.lostAt; M = keep; $('prog').style.strokeDashoffset = 100; }
+    setMsg(!faceOk ? '얼굴이 안 보여요 · 가운데로' : '얼굴(피부)이 잘 안 보여요', 'warn'); return;
+  }
+  if (M.lostAt) { M.lostAt = 0; M.t0 = nowMs - (M.ts.length ? (M.ts[M.ts.length - 1] - M.ts[0]) * 1000 : 0); }
+  const avg = [0, 1, 2].map(i => mean(good.map(c => c[i])));
+  M.ts.push(tSec); M.r.push(avg[0]); M.g.push(avg[1]); M.b.push(avg[2]);
+  const luma = .299 * avg[0] + .587 * avg[1] + .114 * avg[2]; M.lumas.push(luma);
+  M.gAvg.push(avg[1]);
+  // 표정·눈
+  if (shapes) {
+    const s2 = (a, b) => (bs(shapes, a) + bs(shapes, b)) / 2;
+    const smile = s2('mouthSmileLeft', 'mouthSmileRight'), brow = s2('browDownLeft', 'browDownRight'), frown = s2('mouthFrownLeft', 'mouthFrownRight'), press = s2('mouthPressLeft', 'mouthPressRight'), blink = s2('eyeBlinkLeft', 'eyeBlinkRight'), squint = s2('eyeSquintLeft', 'eyeSquintRight');
+    M.sm.push(smile); M.br.push(brow); M.fr.push(frown); M.pr.push(press); M.bl.push(blink); M.sq.push(squint); M.jo.push(bs(shapes, 'jawOpen'));
+    if (!M.closed && blink > .55) { M.closed = true; M.blinks++; } else if (M.closed && blink < .35) M.closed = false;
+    reactEmoji(smile, brow, blink);
+  }
+  // 움직임
+  if (R.nose) { if (M.prevNose) { const dd = Math.hypot(R.nose.x - M.prevNose.x, R.nose.y - M.prevNose.y) / R.fw; M.motion.push(dd); if (M.motion.length > 20) M.motion.shift(); } M.prevNose = R.nose; }
+  const mo = mean(M.motion) * 30;                    // 얼굴 폭/초
+  // 안내
+  const el = (nowMs - M.t0) / 1000;
+  if (mo > .35) setMsg('가만히 있어 주세요', 'warn');
+  else if (luma < 55) setMsg('조금 더 밝은 곳으로 가 주세요', 'warn');
+  else if (luma > 238) setMsg('빛이 너무 강해요', 'warn');
+  else setMsg('좋아요, 그대로 ' + Math.max(0, Math.ceil(DUR - el)) + '초', 'ok');
+  $('prog').style.strokeDashoffset = String(100 - 100 * clamp(el / DUR, 0, 1));
+  drawWave();
+  if (el >= DUR) finishMeasure();
+}
+
+function reactEmoji(smile, brow, blink) {
+  const e = $('react'); let t = '';
+  if (smile > .4) t = '😄'; else if (brow > .5) t = '😠'; else if (blink > .7) t = '😴'; else if (smile > .2) t = '🙂';
+  if (t && e.textContent !== t) { e.textContent = t; e.classList.remove('pop'); void e.offsetWidth; e.classList.add('pop'); }
+  else if (!t && e.textContent) { reactEmoji._c = (reactEmoji._c || 0) + 1; if (reactEmoji._c > 20) { e.textContent = ''; reactEmoji._c = 0; } }
+}
+
+function drawWave() {
+  const w = wave.clientWidth, h = wave.clientHeight, dpr = Math.min(2, devicePixelRatio || 1);
+  if (wave.width !== w * dpr) { wave.width = w * dpr; wave.height = h * dpr; }
+  wctx.setTransform(dpr, 0, 0, dpr, 0, 0); wctx.clearRect(0, 0, w, h);
+  const n = Math.min(M.gAvg.length, 150); if (n < 12) return;
+  const a = M.gAvg.slice(-n), k = 20, out = [];
+  for (let i = 0; i < n; i++) { let s = 0, c = 0; for (let j = Math.max(0, i - k); j <= i; j++) { s += a[j]; c++; } out.push(a[i] - s / c); }
+  const sm = out.map((v, i) => i > 1 ? (v + out[i - 1] + out[i - 2]) / 3 : v);
+  const mx = Math.max(.6, ...sm.map(Math.abs));
+  wctx.beginPath(); wctx.lineWidth = 2.5; wctx.strokeStyle = '#ff5d7a'; wctx.shadowColor = '#ff5d7a'; wctx.shadowBlur = 8; wctx.lineJoin = 'round';
+  sm.forEach((v, i) => { const x = i / (150 - 1) * w + (150 - n) / 150 * w, y = h / 2 - v / mx * (h * .38); i ? wctx.lineTo(x, y) : wctx.moveTo(x, y); });
+  wctx.stroke(); wctx.shadowBlur = 0;
+}
+
+function liveHr() {
+  if (!M || M.ts.length < 300) return;               // 10초 이상 모였을 때부터
+  const a = D.analyze(M.ts, M.r, M.g, M.b, 12);
+  if (!a || a.snr < .22) { $('hrLive').textContent = '--'; return; }
+  M.liveHr = M.liveHr ? M.liveHr * .6 + a.bpm * .4 : a.bpm;
+  $('hrLive').textContent = Math.round(M.liveHr);
+  $('hrChip').style.setProperty('--bt', (60 / M.liveHr).toFixed(2) + 's');
+}
+
+function cancelMeasure(msg) {
+  state = 'idle'; M = null; $('mirror').classList.remove('run'); $('hrChip').hidden = true; $('count').classList.remove('show');
+  $('prog').style.strokeDashoffset = 100; $('react').textContent = ''; octx.clearRect(0, 0, fx.width, fx.height);
+  const b = $('startBtn'); b.textContent = '측정 시작'; b.classList.remove('stop'); b.disabled = !stream; $('priv').textContent = '영상은 이 기기 안에서만 분석돼요';
+  if (msg) setMsg(msg, 'warn');
+}
+
+/* ── 결과 계산 ── */
+function finishMeasure() {
+  const m = M; state = 'result'; M = null;
+  $('mirror').classList.remove('run'); $('hrChip').hidden = true; octx.clearRect(0, 0, fx.width, fx.height); $('react').textContent = '';
+  const hr = D.measure(m.ts, m.r, m.g, m.b);
+  const hasFace = m.sm.length > 60;
+  const A = o => o.length ? mean(o) : 0;
+  const q = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length * .9)] : 0; };
+  const ex = hasFace ? { smile: A(m.sm), smileP: q(m.sm), brow: A(m.br), frown: A(m.fr), press: A(m.pr), open: 1 - A(m.bl), perclos: m.bl.filter(v => v > .7).length / m.bl.length, blinkPm: m.blinks / ((m.ts[m.ts.length - 1] - m.ts[0]) / 60 || 1) } : null;
+  const rec = grade(hr, ex);
+  rec.t = Date.now(); setMsg('측정 완료 ✨', 'ok');
+  stopCamForResult();
+  showResult(rec);
+}
+function stopCamForResult() { /* 결과를 보는 동안에도 거울은 켜 둔다 */ }
+
+function grade(hr, ex) {
+  const rec = { bpm: null, q: 'na', mood: null, fatigue: null, bp: null, score: 0 };
+  if (hr && (hr.strong || hr.weak)) { rec.bpm = Math.round(hr.bpm); rec.q = hr.strong ? 'good' : 'weak'; }
+  let tense = 0;
+  if (ex) {
+    tense = ex.brow * .6 + ex.frown * .8 + ex.press * .4;
+    rec.mood = (ex.smileP >= .35 || ex.smile >= .15) ? 'sunny' : tense >= .3 ? 'stormy' : tense >= .15 ? 'cloudy' : (ex.perclos >= .15 || ex.blinkPm >= 28 || ex.open < .6) ? 'foggy' : 'calm';
+    rec.fatigue = Math.round(clamp(ex.perclos * 250 + Math.max(0, ex.blinkPm - 22) * 2 + Math.max(0, .78 - ex.open) * 120, 0, 100));
+  }
+  // 혈압 '느낌' 지수(재미): 심박과 표정 긴장으로만 만든 값이며 실제 혈압과 무관
+  const hrF = rec.bpm ? clamp((rec.bpm - 70) / 40, 0, 1) : null, tF = ex ? clamp(tense / .5, 0, 1) : null;
+  if (hrF != null || tF != null) rec.bp = hrF != null && tF != null ? hrF * .6 + tF * .4 : (hrF != null ? hrF : tF);
+  let s = 72;
+  if (rec.bpm) s += rec.bpm >= 52 && rec.bpm <= 78 ? 10 : rec.bpm <= 90 ? 3 : rec.bpm <= 100 ? -4 : rec.bpm > 100 ? -12 : 0;
+  if (rec.mood) s += { sunny: 10, calm: 3, cloudy: -5, stormy: -10, foggy: -8 }[rec.mood];
+  if (rec.fatigue != null) s -= rec.fatigue / 100 * 15;
+  const base = baseline(); rec.base = base;
+  if (rec.bpm && base) s -= Math.min(8, Math.abs(rec.bpm - base) * .3);
+  rec.score = Math.round(clamp(s, 25, 98));
+  return rec;
+}
+function baseline() {
+  const a = S.hist.filter(h => h.bpm && h.q === 'good').slice(-10).map(h => h.bpm);
+  return a.length >= 3 ? Math.round(mean(a)) : null;
+}
+
+const MOOD = { sunny: ['☀️', '방긋 맑음'], calm: ['⛅', '잔잔한 구름'], cloudy: ['☁️', '살짝 흐림'], stormy: ['⛈️', '찡그림 폭풍'], foggy: ['🌫️', '졸린 안개'] };
+const SAY = {
+  hi: ['오늘 거울이 눈부셔서 선글라스가 필요해요 😎', '컨디션 만렙! 뭘 해도 되는 날이에요 ✨', '거울 속 당신, 오늘 빛나고 있어요 🌟'],
+  good: ['꽤 좋아요. 이대로 가볍게 달려 봐요 🚀', '안정적인 하루가 예상돼요 🍀', '거울이 고개를 끄덕이고 있어요 🙂'],
+  mid: ['무난한 날이에요. 중간에 한숨 돌리면 더 좋아요 ☕', '약간 구름 낀 컨디션, 물 한 잔이 약이에요 💧', '거울이 살짝 걱정하는 눈빛이에요 🧐'],
+  low: ['오늘은 충전이 필요해 보여요 🔋', '무리하지 말고 쉬어가요. 거울이 응원해요 🫶', '거울이 말해요: "일단 쉬자" 🛌']
+};
+const pick = a => a[Math.floor(Math.random() * a.length)];
+function sayFor(r) { return pick(r.score >= 85 ? SAY.hi : r.score >= 70 ? SAY.good : r.score >= 55 ? SAY.mid : SAY.low); }
+function rxFor(r) {
+  const o = [];
+  if (r.bpm && r.bpm > 90) o.push('🌬️ 4초 들이쉬고 6초 내쉬기, 5번');
+  if ((r.fatigue != null && r.fatigue >= 45) || r.mood === 'foggy') o.push('👀 20초 동안 먼 곳 바라보기');
+  if (r.mood === 'stormy' || r.mood === 'cloudy' || (r.bp != null && r.bp >= .55)) o.push('🙆 어깨를 으쓱 올렸다 툭 내리기, 3번');
+  if (r.mood === 'sunny') o.push('📸 그 표정 그대로 셀카 한 장');
+  o.push('💧 물 한 컵 마시기');
+  if (o.length < 3) o.push('🙂 거울 보고 씩 웃어 보기');
+  return o.slice(0, 3);
+}
+const bpTier = v => v == null ? null : v < .25 ? ['🎈', '가벼워요'] : v < .55 ? ['⚖️', '균형 좋아요'] : ['🔥', '팽팽해요'];
+const fatTier = f => f == null ? null : f < 25 ? '말짱해요' : f < 50 ? '보통이에요' : '피곤해 보여요';
+
+/* ── 결과 화면 ── */
+let SHOWN = null;
+function showResult(r, fromHist) {
+  SHOWN = r; if (!r.say) { r.say = sayFor(r); r.rx = rxFor(r); }
+  const mood = r.mood ? MOOD[r.mood] : null, bp = bpTier(r.bp);
+  const col = r.score >= 70 ? '#47d7a0' : r.score >= 55 ? '#ffc46b' : '#ff7a7a';
+  const tag = r.q === 'good' ? '<span class="tag good">확실</span>' : r.q === 'weak' ? '<span class="tag weak">참고 · 신뢰 낮음</span>' : '<span class="tag na">측정 불안정</span>';
+  const delta = r.bpm && r.base ? (r.bpm - r.base >= 0 ? '+' : '') + (r.bpm - r.base) + ' (평소 ' + r.base + ')' : '';
+  const hrState = !r.bpm ? '밝은 곳에서 가만히 다시 해 보세요' : r.bpm < 60 ? '느긋해요' : r.bpm <= 85 ? '편안해요' : r.bpm <= 100 ? '약간 빨라요' : '빨라요';
+  $('resBody').innerHTML =
+    '<div class="hero"><div class="scoreRing" id="sr" style="--c:' + col + ';--p:0"><b id="sn">0</b><small>컨디션</small></div><div class="say"><div class="t">거울이 말해요</div><div class="m">' + esc(r.say) + '</div></div></div>' +
+    '<div class="grid">' +
+      '<div class="tile"><div class="k">❤️ 심박수 ' + tag + '</div><div class="v">' + (r.bpm ? r.bpm + '<small>bpm</small>' : '—') + '</div><div class="d">' + esc(hrState) + (delta ? '<br>' + esc(delta) : '') + '</div></div>' +
+      '<div class="tile"><div class="k">🌤 기분 날씨</div><div class="v">' + (mood ? mood[0] : '—') + '</div><div class="d">' + (mood ? esc(mood[1]) + ' · 표정 기준' : '표정 분석을 못 했어요<br>(인터넷 연결 필요)') + '</div></div>' +
+      '<div class="tile"><div class="k">👀 눈 피로</div><div class="v">' + (r.fatigue != null ? r.fatigue + '<small>/100</small>' : '—') + '</div><div class="d">' + (r.fatigue != null ? esc(fatTier(r.fatigue)) : '표정 분석이 필요해요') + '</div>' + (r.fatigue != null ? '<div class="bar" style="--c:' + (r.fatigue < 25 ? '#47d7a0' : r.fatigue < 50 ? '#ffc46b' : '#ff7a7a') + '"><i data-w="' + r.fatigue + '"></i></div>' : '') + '</div>' +
+      '<div class="tile"><div class="k">🩺 혈압 느낌 <span class="tag fun">재미용</span></div><div class="v">' + (bp ? bp[0] : '—') + '</div><div class="d">' + (bp ? esc(bp[1]) + '<br>실제 혈압 아님' : '') + '</div></div>' +
+    '</div>' +
+    '<div class="rx"><h3>🪞 거울 처방</h3><ul>' + r.rx.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>' +
+    '<div class="acts"><button id="againBtn">다시 측정</button><button class="pri" id="shareBtn">결과 카드 저장</button></div>' +
+    '<div class="note">재미·참고용 · 의료 진단이 아니에요</div>';
+  $('res').classList.add('show'); $('app').classList.add('hasres');
+  const bd = $('resBody'); bd.scrollTop = 0;
+  // 숫자 올라가는 연출
+  let t0 = performance.now();
+  (function anim(t) { const k = clamp((t - t0) / 1100, 0, 1), e = 1 - Math.pow(1 - k, 3), v = Math.round(r.score * e); const sr = $('sr'); if (!sr) return; sr.style.setProperty('--p', v); $('sn').textContent = v; if (k < 1) requestAnimationFrame(anim); })(t0);
+  setTimeout(() => document.querySelectorAll('#resBody .bar i').forEach(i => i.style.width = i.dataset.w + '%'), 60);
+  if (!fromHist) { if (r.score >= 85) confetti(); S.hist.push({ t: r.t, score: r.score, bpm: r.bpm, q: r.q, mood: r.mood, fatigue: r.fatigue, bp: r.bp }); S.hist = S.hist.slice(-60); save(); }
+  $('againBtn').onclick = () => { closeResult(); };
+  $('shareBtn').onclick = () => shareCard(r);
+}
+function closeResult() {
+  $('res').classList.remove('show'); $('app').classList.remove('hasres');
+  state = 'idle'; const b = $('startBtn'); b.textContent = '측정 시작'; b.classList.remove('stop'); b.disabled = !stream; $('priv').textContent = '영상은 이 기기 안에서만 분석돼요';
+  $('prog').style.strokeDashoffset = 100; setMsg('얼굴을 동그라미 안에 맞춰 주세요');
+  if (!stream) startCam();
+}
+function confetti() {
+  const em = ['✨', '🎉', '💖', '⭐', '🌟'];
+  for (let i = 0; i < 26; i++) { const e = document.createElement('div'); e.className = 'confetti'; e.textContent = pick(em); e.style.left = Math.random() * 100 + 'vw'; e.style.animationDuration = 2 + Math.random() * 2 + 's'; e.style.animationDelay = Math.random() * .6 + 's'; document.body.appendChild(e); setTimeout(() => e.remove(), 5000); }
+}
+
+/* ── 결과 카드(이미지) 저장·공유 — 얼굴 영상은 들어가지 않는다 ── */
+async function shareCard(r) {
+  const W = 720, H = 960, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+  const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#2a3350'); bg.addColorStop(1, '#0f1324'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.textAlign = 'center'; g.fillStyle = '#dfe6f5'; g.font = '800 40px sans-serif'; g.fillText('SIM Mirror', W / 2, 90);
+  g.fillStyle = '#8f98b0'; g.font = '600 26px sans-serif'; g.fillText(new Date(r.t).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' }), W / 2, 134);
+  const col = r.score >= 70 ? '#47d7a0' : r.score >= 55 ? '#ffc46b' : '#ff7a7a';
+  g.lineWidth = 26; g.strokeStyle = '#2a3044'; g.beginPath(); g.arc(W / 2, 330, 140, 0, Math.PI * 2); g.stroke();
+  g.strokeStyle = col; g.lineCap = 'round'; g.beginPath(); g.arc(W / 2, 330, 140, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * r.score / 100); g.stroke();
+  g.fillStyle = '#fff'; g.font = '800 110px sans-serif'; g.fillText(String(r.score), W / 2, 366); g.fillStyle = '#8f98b0'; g.font = '600 24px sans-serif'; g.fillText('컨디션', W / 2, 410);
+  const mood = r.mood ? MOOD[r.mood] : null, bp = bpTier(r.bp);
+  const rows = [['❤️ 심박수', r.bpm ? r.bpm + ' bpm' + (r.q === 'weak' ? ' (참고)' : '') : '측정 불안정'], ['🌤 기분 날씨', mood ? mood[0] + ' ' + mood[1] : '—'], ['👀 눈 피로', r.fatigue != null ? r.fatigue + '/100 · ' + fatTier(r.fatigue) : '—'], ['🩺 혈압 느낌(재미)', bp ? bp[0] + ' ' + bp[1] : '—']];
+  rows.forEach((x, i) => { const y = 520 + i * 78; g.fillStyle = 'rgba(255,255,255,.07)'; g.beginPath(); g.roundRect ? g.roundRect(60, y - 44, W - 120, 64, 18) : g.rect(60, y - 44, W - 120, 64); g.fill(); g.textAlign = 'left'; g.fillStyle = '#c8d2ee'; g.font = '600 26px sans-serif'; g.fillText(x[0], 84, y); g.textAlign = 'right'; g.fillStyle = '#fff'; g.font = '800 28px sans-serif'; g.fillText(x[1], W - 84, y); });
+  g.textAlign = 'center'; g.fillStyle = '#e9ecf4'; g.font = '700 28px sans-serif';
+  const words = (r.say || '').split(' '); let line = '', y = 870; for (const w of words) { const t = line ? line + ' ' + w : w; if (g.measureText(t).width > W - 140) { g.fillText(line, W / 2, y); y += 40; line = w; } else line = t; } g.fillText(line, W / 2, y);
+  g.fillStyle = '#6a738c'; g.font = '500 20px sans-serif'; g.fillText('재미·참고용 · 의료 진단이 아니에요', W / 2, H - 28);
+  const blob = await new Promise(res => c.toBlob(res, 'image/png'));
+  const file = new File([blob], 'sim-mirror.png', { type: 'image/png' });
+  try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'SIM Mirror' }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'sim-mirror-' + new Date(r.t).toISOString().slice(0, 10) + '.png'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('이미지로 저장했어요');
+}
+
+/* ── 기록 ── */
+function openHist() {
+  const h = S.hist.slice().reverse(), ov_ = document.createElement('div'); ov_.className = 'ov';
+  const sc = S.hist.slice(-7), bp = S.hist.filter(x => x.bpm).slice(-7);
+  const rows = h.map((x, i) => { const d = new Date(x.t), m = x.mood ? MOOD[x.mood][0] : '·'; return '<div class="hrow"><div class="ic">' + m + '</div><div class="tx"><b>' + x.score + '점' + (x.bpm ? ' · ' + x.bpm + 'bpm' + (x.q === 'weak' ? ' (참고)' : '') : '') + '</b><small>' + d.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</small></div><button class="x" data-i="' + x.t + '">삭제</button></div>'; }).join('');
+  ov_.innerHTML = '<div class="sheet"><div class="hd"><b>측정 기록</b>' + (h.length ? '<button id="hClr" style="font-size:13px">모두 지우기</button>' : '') + '<button id="hX" style="padding:6px 11px">✕</button></div><div class="bd">' +
+    (h.length ? '<div class="avg"><div>최근 ' + sc.length + '회 평균 점수<b>' + Math.round(mean(sc.map(x => x.score))) + '</b></div><div>평균 심박<b>' + (bp.length ? Math.round(mean(bp.map(x => x.bpm))) : '—') + '</b></div></div>' + rows : '<div class="empty">아직 기록이 없어요</div>') + '</div></div>';
+  document.body.appendChild(ov_);
+  const close = () => ov_.remove();
+  ov_.addEventListener('click', e => { if (e.target === ov_) close(); });
+  ov_.querySelector('#hX').onclick = close;
+  const clr = ov_.querySelector('#hClr'); if (clr) clr.onclick = () => { if (clr.dataset.sure) { S.hist = []; save(); close(); } else { clr.dataset.sure = '1'; clr.textContent = '정말 지울까요?'; setTimeout(() => { clr.dataset.sure = ''; clr.textContent = '모두 지우기'; }, 3000); } };
+  ov_.querySelectorAll('.x').forEach(b => b.onclick = () => { S.hist = S.hist.filter(x => String(x.t) !== b.dataset.i); save(); close(); openHist(); });
+}
+
+$('hBtn').onclick = openHist;
+$('startBtn').onclick = () => { if (state === 'measuring') cancelMeasure(''), setMsg('얼굴을 동그라미 안에 맞춰 주세요'); else beginMeasure(); };
+
+/* 테스트용 노출 */
+window.__mirror = { grade, rxFor };
+
+startCam();
+loadLM();
+})();
+</script>
+<script src="ui-guard.js" defer></script>
+<script src="appmenu.js" defer></script>
+<script src="sync.js?bg=1" defer></script>
+</body>
+</html>

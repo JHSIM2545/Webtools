@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2a3350"/><stop offset="1" stop-color="#11152a"/></linearGradient>
+    <linearGradient id="fr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f7ff"/><stop offset="1" stop-color="#aab6d0"/></linearGradient>
+    <linearGradient id="gl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#cfe3ff"/><stop offset="1" stop-color="#6f93d6"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- 거울 받침 -->
+  <path d="M232 396h48l16 54H216z" fill="url(#fr)"/>
+  <rect x="196" y="440" width="120" height="16" rx="8" fill="url(#fr)"/>
+  <!-- 타원 거울 -->
+  <ellipse cx="256" cy="232" rx="132" ry="168" fill="url(#fr)"/>
+  <ellipse cx="256" cy="232" rx="110" ry="146" fill="url(#gl)"/>
+  <!-- 반사광 -->
+  <path d="M170 150c24-46 66-70 110-72-34 22-66 62-84 118z" fill="#fff" opacity=".55"/>
+  <path d="M330 330c-10 22-26 40-46 52 36-8 62-30 76-62z" fill="#fff" opacity=".28"/>
+  <!-- 심박선 -->
+  <path d="M168 244h58l18-52 28 100 20-48h52" fill="none" stroke="#ff5d7a" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- 반짝 -->
+  <path d="M388 92l8 20 20 8-20 8-8 20-8-20-20-8 20-8z" fill="#fff"/>
+  <path d="M116 330l5 12 12 5-12 5-5 12-5-12-12-5 12-5z" fill="#fff" opacity=".8"/>
+</svg>

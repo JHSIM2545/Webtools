@@ -28,6 +28,14 @@ header h1 span{color:var(--accent);margin-left:-5px}
 .spacer{flex:1}
 button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:8px 13px;cursor:pointer;touch-action:manipulation}
 .hbtn{width:36px;height:34px;padding:0;font-size:17px;border-radius:10px}
+.sw{position:relative;flex:none;width:50px;height:29px;border-radius:99px;border:0;padding:0;background:#3a4056;transition:background .15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;background:#fff;transition:left .15s}
+.sw.on{background:var(--ok)} .sw.on::after{left:24px}
+.srow{display:flex;align-items:center;gap:12px;padding:15px 2px;border-bottom:1px solid var(--line)}
+.srow:last-child{border-bottom:0}
+.srow b{flex:1;font-size:15.5px}
+.srow input[type=range]{flex:2;accent-color:#aab6d0}
+.srow .vv{width:40px;text-align:right;color:var(--sub);font-size:13px}
 
 .app{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
 
@@ -107,7 +115,7 @@ canvas.wave{position:absolute;left:0;right:0;bottom:0;width:100%;height:70px;poi
 .rx h3{font-size:14px;margin-bottom:7px}
 .rx li{list-style:none;font-size:14px;line-height:1.55;padding:3px 0}
 .acts{display:flex;gap:10px}
-.acts button{flex:1;padding:13px 10px;font-weight:800;font-size:15px;border-radius:15px}
+.acts button{flex:1;padding:13px 6px;font-weight:800;font-size:14.5px;border-radius:15px;white-space:nowrap}
 .acts .pri{background:linear-gradient(135deg,#f4f7ff,#aab6d0);color:var(--ink);border:0}
 .note{font-size:11px;color:var(--sub);text-align:center;padding-bottom:4px}
 
@@ -152,6 +160,7 @@ canvas.wave{position:absolute;left:0;right:0;bottom:0;width:100%;height:70px;poi
   <a class="back" href="index.html" aria-label="런처로">‹</a>
   <h1><img class="appicon" src="mirror-icon-192.png" alt="">SIM <span>Mirror</span></h1>
   <div class="spacer"></div>
+  <button class="hbtn" id="sBtn" aria-label="소리">🔊</button>
   <button class="hbtn" id="hBtn" aria-label="기록">🕘</button>
 </header>
 
@@ -337,9 +346,116 @@ const MODEL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/f
 /* ── 저장 ── */
 let S = { hist: [] };
 try { const j = JSON.parse(localStorage.getItem(LS) || 'null'); if (j && Array.isArray(j.hist)) S = j; } catch (e) {}
+S.set = Object.assign({ voice: true, bgm: true, vol: 35 }, S.set || {});
 const save = () => { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) {} };
 
-function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200); }
+function toast(m, ms) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), ms || 2200); }
+
+/* ══ 소리: 잔잔한 배경음악(자체 연주) + 음성 안내(기기 음성) ══ */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const bgm = (() => {
+  let ctx = null, master = null, fx = null, dry = null, ana = null, timer = null, wd = null, on = false, duckN = 0, step = 0, nextT = 0, preview = false;
+  const CH = [[48, 55, 64, 71], [45, 52, 60, 67], [41, 48, 57, 64], [43, 50, 59, 65]];   // Cmaj7 · Am7 · Fmaj7 · G6
+  const PENT = [0, 2, 4, 7, 9], hz = m => 440 * Math.pow(2, (m - 69) / 12);
+  const level = () => Math.pow(clamp(S.set.vol, 0, 100) / 100, 1.5) * (duckN > 0 ? .3 : 1);
+  function build() {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+    ctx = new AC(); master = ctx.createGain(); master.gain.value = 0;
+    dry = ctx.createBiquadFilter(); dry.type = 'lowpass'; dry.frequency.value = 1800; dry.Q.value = .3;
+    fx = ctx.createGain(); const dl = ctx.createDelay(1.5); dl.delayTime.value = .42; const fb = ctx.createGain(); fb.gain.value = .42;
+    const dlp = ctx.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 1400;
+    fx.connect(dl); dl.connect(dlp); dlp.connect(fb); fb.connect(dl); dlp.connect(dry);   // 여운(에코)
+    dry.connect(master); master.connect(ctx.destination);
+    ana = ctx.createAnalyser(); ana.fftSize = 2048; master.connect(ana); return true;
+  }
+  function note(m, t, dur, type, peak, att, send) {
+    const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.value = hz(m); o.detune.value = (Math.random() - .5) * 8;
+    g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(peak, t + att); g.gain.setTargetAtTime(.0001, t + dur - att * .2, Math.max(.15, att * .45));
+    o.connect(g); g.connect(dry); if (send) { const x = ctx.createGain(); x.gain.value = send; g.connect(x); x.connect(fx); }
+    o.start(t); o.stop(t + dur + 1.2);
+  }
+  function sched() {
+    if (!on || !ctx) return;
+    while (nextT < ctx.currentTime + 1.5) {
+      const bar = Math.floor(step / 8), ch = CH[bar % 4], k = step % 8;
+      if (k === 0) { ch.forEach((m, j) => note(m, nextT + j * .07, 9.2, j % 2 ? 'triangle' : 'sine', .085, 2.6, .2)); note(ch[0] - 12, nextT, 9, 'sine', .09, 1.8, 0); }   // 코드(패드)·베이스
+      if (k % 2 === 0 || Math.random() < .35) { const base = ch[0] + 12, m = base + PENT[Math.floor(Math.random() * 5)] + (Math.random() < .3 ? 12 : 0); note(m, nextT + Math.random() * .12, 2.4, 'sine', .075, .03, .9); }   // 부드러운 멜로디
+      nextT += 1.15; step++;   // 약 52bpm
+    }
+  }
+  const kick = () => { try { if (on && ctx && ctx.state !== 'running') ctx.resume(); } catch (e) {} };
+  return {
+    unlock() { try { if (!S.set.bgm) return; if (!ctx && !build()) return; ctx.resume(); } catch (e) {} },   // 누른 직후에 호출해 소리가 막히지 않게
+    start(pv) {
+      if (!S.set.bgm && !pv) return; if (on) { this.update(); return; }
+      if (!ctx && !build()) return; on = true; preview = !!pv;
+      try { ctx.resume(); } catch (e) {} step = 0; nextT = ctx.currentTime + .1; sched(); clearInterval(timer); timer = setInterval(sched, 400); clearInterval(wd); wd = setInterval(kick, 700);
+      master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setValueAtTime(master.gain.value, ctx.currentTime); master.gain.setTargetAtTime(level(), ctx.currentTime, 1.2);
+    },
+    stop() {
+      if (!on) return; on = false; preview = false; clearInterval(timer); timer = null; clearInterval(wd);
+      if (ctx) { try { master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setTargetAtTime(0, ctx.currentTime, .6); } catch (e) {} const c = ctx; setTimeout(() => { if (!on && c === ctx) { try { c.close(); } catch (e) {} ctx = null; master = null; } }, 3500); }
+    },
+    duck(d) { duckN = Math.max(0, duckN + d); this.update(); },
+    duckReset() { duckN = 0; this.update(); },
+    update() { if (on && master) master.gain.setTargetAtTime(level(), ctx.currentTime, .12); },
+    rms() { if (!ana) return 0; const b = new Float32Array(ana.fftSize); ana.getFloatTimeDomainData(b); return Math.sqrt(b.reduce((a, x) => a + x * x, 0) / b.length); },
+    get on() { return on; }, get preview() { return preview; }
+  };
+})();
+
+const TTS = (() => {
+  let gen = 0, busy = 0, tok = 0, koVoice = null, bad = false, warned = false, seqN = 0; const cb = {};
+  window.__simTts = (id, ev) => { const f = cb[id]; if (f) f(ev); };       // 안드로이드 앱이 알려주는 음성 진행 상태
+  const nat = () => { try { return window.SimTts && typeof window.SimTts.status === 'function' ? window.SimTts : null; } catch (e) { return null; } };
+  const pickVoice = () => { try { const vs = speechSynthesis.getVoices ? speechSynthesis.getVoices() : []; koVoice = vs.find(v => /ko[-_]KR/i.test(v.lang)) || vs.find(v => /^ko/i.test(v.lang)) || null; } catch (e) {} };
+  try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
+  async function viaApp(text) {                                              // 1) 앱(APK) 자체 음성
+    const T = nat(); if (!T) return 'nostart';
+    for (let k = 0; k < 8 && T.status() === 'init'; k++) await sleep(250);
+    if (T.status() !== 'ready') return 'nostart';
+    return new Promise(ok => {
+      const id = 'm' + (++seqN); let started = false, done = false;
+      const fin = r => { if (!done) { done = true; delete cb[id]; clearTimeout(t1); clearTimeout(t2); ok(r); } };
+      const t1 = setTimeout(() => { if (!started) { try { T.stop(); } catch (e) {} fin('nostart'); } }, 3000), t2 = setTimeout(() => fin('ok'), 6000 + text.length * 350);
+      cb[id] = ev => { if (ev === 'start') { started = true; clearTimeout(t1); } else if (ev === 'done' || ev === 'stop' || ev === 'error') fin(started ? 'ok' : 'nostart'); };
+      let k = false; try { k = T.speak(text, id, .95); } catch (e) {} if (!k) fin('nostart');
+    });
+  }
+  function viaWeb(text) {                                                    // 2) 브라우저 음성
+    return new Promise(ok => {
+      try {
+        if (!('speechSynthesis' in window)) return ok('nostart');
+        speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'ko-KR'; if (koVoice) u.voice = koVoice; u.rate = .97; u.pitch = 1.05;
+        let started = false, done = false; const fin = r => { if (!done) { done = true; clearTimeout(t1); clearTimeout(t2); ok(r); } };
+        const t1 = setTimeout(() => { if (!started) { try { speechSynthesis.cancel(); } catch (e) {} fin('nostart'); } }, 2500), t2 = setTimeout(() => fin('ok'), 4000 + text.length * 300);
+        u.onstart = () => { started = true; clearTimeout(t1); }; u.onend = () => fin(started ? 'ok' : 'nostart'); u.onerror = () => fin(started ? 'ok' : 'nostart');
+        setTimeout(() => speechSynthesis.speak(u), 60);
+      } catch (e) { ok('nostart'); }
+    });
+  }
+  async function one(text, g) {
+    let r = await viaApp(text); if (r === 'ok') return true; if (g !== gen) return false;
+    r = await viaWeb(text); if (r === 'ok') return true; if (g !== gen) return false;
+    bad = true; if (!warned) { warned = true; toast('음성을 낼 수 없어요. 기기 설정에서 한국어 음성을 확인해 주세요', 3800); } return false;
+  }
+  const api = {
+    get busy() { return !!busy; }, get bad() { return bad; },
+    retry() { bad = false; warned = false; },
+    cancel() { gen++; busy = 0; bgm.duckReset(); try { const T = nat(); T && T.stop(); } catch (e) {} try { speechSynthesis.cancel(); } catch (e) {} },
+    async say(text, force) {
+      if (!S.set.voice || bad || !text) return false; if (busy && !force) return false;
+      const g = gen, my = ++tok; busy = my; bgm.duck(1);
+      try { return await one(text, g); } finally { if (g === gen) { if (busy === my) busy = 0; bgm.duck(-1); } }
+    },
+    async seq(lines) {                                                        // 여러 문장을 끊김 없이 차례로
+      const g = gen; bgm.duck(1);
+      try { for (const l of lines) { if (g !== gen) return; await api.say(l, true); if (g !== gen) return; await sleep(220); } } finally { if (g === gen) bgm.duck(-1); }
+    }
+  };
+  return api;
+})();
+
 
 /* ── 시계 ── */
 function tick() {
@@ -388,10 +504,10 @@ function stopCam() {
   $('vid').srcObject = null; $('mirror').classList.add('off'); $('startBtn').disabled = true;
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { if (state === 'measuring') cancelMeasure('중단됐어요'); stopCam(); }
+  if (document.hidden) { if (state === 'measuring') cancelMeasure('중단됐어요'); silence(); stopCam(); }
   else if (state !== 'result') startCam();
 });
-addEventListener('pagehide', stopCam);
+addEventListener('pagehide', () => { silence(); stopCam(); });
 
 /* ── 표정·랜드마크 모델 (인터넷 필요, 실패해도 심박만 측정) ── */
 async function loadLM() {
@@ -503,6 +619,8 @@ async function beginMeasure() {
   }
   if (state !== 'idle') return;
   state = 'measuring'; $('mirror').classList.add('run'); $('mirror').classList.remove('off');
+  narrGen++; TTS.cancel(); RT = {}; CUED = {}; CL = 0; MV = 0; lastSay = 0; TTS.retry();
+  bgm.start(); speakM('측정을 시작할게요. 편안하게 거울을 바라봐 주세요.');
   const b = $('startBtn'); b.disabled = true; b.textContent = '준비…';
   $('priv').textContent = '';
   for (const n of [3, 2, 1]) { const c = $('count'); c.textContent = n; c.classList.remove('show'); void c.offsetWidth; c.classList.add('show'); setMsg('가만히 거울을 봐 주세요'); await new Promise(r => setTimeout(r, 900)); if (state !== 'measuring') return; }
@@ -524,7 +642,9 @@ function measureFrame(R, lm, tSec) {
   if (!faceOk || !skinOk) {
     if (!M.lostAt) M.lostAt = nowMs;
     if (nowMs - M.lostAt > 1200 && M.ts.length) { const keep = newM(); keep.t0 = nowMs; keep.lostAt = M.lostAt; M = keep; $('prog').style.strokeDashoffset = 100; }
-    setMsg(!faceOk ? '얼굴이 안 보여요 · 가운데로' : '얼굴(피부)이 잘 안 보여요', 'warn'); return;
+    setMsg(!faceOk ? '얼굴이 안 보여요 · 가운데로' : '얼굴(피부)이 잘 안 보여요', 'warn');
+    if (nowMs - M.lostAt > 800) react('lost', '얼굴이 안 보여요. 화면 가운데로 와 주세요.', 8);
+    return;
   }
   if (M.lostAt) { M.lostAt = 0; M.t0 = nowMs - (M.ts.length ? (M.ts[M.ts.length - 1] - M.ts[0]) * 1000 : 0); }
   const avg = [0, 1, 2].map(i => mean(good.map(c => c[i])));
@@ -538,12 +658,18 @@ function measureFrame(R, lm, tSec) {
     M.sm.push(smile); M.br.push(brow); M.fr.push(frown); M.pr.push(press); M.bl.push(blink); M.sq.push(squint); M.jo.push(bs(shapes, 'jawOpen'));
     if (!M.closed && blink > .55) { M.closed = true; M.blinks++; } else if (M.closed && blink < .35) M.closed = false;
     reactEmoji(smile, brow, blink);
+    if (smile > .45) react('sm', '와, 환하게 웃으셨네요! 보기 좋아요.', 1e9);
+    if (brow > .45) react('bw', '미간에 힘이 들어갔어요. 살짝 풀어 볼까요?', 1e9);
+    CL = blink > .7 ? CL + 1 : 0; if (CL > 25) react('ey', '잠깐 눈을 감으셨네요. 졸리신가요?', 1e9);
   }
   // 움직임
   if (R.nose) { if (M.prevNose) { const dd = Math.hypot(R.nose.x - M.prevNose.x, R.nose.y - M.prevNose.y) / R.fw; M.motion.push(dd); if (M.motion.length > 20) M.motion.shift(); } M.prevNose = R.nose; }
   const mo = mean(M.motion) * 30;                    // 얼굴 폭/초
   // 안내
   const el = (nowMs - M.t0) / 1000;
+  MV = mo > .35 ? MV + 1 : 0; if (MV > 20) react('mv', '조금만 가만히 계셔 주세요.', 12);
+  if (luma < 55) react('dk', '조금 더 밝은 곳이면 좋겠어요.', 20); else if (luma > 238) react('br', '빛이 너무 강해요. 조금만 피해 볼까요?', 20);
+  cueTick(el);
   if (mo > .35) setMsg('가만히 있어 주세요', 'warn');
   else if (luma < 55) setMsg('조금 더 밝은 곳으로 가 주세요', 'warn');
   else if (luma > 238) setMsg('빛이 너무 강해요', 'warn');
@@ -552,6 +678,60 @@ function measureFrame(R, lm, tSec) {
   drawWave();
   if (el >= DUR) finishMeasure();
 }
+
+
+/* ══ 측정 중 음성 안내 · 결과 낭독 ══ */
+let RT = {}, CUED = {}, lastSay = 0, CL = 0, MV = 0;
+function speakM(text) { lastSay = performance.now(); TTS.say(text).then(() => { lastSay = performance.now(); }); }
+function react(k, text, gap) {                                       // 상황 반응(쿨다운·1회 제한, 말하는 중엔 끼어들지 않음)
+  const n = performance.now(); if (TTS.busy || n - lastSay < 900 || (RT[k] !== undefined && n - RT[k] < gap * 1000)) return;
+  RT[k] = n; speakM(text);
+}
+const smileNow = () => M && M.sm.length ? mean(M.sm.slice(-30)) : null;
+const CUES = [
+  { t: 3,    k: 'c1', say: () => '좋아요, 아주 잘하고 계세요. 숨은 평소처럼 편하게 쉬어 주세요.' },
+  { t: 8,    k: 'c2', say: () => '어깨에 힘을 빼고, 천천히 숨을 한 번 쉬어 볼까요?' },
+  { t: 12.5, k: 'c3', say: () => M && M.liveHr ? '벌써 절반이에요. 아직 잠정이지만, 심박수는 분당 ' + Math.round(M.liveHr) + '회쯤으로 보여요.' : '벌써 절반이 지났어요. 지금 심장 소리를 듣고 있어요.' },
+  { t: 17,   k: 'c4', say: () => { const v = smileNow(); return v == null ? '아주 좋아요. 조금만 더 힘내요.' : v > .25 ? '오, 표정이 좋은데요? 기분 좋은 일이 있으셨나 봐요.' : '표정이 아주 편안해 보여요. 좋아요.'; } },
+  { t: 20.5, k: 'c5', say: () => '이제 오 초 남았어요. 조금만 더 가만히 계셔 주세요.' },
+  { t: 23.8, k: 'c6', say: () => '거의 다 됐어요.' }
+];
+function cueTick(el) {
+  for (const c of CUES) {
+    if (CUED[c.k] || el < c.t) continue;
+    if (el - c.t > 6) { CUED[c.k] = 1; continue; }                    // 너무 늦었으면 건너뜀
+    if (TTS.busy || performance.now() - lastSay < 1800) continue;   // 상황 반응이 먼저 끼어들 틈을 남겨 둔다
+    CUED[c.k] = 1; speakM(c.say()); break;
+  }
+}
+const strip = t => String(t).replace(/[\p{Extended_Pictographic}️‍]/gu, '').replace(/\s+/g, ' ').trim();
+const MOODSAY = { sunny: '방긋 웃는 맑은 날씨예요', calm: '잔잔한 구름처럼 편안해 보여요', cloudy: '살짝 흐린 편이에요', stormy: '미간에 힘이 들어간 폭풍 날씨예요', foggy: '졸린 안개가 끼어 있어요' };
+const hrSay = b => b < 60 ? '느긋한 편이에요' : b <= 85 ? '편안한 편이에요' : b <= 100 ? '조금 빠른 편이에요' : '빠른 편이에요';
+function narration(r) {
+  const L = [pick(['수고하셨어요! 결과를 알려 드릴게요.', '측정이 끝났어요. 같이 볼까요?'])];
+  L.push('오늘의 컨디션은 ' + r.score + '점. ' + (r.score >= 85 ? '아주 좋아요!' : r.score >= 70 ? '꽤 좋은 편이에요.' : r.score >= 55 ? '무난한 하루가 될 것 같아요.' : '오늘은 조금 쉬어 가면 좋겠어요.'));
+  if (r.bpm) {
+    let t = '심박수는 분당 ' + r.bpm + '회' + (r.q === 'weak' ? '쯤으로 나왔어요. 신호가 조금 약해서 참고만 해 주세요.' : ', ' + hrSay(r.bpm) + '.');
+    if (r.q === 'good' && r.base) { const d = r.bpm - r.base; t += Math.abs(d) <= 3 ? ' 평소와 비슷해요.' : d > 0 ? ' 평소보다 ' + d + '회 빨라요.' : ' 평소보다 ' + (-d) + '회 느려요.'; }
+    L.push(t);
+  } else L.push('심박은 신호가 불안정해서 이번에는 재지 못했어요. 밝은 곳에서 가만히 다시 해 보세요.');
+  if (r.mood) L.push('표정은 ' + MOODSAY[r.mood] + '.');
+  if (r.fatigue != null) L.push(r.fatigue >= 50 ? '눈이 많이 피곤해 보여요.' : r.fatigue >= 25 ? '눈 피로는 보통이에요.' : '눈은 말짱해 보여요.');
+  const bp = bpTier(r.bp); if (bp) L.push('혈압 느낌은 ' + bp[1] + '. 이건 재미로만 봐 주세요.');
+  if (r.rx && r.rx[0]) L.push('거울의 처방은, ' + strip(r.rx[0]) + '.');
+  L.push(r.score >= 70 ? '오늘도 좋은 하루 보내세요!' : '무리하지 말고, 오늘은 천천히 가요.');
+  return L;
+}
+let narrGen = 0;
+async function narrate(r) {
+  const g = ++narrGen; await sleep(700);
+  for (let i = 0; i < 40 && TTS.busy && g === narrGen; i++) await sleep(100);   // 진행 중인 안내가 끝나길 잠깐 기다림
+  if (g !== narrGen || state !== 'result') return;
+  bgm.start();
+  if (S.set.voice) await TTS.seq(narration(r)); else await sleep(5000);
+  if (g === narrGen) setTimeout(() => { if (g === narrGen) bgm.stop(); }, 1800);
+}
+function silence() { narrGen++; TTS.cancel(); bgm.stop(); }
 
 function reactEmoji(smile, brow, blink) {
   const e = $('react'); let t = '';
@@ -584,7 +764,7 @@ function liveHr() {
 }
 
 function cancelMeasure(msg) {
-  state = 'idle'; M = null; $('mirror').classList.remove('run'); $('hrChip').hidden = true; $('count').classList.remove('show');
+  silence(); state = 'idle'; M = null; $('mirror').classList.remove('run'); $('hrChip').hidden = true; $('count').classList.remove('show');
   $('prog').style.strokeDashoffset = 100; $('react').textContent = ''; octx.clearRect(0, 0, fx.width, fx.height);
   const b = $('startBtn'); b.textContent = '측정 시작'; b.classList.remove('stop'); b.disabled = !stream; $('priv').textContent = '영상은 이 기기 안에서만 분석돼요';
   if (msg) setMsg(msg, 'warn');
@@ -672,7 +852,7 @@ function showResult(r, fromHist) {
       '<div class="tile"><div class="k">🩺 혈압 느낌 <span class="tag fun">재미용</span></div><div class="v">' + (bp ? bp[0] : '—') + '</div><div class="d">' + (bp ? esc(bp[1]) + '<br>실제 혈압 아님' : '') + '</div></div>' +
     '</div>' +
     '<div class="rx"><h3>🪞 거울 처방</h3><ul>' + r.rx.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>' +
-    '<div class="acts"><button id="againBtn">다시 측정</button><button class="pri" id="shareBtn">결과 카드 저장</button></div>' +
+    '<div class="acts"><button id="againBtn">다시 측정</button><button id="listenBtn">🔊 다시 듣기</button><button class="pri" id="shareBtn">카드 저장</button></div>' +
     '<div class="note">재미·참고용 · 의료 진단이 아니에요</div>';
   $('res').classList.add('show'); $('app').classList.add('hasres');
   const bd = $('resBody'); bd.scrollTop = 0;
@@ -683,9 +863,11 @@ function showResult(r, fromHist) {
   if (!fromHist) { if (r.score >= 85) confetti(); S.hist.push({ t: r.t, score: r.score, bpm: r.bpm, q: r.q, mood: r.mood, fatigue: r.fatigue, bp: r.bp }); S.hist = S.hist.slice(-60); save(); }
   $('againBtn').onclick = () => { closeResult(); };
   $('shareBtn').onclick = () => shareCard(r);
+  $('listenBtn').onclick = () => { narrGen++; TTS.cancel(); TTS.retry(); if (!S.set.voice) { S.set.voice = true; save(); paintSnd(); } narrate(r); };
+  narrate(r);
 }
 function closeResult() {
-  $('res').classList.remove('show'); $('app').classList.remove('hasres');
+  silence(); $('res').classList.remove('show'); $('app').classList.remove('hasres');
   state = 'idle'; const b = $('startBtn'); b.textContent = '측정 시작'; b.classList.remove('stop'); b.disabled = !stream; $('priv').textContent = '영상은 이 기기 안에서만 분석돼요';
   $('prog').style.strokeDashoffset = 100; setMsg('얼굴을 동그라미 안에 맞춰 주세요');
   if (!stream) startCam();
@@ -732,11 +914,34 @@ function openHist() {
   ov_.querySelectorAll('.x').forEach(b => b.onclick = () => { S.hist = S.hist.filter(x => String(x.t) !== b.dataset.i); save(); close(); openHist(); });
 }
 
+
+/* ── 소리 설정 ── */
+function paintSnd() { $('sBtn').textContent = S.set.voice || S.set.bgm ? '🔊' : '🔇'; }
+function openSound() {
+  const o = document.createElement('div'); o.className = 'ov';
+  o.innerHTML = '<div class="sheet"><div class="hd"><b>소리</b><button id="sX" style="padding:6px 11px">✕</button></div><div class="bd">' +
+    '<div class="srow"><b>음성 안내</b><button class="sw' + (S.set.voice ? ' on' : '') + '" id="swV" aria-label="음성 안내"></button></div>' +
+    '<div class="srow"><b>배경음악</b><button class="sw' + (S.set.bgm ? ' on' : '') + '" id="swB" aria-label="배경음악"></button></div>' +
+    '<div class="srow"><b>음악 볼륨</b><input type="range" id="vol" min="0" max="100" step="1" value="' + S.set.vol + '"><span class="vv" id="vv">' + S.set.vol + '%</span></div>' +
+    '<div class="srow"><button id="sTest" style="flex:1;padding:12px;font-weight:800">🔊 목소리 들어보기</button></div></div></div>';
+  document.body.appendChild(o);
+  const prev = () => { if (state === 'idle' && S.set.bgm) bgm.start(true); };
+  prev();
+  const close = () => { o.remove(); if (state === 'idle') { TTS.cancel(); bgm.stop(); } };
+  o.addEventListener('click', e => { if (e.target === o) close(); });
+  o.querySelector('#sX').onclick = close;
+  o.querySelector('#swV').onclick = e => { S.set.voice = !S.set.voice; e.currentTarget.classList.toggle('on', S.set.voice); save(); paintSnd(); if (!S.set.voice) TTS.cancel(); };
+  o.querySelector('#swB').onclick = e => { S.set.bgm = !S.set.bgm; e.currentTarget.classList.toggle('on', S.set.bgm); save(); paintSnd(); if (S.set.bgm) prev(); else bgm.stop(); };
+  o.querySelector('#vol').oninput = e => { S.set.vol = +e.target.value; o.querySelector('#vv').textContent = S.set.vol + '%'; save(); bgm.update(); };
+  o.querySelector('#sTest').onclick = () => { TTS.retry(); if (!S.set.voice) { S.set.voice = true; o.querySelector('#swV').classList.add('on'); save(); paintSnd(); } TTS.say('안녕하세요, 저는 스마트 거울이에요. 오늘도 컨디션 같이 확인해 봐요.', true); };
+}
+$('sBtn').onclick = openSound; paintSnd();
+
 $('hBtn').onclick = openHist;
-$('startBtn').onclick = () => { if (state === 'measuring') cancelMeasure(''), setMsg('얼굴을 동그라미 안에 맞춰 주세요'); else beginMeasure(); };
+$('startBtn').onclick = () => { bgm.unlock(); if (state === 'measuring') cancelMeasure(''), setMsg('얼굴을 동그라미 안에 맞춰 주세요'); else beginMeasure(); };
 
 /* 테스트용 노출 */
-window.__mirror = { grade, rxFor };
+window.__mirror = { grade, rxFor, narration, TTS, bgm, S };
 
 startCam();
 loadLM();

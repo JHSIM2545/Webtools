@@ -1450,10 +1450,10 @@ async function geminiCall(phone, text, mode, extra) {
 }
 /* ───── AI 처리 중 표시 + 효과음("뚜둑뚜두 뚜둑뚜두") ───── */
 const Busy = (() => {
-  let n = 0, timer = null, guard = null, nextAt = 0;
+  let n = 0, timer = null, guard = null, nextAt = 0, cyc = null;
   const on = () => ls.get('SIMAS_BUSYSND', '1') === '1';
   function click(t, f, v) {   // 나무 두드리는 듯한 짧은 소리 하나
-    const c = actx; if (!c) return;
+    const c = cyc || actx; if (!c) return;
     const o = c.createOscillator(), g = c.createGain();
     o.type = 'triangle'; o.frequency.setValueAtTime(f * 1.9, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.025);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
@@ -1461,8 +1461,8 @@ const Busy = (() => {
   }
   function cycle() {   // 뚜(낮게) 둑(높게) 뚜 두 … 쉬고 반복
     try {
-      unlockAudio(); const c = actx; if (!c || c.state !== 'running') return;
-      const v = LIVE.on ? 0.07 : 0.16, t = Math.max(c.currentTime + 0.02, nextAt);
+      unlockAudio(); let c = (LIVE.on && LIVE.octx && LIVE.octx.state === 'running') ? LIVE.octx : actx; if (!c) return; if (c.state !== 'running') { try { c.resume(); } catch (e) {} return; }
+      const v = LIVE.on ? 0.13 : 0.16; if (c !== cyc) { cyc = c; nextAt = 0; } const t = Math.max(c.currentTime + 0.02, nextAt);
       click(t, 210, v); click(t + 0.13, 380, v * 1.1); click(t + 0.27, 230, v); click(t + 0.39, 170, v * 0.9);
       nextAt = t + 1.15;
     } catch (e) {}
@@ -1471,7 +1471,7 @@ const Busy = (() => {
     n++; const el = $('aiBusy'); if (txt) el.querySelector('.txt').textContent = txt;
     if (n > 1) return; el.classList.add('on');
     if (on()) { cycle(); timer = setInterval(() => { if (!on()) return; cycle(); if (LIVE.on) LIVE.quietUntil = Date.now() + 700; }, 1150); }
-    clearTimeout(guard); guard = setTimeout(() => { n = 1; stop(); }, 60000);
+    clearTimeout(guard); guard = setTimeout(() => { n = 1; stop(); }, 120000);
   }
   function stop() {
     if (n > 0) n--; if (n > 0) return;
@@ -1674,7 +1674,7 @@ const LTOOLS = {
   }
 };
 async function liveTools(calls) {
-  liveSet('AI가 찾아보고 있습니다', '🔎', false); Busy.start(); LIVE.busyOn = true; const resp = [];
+  liveSet('AI가 찾아보고 있습니다', '🔎', false); clearTimeout(LIVE.meT); if (!LIVE.busyOn) { Busy.start(); LIVE.busyOn = true; } const resp = [];
   for (const c of calls) {
     let r; try { const f = LTOOLS[c.name]; r = f ? await f(c.args || {}) : { ok: false, error: '지원하지 않는 기능이에요' }; } catch (e) { r = { ok: false, error: String(e && e.message || e).slice(0, 120) }; }
     resp.push({ id: c.id, name: c.name, response: r });
@@ -1689,9 +1689,13 @@ function liveMsg(m) {
   if (m.goAway) { liveReconnect('goAway'); return; }
   if (m.toolCall && m.toolCall.functionCalls) { liveTools(m.toolCall.functionCalls); return; }
   const sc = m.serverContent; if (!sc) return;
-  if (sc.interrupted) { LIVE.drop = false; liveFlush(); liveSet('듣고 있어요', '🎙', false); LIVE.bub.bot = null; }
-  if (sc.inputTranscription && sc.inputTranscription.text) { if (LIVE.bub.bot) LIVE.bub.bot = null; liveBubble('me', sc.inputTranscription.text); }
-  if (sc.modelTurn && sc.modelTurn.parts) sc.modelTurn.parts.forEach(p => { if (p.inlineData && p.inlineData.data) { if (LIVE.busyOn) { LIVE.busyOn = false; Busy.all(); } livePlay(p.inlineData.data); } });
+  if (sc.interrupted) { clearTimeout(LIVE.meT); if (LIVE.busyOn) { LIVE.busyOn = false; Busy.all(); } LIVE.drop = false; liveFlush(); liveSet('듣고 있어요', '🎙', false); LIVE.bub.bot = null; }
+  if (sc.inputTranscription && sc.inputTranscription.text) {
+    if (LIVE.bub.bot) LIVE.bub.bot = null; liveBubble('me', sc.inputTranscription.text);
+    clearTimeout(LIVE.meT);   // 말이 끊기고 1.2초 동안 답 소리가 없으면 '찾는 중' — 답이 나올 때까지 뚜둑뚜두
+    LIVE.meT = setTimeout(() => { if (LIVE.on && LIVE.ready && !LIVE.srcs.length && !LIVE.busyOn && !LIVE.muted) { LIVE.busyOn = true; Busy.start(); liveSet('AI가 찾아보고 있습니다', '🔎', false); } }, 1200);
+  }
+  if (sc.modelTurn && sc.modelTurn.parts) sc.modelTurn.parts.forEach(p => { if (p.inlineData && p.inlineData.data) { clearTimeout(LIVE.meT); if (LIVE.busyOn) { LIVE.busyOn = false; Busy.all(); } livePlay(p.inlineData.data); } });
   if (sc.outputTranscription && sc.outputTranscription.text) liveBubble('bot', sc.outputTranscription.text);
   if (sc.turnComplete) { LIVE.drop = false; if (LIVE.busyOn) { LIVE.busyOn = false; Busy.all(); } liveTurnEnd(); }
 }

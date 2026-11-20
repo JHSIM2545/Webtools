@@ -386,18 +386,35 @@ const bgm = (() => {
       nextT += 1.15; step++;   // 약 52bpm
     }
   }
-  const kick = () => { try { if (on && ctx && ctx.state !== 'running') ctx.resume(); } catch (e) {} };
+  /* 재생목록 파일(bgm/mix.m4a)의 곡 구간을 랜덤으로 — 목록이 없거나 못 읽으면 위의 자체 연주 */
+  let tracks = null, el = null, seg = { s: 0, e: 0 }, last = -1, bad = 0, fileMode = false;
+  async function loadList() { if (tracks) return tracks; try { const r = await fetch('bgm/list.json', { cache: 'no-cache' }); const j = await r.json(); tracks = (Array.isArray(j) ? j : []).map(x => typeof x === 'string' ? { f: x } : x).filter(x => x && typeof x.f === 'string' && x.f); } catch (e) { tracks = []; } return tracks; }
+  function startSynth() { fileMode = false; step = 0; nextT = ctx.currentTime + .1; sched(); clearInterval(timer); timer = setInterval(sched, 400); }
+  function nextTrack() {
+    if (!on || !fileMode || !el) return; const n = tracks.length; if (bad >= 4) { fileMode = false; try { el.pause(); } catch (e) {} startSynth(); return; }
+    let i = Math.floor(Math.random() * n); if (n > 1 && i === last) i = (i + 1 + Math.floor(Math.random() * (n - 1))) % n; last = i;
+    const tr = tracks[i], url = 'bgm/' + encodeURIComponent(tr.f); seg = { s: +tr.s || 0, e: tr.e > 0 ? +tr.e : 0 };
+    const go = () => { try { if (seg.s > 0) el.currentTime = seg.s; } catch (e) {} const pr = el.play(); if (pr && pr.catch) pr.catch(() => { bad++; setTimeout(nextTrack, 300); }); };
+    if (el.src && el.src.endsWith(url) && el.readyState >= 1) go(); else { el.src = url; el.addEventListener('loadedmetadata', go, { once: true }); try { el.load(); } catch (e) {} }
+  }
+  function startFiles() {
+    fileMode = true; bad = 0; clearInterval(timer);
+    if (!el) { el = new Audio(); el.preload = 'auto'; try { ctx.createMediaElementSource(el).connect(dry); } catch (e) { fileMode = false; el = null; startSynth(); return; }
+      el.onended = () => { bad = 0; nextTrack(); }; el.ontimeupdate = () => { if (seg.e && el.currentTime >= seg.e - .15) nextTrack(); }; el.onerror = () => { bad++; setTimeout(nextTrack, 300); }; el.onplaying = () => { bad = 0; }; }
+    nextTrack();
+  }
+  const kick = () => { try { if (on && ctx && ctx.state !== 'running') ctx.resume(); } catch (e) {} try { if (on && fileMode && el) { if (seg.e && el.currentTime >= seg.e) nextTrack(); else if (el.paused && !el.ended && el.src) { const pr = el.play(); if (pr && pr.catch) pr.catch(() => {}); } } } catch (e) {} };
   return {
     unlock() { try { if (!S.set.bgm) return; if (!ctx && !build()) return; ctx.resume(); } catch (e) {} },   // 누른 직후에 호출해 소리가 막히지 않게
     start(pv) {
       if (!S.set.bgm && !pv) return; if (on) { this.update(); return; }
       if (!ctx && !build()) return; on = true; preview = !!pv;
-      try { ctx.resume(); } catch (e) {} step = 0; nextT = ctx.currentTime + .1; sched(); clearInterval(timer); timer = setInterval(sched, 400); clearInterval(wd); wd = setInterval(kick, 700);
+      try { ctx.resume(); } catch (e) {} const c0 = ctx; loadList().then(l => { if (!on || c0 !== ctx) return; if (l.length) startFiles(); else startSynth(); }); clearInterval(wd); wd = setInterval(kick, 700);
       master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setValueAtTime(master.gain.value, ctx.currentTime); master.gain.setTargetAtTime(level(), ctx.currentTime, 1.2);
     },
     stop() {
-      if (!on) return; on = false; preview = false; clearInterval(timer); timer = null; clearInterval(wd);
-      if (ctx) { try { master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setTargetAtTime(0, ctx.currentTime, .6); } catch (e) {} const c = ctx; setTimeout(() => { if (!on && c === ctx) { try { c.close(); } catch (e) {} ctx = null; master = null; } }, 3500); }
+      if (!on) return; on = false; preview = false; clearInterval(timer); timer = null; clearInterval(wd); try { el && el.pause(); } catch (e) {}
+      if (ctx) { try { master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setTargetAtTime(0, ctx.currentTime, .6); } catch (e) {} const c = ctx; setTimeout(() => { if (!on && c === ctx) { try { c.close(); } catch (e) {} ctx = null; master = null; el = null; } }, 3500); }
     },
     duck(d) { duckN = Math.max(0, duckN + d); this.update(); },
     duckReset() { duckN = 0; this.update(); },

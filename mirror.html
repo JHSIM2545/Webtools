@@ -121,6 +121,17 @@ canvas.wave{position:absolute;left:0;right:0;bottom:0;width:100%;height:70px;poi
 .acts{display:flex;gap:10px}
 .acts button{flex:1;padding:13px 6px;font-weight:800;font-size:14.5px;border-radius:15px;white-space:nowrap}
 .acts .pri{background:linear-gradient(135deg,#f4f7ff,#aab6d0);color:var(--ink);border:0}
+.fc{background:var(--panel2);border:1px solid var(--line);border-radius:18px;padding:12px 14px}
+.fc h3{font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.fc h3 .tag{margin-left:auto}
+.fc .ln{font-size:13.5px;line-height:1.5;padding:3px 0;display:flex;gap:8px}.fc .ln b{flex:none;width:44px;color:var(--sub);font-weight:600}
+.fc .big{margin-top:8px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.06);font-size:14.5px;font-weight:700;line-height:1.5}
+.sk{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+.sk .n{flex:none;width:74px;height:74px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:5px solid var(--c);font-weight:800;font-size:25px;line-height:1}.sk .n small{font-size:10px;color:var(--sub);font-weight:600;margin-top:2px}
+.sk .t{font-size:13.5px;line-height:1.5}
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
+.sg div{font-size:12.5px;color:var(--sub)}.sg div b{color:#fff;font-weight:700;margin-left:4px}
+.fc .sub{font-size:11.5px;color:var(--sub);margin-top:8px;line-height:1.45}
 .note{font-size:11px;color:var(--sub);text-align:center;padding-bottom:4px}
 
 /* 팝업 */
@@ -589,7 +600,7 @@ const fx = $('fx'), octx = fx.getContext('2d');
 const wave = $('wave'), wctx = wave.getContext('2d');
 
 let M = null;                         // 측정 중 데이터
-function newM() { return { ts: [], r: [], g: [], b: [], sm: [], br: [], fr: [], pr: [], bl: [], jo: [], sq: [], blinks: 0, closed: false, frames: 0, t0: 0, lastLive: 0, liveHr: null, liveSnr: 0, lostAt: 0, motion: [], prevNose: null, gAvg: [], lumas: [] }; }
+function newM() { return { ts: [], r: [], g: [], b: [], sm: [], br: [], fr: [], pr: [], bl: [], jo: [], sq: [], blinks: 0, closed: false, frames: 0, t0: 0, lastLive: 0, liveHr: null, liveSnr: 0, lostAt: 0, motion: [], prevNose: null, gAvg: [], lumas: [], skin: [], face: [], skN: 0 }; }
 
 /* ── 카메라 ── */
 async function startCam() {
@@ -647,6 +658,60 @@ function startLoop() {
   if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); else requestAnimationFrame(step);
 }
 setInterval(() => { if (state === 'measuring') liveHr(); }, 1000);
+
+/* ══ 피부 상태 · 관상 (재미·참고용 휴리스틱 — 실측 보정 전) ══ */
+const sk = document.createElement('canvas'); sk.width = sk.height = 40; const skx = sk.getContext('2d', { willReadFrequently: true });
+const med = a => { if (!a.length) return null; const b = a.slice().sort((x, y) => x - y); return b[b.length >> 1]; };
+function patch(b0, wantShine) {                                      // 한 부위의 결·붉은기·번들거림·얼룩
+  const x0 = clamp(b0.x, 0, vw - 2), y0 = clamp(b0.y, 0, vh - 2), w = Math.min(b0.w, vw - x0), h = Math.min(b0.h, vh - y0);
+  if (w < 8 || h < 8) return null;
+  skx.drawImage($('vid'), x0, y0, w, h, 0, 0, 40, 40);
+  const d = skx.getImageData(0, 0, 40, 40).data, N = 40, Y = new Float32Array(N * N), ok = new Uint8Array(N * N); let red = 0, n = 0, sumY = 0;
+  for (let i = 0; i < N * N; i++) { const R = d[i * 4], G = d[i * 4 + 1], B = d[i * 4 + 2]; Y[i] = .299 * R + .587 * G + .114 * B; if (R < 250 && G < 250 && R > 15) { ok[i] = 1; red += (R - G) / (R + G + 1); sumY += Y[i]; n++; } }
+  if (n < 600) return null;
+  let hp = 0, m = 0; const bl = new Float32Array(N * N);
+  for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) { let a = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) a += Y[(y + dy) * N + x + dx]; a /= 9; bl[y * N + x] = a; if (ok[y * N + x]) { hp += Math.abs(Y[y * N + x] - a); m++; } }
+  const my = sumY / n; let vv = 0, c = 0; for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) if (ok[y * N + x]) { vv += (bl[y * N + x] - my) * (bl[y * N + x] - my); c++; }
+  let shine = null; if (wantShine) { const ys = []; for (let i = 0; i < N * N; i++) if (ok[i]) ys.push(Y[i]); const md = med(ys); shine = ys.filter(v => v > md + 25).length / ys.length; }
+  return { hp: hp / Math.max(1, m), red: red / n, cv: Math.sqrt(vv / Math.max(1, c)) / Math.max(1, my), shine, luma: my };
+}
+function skinFeat(boxes) {
+  if (boxes.length < 3) return null;
+  const f = patch(boxes[0], true), l = patch(boxes[1]), r = patch(boxes[2]); if (!f || !l || !r) return null;
+  return { hp: (f.hp + l.hp + r.hp) / 3, red: (l.red + r.red) / 2 - f.red, cv: (f.cv + l.cv + r.cv) / 3, shine: f.shine, luma: (f.luma + l.luma + r.luma) / 3 };
+}
+function faceFeat(lm, sh) {                                          // 얼굴 비율 — 정면에 가깝고 무표정에 가까운 프레임만
+  const roll = Math.atan2((lm[263].y - lm[33].y) * vh, (lm[263].x - lm[33].x) * vw), c = Math.cos(roll), s = Math.sin(roll);
+  const P = i => { const x = lm[i].x * vw, y = lm[i].y * vh; return { x: x * c + y * s, y: -x * s + y * c }; };
+  const fw = Math.abs(P(454).x - P(234).x), fh = Math.abs(P(152).y - P(10).y); if (fw < 20 || fh < 20) return null;
+  if (Math.abs(P(1).x - (P(454).x + P(234).x) / 2) / fw > .09) return null;     // 고개 돌림
+  const e1 = Math.hypot(P(133).x - P(33).x, P(133).y - P(33).y), e2 = Math.hypot(P(362).x - P(263).x, P(362).y - P(263).y), el = (e1 + e2) / 2;
+  const o = { ratio: fh / fw, jaw: Math.abs(P(397).x - P(172).x) / fw, slant: ((P(133).y - P(33).y) / e1 + (P(362).y - P(263).y) / e2) / 2, gap: Math.abs(P(133).x - P(362).x) / el, nose: Math.abs(P(2).y - P(168).y) / fh, nw: Math.abs(P(327).x - P(98).x) / fw };
+  const smile = sh ? (bs(sh, 'mouthSmileLeft') + bs(sh, 'mouthSmileRight')) / 2 : 0, jo = sh ? bs(sh, 'jawOpen') : 0;
+  if (smile < .15 && jo < .1) { o.mw = Math.abs(P(291).x - P(61).x) / fw; o.lift = ((P(13).y + P(14).y) / 2 - (P(61).y + P(291).y) / 2) / fh; }
+  return o;
+}
+const tri = (v, a, b, lo, mid, hi) => v < a ? lo : v < b ? mid : hi;
+const FORT = ['오늘은 먼저 건넨 인사 한마디가 인연이 되는 날이에요.', '작은 지출보다 작은 저축이 빛나는 날이에요. 재물운이 슬금슬금 올라와요.', '미뤄 둔 일 하나를 끝내면 하루가 가벼워져요.', '오늘 만나는 사람 중 귀인이 한 명 숨어 있어요.', '서두르지 않으면 실수가 없는 날. 천천히가 정답이에요.', '웃는 얼굴이 최고의 부적이에요. 오늘은 한 번 더 웃어 보세요.', '뜻밖의 칭찬을 들을 수 있는 날이에요. 겸손하게 받아 보세요.', '건강운이 좋아요. 가벼운 산책이 운을 더 키워 줘요.'];
+function readFace(F) {                                               // → { lines, fortune } (재미용)
+  const v = k => med(F.map(f => f[k]).filter(x => x != null)), mv = k => { const a = F.map(f => f[k]).filter(x => x != null); return a.length >= 10 ? med(a) : null; };
+  const ratio = v('ratio'), jaw = v('jaw'), slant = v('slant'), nose = v('nose'), nw = v('nw'), mw = mv('mw'), lift = mv('lift');
+  const shape = jaw > .78 && ratio < 1.5 ? ['🟦', '각진 얼굴', '뚝심 있고 결단력이 좋은 상'] : ratio < 1.3 ? ['🌕', '둥근 얼굴', '복스럽고 인복이 많은 상'] : ratio < 1.42 ? ['🥚', '계란형 얼굴', '균형 잡혀서 어디서나 잘 통하는 상'] : ['🍃', '갸름한 얼굴', '섬세하고 집중력이 좋은 상'];
+  const eye = tri(slant, -.02, .07, ['😌', '순한 눈매', '다정해서 사람이 따르는 눈'], ['👁️', '또렷한 눈매', '차분하고 안정적인 눈'], ['🔥', '올라간 눈매', '추진력이 있고 리더 기질이 있는 눈']);
+  const nz = nose > .27 ? '곧고 긴 코 — 신중하고 끈기 있는 편' : nose < .22 ? '아담한 코 — 붙임성 좋고 센스 있는 편' : nw > .27 ? '든든한 코 — 재물을 잘 지키는 편' : '균형 잡힌 코 — 무난하고 안정적인 편';
+  let mo = null; if (mw != null) mo = lift > .004 ? '입꼬리가 올라간 복스러운 입매' : mw > .39 ? '시원한 입매 — 말솜씨가 좋은 편' : mw < .33 ? '단정한 입매 — 말을 아끼는 신중한 편' : '부드러운 입매 — 호감을 주는 편';
+  const d = new Date(), seed = d.getFullYear() * 400 + (d.getMonth() + 1) * 31 + d.getDate() + Math.round(ratio * 10) + Math.round((slant + .2) * 20);
+  return { lines: [['얼굴', shape[0] + ' ' + shape[1] + ' — ' + shape[2]], ['눈', eye[0] + ' ' + eye[1] + ' — ' + eye[2]], ['코', '👃 ' + nz], mo ? ['입', '👄 ' + mo] : null].filter(Boolean), shape: shape[1], fortune: FORT[seed % FORT.length] };
+}
+function readSkin(K) {                                               // → 항목별 0~100(높을수록 좋음)
+  if (K.length < 8) return null;
+  const v = k => med(K.map(f => f[k])), luma = v('luma'); if (luma < 60 || luma > 232) return { bad: luma < 60 ? '너무 어두워요' : '빛이 너무 강해요' };
+  const hp = v('hp'), red = v('red'), cv = v('cv'), sh = v('shine'), g = (x, a, b) => Math.round(100 * (1 - clamp((x - a) / (b - a), 0, 1)));
+  const it = { tex: g(hp, 1.4, 5.5), red: g(red, .02, .11), shine: g(sh, .04, .3), even: g(cv, .035, .13) };
+  it.score = Math.round(clamp(it.tex * .3 + it.red * .2 + it.shine * .2 + it.even * .3, 30, 98));
+  return it;
+}
+const tier = x => x >= 75 ? '좋아요' : x >= 50 ? '보통이에요' : '신경 써 주세요';
 
 /* 얼굴 ROI(이마·양 볼) — 랜드마크가 있으면 얼굴에 맞추고, 없으면 가이드 타원 기준 고정 위치 */
 function rois(lm) {
@@ -779,6 +844,10 @@ function measureFrame(R, lm, tSec) {
   // 움직임
   if (R.nose) { if (M.prevNose) { const dd = Math.hypot(R.nose.x - M.prevNose.x, R.nose.y - M.prevNose.y) / R.fw; M.motion.push(dd); if (M.motion.length > 20) M.motion.shift(); } M.prevNose = R.nose; }
   const mo = mean(M.motion) * 30;                    // 얼굴 폭/초
+  if (++M.skN % 6 === 0 && mo < .25 && M.lumas.length > 20) {   // 피부·얼굴 비율 표본(움직임이 적을 때만)
+    const sf = skinFeat(R.boxes); if (sf) M.skin.push(sf);
+    if (lm) { const ff = faceFeat(lm, shapes); if (ff) M.face.push(ff); }
+  }
   // 안내
   const el = (nowMs - M.t0) / 1000;
   MV = mo > .35 ? MV + 1 : 0; if (MV > 20) react('mv', RL.mv, 12);
@@ -840,7 +909,10 @@ function narration(r) {
   const c = []; const bp = bpTier(r.bp); if (bp) c.push('혈압 느낌은 ' + bp[1] + '. 이건 재미로만 봐 주세요.');
   if (r.rx && r.rx[0]) c.push('거울의 처방은, ' + strip(r.rx[0]) + '.');
   c.push(r.score >= 70 ? '오늘도 좋은 하루 보내세요!' : '무리하지 말고, 오늘은 천천히 가요.');
-  return [pick(INTRO), a.join(' '), c.join(' ')];
+  const d = [];
+  if (r.face) d.push('오늘의 관상을 볼게요. ' + r.face.lines.slice(0, 2).map(l => strip(l[1]).replace(/ — /g, ', ')).join('. ') + '. ' + r.face.fortune + ' 재미로만 봐 주세요.');
+  if (r.skin && r.skin.score != null) d.push('피부 점수는 ' + r.skin.score + '점. ' + (r.skin.score >= 75 ? '맑고 고른 편이에요.' : r.skin.score >= 55 ? '무난해요. 수분을 챙겨 주세요.' : '조금 지쳐 보여요. 보습하고 푹 쉬세요.') + ' 이건 참고용이에요.');
+  return [pick(INTRO), a.join(' '), c.slice(0, -1).join(' '), d.join(' '), c[c.length - 1]].filter(Boolean);
 }
 let narrGen = 0;
 async function narrate(r) {
@@ -902,6 +974,8 @@ function finishMeasure() {
   const q = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length * .9)] : 0; };
   const ex = hasFace ? { smile: A(m.sm), smileP: q(m.sm), brow: A(m.br), frown: A(m.fr), press: A(m.pr), open: 1 - A(m.bl), perclos: m.bl.filter(v => v > .7).length / m.bl.length, blinkPm: m.blinks / ((m.ts[m.ts.length - 1] - m.ts[0]) / 60 || 1) } : null;
   const rec = grade(hr, ex);
+  try { rec.skin = readSkin(m.skin); } catch (e) { rec.skin = null; }
+  try { rec.face = m.face.length >= 15 ? readFace(m.face) : null; } catch (e) { rec.face = null; }
   rec.t = Date.now(); setMsg('측정 완료 ✨', 'ok');
   stopCamForResult();
   showResult(rec);
@@ -973,6 +1047,10 @@ function showResult(r, fromHist) {
       '<div class="tile"><div class="k">👀 눈 피로</div><div class="v">' + (r.fatigue != null ? r.fatigue + '<small>/100</small>' : '—') + '</div><div class="d">' + (r.fatigue != null ? esc(fatTier(r.fatigue)) : '표정 분석이 필요해요') + '</div>' + (r.fatigue != null ? '<div class="bar" style="--c:' + (r.fatigue < 25 ? '#47d7a0' : r.fatigue < 50 ? '#ffc46b' : '#ff7a7a') + '"><i data-w="' + r.fatigue + '"></i></div>' : '') + '</div>' +
       '<div class="tile"><div class="k">🩺 혈압 느낌 <span class="tag fun">재미용</span></div><div class="v">' + (bp ? bp[0] : '—') + '</div><div class="d">' + (bp ? esc(bp[1]) + '<br>실제 혈압 아님' : '') + '</div></div>' +
     '</div>' +
+    (r.face ? '<div class="fc"><h3>🔮 오늘의 관상 <span class="tag fun">재미용</span></h3>' + r.face.lines.map(l => '<div class="ln"><b>' + l[0] + '</b><span>' + esc(l[1]) + '</span></div>').join('') + '<div class="big">✨ ' + esc(r.face.fortune) + '</div></div>' : '<div class="fc"><h3>🔮 오늘의 관상 <span class="tag fun">재미용</span></h3><div class="sub" style="margin:0">얼굴 윤곽을 충분히 못 읽었어요. 정면을 보고 표정을 편하게 한 채로 다시 측정해 보세요. (표정 분석에 인터넷 연결이 필요해요)</div></div>') +
+    (r.skin && r.skin.score != null ? '<div class="fc"><h3>🧴 피부 상태 <span class="tag weak">참고용</span></h3><div class="sk"><div class="n" style="--c:' + (r.skin.score >= 75 ? '#47d7a0' : r.skin.score >= 55 ? '#ffc46b' : '#ff7a7a') + '">' + r.skin.score + '<small>피부</small></div><div class="t">' + esc(r.skin.score >= 75 ? '전체적으로 맑고 고른 편이에요' : r.skin.score >= 55 ? '무난해요. 수분·수면을 챙기면 더 좋아져요' : '조금 지쳐 보여요. 오늘은 보습과 휴식이 필요해요') + '</div></div>' +
+      '<div class="sg"><div>피부결<b>' + tier(r.skin.tex) + '</b></div><div>붉은기<b>' + tier(r.skin.red) + '</b></div><div>번들거림<b>' + tier(r.skin.shine) + '</b></div><div>톤 고름<b>' + tier(r.skin.even) + '</b></div></div>' +
+      '<div class="sub">카메라 화질·조명에 크게 좌우돼요. 맨얼굴로 밝고 고른 빛에서 재면 더 맞아요. 피부 진단이 아니에요.</div></div>' : '<div class="fc"><h3>🧴 피부 상태 <span class="tag weak">참고용</span></h3><div class="sub" style="margin:0">' + esc(r.skin && r.skin.bad ? '조명이 ' + r.skin.bad + '. 밝고 고른 빛에서 다시 재 보세요.' : '피부를 읽기엔 얼굴이 충분히 안정적으로 잡히지 않았어요. 가만히 다시 측정해 보세요.') + '</div></div>') +
     '<div class="rx"><h3>🪞 거울 처방</h3><ul>' + r.rx.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>' +
     '<div class="acts"><button id="againBtn">다시 측정</button><button id="listenBtn">🔊 다시 듣기</button><button class="pri" id="shareBtn">카드 저장</button></div>' +
     '<div class="note">재미·참고용 · 의료 진단이 아니에요</div>';
@@ -982,7 +1060,7 @@ function showResult(r, fromHist) {
   let t0 = performance.now();
   (function anim(t) { const k = clamp((t - t0) / 1100, 0, 1), e = 1 - Math.pow(1 - k, 3), v = Math.round(r.score * e); const sr = $('sr'); if (!sr) return; sr.style.setProperty('--p', v); $('sn').textContent = v; if (k < 1) requestAnimationFrame(anim); })(t0);
   setTimeout(() => document.querySelectorAll('#resBody .bar i').forEach(i => i.style.width = i.dataset.w + '%'), 60);
-  if (!fromHist) { if (r.score >= 85) confetti(); S.hist.push({ t: r.t, score: r.score, bpm: r.bpm, q: r.q, mood: r.mood, fatigue: r.fatigue, bp: r.bp }); S.hist = S.hist.slice(-60); save(); }
+  if (!fromHist) { if (r.score >= 85) confetti(); S.hist.push({ t: r.t, score: r.score, bpm: r.bpm, q: r.q, mood: r.mood, fatigue: r.fatigue, bp: r.bp, skin: r.skin && r.skin.score != null ? r.skin.score : null }); S.hist = S.hist.slice(-60); save(); }
   $('againBtn').onclick = () => { closeResult(); };
   $('shareBtn').onclick = () => shareCard(r);
   $('listenBtn').onclick = () => { narrGen++; TTS.cancel(); TTS.retry(); if (!S.set.voice) { S.set.voice = true; save(); paintSnd(); } narrate(r); };
@@ -1001,7 +1079,7 @@ function confetti() {
 
 /* ── 결과 카드(이미지) 저장·공유 — 얼굴 영상은 들어가지 않는다 ── */
 async function shareCard(r) {
-  const W = 720, H = 960, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+  const W = 720, H = 1090, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#2a3350'); bg.addColorStop(1, '#0f1324'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
   g.textAlign = 'center'; g.fillStyle = '#dfe6f5'; g.font = '800 40px sans-serif'; g.fillText('SIM Mirror', W / 2, 90);
   g.fillStyle = '#8f98b0'; g.font = '600 26px sans-serif'; g.fillText(new Date(r.t).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' }), W / 2, 134);
@@ -1010,10 +1088,10 @@ async function shareCard(r) {
   g.strokeStyle = col; g.lineCap = 'round'; g.beginPath(); g.arc(W / 2, 330, 140, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * r.score / 100); g.stroke();
   g.fillStyle = '#fff'; g.font = '800 110px sans-serif'; g.fillText(String(r.score), W / 2, 366); g.fillStyle = '#8f98b0'; g.font = '600 24px sans-serif'; g.fillText('컨디션', W / 2, 410);
   const mood = r.mood ? MOOD[r.mood] : null, bp = bpTier(r.bp);
-  const rows = [['❤️ 심박수', r.bpm ? r.bpm + ' bpm' + (r.q === 'weak' ? ' (참고)' : '') : '측정 불안정'], ['🌤 기분 날씨', mood ? mood[0] + ' ' + mood[1] : '—'], ['👀 눈 피로', r.fatigue != null ? r.fatigue + '/100 · ' + fatTier(r.fatigue) : '—'], ['🩺 혈압 느낌(재미)', bp ? bp[0] + ' ' + bp[1] : '—']];
+  const rows = [['❤️ 심박수', r.bpm ? r.bpm + ' bpm' + (r.q === 'weak' ? ' (참고)' : '') : '측정 불안정'], ['🌤 기분 날씨', mood ? mood[0] + ' ' + mood[1] : '—'], ['👀 눈 피로', r.fatigue != null ? r.fatigue + '/100 · ' + fatTier(r.fatigue) : '—'], ['🩺 혈압 느낌(재미)', bp ? bp[0] + ' ' + bp[1] : '—'], ['🔮 오늘의 관상', r.face ? r.face.shape : '—'], ['🧴 피부(참고)', r.skin && r.skin.score != null ? r.skin.score + '점 · ' + tier(r.skin.score) : '—']];
   rows.forEach((x, i) => { const y = 520 + i * 78; g.fillStyle = 'rgba(255,255,255,.07)'; g.beginPath(); g.roundRect ? g.roundRect(60, y - 44, W - 120, 64, 18) : g.rect(60, y - 44, W - 120, 64); g.fill(); g.textAlign = 'left'; g.fillStyle = '#c8d2ee'; g.font = '600 26px sans-serif'; g.fillText(x[0], 84, y); g.textAlign = 'right'; g.fillStyle = '#fff'; g.font = '800 28px sans-serif'; g.fillText(x[1], W - 84, y); });
   g.textAlign = 'center'; g.fillStyle = '#e9ecf4'; g.font = '700 28px sans-serif';
-  const words = (r.say || '').split(' '); let line = '', y = 870; for (const w of words) { const t = line ? line + ' ' + w : w; if (g.measureText(t).width > W - 140) { g.fillText(line, W / 2, y); y += 40; line = w; } else line = t; } g.fillText(line, W / 2, y);
+  const words = (r.say || '').split(' '); let line = '', y = 1000; for (const w of words) { const t = line ? line + ' ' + w : w; if (g.measureText(t).width > W - 140) { g.fillText(line, W / 2, y); y += 40; line = w; } else line = t; } g.fillText(line, W / 2, y);
   g.fillStyle = '#6a738c'; g.font = '500 20px sans-serif'; g.fillText('재미·참고용 · 의료 진단이 아니에요', W / 2, H - 28);
   const blob = await new Promise(res => c.toBlob(res, 'image/png'));
   const file = new File([blob], 'sim-mirror.png', { type: 'image/png' });

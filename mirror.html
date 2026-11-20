@@ -13,7 +13,7 @@
 <style>
 :root{
   --bg:#0d1019; --panel:#161a26; --panel2:#1e2332; --line:#2a3044;
-  --text:#e9ecf4; --sub:#8f98b0; --accent:#dfe6f5; --accent2:#9aa8c4; --ink:#141a2b;
+  --text:#e9ecf4; --sub:#8f98b0; --accent:#7f95f0; --accent2:#4d65d8; --ink:#141a2b;
   --heart:#ff5d7a; --ok:#47d7a0; --warn:#ffc46b; --danger:#ff6b6b;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -34,11 +34,11 @@ button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(
 .srow{display:flex;align-items:center;gap:12px;padding:15px 2px;border-bottom:1px solid var(--line)}
 .srow:last-child{border-bottom:0}
 .srow b{flex:1;font-size:15.5px}
-.srow input[type=range]{flex:2;accent-color:#aab6d0}
+.srow input[type=range]{flex:2;accent-color:#5a74e6}
 .srow .vv{width:40px;text-align:right;color:var(--sub);font-size:13px}
 .seg{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .seg button{padding:7px 12px;font-size:13px;border-radius:99px;font-weight:700}
-.seg button.on{background:linear-gradient(135deg,#f4f7ff,#aab6d0);color:var(--ink);border-color:transparent}
+.seg button.on{background:linear-gradient(135deg,#5a74e6,#2b3f9e);color:#fff;border-color:transparent}
 .hint{font-size:12px;color:var(--warn);padding:0 2px 10px}
 
 .app{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
@@ -86,8 +86,8 @@ canvas.wave{position:absolute;left:0;right:0;bottom:0;width:100%;height:70px;poi
 
 /* ── 하단 패널 ── */
 .panel{flex:none;padding:12px 14px calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:8px}
-.start{width:100%;max-width:420px;border:0;border-radius:18px;padding:15px 18px;font-size:17px;font-weight:800;color:var(--ink);background:linear-gradient(135deg,#f4f7ff,#aab6d0);box-shadow:0 5px 0 #6c7896;transition:transform .08s,box-shadow .08s}
-.start:active{transform:translateY(4px);box-shadow:0 1px 0 #6c7896}
+.start{width:100%;max-width:420px;border:0;border-radius:18px;padding:15px 18px;font-size:17px;font-weight:800;color:#fff;background:linear-gradient(135deg,#5a74e6,#2b3f9e);box-shadow:0 5px 0 #1c2a73;transition:transform .08s,box-shadow .08s}
+.start:active{transform:translateY(4px);box-shadow:0 1px 0 #1c2a73}
 .start:disabled{opacity:.5}
 .start.stop{background:var(--panel2);color:var(--text);box-shadow:0 5px 0 #0a0c13;border:1px solid var(--line)}
 .priv{font-size:11.5px;color:var(--sub)}
@@ -120,7 +120,7 @@ canvas.wave{position:absolute;left:0;right:0;bottom:0;width:100%;height:70px;poi
 .rx li{list-style:none;font-size:14px;line-height:1.55;padding:3px 0}
 .acts{display:flex;gap:10px}
 .acts button{flex:1;padding:13px 6px;font-weight:800;font-size:14.5px;border-radius:15px;white-space:nowrap}
-.acts .pri{background:linear-gradient(135deg,#f4f7ff,#aab6d0);color:var(--ink);border:0}
+.acts .pri{background:linear-gradient(135deg,#5a74e6,#2b3f9e);color:#fff;border:0}
 .fc{background:var(--panel2);border:1px solid var(--line);border-radius:18px;padding:12px 14px}
 .fc h3{font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
 .fc h3 .tag{margin-left:auto}
@@ -397,35 +397,18 @@ const bgm = (() => {
       nextT += 1.15; step++;   // 약 52bpm
     }
   }
-  /* 재생목록 파일(bgm/mix.m4a)의 곡 구간을 랜덤으로 — 목록이 없거나 못 읽으면 위의 자체 연주 */
-  let tracks = null, el = null, seg = { s: 0, e: 0 }, last = -1, bad = 0, fileMode = false;
-  async function loadList() { if (tracks) return tracks; try { const r = await fetch('bgm/list.json', { cache: 'no-cache' }); const j = await r.json(); tracks = (Array.isArray(j) ? j : []).map(x => typeof x === 'string' ? { f: x } : x).filter(x => x && typeof x.f === 'string' && x.f); } catch (e) { tracks = []; } return tracks; }
-  function startSynth() { fileMode = false; step = 0; nextT = ctx.currentTime + .1; sched(); clearInterval(timer); timer = setInterval(sched, 400); }
-  function nextTrack() {
-    if (!on || !fileMode || !el) return; const n = tracks.length; if (bad >= 4) { fileMode = false; try { el.pause(); } catch (e) {} startSynth(); return; }
-    let i = Math.floor(Math.random() * n); if (n > 1 && i === last) i = (i + 1 + Math.floor(Math.random() * (n - 1))) % n; last = i;
-    const tr = tracks[i], url = 'bgm/' + encodeURIComponent(tr.f); seg = { s: +tr.s || 0, e: tr.e > 0 ? +tr.e : 0 };
-    const go = () => { try { if (seg.s > 0) el.currentTime = seg.s; } catch (e) {} const pr = el.play(); if (pr && pr.catch) pr.catch(() => { bad++; setTimeout(nextTrack, 300); }); };
-    if (el.src && el.src.endsWith(url) && el.readyState >= 1) go(); else { el.src = url; el.addEventListener('loadedmetadata', go, { once: true }); try { el.load(); } catch (e) {} }
-  }
-  function startFiles() {
-    fileMode = true; bad = 0; clearInterval(timer);
-    if (!el) { el = new Audio(); el.preload = 'auto'; try { ctx.createMediaElementSource(el).connect(dry); } catch (e) { fileMode = false; el = null; startSynth(); return; }
-      el.onended = () => { bad = 0; nextTrack(); }; el.ontimeupdate = () => { if (seg.e && el.currentTime >= seg.e - .15) nextTrack(); }; el.onerror = () => { bad++; setTimeout(nextTrack, 300); }; el.onplaying = () => { bad = 0; }; }
-    nextTrack();
-  }
-  const kick = () => { try { if (on && ctx && ctx.state !== 'running') ctx.resume(); } catch (e) {} try { if (on && fileMode && el) { if (seg.e && el.currentTime >= seg.e) nextTrack(); else if (el.paused && !el.ended && el.src) { const pr = el.play(); if (pr && pr.catch) pr.catch(() => {}); } } } catch (e) {} };
+  const kick = () => { try { if (on && ctx && ctx.state !== 'running') ctx.resume(); } catch (e) {} };
   return {
     unlock() { try { if (!S.set.bgm) return; if (!ctx && !build()) return; ctx.resume(); } catch (e) {} },   // 누른 직후에 호출해 소리가 막히지 않게
     start(pv) {
       if (!S.set.bgm && !pv) return; if (on) { this.update(); return; }
       if (!ctx && !build()) return; on = true; preview = !!pv;
-      try { ctx.resume(); } catch (e) {} const c0 = ctx; loadList().then(l => { if (!on || c0 !== ctx) return; if (l.length) startFiles(); else startSynth(); }); clearInterval(wd); wd = setInterval(kick, 700);
+      try { ctx.resume(); } catch (e) {} step = 0; nextT = ctx.currentTime + .1; sched(); clearInterval(timer); timer = setInterval(sched, 400); clearInterval(wd); wd = setInterval(kick, 700);
       master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setValueAtTime(master.gain.value, ctx.currentTime); master.gain.setTargetAtTime(level(), ctx.currentTime, 1.2);
     },
     stop() {
-      if (!on) return; on = false; preview = false; clearInterval(timer); timer = null; clearInterval(wd); try { el && el.pause(); } catch (e) {}
-      if (ctx) { try { master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setTargetAtTime(0, ctx.currentTime, .6); } catch (e) {} const c = ctx; setTimeout(() => { if (!on && c === ctx) { try { c.close(); } catch (e) {} ctx = null; master = null; el = null; } }, 3500); }
+      if (!on) return; on = false; preview = false; clearInterval(timer); timer = null; clearInterval(wd);
+      if (ctx) { try { master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setTargetAtTime(0, ctx.currentTime, .6); } catch (e) {} const c = ctx; setTimeout(() => { if (!on && c === ctx) { try { c.close(); } catch (e) {} ctx = null; master = null; } }, 3500); }
     },
     duck(d) { duckN = Math.max(0, duckN + d); this.update(); },
     duckReset() { duckN = 0; this.update(); },
@@ -1081,7 +1064,7 @@ function confetti() {
 async function shareCard(r) {
   const W = 720, H = 1090, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#2a3350'); bg.addColorStop(1, '#0f1324'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
-  g.textAlign = 'center'; g.fillStyle = '#dfe6f5'; g.font = '800 40px sans-serif'; g.fillText('SIM Mirror', W / 2, 90);
+  g.textAlign = 'center'; g.fillStyle = '#8fa4ff'; g.font = '800 40px sans-serif'; g.fillText('SIM Mirror', W / 2, 90);
   g.fillStyle = '#8f98b0'; g.font = '600 26px sans-serif'; g.fillText(new Date(r.t).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' }), W / 2, 134);
   const col = r.score >= 70 ? '#47d7a0' : r.score >= 55 ? '#ffc46b' : '#ff7a7a';
   g.lineWidth = 26; g.strokeStyle = '#2a3044'; g.beginPath(); g.arc(W / 2, 330, 140, 0, Math.PI * 2); g.stroke();

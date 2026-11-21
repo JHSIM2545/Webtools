@@ -424,12 +424,11 @@ async function raiseAlert(reason){
 $('#btnAck').onclick=()=>{ alertActive=false; $('#alertBar').hidden=true; if(running&&!busy) setFace('idle'); };
 
 /* ============ 대화 ============ */
-function localReply(t){
+function localIntent(t){   // AI 호출 없이 바로 답할 수 있는 것(시간·날짜)
   const d=new Date();
-  if(/몇 ?시|시간/.test(t)) return `지금은 ${d.getHours()}시 ${d.getMinutes()}분이에요.`;
-  if(/날짜|며칠|요일|오늘/.test(t)) return `오늘은 ${d.getMonth()+1}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]}요일이에요.`;
-  if(/안녕/.test(t)) return '안녕하세요! 만나서 반가워요.';
-  return '네, 듣고 있어요.';
+  if(/몇 ?시|지금 시간|현재 시간/.test(t)) return `지금은 ${d.getHours()}시 ${d.getMinutes()}분이에요.`;
+  if(/며칠|무슨 요일|오늘 (날짜|요일)|오늘이 (몇|무슨)/.test(t)) return `오늘은 ${d.getMonth()+1}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]}요일이에요.`;
+  return null;
 }
 async function askLLM(system,msgs){
   if(S.provider==='sim'){
@@ -465,7 +464,8 @@ async function think(text){
     const n=text.replace(/^기억해(줘|라|요)?[ ,:]*/,'').trim();
     if(n){ notes.push(n); store('homebot.notes',notes); return '알겠어요. 기억해 둘게요.'; }
   }
-  if(!hasLLM()){ log('AI 미연결: 설정에서 등록 번호/키를 확인하세요','warn'); return localReply(text); }
+  const li=localIntent(text); if(li) return li;
+  if(!hasLLM()){ log('AI 미연결: 설정에서 등록 번호/키를 확인하세요','warn'); return '연결된 AI가 없어요.'; }
   hist.push({role:'user',content:text}); while(hist.length>12) hist.shift();
   const system=`당신은 가정용 로봇 "홈봇"입니다. 따뜻하고 간결한 한국어 존댓말로 말하세요. 음성으로 읽히므로 1~2문장으로만 답하고, 목록·이모지·마크다운은 쓰지 마세요. 건강·응급 관련 질문에는 119 안내를 덧붙이세요. 현재 시각: ${new Date().toLocaleString('ko-KR')}.${S.nick?' 당신의 애칭은 '+S.nick+'입니다.':''} 사용자에 대해 기억하는 정보: ${notes.join('; ')||'없음'}.${curWho&&performance.now()-curWhoAt<30000?' 지금 대화 상대는 얼굴인식으로 확인된 '+curWho+'님입니다.':''}`;
   try{
@@ -473,8 +473,8 @@ async function think(text){
     hist.push({role:'assistant',content:out});
     return out;
   }catch(e){
-    hist.pop(); log('LLM 오류: '+e.message,'bad');
-    return localReply(text);
+    hist.pop(); const m=String((e&&e.message)||''); log('AI 오류: '+m,'bad');
+    return /[가-힣]/.test(m)?m.replace(/\s*\(.*\)\s*$/,''):'AI에 연결하지 못했어요.';
   }
 }
 async function dialog(first, opts={}){

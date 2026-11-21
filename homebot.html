@@ -167,7 +167,9 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
     <div class="btns"><button id="rAll" class="primary">카메라+마이크 한 번에 요청</button></div>
     <div class="hint" id="pHint">거부됨 상태에서는 앱에서 다시 요청할 수 없습니다. 주소창 왼쪽 자물쇠(또는 사이트 설정) → 권한에서 직접 허용해 주세요.</div>
     <label>대화 AI</label>
-    <select id="sProv"><option value="sim">SIM Tools AI (Supabase에 등록된 Gemini 키 · 권장)</option><option value="gemini">Google Gemini (키 직접 입력)</option><option value="claude">Anthropic Claude</option></select>
+    <select id="sProv"><option value="sim">SIM Tools AI (Supabase 서버에 등록된 키 · 권장)</option><option value="gemini">Gemini (키 직접 입력)</option><option value="groq">Groq (키 직접 입력)</option></select>
+    <label>서버 AI 순서 (SIM Tools AI 선택 시)</label>
+    <select id="sEngine"><option value="auto">자동: Gemini → 실패 시 Groq</option><option value="gemini">Gemini만</option><option value="groq">Groq만</option></select>
     <label>등록 전화번호 (SIM Tools AI용)</label>
     <input type="text" id="sPhone" inputmode="tel" placeholder="비워 두면 런처에 등록된 번호를 자동 사용">
     <div class="hint" id="phoneInfo"></div>
@@ -175,11 +177,11 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
     <input type="password" id="sGemKey" placeholder="AIza...">
     <label>Gemini 모델</label>
     <input type="text" id="sGemModel">
-    <label>Claude API 키 (선택)</label>
-    <input type="password" id="sApiKey" placeholder="sk-ant-...">
-    <label>Claude 모델</label>
-    <input type="text" id="sModel">
-    <div class="hint">Gemini 키는 Google AI Studio의 API 키 메뉴에서 발급합니다. SIM Tools AI는 Supabase 서버에 등록된 키를 쓰므로 이 앱에는 키가 저장되지 않습니다(등록된 전화번호로 인증). 선택한 AI를 쓸 수 없으면 시간·날짜 등 간단한 규칙 응답만 합니다. 키를 브라우저에 두는 방식은 프로토타입 전용입니다.</div>
+    <label>Groq API 키 (직접 입력할 때만)</label>
+    <input type="password" id="sGroqKey" placeholder="gsk_...">
+    <label>Groq 모델</label>
+    <input type="text" id="sGroqModel">
+    <div class="hint">SIM Tools AI는 Supabase 서버에 등록된 Gemini·Groq 키를 쓰므로 이 앱에는 키가 저장되지 않습니다(등록된 전화번호로 인증). 직접 입력한 키는 이 폰 브라우저에만 저장됩니다. 선택한 AI를 쓸 수 없으면 시간·날짜 등 간단한 규칙 응답만 합니다.</div>
     <div class="btns"><button id="tLLM">AI 연결 테스트 (저장 후)</button></div>
     <div class="hint" id="llmOut"></div>
     <label>텔레그램 봇 토큰 (가족 알림)</label>
@@ -228,10 +230,11 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
 const S = Object.assign({
-  apiKey:'', model:'claude-haiku-5-5', tgToken:'', tgChat:'',
-  idleLimit:60, away:false, greet:true, sound:false, fall:true, camFacing:'user', faceRec:true, faceAlert:true, provider:'sim', nick:'', phone:'', gemKey:'', gemModel:'gemini-3.6-flash'
+  tgToken:'', tgChat:'',
+  idleLimit:60, away:false, greet:true, sound:false, fall:true, camFacing:'user', faceRec:true, faceAlert:true, provider:'sim', engine:'auto', nick:'', phone:'', gemKey:'', gemModel:'gemini-3.6-flash', groqKey:'', groqModel:'llama-3.3-70b-versatile'
 }, load('homebot.settings', {}));
 let notes = load('homebot.notes', []);
+if(!['sim','gemini','groq'].includes(S.provider)) S.provider='sim';   // 예전 설정(claude 등) 정리
 
 const MOTION_THR = 4;        // 프레임 차이 평균(0~255) 기준 — 실기 튜닝 필요
 const FALL_ANGLE = 60;       // 몸통 기울기(도) 기준
@@ -250,7 +253,7 @@ const hist = [];
 const honor=n=>n?String(n).replace(/님$/,'')+'님, ':'';
 const callName=(ms=30000)=>curWho&&performance.now()-curWhoAt<ms?honor(curWho):'';
 const simPhone=()=>{ let v=S.phone||''; if(!v){ try{ v=localStorage.getItem('SIMAS_AI_PHONE')||''; }catch{} } return String(v).replace(/\D/g,''); };
-const hasLLM=()=>S.provider==='sim'?simPhone().length>=9:S.provider==='gemini'?!!S.gemKey:!!S.apiKey;
+const hasLLM=()=>S.provider==='sim'?simPhone().length>=9:S.provider==='gemini'?!!S.gemKey:!!S.groqKey;
 let lastModel='';
 const whoTag=()=>curWho&&performance.now()-curWhoAt<60000?` (${curWho})`:'';
 
@@ -430,7 +433,7 @@ function localReply(t){
 }
 async function askLLM(system,msgs){
   if(S.provider==='sim'){
-    const r=await fetch('https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/homebot-ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:simPhone(),system,messages:msgs})});
+    const r=await fetch('https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/homebot-ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:simPhone(),system,messages:msgs,engine:S.engine})});
     const j=await r.json().catch(()=>({}));
     if(r.ok&&j.text){ lastModel=j.model||''; return String(j.text).trim(); }
     throw new Error(r.status===403?'등록되지 않은 전화번호예요 (런처에서 AI 번호 등록 필요)':r.status===429?(j.error==='limit'?'오늘 AI 사용 한도를 넘었어요':'잠시 뒤 다시 시도해 주세요'):'AI 응답 실패 ('+r.status+(j.detail?' '+j.detail:'')+')');
@@ -445,14 +448,11 @@ async function askLLM(system,msgs){
     if(!out) throw new Error((j.error&&j.error.message)||'응답 없음');
     return out;
   }
-  const r=await fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'content-type':'application/json','x-api-key':S.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({model:S.model,max_tokens:200,system,messages:msgs})
-  });
-  const j=await r.json();
-  const out=j.content&&j.content[0]&&j.content[0].text;
-  if(!out) throw new Error(j.error&&j.error.message||'응답 없음');
+  const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.groqKey},
+    body:JSON.stringify({model:S.groqModel,temperature:0.8,max_tokens:400,messages:[{role:'system',content:system},...msgs]})});
+  const j=await r.json().catch(()=>({}));
+  const out=String((j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||'').trim();
+  if(!out) throw new Error((j.error&&j.error.message)||'응답 없음');
   return out;
 }
 async function think(text){
@@ -871,7 +871,7 @@ $('#rAll').onclick=async()=>{ await requestMedia('cam'); await requestMedia('mic
 const sheet=$('#sheet');
 function openSheet(){
   refreshPerms();
-  $('#sNick').value=S.nick||''; $('#sProv').value=S.provider; $('#sPhone').value=S.phone||''; { const ph=simPhone(); $('#phoneInfo').textContent=ph.length>=9?'사용 번호: '+ph.slice(0,3)+'-****-'+ph.slice(-4)+(S.phone?' (직접 입력)':' (런처에 등록된 번호)'):'등록된 번호가 없습니다.'; } $('#sGemKey').value=S.gemKey; $('#sGemModel').value=S.gemModel; $('#sApiKey').value=S.apiKey; $('#sModel').value=S.model; $('#sTgToken').value=S.tgToken; $('#sTgChat').value=S.tgChat;
+  $('#sNick').value=S.nick||''; $('#sProv').value=S.provider; $('#sPhone').value=S.phone||''; { const ph=simPhone(); $('#phoneInfo').textContent=ph.length>=9?'사용 번호: '+ph.slice(0,3)+'-****-'+ph.slice(-4)+(S.phone?' (직접 입력)':' (런처에 등록된 번호)'):'등록된 번호가 없습니다.'; } $('#sGemKey').value=S.gemKey; $('#sGemModel').value=S.gemModel; $('#sEngine').value=S.engine; $('#sGroqKey').value=S.groqKey; $('#sGroqModel').value=S.groqModel; $('#sTgToken').value=S.tgToken; $('#sTgChat').value=S.tgChat;
   $('#sIdle').value=String(S.idleLimit); $('#sCam').value=S.camFacing;
   $('#sGreet').checked=S.greet; $('#sFaceRec').checked=S.faceRec; $('#sFaceAlert').checked=S.faceAlert; $('#sFall').checked=S.fall; $('#sSound').checked=S.sound; $('#sAway').checked=S.away;
   $('#sNotes').value=notes.join('\n'); sheet.hidden=false;
@@ -880,7 +880,7 @@ $('#btnSet').onclick=openSheet;
 $('#sCancel').onclick=()=>sheet.hidden=true;
 $('#sSave').onclick=()=>{
   Object.assign(S,{
-    nick:$('#sNick').value.trim(), provider:$('#sProv').value, phone:$('#sPhone').value.replace(/\D/g,''), gemKey:$('#sGemKey').value.trim(), gemModel:$('#sGemModel').value.trim()||'gemini-3.6-flash', apiKey:$('#sApiKey').value.trim(), model:$('#sModel').value.trim()||'claude-haiku-5-5',
+    nick:$('#sNick').value.trim(), provider:$('#sProv').value, phone:$('#sPhone').value.replace(/\D/g,''), gemKey:$('#sGemKey').value.trim(), gemModel:$('#sGemModel').value.trim()||'gemini-3.6-flash', engine:$('#sEngine').value, groqKey:$('#sGroqKey').value.trim(), groqModel:$('#sGroqModel').value.trim()||'llama-3.3-70b-versatile',
     tgToken:$('#sTgToken').value.trim(), tgChat:$('#sTgChat').value.trim(),
     idleLimit:Number($('#sIdle').value), camFacing:$('#sCam').value,
     greet:$('#sGreet').checked, faceRec:$('#sFaceRec').checked, faceAlert:$('#sFaceAlert').checked, fall:$('#sFall').checked, sound:$('#sSound').checked, away:$('#sAway').checked
@@ -895,7 +895,7 @@ $('#tLLM').onclick=async()=>{
   if(!hasLLM()){ out.textContent=S.provider==='sim'?'등록된 전화번호가 없습니다. 번호를 입력해 저장하거나 런처(SIM Tools)에서 AI 번호를 등록해 주세요.':'키가 없습니다. 키를 입력하고 저장한 뒤 다시 눌러 주세요.'; return; }
   try{
     const t=await askLLM('한국어 존댓말로 한 문장만 답하세요.',[{role:'user',content:'홈봇이에요. 짧게 인사해 주세요.'}]);
-    out.textContent='✅ 연결 성공 ('+(S.provider==='sim'?(lastModel||'SIM Tools AI'):S.provider==='gemini'?S.gemModel:S.model)+'): '+t;
+    out.textContent='✅ 연결 성공 ('+(S.provider==='sim'?(lastModel||'SIM Tools AI'):S.provider==='gemini'?S.gemModel:S.groqModel)+'): '+t;
   }catch(e){ out.textContent='❌ 실패: '+e.message; }
 };
 $('#tTalk').onclick=()=>{ sheet.hidden=true; dialog('테스트입니다. 하고 싶은 말을 해 보세요.'); };

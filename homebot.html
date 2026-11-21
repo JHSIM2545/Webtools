@@ -165,11 +165,19 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
     <div class="perm"><span>🔆 화면 켜짐 유지</span><span class="pst" id="pWl">-</span><span></span></div>
     <div class="btns"><button id="rAll" class="primary">카메라+마이크 한 번에 요청</button></div>
     <div class="hint" id="pHint">거부됨 상태에서는 앱에서 다시 요청할 수 없습니다. 주소창 왼쪽 자물쇠(또는 사이트 설정) → 권한에서 직접 허용해 주세요.</div>
-    <label>Anthropic API 키 (대화용, 이 기기에만 저장)</label>
+    <label>대화 AI</label>
+    <select id="sProv"><option value="gemini">Google Gemini</option><option value="claude">Anthropic Claude</option></select>
+    <label>Gemini API 키 (이 기기에만 저장)</label>
+    <input type="password" id="sGemKey" placeholder="AIza...">
+    <label>Gemini 모델</label>
+    <input type="text" id="sGemModel">
+    <label>Claude API 키 (선택)</label>
     <input type="password" id="sApiKey" placeholder="sk-ant-...">
-    <label>모델</label>
+    <label>Claude 모델</label>
     <input type="text" id="sModel">
-    <div class="hint">키가 없으면 시간·날짜 등 간단한 규칙 응답만 합니다. 키를 브라우저에 두는 방식은 프로토타입 전용입니다.</div>
+    <div class="hint">Gemini 키는 Google AI Studio의 API 키 메뉴에서 발급합니다. 선택한 AI의 키가 없으면 시간·날짜 등 간단한 규칙 응답만 합니다. 키를 브라우저에 두는 방식은 프로토타입 전용입니다.</div>
+    <div class="btns"><button id="tLLM">AI 연결 테스트 (저장 후)</button></div>
+    <div class="hint" id="llmOut"></div>
     <label>텔레그램 봇 토큰 (가족 알림)</label>
     <input type="password" id="sTgToken">
     <label>텔레그램 Chat ID</label>
@@ -214,7 +222,7 @@ const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } ca
 
 const S = Object.assign({
   apiKey:'', model:'claude-haiku-5-5', tgToken:'', tgChat:'',
-  idleLimit:60, away:false, greet:true, sound:false, fall:true, camFacing:'user', faceRec:true, faceAlert:true
+  idleLimit:60, away:false, greet:true, sound:false, fall:true, camFacing:'user', faceRec:true, faceAlert:true, provider:'gemini', gemKey:'', gemModel:'gemini-3.6-flash'
 }, load('homebot.settings', {}));
 let notes = load('homebot.notes', []);
 
@@ -375,6 +383,27 @@ function localReply(t){
   if(/안녕/.test(t)) return '안녕하세요! 만나서 반가워요.';
   return '네, 듣고 있어요. 설정에서 API 키를 넣으면 더 자유롭게 대화할 수 있어요.';
 }
+async function askLLM(system,msgs){
+  if(S.provider==='gemini'){
+    const contents=msgs.map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}));
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(S.gemModel)}:generateContent?key=${encodeURIComponent(S.gemKey)}`;
+    const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:1024,temperature:0.8}})});
+    const j=await r.json();
+    const out=((j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[]).filter(x=>x.text&&!x.thought).map(x=>x.text).join('').trim();
+    if(!out) throw new Error((j.error&&j.error.message)||'응답 없음');
+    return out;
+  }
+  const r=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-api-key':S.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:S.model,max_tokens:200,system,messages:msgs})
+  });
+  const j=await r.json();
+  const out=j.content&&j.content[0]&&j.content[0].text;
+  if(!out) throw new Error(j.error&&j.error.message||'응답 없음');
+  return out;
+}
 async function think(text){
   setFace('thinking');
   if(/(119|살려|응급|구급)/.test(text)){
@@ -385,18 +414,11 @@ async function think(text){
     const n=text.replace(/^기억해(줘|라|요)?[ ,:]*/,'').trim();
     if(n){ notes.push(n); store('homebot.notes',notes); return '알겠어요. 기억해 둘게요.'; }
   }
-  if(!S.apiKey) return localReply(text);
+  if(!(S.provider==='gemini'?S.gemKey:S.apiKey)) return localReply(text);
   hist.push({role:'user',content:text}); while(hist.length>12) hist.shift();
   const system=`당신은 가정용 로봇 "홈봇"입니다. 따뜻하고 간결한 한국어 존댓말로 말하세요. 음성으로 읽히므로 1~2문장으로만 답하고, 목록·이모지·마크다운은 쓰지 마세요. 건강·응급 관련 질문에는 119 안내를 덧붙이세요. 현재 시각: ${new Date().toLocaleString('ko-KR')}. 사용자에 대해 기억하는 정보: ${notes.join('; ')||'없음'}.${curWho&&performance.now()-curWhoAt<30000?' 지금 대화 상대는 얼굴인식으로 확인된 '+curWho+'님입니다.':''}`;
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'content-type':'application/json','x-api-key':S.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:S.model,max_tokens:200,system,messages:hist})
-    });
-    const j=await r.json();
-    const out=j.content&&j.content[0]&&j.content[0].text;
-    if(!out) throw new Error(j.error&&j.error.message||'응답 없음');
+    const out=await askLLM(system,hist);
     hist.push({role:'assistant',content:out});
     return out;
   }catch(e){
@@ -797,7 +819,7 @@ $('#rAll').onclick=async()=>{ await requestMedia('cam'); await requestMedia('mic
 const sheet=$('#sheet');
 function openSheet(){
   refreshPerms();
-  $('#sApiKey').value=S.apiKey; $('#sModel').value=S.model; $('#sTgToken').value=S.tgToken; $('#sTgChat').value=S.tgChat;
+  $('#sProv').value=S.provider; $('#sGemKey').value=S.gemKey; $('#sGemModel').value=S.gemModel; $('#sApiKey').value=S.apiKey; $('#sModel').value=S.model; $('#sTgToken').value=S.tgToken; $('#sTgChat').value=S.tgChat;
   $('#sIdle').value=String(S.idleLimit); $('#sCam').value=S.camFacing;
   $('#sGreet').checked=S.greet; $('#sFaceRec').checked=S.faceRec; $('#sFaceAlert').checked=S.faceAlert; $('#sFall').checked=S.fall; $('#sSound').checked=S.sound; $('#sAway').checked=S.away;
   $('#sNotes').value=notes.join('\n'); sheet.hidden=false;
@@ -806,7 +828,7 @@ $('#btnSet').onclick=openSheet;
 $('#sCancel').onclick=()=>sheet.hidden=true;
 $('#sSave').onclick=()=>{
   Object.assign(S,{
-    apiKey:$('#sApiKey').value.trim(), model:$('#sModel').value.trim()||'claude-haiku-5-5',
+    provider:$('#sProv').value, gemKey:$('#sGemKey').value.trim(), gemModel:$('#sGemModel').value.trim()||'gemini-3.6-flash', apiKey:$('#sApiKey').value.trim(), model:$('#sModel').value.trim()||'claude-haiku-5-5',
     tgToken:$('#sTgToken').value.trim(), tgChat:$('#sTgChat').value.trim(),
     idleLimit:Number($('#sIdle').value), camFacing:$('#sCam').value,
     greet:$('#sGreet').checked, faceRec:$('#sFaceRec').checked, faceAlert:$('#sFaceAlert').checked, fall:$('#sFall').checked, sound:$('#sSound').checked, away:$('#sAway').checked
@@ -815,6 +837,14 @@ $('#sSave').onclick=()=>{
   store('homebot.settings',S); store('homebot.notes',notes);
   if(running){ S.sound?startAudio():stopAudio(); if(S.faceRec) loadFace(); }
   sheet.hidden=true; log('설정 저장됨','info');
+};
+$('#tLLM').onclick=async()=>{
+  const out=$('#llmOut'); out.textContent='테스트 중…';
+  if(!(S.provider==='gemini'?S.gemKey:S.apiKey)){ out.textContent='키가 없습니다. 키를 입력하고 저장한 뒤 다시 눌러 주세요.'; return; }
+  try{
+    const t=await askLLM('한국어 존댓말로 한 문장만 답하세요.',[{role:'user',content:'홈봇이에요. 짧게 인사해 주세요.'}]);
+    out.textContent='✅ 연결 성공 ('+(S.provider==='gemini'?S.gemModel:S.model)+'): '+t;
+  }catch(e){ out.textContent='❌ 실패: '+e.message; }
 };
 $('#tTalk').onclick=()=>{ sheet.hidden=true; dialog('테스트입니다. 하고 싶은 말을 해 보세요.'); };
 $('#tFall').onclick=()=>{ sheet.hidden=true; if(!running){ log('먼저 ▶ 시작을 누르세요','warn'); return; } onFall(); };

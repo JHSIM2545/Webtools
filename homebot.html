@@ -6,6 +6,13 @@
 <meta name="theme-color" content="#05080c">
 <title>홈봇 프로토타입 v0.1</title>
 <style>
+#btnMore{width:34px;height:26px;padding:0;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-size:18px;line-height:1}
+#moreMenu{position:fixed;top:44px;right:8px;z-index:9000;min-width:200px;background:#10161c;border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.6);display:flex;flex-direction:column}
+#moreMenu[hidden]{display:none}
+#moreMenu button{text-align:left;padding:12px 12px;border:0;border-radius:8px;background:transparent;color:var(--fg);font-size:15px}
+#moreMenu button:active{background:var(--panel)}
+#moreMenu small{display:block;font-size:11px;color:var(--dim);margin-top:2px}
+#moreMenu hr{width:100%;border:0;border-top:1px solid var(--line);margin:6px 0}
 #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:9999;transition:opacity .3s}
 #flash.on{opacity:.8;transition:none}
 :root{--bg:#05080c;--fg:#e8f1f8;--dim:#7f93a3;--eye:#5ee1ff;--ok:#5dffa8;--warn:#ffcc4d;--bad:#ff5b5b;--panel:#0e151c;--line:#1b2733}
@@ -147,7 +154,8 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
 <div id="app">
   <header id="bar">
     <span class="chip" id="chipCam">카메라 꺼짐</span>
-    <span class="chip" id="engBadge" style="margin-left:auto;order:99">🔊 음성: 대기</span>
+    <span class="chip" id="engBadge" style="margin-left:auto;order:98">🔊 음성: 대기</span>
+    <button id="btnMore" aria-label="더보기" style="order:99">⋮</button>
     <span class="chip" id="chipPerson">사람 없음</span>
     <span class="chip" id="chipIdle">무동작 0:00</span>
     <span class="chip" id="chipFace">얼굴 모델 대기</span>
@@ -189,12 +197,17 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
   <footer id="foot">
     <button id="btnStart" class="primary">▶ 시작</button>
     <button id="btnMode">👁 모니터</button>
-    <button id="btnFace">👤 얼굴</button>
-    <button id="btnSet">⚙ 설정</button>
   </footer>
 </div>
 
 <div id="flash"></div>
+<div id="moreMenu" hidden>
+  <button id="mUpdate">🔄 업그레이드<small id="mVer"></small></button>
+  <button id="mExit">⏻ 앱 종료</button>
+  <hr>
+  <button id="btnFace">👤 얼굴 등록·인식</button>
+  <button id="btnSet">⚙ 설정</button>
+</div>
 <div id="faceSheet" hidden>
   <div id="faceBody">
     <h3>얼굴 등록</h3>
@@ -1913,6 +1926,41 @@ if(location.hash==='#debug') window.__hb={setWho:n=>{ curWho=n; curWhoAt=perform
 
 $('#btnFace').onclick=openFaceSheet;
 if(window.__hb) Object.assign(window.__hb,{speak:(t,o)=>speak(t,o),lookup:q=>lookupWeb(q),listen:w=>listenOnce(w),engine:()=>window.__engine,onb:()=>startOnboarding(true),faces:()=>faces,onbState:()=>({onbActive,registering,busy}),mockFace:()=>{ faceapi={detectSingleFace:()=>({withFaceLandmarks:()=>({withFaceDescriptor:()=>Promise.resolve({descriptor:new Float32Array(128).fill(.1),detection:{box:{x:10,y:10,width:60,height:60}}})})}),euclideanDistance:()=>0.1,TinyFaceDetectorOptions:function(){}}; faceReady=true; },shouldOnboard});
+/* ---- 더보기(⋮) 메뉴: 업그레이드 · 앱 종료 · (하단) 얼굴 · 설정 ---- */
+const moreMenu=$('#moreMenu'), closeMore=()=>{ moreMenu.hidden=true; };
+$('#btnMore').onclick=e=>{ e.stopPropagation(); moreMenu.hidden=!moreMenu.hidden; if(!moreMenu.hidden) refreshVer(); };
+document.addEventListener('click',e=>{ if(!moreMenu.hidden&&!moreMenu.contains(e.target)) closeMore(); });
+moreMenu.addEventListener('click',()=>closeMore());
+const APP=window.SimApp||null, REL_API='https://api.github.com/repos/JHSIM2545/Webtools/releases/tags/homebot-latest';
+function refreshVer(){ $('#mVer').textContent=APP?'설치된 앱 build '+APP.versionCode():'웹 버전(브라우저)'; }
+async function doUpgrade(){
+  log('업그레이드 확인 중…','info'); $('#say').textContent='🔄 업그레이드 확인 중…';
+  let newer=null;
+  if(APP){
+    try{
+      const r=await fetch(REL_API,{headers:{Accept:'application/vnd.github+json'},cache:'no-store'}); const j=await r.json();
+      const m=/build\s*(\d+)/i.exec(j.body||''); const asset=(j.assets||[]).find(a=>/\.apk$/i.test(a.name));
+      if(r.ok&&m&&asset&&Number(m[1])>Number(APP.versionCode())) newer={n:Number(m[1]),url:asset.browser_download_url};
+      else if(!r.ok||!m) log('앱 버전 정보를 가져오지 못했어요 (HTTP '+r.status+')','warn');
+    }catch(e){ log('앱 버전 확인 실패: '+e.message,'warn'); }
+  }
+  if(newer){
+    $('#say').textContent='🔄 새 앱 build '+newer.n+' 이(가) 있어요';
+    if(confirm('새 버전(build '+newer.n+')이 있습니다. 내려받아 설치할까요?\n(다운로드 후 알림/파일에서 설치를 눌러 주세요)')){ try{ APP.openUrl(newer.url); }catch{ window.open(newer.url,'_blank'); } return; }
+  }
+  // 화면(웹) 쪽은 항상 최신 파일로 다시 불러오기
+  try{ const ks=await caches.keys(); await Promise.all(ks.map(k=>caches.delete(k))); }catch{}
+  $('#say').textContent=newer?'🔄 화면만 새로 불러옵니다…':'🔄 최신 상태예요. 화면을 새로 불러옵니다…';
+  window.__reloaded=1; setTimeout(()=>{ const u=new URL(location.href); u.searchParams.set('v',Date.now()); location.replace(u.toString()); },700);
+}
+function doExit(){
+  if(!confirm('홈봇을 종료할까요?')) return;
+  try{ if(running) stop(); }catch{} try{ speechSynthesis.cancel(); }catch{}
+  window.__exit=1;
+  if(APP){ try{ APP.exit(); return; }catch{} }
+  window.close(); $('#say').textContent='⏻ 종료했어요. 브라우저에서는 탭을 닫아 주세요.';
+}
+$('#mUpdate').onclick=doUpgrade; $('#mExit').onclick=doExit;
 $('#fClose').onclick=closeFaceSheet;
 $('#fGo').onclick=runRegister;
 $('#fCamOn').onclick=async()=>{ await start(); openFaceSheet(); };

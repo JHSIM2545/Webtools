@@ -63,6 +63,7 @@ public class MainActivity extends Activity {
         tts = new TtsBridge(this, web);
         web.addJavascriptInterface(tts, "SimTts");
         web.addJavascriptInterface(new PermBridge(), "SimPerm");
+        web.addJavascriptInterface(new AppBridge(), "SimApp");
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -146,6 +147,37 @@ public class MainActivity extends Activity {
 
     private void notifyPerm() {
         web.post(new Runnable() { @Override public void run() { web.evaluateJavascript("window.__simPerm&&window.__simPerm()", null); } });
+    }
+
+    /** 더보기 메뉴: 설치된 앱 버전 조회 · 업데이트 APK 내려받기 · 앱 종료 */
+    final class AppBridge {
+        @JavascriptInterface
+        public int versionCode() {
+            try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionCode; } catch (Exception e) { return 0; }
+        }
+
+        @JavascriptInterface
+        public void openUrl(final String url) {
+            runOnUiThread(new Runnable() {
+                @Override public void run() {
+                    try {
+                        Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(i);
+                    } catch (Exception e) { Toast.makeText(MainActivity.this, "열 수 없습니다", Toast.LENGTH_LONG).show(); }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void exit() {
+            runOnUiThread(new Runnable() {
+                @Override public void run() {
+                    try { stt.destroy(); } catch (Throwable t) { /* 없으면 무시 */ }
+                    finishAndRemoveTask();
+                }
+            });
+        }
     }
 
     /** 홈봇 화면이 권한 상태를 보고 다시 요청할 수 있게 하는 창구 */

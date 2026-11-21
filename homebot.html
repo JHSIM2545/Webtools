@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#05080c">
+<title>홈봇 프로토타입 v0.1</title>
+<style>
+:root{--bg:#05080c;--fg:#e8f1f8;--dim:#7f93a3;--eye:#5ee1ff;--ok:#5dffa8;--warn:#ffcc4d;--bad:#ff5b5b;--panel:#0e151c;--line:#1b2733}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;overflow:hidden}
+#app{position:fixed;inset:0;display:flex;flex-direction:column;height:100dvh;padding-top:env(safe-area-inset-top)}
+#bar{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line)}
+.chip{font-size:11px;padding:3px 8px;border-radius:99px;background:var(--panel);color:var(--dim);border:1px solid var(--line)}
+.chip.on{color:var(--ok);border-color:#1d4a37}
+.chip.warn{color:var(--warn);border-color:#5a4a1a}
+#alertBar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#3a0f12;color:#ffd5d5;padding:10px 12px;font-size:14px;border-bottom:1px solid #7a2227}
+#alertBar[hidden]{display:none}
+#alertBar button{background:#ff5b5b;color:#fff;border:0;border-radius:8px;padding:6px 14px;font-size:13px}
+#stage{position:relative;flex:1;min-height:0;display:flex;flex-direction:column}
+#cam{position:absolute;top:8px;right:8px;width:84px;aspect-ratio:var(--ar,4/3);border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#000;z-index:3}
+#cam video,#cam canvas{position:absolute;inset:0;width:100%;height:100%}
+#cam.mirror video,#cam.mirror canvas{transform:scaleX(-1)}
+#robot{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:10px}
+#face{width:min(92vw,62dvh);height:auto;--c:var(--eye)}
+#face .eye ellipse{fill:var(--c);filter:drop-shadow(0 0 8px var(--c))}
+#face .eye{transform-box:fill-box;transform-origin:center;transition:transform .25s}
+#face .eye ellipse{transform-box:fill-box;transform-origin:center;animation:blink 5s infinite}
+#face .m{display:none;fill:none;stroke:var(--c);stroke-width:7;stroke-linecap:round}
+#face .m-o,#face .m-talk{fill:var(--c);stroke:none}
+#gaze{transition:transform .2s}
+.dots{display:none;fill:var(--c)}
+@keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+@keyframes talk{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}
+@keyframes dot{0%,100%{opacity:.2}50%{opacity:1}}
+#face .m-talk{transform-box:fill-box;transform-origin:center;animation:talk .28s infinite}
+#face[data-state=idle] .m-smile{display:block}
+#face[data-state=listening]{--c:var(--ok)}
+#face[data-state=listening] .eye{transform:scale(1.1)}
+#face[data-state=listening] .m-o{display:block}
+#face[data-state=thinking] .m-flat{display:block}
+#face[data-state=thinking] .eye{transform:translate(8px,-8px)}
+#face[data-state=thinking] .dots{display:block}
+#face[data-state=thinking] .dots circle{animation:dot 1s infinite}
+#face[data-state=thinking] .dots circle:nth-child(2){animation-delay:.2s}
+#face[data-state=thinking] .dots circle:nth-child(3){animation-delay:.4s}
+#face[data-state=speaking] .m-talk{display:block}
+#face[data-state=happy] .eye{transform:scaleY(.4) translateY(-6px)}
+#face[data-state=happy] .eye ellipse{animation:none}
+#face[data-state=happy] .m-smile{display:block}
+#face[data-state=alert]{--c:var(--bad)}
+#face[data-state=alert] .eye{transform:scale(1.2)}
+#face[data-state=alert] .m-flat{display:block}
+#face[data-state=sleepy]{--c:#3a5566}
+#face[data-state=sleepy] .eye{transform:scaleY(.15)}
+#face[data-state=sleepy] .eye ellipse{animation:none}
+#face[data-state=sleepy] .m-flat{display:block}
+#stateLabel{font-size:12px;color:var(--dim);letter-spacing:.08em}
+#say{min-height:44px;max-width:92vw;text-align:center;font-size:16px;line-height:1.45;color:var(--fg)}
+#logWrap{display:none;flex:1;min-height:0;flex-direction:column}
+#angleInfo{font-size:11px;color:var(--dim);padding:6px 10px;border-bottom:1px solid var(--line)}
+#log{flex:1;overflow-y:auto;padding:6px 10px;font-size:12px;line-height:1.5}
+#log .l b{color:var(--dim);font-weight:400;margin-right:6px}
+#log .warn{color:var(--warn)} #log .bad{color:var(--bad)} #log .chat{color:#b9d6ea}
+body.mode-monitor #robot{display:none}
+body.mode-monitor #logWrap{display:flex}
+body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;max-width:100%;align-self:center;border-radius:0;border:0}
+#foot{display:flex;gap:8px;padding:10px 10px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+#foot button{flex:1;padding:12px 0;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-size:15px}
+#foot button.primary{background:#0f3a4d;border-color:#1b6f91}
+#foot button:disabled{opacity:.5}
+#sheet{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10;display:flex;align-items:flex-end}
+#sheet[hidden]{display:none}
+#sheetBody{width:100%;max-height:88dvh;overflow-y:auto;background:var(--panel);border-radius:18px 18px 0 0;padding:16px;font-size:14px}
+#sheetBody h3{margin:0 0 10px;font-size:16px}
+#sheetBody label{display:block;margin:10px 0 4px;color:var(--dim);font-size:12px}
+#sheetBody input[type=text],#sheetBody input[type=password],#sheetBody select,#sheetBody textarea{width:100%;padding:9px;border-radius:8px;border:1px solid var(--line);background:#0a1117;color:var(--fg);font-size:14px}
+#sheetBody textarea{min-height:70px}
+.row{display:flex;align-items:center;gap:8px;margin:8px 0}
+.row input{width:auto}
+.btns{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.btns button{flex:1;padding:10px;border-radius:10px;border:1px solid var(--line);background:#0a1117;color:var(--fg);font-size:13px;min-width:90px}
+.btns button.primary{background:#0f3a4d;border-color:#1b6f91}
+.perm{display:grid;grid-template-columns:1fr auto 56px;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line)}
+.perm button{padding:5px 0;border-radius:8px;border:1px solid var(--line);background:#0a1117;color:var(--fg);font-size:12px}
+.pst{font-size:12px;color:var(--dim)} .pst.ok{color:var(--ok)} .pst.no{color:var(--bad)} .pst.ask{color:var(--warn)}
+.hint{font-size:11px;color:var(--dim);margin-top:4px;line-height:1.4}
+</style>
+</head>
+<body class="mode-robot">
+<div id="app">
+  <header id="bar">
+    <span class="chip" id="chipCam">카메라 꺼짐</span>
+    <span class="chip" id="chipPerson">사람 없음</span>
+    <span class="chip" id="chipIdle">무동작 0:00</span>
+    <span class="chip" id="chipSound">소리 감시 꺼짐</span>
+  </header>
+  <div id="alertBar" hidden><span id="alertText"></span><button id="btnAck">확인</button></div>
+  <main id="stage">
+    <div id="cam"><video id="video" playsinline muted autoplay></video><canvas id="ov"></canvas></div>
+    <section id="robot">
+      <svg id="face" viewBox="0 0 240 180" data-state="sleepy" aria-label="홈봇 얼굴">
+        <g id="gaze">
+          <g class="eye"><ellipse cx="75" cy="70" rx="24" ry="30"/></g>
+          <g class="eye"><ellipse cx="165" cy="70" rx="24" ry="30"/></g>
+        </g>
+        <path class="m m-smile" d="M88 128 Q120 156 152 128"/>
+        <path class="m m-flat" d="M98 138 L142 138"/>
+        <ellipse class="m m-o" cx="120" cy="138" rx="9" ry="11"/>
+        <ellipse class="m m-talk" cx="120" cy="138" rx="20" ry="14"/>
+        <g class="dots"><circle cx="105" cy="20" r="5"/><circle cx="120" cy="20" r="5"/><circle cx="135" cy="20" r="5"/></g>
+      </svg>
+      <div id="stateLabel">정지</div>
+      <div id="say">▶ 시작을 눌러 주세요. 얼굴을 터치하면 대화를 시작해요.</div>
+    </section>
+    <section id="logWrap"><div id="angleInfo">몸 기울기: -</div><div id="log"></div></section>
+  </main>
+  <footer id="foot">
+    <button id="btnStart" class="primary">▶ 시작</button>
+    <button id="btnMode">👁 모니터</button>
+    <button id="btnSet">⚙ 설정</button>
+  </footer>
+</div>
+
+<div id="sheet" hidden>
+  <div id="sheetBody">
+    <h3>설정</h3>
+    <label>권한</label>
+    <div class="perm"><span>📷 카메라</span><span class="pst" id="pCam">확인 중</span><button id="rCam">요청</button></div>
+    <div class="perm"><span>🎤 마이크 (대화·이상음)</span><span class="pst" id="pMic">확인 중</span><button id="rMic">요청</button></div>
+    <div class="perm"><span>🗣 음성인식 지원</span><span class="pst" id="pSr">-</span><span></span></div>
+    <div class="perm"><span>🔊 음성출력 지원</span><span class="pst" id="pTts">-</span><span></span></div>
+    <div class="perm"><span>🔆 화면 켜짐 유지</span><span class="pst" id="pWl">-</span><span></span></div>
+    <div class="btns"><button id="rAll" class="primary">카메라+마이크 한 번에 요청</button></div>
+    <div class="hint" id="pHint">거부됨 상태에서는 앱에서 다시 요청할 수 없습니다. 주소창 왼쪽 자물쇠(또는 사이트 설정) → 권한에서 직접 허용해 주세요.</div>
+    <label>Anthropic API 키 (대화용, 이 기기에만 저장)</label>
+    <input type="password" id="sApiKey" placeholder="sk-ant-...">
+    <label>모델</label>
+    <input type="text" id="sModel">
+    <div class="hint">키가 없으면 시간·날짜 등 간단한 규칙 응답만 합니다. 키를 브라우저에 두는 방식은 프로토타입 전용입니다.</div>
+    <label>텔레그램 봇 토큰 (가족 알림)</label>
+    <input type="password" id="sTgToken">
+    <label>텔레그램 Chat ID</label>
+    <input type="text" id="sTgChat">
+    <label>무동작 알림 기준</label>
+    <select id="sIdle">
+      <option value="60">1분 (테스트용)</option>
+      <option value="1800">30분</option>
+      <option value="3600">1시간</option>
+      <option value="7200">2시간</option>
+    </select>
+    <label>카메라</label>
+    <select id="sCam"><option value="user">전면</option><option value="environment">후면</option></select>
+    <div class="hint">카메라 변경은 정지 후 다시 시작하면 적용됩니다.</div>
+    <div class="row"><input type="checkbox" id="sGreet"><span>먼저 말걸기 (사람 등장 시 인사, 장시간 무대화 시 안부)</span></div>
+    <div class="row"><input type="checkbox" id="sFall"><span>쓰러짐 감시</span></div>
+    <div class="row"><input type="checkbox" id="sSound"><span>이상음(큰 소리) 감시</span></div>
+    <div class="row"><input type="checkbox" id="sAway"><span>외출 모드 (무동작 알림 끄고, 사람 감지 시 알림)</span></div>
+    <label>기억할 정보 (한 줄에 하나. 대화 중 "기억해 ..."라고 말해도 추가됨)</label>
+    <textarea id="sNotes"></textarea>
+    <div class="btns">
+      <button id="tTalk">말 걸기 테스트</button>
+      <button id="tFall">쓰러짐 시나리오 테스트</button>
+      <button id="tAlert">알림 전송 테스트</button>
+    </div>
+    <div class="btns">
+      <button id="sCancel">닫기</button>
+      <button id="sSave" class="primary">저장</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+/* ============ 기본 상태/설정 ============ */
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+const S = Object.assign({
+  apiKey:'', model:'claude-haiku-5-5', tgToken:'', tgChat:'',
+  idleLimit:60, away:false, greet:true, sound:false, fall:true, camFacing:'user'
+}, load('homebot.settings', {}));
+let notes = load('homebot.notes', []);
+
+const MOTION_THR = 4;        // 프레임 차이 평균(0~255) 기준 — 실기 튜닝 필요
+const FALL_ANGLE = 60;       // 몸통 기울기(도) 기준
+const FALL_HOLD_MS = 3000;   // 이 시간 이상 유지되면 쓰러짐 의심
+const ABSENT_GREET_MS = 20000;
+
+const video = $('#video'), cam = $('#cam'), ov = $('#ov'), octx = ov.getContext('2d');
+const face = $('#face');
+const LABEL = {idle:'대기',listening:'듣는 중',thinking:'생각 중',speaking:'말하는 중',alert:'경고',sleepy:'정지',happy:'반가워요'};
+
+let running=false, busy=false, speaking=false, alertActive=false;
+let stream=null, pose=null, raf=0, wl=null;
+let lastDet=0, lastSeen=-1e9, personPresent=false, lastActivity=0, lastInteract=0, lastGreet=-1e9;
+let fallStart=0, lastFall=-1e9, lastSoundAlert=-1e9, lastIntrusion=-1e9, lastAngle=null;
+const hist = [];
+
+/* ============ UI 보조 ============ */
+const logs = [];
+function log(msg, lvl='info'){
+  const t = new Date().toLocaleTimeString('ko-KR',{hour12:false});
+  logs.unshift({t,msg,lvl}); if(logs.length>200) logs.pop();
+  $('#log').innerHTML = logs.map(l=>`<div class="l ${l.lvl}"><b>${l.t}</b>${esc(l.msg)}</div>`).join('');
+}
+function setFace(s){ face.dataset.state=s; $('#stateLabel').textContent=LABEL[s]||s; }
+function say(text, who){
+  $('#say').textContent = (who==='user'?'🧑 ':'🤖 ')+text;
+  log((who==='user'?'사용자: ':'홈봇: ')+text,'chat');
+}
+function chip(id, text, cls){ const e=$(id); e.textContent=text; e.className='chip'+(cls?' '+cls:''); }
+
+/* ============ 음성 출력 (TTS) ============ */
+let koVoice=null;
+function pickVoice(){ const v=speechSynthesis.getVoices(); koVoice=v.find(x=>/^ko[-_]KR/i.test(x.lang))||v.find(x=>x.lang&&x.lang.startsWith('ko'))||null; }
+if('speechSynthesis' in window){ speechSynthesis.onvoiceschanged=pickVoice; pickVoice(); }
+
+function speak(text){
+  return new Promise(res=>{
+    say(text,'bot'); setFace('speaking'); speaking=true;
+    let t, done=false;
+    const fin=()=>{ if(done) return; done=true; clearTimeout(t); speaking=false; res(); };
+    if(!('speechSynthesis' in window)){ t=setTimeout(fin,1500); return; }
+    try{ speechSynthesis.cancel(); }catch{}
+    const u=new SpeechSynthesisUtterance(text);
+    u.lang='ko-KR'; if(koVoice) u.voice=koVoice; u.rate=1.02; u.pitch=1.1;
+    u.onend=fin; u.onerror=fin;
+    t=setTimeout(fin, 3000+text.length*350);
+    speechSynthesis.speak(u);
+  });
+}
+
+/* ============ 음성 입력 (STT) ============ */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function listenOnce(ms=9000){
+  return new Promise(async res=>{
+    if(!SR){ log('이 브라우저는 음성인식을 지원하지 않습니다 (안드로이드 Chrome 권장)','warn'); res(null); return; }
+    pauseAudio();                       // 안드로이드 마이크 충돌 방지: 이상음 감시 일시 중지
+    const r=new SR(); r.lang='ko-KR'; r.interimResults=false; r.maxAlternatives=1; r.continuous=false;
+    let got=null, ended=false;
+    const fin=()=>{ if(ended) return; ended=true; clearTimeout(tm); try{r.stop();}catch{} resumeAudio(); res(got); };
+    const tm=setTimeout(fin, ms);
+    r.onresult=e=>{ got=e.results[0][0].transcript.trim(); say(got,'user'); };
+    r.onerror=fin; r.onend=fin;
+    setFace('listening');
+    try{ r.start(); }catch{ fin(); }
+  });
+}
+
+/* ============ 이상음 감시 (WebAudio RMS) ============ */
+let aStream=null, aCtx=null, analyser=null, aBuf=null, baseline=0.01;
+async function startAudio(){
+  if(!S.sound||aStream||!running) return;
+  try{
+    aStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:false,autoGainControl:false}});
+    aCtx=aCtx||new (window.AudioContext||window.webkitAudioContext)();
+    const src=aCtx.createMediaStreamSource(aStream);
+    analyser=aCtx.createAnalyser(); analyser.fftSize=1024; src.connect(analyser);
+    aBuf=new Float32Array(analyser.fftSize);
+    chip('#chipSound','소리 감시 ON','on');
+  }catch(e){ log('마이크(이상음) 시작 실패: '+e.message,'warn'); }
+}
+function stopAudio(){
+  if(aStream){ aStream.getTracks().forEach(t=>t.stop()); aStream=null; analyser=null; }
+  chip('#chipSound','소리 감시 꺼짐','');
+}
+function pauseAudio(){ if(aStream) stopAudio(); }
+function resumeAudio(){ if(running&&S.sound) startAudio(); }
+
+function checkSound(now){
+  if(!analyser||speaking||busy) return;
+  analyser.getFloatTimeDomainData(aBuf);
+  let s=0; for(let i=0;i<aBuf.length;i++) s+=aBuf[i]*aBuf[i];
+  const rms=Math.sqrt(s/aBuf.length);
+  baseline=baseline*0.98+rms*0.02;
+  if(rms>Math.max(0.12,baseline*6) && now-lastSoundAlert>15000){
+    lastSoundAlert=now; onLoudSound(rms);
+  }
+}
+async function onLoudSound(rms){
+  log(`큰 소리 감지 (RMS ${rms.toFixed(2)}, 기준선 ${baseline.toFixed(3)})`,'warn');
+  const blob=await snapshot();
+  await tgSend('🔊 이상음 의심 (큰 소리)\n'+new Date().toLocaleString('ko-KR'), blob);
+}
+
+/* ============ 알림 (텔레그램 / 비프) ============ */
+function snapshot(){
+  return new Promise(res=>{
+    if(!video.videoWidth) return res(null);
+    const c=document.createElement('canvas'); c.width=video.videoWidth; c.height=video.videoHeight;
+    c.getContext('2d').drawImage(video,0,0);
+    c.toBlob(b=>res(b),'image/jpeg',0.8);
+  });
+}
+async function tgSend(text, blob){
+  if(!S.tgToken||!S.tgChat) return false;
+  try{
+    const base=`https://api.telegram.org/bot${S.tgToken}`;
+    let r;
+    if(blob){
+      const fd=new FormData(); fd.append('chat_id',S.tgChat); fd.append('caption',text); fd.append('photo',blob,'snap.jpg');
+      r=await fetch(base+'/sendPhoto',{method:'POST',body:fd});
+    }else{
+      r=await fetch(base+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:S.tgChat,text})});
+    }
+    const j=await r.json(); return !!j.ok;
+  }catch(e){ return false; }
+}
+function beep(){
+  try{
+    const c=new (window.AudioContext||window.webkitAudioContext)();
+    [0,0.35,0.7].forEach(d=>{
+      const o=c.createOscillator(), g=c.createGain();
+      o.frequency.value=880; g.gain.value=0.2; o.connect(g); g.connect(c.destination);
+      o.start(c.currentTime+d); o.stop(c.currentTime+d+0.2);
+    });
+    setTimeout(()=>c.close(),1500);
+  }catch{}
+}
+async function raiseAlert(reason){
+  alertActive=true; setFace('alert'); beep();
+  $('#alertText').textContent='🚨 '+reason; $('#alertBar').hidden=false;
+  log('🚨 '+reason,'bad');
+  const blob=await snapshot();
+  const ok=await tgSend('🚨 홈봇 알림\n'+reason+'\n'+new Date().toLocaleString('ko-KR'), blob);
+  log(S.tgToken ? (ok?'텔레그램 전송 완료':'텔레그램 전송 실패') : '텔레그램 미설정 – 화면 알림만 표시', ok?'info':'warn');
+}
+$('#btnAck').onclick=()=>{ alertActive=false; $('#alertBar').hidden=true; if(running&&!busy) setFace('idle'); };
+
+/* ============ 대화 ============ */
+function localReply(t){
+  const d=new Date();
+  if(/몇 ?시|시간/.test(t)) return `지금은 ${d.getHours()}시 ${d.getMinutes()}분이에요.`;
+  if(/날짜|며칠|요일|오늘/.test(t)) return `오늘은 ${d.getMonth()+1}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]}요일이에요.`;
+  if(/안녕/.test(t)) return '안녕하세요! 만나서 반가워요.';
+  return '네, 듣고 있어요. 설정에서 API 키를 넣으면 더 자유롭게 대화할 수 있어요.';
+}
+async function think(text){
+  setFace('thinking');
+  if(/(119|살려|응급|구급)/.test(text)){
+    await raiseAlert('음성 도움 요청: '+text);
+    return '가족에게 알림을 보냈어요. 위급하시면 119에 바로 전화해 주세요.';
+  }
+  if(/^기억해/.test(text)){
+    const n=text.replace(/^기억해(줘|라|요)?[ ,:]*/,'').trim();
+    if(n){ notes.push(n); store('homebot.notes',notes); return '알겠어요. 기억해 둘게요.'; }
+  }
+  if(!S.apiKey) return localReply(text);
+  hist.push({role:'user',content:text}); while(hist.length>12) hist.shift();
+  const system=`당신은 가정용 로봇 "홈봇"입니다. 따뜻하고 간결한 한국어 존댓말로 말하세요. 음성으로 읽히므로 1~2문장으로만 답하고, 목록·이모지·마크다운은 쓰지 마세요. 건강·응급 관련 질문에는 119 안내를 덧붙이세요. 현재 시각: ${new Date().toLocaleString('ko-KR')}. 사용자에 대해 기억하는 정보: ${notes.join('; ')||'없음'}.`;
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'content-type':'application/json','x-api-key':S.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:S.model,max_tokens:200,system,messages:hist})
+    });
+    const j=await r.json();
+    const out=j.content&&j.content[0]&&j.content[0].text;
+    if(!out) throw new Error(j.error&&j.error.message||'응답 없음');
+    hist.push({role:'assistant',content:out});
+    return out;
+  }catch(e){
+    hist.pop(); log('LLM 오류: '+e.message,'bad');
+    return '잠시 연결이 불안정해요. '+localReply(text);
+  }
+}
+async function dialog(first, opts={}){
+  if(busy||!running) return;
+  busy=true;
+  try{
+    if(opts.pre){ setFace(opts.pre); await sleep(900); }
+    if(first) await speak(first);
+    for(let i=0;i<6;i++){
+      const heard=await listenOnce(9000);
+      if(!heard) break;
+      lastActivity=performance.now();
+      const reply=await think(heard);
+      await speak(reply);
+    }
+  }catch(e){ log('대화 오류: '+e.message,'bad'); }
+  finally{ busy=false; lastInteract=performance.now(); if(!alertActive&&running) setFace('idle'); }
+}
+
+/* ============ 단계식 안전 시나리오 ============ */
+// 음성 확인 → 무응답 시 가족 통보 (119는 미연결)
+async function checkOnUser(opening, reasonIfSilent){
+  if(busy) return;
+  busy=true; setFace('alert');
+  try{
+    await speak(opening);
+    const heard=await listenOnce(10000);
+    if(heard){
+      lastActivity=performance.now();
+      log('응답 확인됨 → 정상으로 처리','info');
+      await speak('괜찮으시군요. 다행이에요.');
+      setFace('idle');
+    }else{
+      await raiseAlert(reasonIfSilent+' (음성 확인 무응답)');
+    }
+  }catch(e){ log('확인 시나리오 오류: '+e.message,'bad'); }
+  finally{ busy=false; lastInteract=performance.now(); }
+}
+const onFall=()=>checkOnUser('괜찮으세요? 대답해 주세요.','쓰러짐 의심');
+const onNoMotion=()=>{
+  const m=Math.round(S.idleLimit/60);
+  return checkOnUser('계세요? 괜찮으신가요?',`${m}분 이상 움직임 없음`);
+};
+
+/* ============ 비전: MediaPipe Pose ============ */
+async function initPose(){
+  const V='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+  const {PoseLandmarker,FilesetResolver}=await import(V+'/+esm');
+  const fs=await FilesetResolver.forVisionTasks(V+'/wasm');
+  const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:d},runningMode:'VIDEO',numPoses:1});
+  try{ pose=await PoseLandmarker.createFromOptions(fs,opts('GPU')); }
+  catch{ pose=await PoseLandmarker.createFromOptions(fs,opts('CPU')); }
+}
+
+const mc=document.createElement('canvas'); mc.width=64; mc.height=48;
+const mx=mc.getContext('2d',{willReadFrequently:true}); let prevG=null;
+function motionEnergy(){
+  mx.drawImage(video,0,0,64,48);
+  const d=mx.getImageData(0,0,64,48).data, g=new Uint8Array(64*48);
+  let e=0;
+  for(let i=0,j=0;i<d.length;i+=4,j++){ g[j]=(d[i]*0.3+d[i+1]*0.59+d[i+2]*0.11)|0; if(prevG) e+=Math.abs(g[j]-prevG[j]); }
+  const r=prevG?e/g.length:0; prevG=g; return r;
+}
+
+const CONN=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
+function drawPose(lm){
+  octx.clearRect(0,0,ov.width,ov.height);
+  if(!lm) return;
+  octx.lineWidth=3; octx.strokeStyle='#5ee1ff'; octx.fillStyle='#5dffa8';
+  for(const [a,b] of CONN){
+    if((lm[a].visibility??1)<0.4||(lm[b].visibility??1)<0.4) continue;
+    octx.beginPath(); octx.moveTo(lm[a].x*ov.width,lm[a].y*ov.height); octx.lineTo(lm[b].x*ov.width,lm[b].y*ov.height); octx.stroke();
+  }
+  for(const i of [0,11,12,23,24]){ octx.beginPath(); octx.arc(lm[i].x*ov.width,lm[i].y*ov.height,4,0,7); octx.fill(); }
+}
+
+// 몸통(어깨중점→엉덩이중점) 기울기 계산. 0°=서 있음, 90°=누움
+export function torsoAngle(lm,w,h){
+  const sx=(lm[11].x+lm[12].x)/2, sy=(lm[11].y+lm[12].y)/2;
+  const hx=(lm[23].x+lm[24].x)/2, hy=(lm[23].y+lm[24].y)/2;
+  return Math.atan2(Math.abs(sx-hx)*w, Math.abs(sy-hy)*h)*180/Math.PI;
+}
+function fallCheck(now,lm){
+  const ok=[11,12,23,24].every(i=>(lm[i].visibility??1)>0.4);
+  if(!ok){ fallStart=0; lastAngle=null; return; }
+  lastAngle=torsoAngle(lm,video.videoWidth,video.videoHeight);
+  if(lastAngle>FALL_ANGLE){
+    if(!fallStart) fallStart=now;
+    else if(now-fallStart>FALL_HOLD_MS && now-lastFall>120000 && !busy){
+      lastFall=now; fallStart=0; log(`쓰러짐 의심 (기울기 ${lastAngle.toFixed(0)}°)`,'warn'); onFall();
+    }
+  }else fallStart=0;
+}
+
+/* ============ 메인 루프 ============ */
+function updatePresence(now,present){
+  if(present){
+    if(!personPresent){
+      const absent=now-lastSeen; personPresent=true; log('사람 감지됨','info'); onArrive(absent,now);
+    }
+    lastSeen=now;
+  }else if(personPresent && now-lastSeen>3000){
+    personPresent=false; log('사람이 시야에서 사라짐','info');
+  }
+}
+async function onArrive(absent,now){
+  if(S.away && now-lastIntrusion>60000){
+    lastIntrusion=now; log('외출 모드 중 사람 감지','warn');
+    const blob=await snapshot();
+    await tgSend('👤 외출 모드 중 사람 감지 (얼굴인식은 2차 구현 예정)\n'+new Date().toLocaleString('ko-KR'), blob);
+    return;
+  }
+  if(S.greet && !busy && !S.away && absent>ABSENT_GREET_MS && now-lastGreet>60000){
+    lastGreet=now;
+    const h=new Date().getHours();
+    const g=h<11?'좋은 아침이에요':h<18?'안녕하세요':'안녕하세요, 오늘 하루 수고 많으셨어요';
+    dialog(`${g}! 오늘 기분은 어떠세요?`,{pre:'happy'});
+  }
+}
+
+function tick(){
+  raf=requestAnimationFrame(tick);
+  const now=performance.now();
+  if(now-lastDet<110||video.readyState<2) return;
+  lastDet=now;
+
+  if(motionEnergy()>MOTION_THR) lastActivity=now;
+
+  let lm=null, present=false;
+  if(pose){ try{ const r=pose.detectForVideo(video,now); lm=r.landmarks&&r.landmarks[0]||null; }catch{} }
+  if(lm){
+    const v=[11,12,23,24].map(i=>lm[i].visibility??1);
+    present=v.reduce((a,b)=>a+b,0)/4>0.5 || (lm[0].visibility??1)>0.6;
+  }
+  drawPose(present?lm:null);
+  updatePresence(now,present);
+
+  if(present){
+    const gx=Math.max(-1,Math.min(1,(0.5-lm[0].x)*2)), gy=Math.max(-1,Math.min(1,(lm[0].y-0.4)*2));
+    $('#gaze').style.transform=`translate(${(gx*14).toFixed(1)}px,${(gy*8).toFixed(1)}px)`;
+    if(S.fall) fallCheck(now,lm);
+  }else{ fallStart=0; $('#gaze').style.transform='translate(0,0)'; }
+
+  // 칩 표시
+  chip('#chipPerson', personPresent?'사람 있음':'사람 없음', personPresent?'on':'');
+  const idleSec=Math.floor((now-lastActivity)/1000);
+  chip('#chipIdle', `무동작 ${Math.floor(idleSec/60)}:${String(idleSec%60).padStart(2,'0')}`, idleSec>S.idleLimit*0.8?'warn':'');
+  $('#angleInfo').textContent='몸 기울기: '+(lastAngle==null?'-':lastAngle.toFixed(0)+'°')+` / 기준 ${FALL_ANGLE}°`;
+
+  // 라이프센싱(무동작)
+  if(!S.away && !busy && !alertActive && now-lastActivity>S.idleLimit*1000){
+    lastActivity=now; log(`${Math.round(S.idleLimit/60)}분 이상 움직임 없음`,'warn'); onNoMotion();
+  }
+  // 먼저 말걸기(안부)
+  if(S.greet && !S.away && personPresent && !busy && !alertActive && now-lastInteract>300000 && now-lastGreet>300000){
+    lastGreet=now; dialog('잠깐 쉬어가실래요? 오늘 컨디션은 어떠세요?');
+  }
+  checkSound(now);
+}
+
+/* ============ 시작/정지 ============ */
+async function lockScreen(){ try{ wl=await navigator.wakeLock.request('screen'); }catch{} }
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&running) lockScreen(); });
+
+async function start(){
+  if(running) return;
+  const b=$('#btnStart'); b.disabled=true; $('#say').textContent='카메라를 켜는 중…';
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:S.camFacing,width:{ideal:640},height:{ideal:480}},audio:false});
+  }catch(e){
+    log('카메라 실패: '+e.message+' (HTTPS 주소인지, 권한을 허용했는지 확인)','bad');
+    $('#say').textContent='카메라를 켤 수 없어요. 권한과 HTTPS 주소를 확인해 주세요.'; b.disabled=false; return;
+  }
+  video.srcObject=stream; await video.play().catch(()=>{});
+  if(!video.videoWidth) await new Promise(r=>video.addEventListener('loadedmetadata',r,{once:true}));
+  ov.width=video.videoWidth; ov.height=video.videoHeight;
+  cam.style.setProperty('--ar',`${video.videoWidth}/${video.videoHeight}`);
+  cam.classList.toggle('mirror',S.camFacing==='user');
+
+  if(!pose){
+    $('#say').textContent='사람 인식 모델을 불러오는 중…';
+    try{ await initPose(); }catch(e){ log('포즈 모델 로드 실패: '+e.message+' → 움직임 감지만 동작','bad'); }
+  }
+  running=true; const now=performance.now();
+  lastActivity=now; lastInteract=now; lastSeen=-1e9; personPresent=false; prevG=null;
+  chip('#chipCam','카메라 ON','on');
+  b.textContent='■ 정지'; b.disabled=false;
+  lockScreen(); startAudio();
+  if(!SR) log('이 브라우저는 음성인식을 지원하지 않습니다 (안드로이드 Chrome 권장)','warn');
+  tick();
+  await speak('홈봇을 시작합니다.');
+  setFace('idle');
+}
+function stop(){
+  running=false; cancelAnimationFrame(raf);
+  try{ speechSynthesis.cancel(); }catch{}
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  video.srcObject=null; stopAudio(); octx.clearRect(0,0,ov.width,ov.height);
+  try{ wl&&wl.release(); }catch{}
+  busy=false; speaking=false; personPresent=false;
+  chip('#chipCam','카메라 꺼짐',''); chip('#chipPerson','사람 없음','');
+  setFace('sleepy'); $('#btnStart').textContent='▶ 시작'; $('#say').textContent='정지됨';
+}
+
+/* ============ 이벤트 연결 ============ */
+$('#btnStart').onclick=()=>running?stop():start();
+$('#btnMode').onclick=()=>{
+  const m=document.body.classList.contains('mode-robot');
+  document.body.classList.toggle('mode-robot',!m); document.body.classList.toggle('mode-monitor',m);
+  $('#btnMode').textContent=m?'🤖 로봇':'👁 모니터';
+};
+$('#robot').onclick=()=>{ if(running&&!busy) dialog('네, 말씀하세요.'); };
+
+/* ---- 권한 ---- */
+function setP(id,txt,cls){ const e=$(id); e.textContent=txt; e.className='pst '+(cls||''); }
+const PMAP={granted:['허용됨','ok'],denied:['거부됨','no'],prompt:['미요청','ask']};
+async function queryPerm(name,id){
+  try{
+    const st=await navigator.permissions.query({name});
+    const [t,c]=PMAP[st.state]||[st.state,''];
+    setP(id,t,c);
+    st.onchange=refreshPerms;
+  }catch{ setP(id,'확인 불가 (요청 버튼으로 시도)','ask'); }
+}
+async function refreshPerms(){
+  await queryPerm('camera','#pCam'); await queryPerm('microphone','#pMic');
+  setP('#pSr', SR?'지원':'미지원 (안드로이드 Chrome 권장)', SR?'ok':'no');
+  setP('#pTts', 'speechSynthesis' in window?'지원':'미지원', 'speechSynthesis' in window?'ok':'no');
+  setP('#pWl', 'wakeLock' in navigator?'지원':'미지원', 'wakeLock' in navigator?'ok':'ask');
+  if(!window.isSecureContext) setP('#pCam','HTTPS 필요','no');
+}
+async function requestMedia(kind){
+  if(!navigator.mediaDevices){ log('이 환경에서는 카메라/마이크를 쓸 수 없습니다 (HTTPS 필요)','bad'); return false; }
+  try{
+    const s=await navigator.mediaDevices.getUserMedia(kind==='cam'?{video:true}:{audio:true});
+    s.getTracks().forEach(t=>t.stop());
+    log((kind==='cam'?'카메라':'마이크')+' 권한 허용됨','info'); return true;
+  }catch(e){
+    log((kind==='cam'?'카메라':'마이크')+' 권한 요청 실패: '+e.name+' — 브라우저 사이트 설정에서 직접 허용 필요할 수 있음','warn'); return false;
+  }finally{ refreshPerms(); }
+}
+$('#rCam').onclick=()=>requestMedia('cam');
+$('#rMic').onclick=()=>requestMedia('mic');
+$('#rAll').onclick=async()=>{ await requestMedia('cam'); await requestMedia('mic'); };
+
+const sheet=$('#sheet');
+function openSheet(){
+  refreshPerms();
+  $('#sApiKey').value=S.apiKey; $('#sModel').value=S.model; $('#sTgToken').value=S.tgToken; $('#sTgChat').value=S.tgChat;
+  $('#sIdle').value=String(S.idleLimit); $('#sCam').value=S.camFacing;
+  $('#sGreet').checked=S.greet; $('#sFall').checked=S.fall; $('#sSound').checked=S.sound; $('#sAway').checked=S.away;
+  $('#sNotes').value=notes.join('\n'); sheet.hidden=false;
+}
+$('#btnSet').onclick=openSheet;
+$('#sCancel').onclick=()=>sheet.hidden=true;
+$('#sSave').onclick=()=>{
+  Object.assign(S,{
+    apiKey:$('#sApiKey').value.trim(), model:$('#sModel').value.trim()||'claude-haiku-5-5',
+    tgToken:$('#sTgToken').value.trim(), tgChat:$('#sTgChat').value.trim(),
+    idleLimit:Number($('#sIdle').value), camFacing:$('#sCam').value,
+    greet:$('#sGreet').checked, fall:$('#sFall').checked, sound:$('#sSound').checked, away:$('#sAway').checked
+  });
+  notes=$('#sNotes').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  store('homebot.settings',S); store('homebot.notes',notes);
+  if(running){ S.sound?startAudio():stopAudio(); }
+  sheet.hidden=true; log('설정 저장됨','info');
+};
+$('#tTalk').onclick=()=>{ sheet.hidden=true; dialog('테스트입니다. 하고 싶은 말을 해 보세요.'); };
+$('#tFall').onclick=()=>{ sheet.hidden=true; if(!running){ log('먼저 ▶ 시작을 누르세요','warn'); return; } onFall(); };
+$('#tAlert').onclick=async()=>{ sheet.hidden=true; if(!running){ log('먼저 ▶ 시작을 누르세요','warn'); return; } await raiseAlert('테스트 알림'); };
+
+setFace('sleepy');
+log('홈봇 프로토타입 v0.1 준비됨','info');
+</script>
+</body>
+</html>

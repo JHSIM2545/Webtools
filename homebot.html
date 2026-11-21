@@ -22,45 +22,67 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:
 #cam video,#cam canvas{position:absolute;inset:0;width:100%;height:100%}
 #cam.mirror video,#cam.mirror canvas{transform:scaleX(-1)}
 #robot{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:10px}
-#face{width:min(92vw,62dvh);height:auto;--c:var(--eye)}
-#face .eye ellipse{fill:var(--c);filter:drop-shadow(0 0 8px var(--c))}
-#face .eye{transform-box:fill-box;transform-origin:center;transition:transform .25s}
-#face .eye ellipse{transform-box:fill-box;transform-origin:center;animation:blink 5s infinite}
-#face .m{display:none;fill:none;stroke:var(--c);stroke-width:7;stroke-linecap:round}
-#face .m-o,#face .m-talk{fill:var(--c);stroke:none}
-#gaze{transition:transform .2s}
+#face{width:min(92vw,62dvh);height:auto;--c:var(--eye);--lip:#d9808f;--brow:#8fa6b6;--lu:.1;--ll:.04;--bt:0px;--br:0deg;--pup:1;overflow:visible}
+#fb{animation:breathe 5s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.8px)}}
+.eyeball{filter:drop-shadow(0 0 6px var(--c))}
+.sclera{fill:url(#gSclera)}
+.iris{fill:url(#gIris)}
+.glow{fill:url(#gGlow)}
+.fiber{fill:none;stroke:#fff;stroke-opacity:.15;stroke-width:6;stroke-dasharray:1.5 3}
+.limbus{fill:none;stroke:#04090d;stroke-opacity:.85;stroke-width:2.8}
+.pupil{fill:#020508;transform-box:fill-box;transform-origin:center;transform:scale(var(--pup));transition:transform .3s}
+.hl{fill:#fff}
+.shade{fill:url(#gShade)}
+.lid{fill:var(--bg);stroke:#02060a;stroke-width:2.4;transform-box:fill-box;transition:transform .28s ease}
+.lid.up{transform-origin:50% 0;transform:scaleY(var(--lu))}
+.lid.lo{transform-origin:50% 100%;transform:scaleY(var(--ll))}
+.lid.bk{transform-origin:50% 0;transform:scaleY(0);animation:blink 5.5s infinite}
+@keyframes blink{0%,93%,100%{transform:scaleY(0)}96%{transform:scaleY(1)}}
+.crease{fill:none;stroke:var(--brow);stroke-opacity:.33;stroke-width:2.2;stroke-linecap:round}
+.pz{transition:transform .35s ease}
+.gz{transition:transform .18s ease-out}
+.brow{fill:none;stroke:var(--brow);stroke-width:6.5;stroke-linecap:round;transform-box:fill-box;transform-origin:50% 50%;transition:transform .3s ease}
+.brow.l{transform:translateY(var(--bt)) rotate(var(--br))}
+.brow.r{transform:translateY(var(--bt)) rotate(calc(var(--br) * -1))}
+.m{display:none;fill:none;stroke:var(--lip);stroke-width:5.5;stroke-linecap:round;stroke-linejoin:round}
+.m-o,.m-talk,.m-big{fill:#2b0f17}
+.teeth{display:none;fill:#f3efe9}
+.cheek{fill:url(#gCheek);opacity:0;transition:opacity .4s}
+#face .m-talk{transform-box:fill-box;transform-origin:center;animation:talk .28s infinite}
 .dots{display:none;fill:var(--c)}
-@keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
 @keyframes talk{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}
 @keyframes dot{0%,100%{opacity:.2}50%{opacity:1}}
-#face .m-talk{transform-box:fill-box;transform-origin:center;animation:talk .28s infinite}
 #face[data-state=idle] .m-smile{display:block}
-#face[data-state=listening]{--c:var(--ok)}
-#face[data-state=listening] .eye{transform:scale(1.1)}
+#face[data-state=listening]{--c:var(--ok);--lu:0;--ll:0;--bt:-5px;--br:-5deg;--pup:1.3}
 #face[data-state=listening] .m-o{display:block}
+#face[data-state=thinking]{--lu:.3;--ll:.05;--pup:.95}
+#face[data-state=thinking] .brow.l{--bt:1px;--br:6deg}
+#face[data-state=thinking] .brow.r{--bt:-9px;--br:-8deg}
+#face[data-state=thinking] .pz{transform:translate(8px,-5px)}
 #face[data-state=thinking] .m-flat{display:block}
-#face[data-state=thinking] .eye{transform:translate(8px,-8px)}
 #face[data-state=thinking] .dots{display:block}
 #face[data-state=thinking] .dots circle{animation:dot 1s infinite}
 #face[data-state=thinking] .dots circle:nth-child(2){animation-delay:.2s}
 #face[data-state=thinking] .dots circle:nth-child(3){animation-delay:.4s}
+#face[data-state=speaking]{--lu:.08;--bt:-1px}
 #face[data-state=speaking] .m-talk{display:block}
-#face[data-state=happy] .eye{transform:scaleY(.4) translateY(-6px)}
-#face[data-state=happy] .eye ellipse{animation:none}
-#face[data-state=happy] .m-smile{display:block}
-#face[data-state=alert]{--c:var(--bad)}
-#face[data-state=alert] .eye{transform:scale(1.2)}
-#face[data-state=alert] .m-flat{display:block}
-#face[data-state=sleepy]{--c:#3a5566}
-#face[data-state=sleepy] .eye{transform:scaleY(.15)}
-#face[data-state=sleepy] .eye ellipse{animation:none}
+#face[data-state=happy]{--lu:.12;--ll:.38;--bt:-6px;--br:-7deg;--pup:1.15}
+#face[data-state=happy] .m-big,#face[data-state=happy] .teeth{display:block}
+#face[data-state=happy] .cheek{opacity:.5}
+#face[data-state=alert]{--c:var(--bad);--lip:#ee7070;--lu:.24;--ll:0;--bt:3px;--br:15deg;--pup:.7}
+#face[data-state=alert] .m-frown{display:block}
+#face[data-state=sleepy]{--c:#3a5566;--lip:#7d5560;--lu:1;--ll:1;--bt:5px;--br:-6deg}
 #face[data-state=sleepy] .m-flat{display:block}
-#face[data-state=standby]{--c:#4f9fc0}
-#face[data-state=standby] .eye{transform:scaleY(.66)}
-#face[data-state=standby] .eye ellipse{animation:blinkSlow 7s infinite}
-#face[data-state=standby] .m-flat{display:block;opacity:.55}
-#face[data-state=standby] #gaze{transition:transform .7s cubic-bezier(.45,0,.25,1)}
+#face[data-state=standby]{--c:#4f9fc0;--lip:#9a6572;--lu:.42;--ll:.1;--bt:3px;--br:3deg}
+#face[data-state=standby][data-watch="1"]{--lu:.14;--bt:-1px}
+#face[data-state=standby] .m-flat{display:block}
+#face[data-state=standby] .gz{transition:transform .5s cubic-bezier(.45,0,.25,1)}
+#face[data-state=standby] .lid.bk{animation-duration:8s}
 #face[data-state=standby]~#say,#face[data-state=standby]~#stateLabel{opacity:.55}
+#face[data-state=wake]{--c:var(--ok);--lu:0;--ll:0;--bt:-9px;--br:-4deg;--pup:1.3}
+#face[data-state=wake] .m-o{display:block}
+#stateLabel{opacity:.55}
 #face[data-state=wake]{--c:var(--ok)}
 #face[data-state=wake] .eye{transform:scale(1.25)}
 #face[data-state=wake] .m-o{display:block}
@@ -124,15 +146,27 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
     <div id="cam"><video id="video" playsinline muted autoplay></video><canvas id="ov"></canvas></div>
     <section id="robot">
       <svg id="face" viewBox="0 0 240 180" data-state="sleepy" aria-label="홈봇 얼굴">
-        <g id="gaze">
-          <g class="eye"><ellipse cx="75" cy="70" rx="24" ry="30"/></g>
-          <g class="eye"><ellipse cx="165" cy="70" rx="24" ry="30"/></g>
+        <defs>
+          <radialGradient id="gSclera" cx="50%" cy="45%" r="62%"><stop offset="0" stop-color="#ffffff"/><stop offset=".72" stop-color="#e2e9ef"/><stop offset="1" stop-color="#9db0c0"/></radialGradient>
+          <radialGradient id="gIris" cx="50%" cy="50%" r="50%"><stop offset="0" style="stop-color:var(--c)"/><stop offset=".62" style="stop-color:var(--c)"/><stop offset="1" stop-color="#000" stop-opacity=".7"/></radialGradient>
+          <radialGradient id="gGlow" cx="50%" cy="66%" r="55%"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+          <radialGradient id="gCheek"><stop offset="0" stop-color="#ff8fa3" stop-opacity=".85"/><stop offset="1" stop-color="#ff8fa3" stop-opacity="0"/></radialGradient>
+          <linearGradient id="gShade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".6"/><stop offset=".5" stop-color="#000" stop-opacity="0"/></linearGradient>
+        </defs>
+        <g id="fb">
+          <ellipse class="cheek" cx="44" cy="128" rx="19" ry="10"/><ellipse class="cheek" cx="196" cy="128" rx="19" ry="10"/>
+          <path class="crease" d="M42 76 Q74 22 106 76"/><path class="crease" d="M134 76 Q166 22 198 76"/>
+          <path class="brow l" d="M44 40 Q72 26 104 36"/><path class="brow r" d="M136 36 Q168 26 196 40"/>
+          <g id="eyes"></g>
+          <path class="m m-smile" d="M92 134 Q120 150 148 134"/>
+          <path class="m m-flat" d="M100 141 Q120 144 140 141"/>
+          <path class="m m-frown" d="M94 149 Q120 132 146 149"/>
+          <ellipse class="m m-o" cx="120" cy="141" rx="9" ry="11"/>
+          <ellipse class="m m-talk" cx="120" cy="141" rx="18" ry="13"/>
+          <path class="m m-big" d="M86 130 Q120 138 154 130 Q148 162 120 162 Q92 162 86 130 Z"/>
+          <path class="teeth" d="M90 132 Q120 139 150 132 L148 141 Q120 148 92 141 Z"/>
+          <g class="dots"><circle cx="105" cy="10" r="5"/><circle cx="120" cy="10" r="5"/><circle cx="135" cy="10" r="5"/></g>
         </g>
-        <path class="m m-smile" d="M88 128 Q120 156 152 128"/>
-        <path class="m m-flat" d="M98 138 L142 138"/>
-        <ellipse class="m m-o" cx="120" cy="138" rx="9" ry="11"/>
-        <ellipse class="m m-talk" cx="120" cy="138" rx="20" ry="14"/>
-        <g class="dots"><circle cx="105" cy="20" r="5"/><circle cx="120" cy="20" r="5"/><circle cx="135" cy="20" r="5"/></g>
       </svg>
       <div id="stateLabel">정지</div>
       <div id="say">▶ 시작을 눌러 주세요. 얼굴을 터치하면 대화를 시작해요.</div>
@@ -263,6 +297,32 @@ const ABSENT_GREET_MS = 20000;
 
 const video = $('#video'), cam = $('#cam'), ov = $('#ov'), octx = ov.getContext('2d');
 const face = $('#face');
+/* ---- 눈 생성(공막·홍채·동공·하이라이트·눈꺼풀) ---- */
+let gzEls=[];
+(function buildEyes(){
+  const mk=(cx,cy,k)=>`<g class="eyeball">
+    <clipPath id="clip${k}"><ellipse cx="${cx}" cy="${cy}" rx="30" ry="27"/></clipPath>
+    <ellipse class="sclera" cx="${cx}" cy="${cy}" rx="30" ry="27"/>
+    <g clip-path="url(#clip${k})">
+      <g class="pz"><g class="gz">
+        <circle class="iris" cx="${cx}" cy="${cy}" r="17"/>
+        <circle class="fiber" cx="${cx}" cy="${cy}" r="11.5"/>
+        <circle class="glow" cx="${cx}" cy="${cy}" r="17"/>
+        <circle class="limbus" cx="${cx}" cy="${cy}" r="17"/>
+        <circle class="pupil" cx="${cx}" cy="${cy}" r="7.5"/>
+        <circle class="hl" cx="${cx-6}" cy="${cy-7}" r="4.6" fill-opacity=".95"/>
+        <circle class="hl" cx="${cx+6}" cy="${cy+6}" r="2" fill-opacity=".55"/>
+      </g></g>
+      <rect class="shade" x="${cx-31}" y="${cy-28}" width="62" height="56"/>
+      <path class="lid up" d="M${cx-36} ${cy-34} H${cx+36} V${cy+4} Q${cx} ${cy+16} ${cx-36} ${cy+4} Z"/>
+      <path class="lid lo" d="M${cx-36} ${cy+34} H${cx+36} V${cy-2} Q${cx} ${cy-12} ${cx-36} ${cy-2} Z"/>
+      <path class="lid bk" d="M${cx-36} ${cy-34} H${cx+36} V${cy+24} Q${cx} ${cy+34} ${cx-36} ${cy+24} Z"/>
+    </g></g>`;
+  $('#eyes').innerHTML=mk(74,84,'L')+mk(166,84,'R');
+  gzEls=[...document.querySelectorAll('#face .gz')];
+})();
+// 시선: x,y는 -1~1 (오른쪽/아래가 +)
+const gz=(x,y)=>{ const t=`translate(${(x*11).toFixed(1)}px,${(y*7).toFixed(1)}px)`; gzEls.forEach(e=>e.style.transform=t); };
 const LABEL = {idle:'대기',listening:'듣는 중',thinking:'생각 중',speaking:'말하는 중',alert:'경고',sleepy:'정지',happy:'반가워요',standby:'대기 모드 · 감시 중',wake:'깨어남'};
 
 let running=false, busy=false, speaking=false, alertActive=false;
@@ -286,13 +346,13 @@ function log(msg, lvl='info'){
 }
 /* ---- 대기 모드: 일정 시간 대화가 없으면 눈을 두리번거리며 감시, 애칭을 부르면 깨어남 ---- */
 let standby=false, scanT=0, scanIdx=-1;
-const SCAN=[[-26,0],[26,0],[-22,-12],[22,-12],[0,-14],[-18,10],[18,10],[0,0],[-26,-4],[26,-4]];
-const gz=(x,y)=>{ $('#gaze').style.transform=`translate(${x}px,${y}px)`; };
+const SCAN=[[-1,0],[1,0],[-.85,-.9],[.85,-.9],[0,-1],[-.7,.7],[.7,.7],[0,0],[-1,-.3],[1,-.3]];
 function scanStep(){
   if(!standby) return;
+  if(personPresent){ scanT=setTimeout(scanStep,500); return; }   // 사람이 있으면 두리번 대신 사람을 쳐다봄(tick에서 시선 처리)
   if(Math.random()<.25){            // 가끔 좌→우로 천천히 훑어보기
-    gz(-26,0);
-    scanT=setTimeout(()=>{ if(!standby) return; gz(26,0); scanT=setTimeout(scanStep,1700); },1300);
+    gz(-1,0);
+    scanT=setTimeout(()=>{ if(!standby) return; gz(1,0); scanT=setTimeout(scanStep,1700); },1300);
     return;
   }
   let i; do{ i=Math.floor(Math.random()*SCAN.length); }while(i===scanIdx);
@@ -805,12 +865,11 @@ function tick(){
   faceStep(now,present); resolvePending(now); updateFaceChip(now);
 
   if(present){
-    if(!standby){
-      const gx=Math.max(-1,Math.min(1,(0.5-lm[0].x)*2)), gy=Math.max(-1,Math.min(1,(lm[0].y-0.4)*2));
-      gz((gx*14).toFixed(1),(gy*8).toFixed(1));
-    }
+    const gx=Math.max(-1,Math.min(1,(0.5-lm[0].x)*2.4)), gy=Math.max(-1,Math.min(1,(lm[0].y-0.4)*3));
+    gz(gx,gy);                                   // 대기 모드에서도 사람을 쳐다봄
     if(S.fall) fallCheck(now,lm);
   }else{ fallStart=0; if(!standby) gz(0,0); }
+  face.dataset.watch=(standby&&personPresent)?'1':'0';
 
   // 대기 모드 진입: 일정 시간 대화·상호작용이 없을 때
   if(S.standbySec>0 && !standby && !busy && !speaking && !alertActive && !registering && now-lastInteract>S.standbySec*1000) enterStandby();
@@ -833,7 +892,32 @@ function tick(){
 }
 
 /* ============ 시작/정지 ============ */
-async function lockScreen(){ try{ wl=await navigator.wakeLock.request('screen'); }catch{} }
+/* 화면 켜짐 유지: Wake Lock(해제되면 자동 재요청) + 미지원/실패 시 보이지 않는 영상 재생으로 대체 */
+let nsVideo=null, nsTimer=0;
+function startNoSleep(){
+  if(nsVideo) return;
+  try{
+    const c=document.createElement('canvas'); c.width=c.height=16; const x=c.getContext('2d');
+    nsTimer=setInterval(()=>{ x.fillStyle=`rgb(${Math.random()*255|0},0,0)`; x.fillRect(0,0,16,16); },1000);
+    nsVideo=document.createElement('video'); nsVideo.muted=true; nsVideo.setAttribute('playsinline',''); nsVideo.srcObject=c.captureStream(2);
+    nsVideo.style.cssText='position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.02;pointer-events:none';
+    document.body.appendChild(nsVideo); nsVideo.play().catch(()=>{});
+  }catch(e){ log('화면 유지 대체 방식 실패: '+e.message,'warn'); }
+}
+function stopNoSleep(){ clearInterval(nsTimer); if(nsVideo){ try{ nsVideo.pause(); nsVideo.srcObject=null; nsVideo.remove(); }catch{} nsVideo=null; } }
+async function lockScreen(){
+  if(!running||document.hidden) return;
+  if(wl&&!wl.released) return;
+  let ok=false;
+  if('wakeLock' in navigator){
+    try{
+      wl=await navigator.wakeLock.request('screen'); ok=true;
+      wl.addEventListener('release',()=>{ wl=null; if(running&&!document.hidden) setTimeout(lockScreen,400); });
+    }catch(e){ log('화면 유지(WakeLock) 실패: '+e.message+' → 대체 방식 사용','warn'); }
+  }
+  if(!ok) startNoSleep(); else stopNoSleep();
+  setP('#pWl', ok?'유지 중':(nsVideo?'대체 방식 사용':'실패'), ok?'ok':'ask');
+}
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&running) lockScreen(); });
 
 async function start(){
@@ -871,7 +955,7 @@ function stop(){
   try{ speechSynthesis.cancel(); }catch{}
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
   video.srcObject=null; stopAudio(); octx.clearRect(0,0,ov.width,ov.height);
-  try{ wl&&wl.release(); }catch{}
+  try{ wl&&wl.release(); }catch{} wl=null; stopNoSleep();
   busy=false; speaking=false; personPresent=false; curWho=null; unknownStreak=0; pendingGreet=null; pendingIntrusion=null;
   chip('#chipCam','카메라 꺼짐',''); chip('#chipPerson','사람 없음','');
   setFace('sleepy'); $('#btnStart').textContent='▶ 시작'; $('#say').textContent='정지됨';
@@ -901,7 +985,7 @@ async function refreshPerms(){
   await queryPerm('camera','#pCam'); await queryPerm('microphone','#pMic');
   setP('#pSr', SR?'지원':'미지원 (안드로이드 Chrome 권장)', SR?'ok':'no');
   setP('#pTts', 'speechSynthesis' in window?'지원':'미지원', 'speechSynthesis' in window?'ok':'no');
-  setP('#pWl', 'wakeLock' in navigator?'지원':'미지원', 'wakeLock' in navigator?'ok':'ask');
+  if(!(wl&&!wl.released)&&!nsVideo) setP('#pWl', 'wakeLock' in navigator?'지원 (시작하면 유지)':'미지원 (대체 방식 사용)', 'wakeLock' in navigator?'ok':'ask');
   if(!window.isSecureContext) setP('#pCam','HTTPS 필요','no');
 }
 async function requestMedia(kind){

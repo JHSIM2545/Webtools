@@ -3,7 +3,10 @@ package kr.simtools.homebot;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.provider.Settings;
+import android.webkit.JavascriptInterface;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
@@ -32,6 +35,7 @@ public class MainActivity extends Activity {
 
     private WebView web;
     private SttBridge stt;
+    private TtsBridge tts;
     private PermissionRequest pendingMedia;
     private boolean usedLocal = false;
 
@@ -56,6 +60,9 @@ public class MainActivity extends Activity {
 
         stt = new SttBridge(this, web);
         web.addJavascriptInterface(stt, "SimStt");
+        tts = new TtsBridge(this, web);
+        web.addJavascriptInterface(tts, "SimTts");
+        web.addJavascriptInterface(new PermBridge(), "SimPerm");
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -117,11 +124,15 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
         super.onRequestPermissionsResult(code, perms, res);
         if (code != REQ_PERM) return;
+        SharedPreferences.Editor ed = getSharedPreferences("perm", MODE_PRIVATE).edit();
+        for (String p : perms) ed.putBoolean(p, true);
+        ed.apply();
         if (pendingMedia != null) {
             PermissionRequest r = pendingMedia;
             pendingMedia = null;
             if (missing().isEmpty()) r.grant(r.getResources()); else r.deny();
         }
+        notifyPerm();
         if (!missing().isEmpty()) Toast.makeText(this, "카메라·마이크 권한이 있어야 홈봇이 보고 들을 수 있어요 (설정 > 앱 > 홈봇 > 권한)", Toast.LENGTH_LONG).show();
     }
 
@@ -131,6 +142,47 @@ public class MainActivity extends Activity {
             NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
             return nc != null && nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
         } catch (Exception e) { return true; }
+    }
+
+    private void notifyPerm() {
+        web.post(new Runnable() { @Override public void run() { web.evaluateJavascript("window.__simPerm&&window.__simPerm()", null); } });
+    }
+
+    /** 홈봇 화면이 권한 상태를 보고 다시 요청할 수 있게 하는 창구 */
+    final class PermBridge {
+        @JavascriptInterface
+        public String perms() {
+            boolean c = checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+            boolean m = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+            return "{\"camera\":" + c + ",\"mic\":" + m + "}";
+        }
+
+        @JavascriptInterface
+        public void request() {
+            runOnUiThread(new Runnable() {
+                @Override public void run() {
+                    List<String> need = missing();
+                    if (need.isEmpty()) { notifyPerm(); return; }
+                    SharedPreferences sp = getSharedPreferences("perm", MODE_PRIVATE);
+                    boolean blocked = false;      // 이미 한 번 거절했고 시스템이 더는 묻지 않는 상태
+                    for (String p : need) if (sp.getBoolean(p, false) && !shouldShowRequestPermissionRationale(p)) blocked = true;
+                    if (blocked) {
+                        Toast.makeText(MainActivity.this, "설정 > 권한에서 카메라·마이크를 허용해 주세요", Toast.LENGTH_LONG).show();
+                        Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()));
+                        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(i);
+                    } else {
+                        requestPermissions(need.toArray(new String[0]), REQ_PERM);
+                    }
+                }
+            });
+        }
+    }
+
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        notifyPerm();      // 설정 화면에서 돌아오면 권한 상태를 다시 표시
     }
 
     @Override
@@ -155,6 +207,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         if (stt != null) stt.destroy();
+        if (tts != null) tts.destroy();
         if (web != null) { web.removeJavascriptInterface("SimStt"); web.destroy(); }
         super.onDestroy();
     }

@@ -409,6 +409,28 @@ function say(text, who){
 function chip(id, text, cls){ const e=$(id); e.textContent=text; e.className='chip'+(cls?' '+cls:''); }
 
 /* ============ 음성 출력 (TTS) ============ */
+(function(){
+  if('speechSynthesis' in window||!window.SimTts) return;
+  const map=new Map(); let n=0;
+  window.__simTts=(id,ev)=>{
+    const u=map.get(id); if(!u) return;
+    if(ev==='start'){ u.onstart&&u.onstart({}); return; }
+    map.delete(id);
+    if(ev==='done') u.onend&&u.onend({}); else u.onerror&&u.onerror({error:ev==='stop'?'interrupted':'synthesis-failed'});
+  };
+  window.SpeechSynthesisUtterance=class{ constructor(t){ this.text=t; this.lang='ko-KR'; this.rate=1; this.pitch=1; this.volume=1; this.voice=null; } };
+  window.speechSynthesis={
+    speaking:false, pending:false, paused:false, onvoiceschanged:null,
+    getVoices(){ return [{name:'기기 음성',lang:'ko-KR',default:true}]; },
+    speak(u){
+      const id='u'+(++n); map.set(id,u); let ok=false;
+      try{ ok=SimTts.speak(u.text,id,u.rate||1,u.pitch||1,true); }catch{}
+      if(!ok){ map.delete(id); setTimeout(()=>u.onerror&&u.onerror({error:'synthesis-unavailable'}),0); }
+    },
+    cancel(){ try{ SimTts.stop(); }catch{} const m=[...map.values()]; map.clear(); m.forEach(u=>setTimeout(()=>u.onerror&&u.onerror({error:'canceled'}),0)); },
+    pause(){}, resume(){}
+  };
+})();
 let koVoice=null;
 function pickVoice(){ const v=speechSynthesis.getVoices(); koVoice=v.find(x=>/^ko[-_]KR/i.test(x.lang))||v.find(x=>x.lang&&x.lang.startsWith('ko'))||null; }
 if('speechSynthesis' in window){ speechSynthesis.onvoiceschanged=pickVoice; pickVoice(); }
@@ -1594,6 +1616,7 @@ async function start(){
   lockScreen(); startAudio();
   if(!SR) log('이 브라우저는 음성인식을 지원하지 않습니다 (안드로이드 Chrome 권장)','warn');
   tick(); startWake();
+  if(!hasLLM()){ log('AI 사용 번호가 없어 대화 AI에 연결할 수 없습니다 → 설정에서 번호를 입력하세요','warn'); openSheet(); setTimeout(()=>{ try{ $('#sPhone').scrollIntoView({block:'center'}); $('#sPhone').focus(); }catch{} },300); }
   await speak(S.nick?`준비됐어요. 호출어는 ${S.nick}입니다.`:'홈봇을 시작합니다.');
   setFace('idle');
 }
@@ -1629,9 +1652,13 @@ async function queryPerm(name,id){
   }catch{ setP(id,'확인 불가 (요청 버튼으로 시도)','ask'); }
 }
 async function refreshPerms(){
-  await queryPerm('camera','#pCam'); await queryPerm('microphone','#pMic');
+  if(window.SimPerm){
+    try{ const p=JSON.parse(SimPerm.perms()); setP('#pCam',p.camera?'허용됨':'거부됨 (요청 → 설정에서 허용)',p.camera?'ok':'no'); setP('#pMic',p.mic?'허용됨':'거부됨 (요청 → 설정에서 허용)',p.mic?'ok':'no'); }catch{ await queryPerm('camera','#pCam'); await queryPerm('microphone','#pMic'); }
+  }else{ await queryPerm('camera','#pCam'); await queryPerm('microphone','#pMic'); }
   setP('#pSr', SR?'지원':'미지원 (안드로이드 Chrome 권장)', SR?'ok':'no');
-  setP('#pTts', 'speechSynthesis' in window?'지원':'미지원', 'speechSynthesis' in window?'ok':'no');
+  { let ttsOk='speechSynthesis' in window, msg=ttsOk?'지원':'미지원';
+    if(window.SimTts){ try{ const st=SimTts.status(); if(st==='nolang'){ ttsOk=false; msg='한국어 음성 데이터 없음 (폰 설정 > 음성 출력에서 설치)'; } else if(st==='none'){ ttsOk=false; msg='기기 음성엔진 없음'; } else if(st==='init'){ msg='준비 중'; } }catch{} }
+    setP('#pTts',msg,ttsOk?'ok':'no'); }
   if(!(wl&&!wl.released)&&!nsVideo) setP('#pWl', 'wakeLock' in navigator?'지원 (시작하면 유지)':'미지원 (대체 방식 사용)', 'wakeLock' in navigator?'ok':'ask');
   if(!window.isSecureContext) setP('#pCam','HTTPS 필요','no');
 }
@@ -1645,14 +1672,16 @@ async function requestMedia(kind){
     log((kind==='cam'?'카메라':'마이크')+' 권한 요청 실패: '+e.name+' — 브라우저 사이트 설정에서 직접 허용 필요할 수 있음','warn'); return false;
   }finally{ refreshPerms(); }
 }
-$('#rCam').onclick=()=>requestMedia('cam');
-$('#rMic').onclick=()=>requestMedia('mic');
-$('#rAll').onclick=async()=>{ await requestMedia('cam'); await requestMedia('mic'); };
+window.__simPerm=()=>refreshPerms();
+const askNative=()=>{ try{ SimPerm.request(); }catch{} };      // 앱: 이미 허용이면 그대로, 막혀 있으면 앱 설정 화면을 열어 줌
+$('#rCam').onclick=()=>window.SimPerm?askNative():requestMedia('cam');
+$('#rMic').onclick=()=>window.SimPerm?askNative():requestMedia('mic');
+$('#rAll').onclick=async()=>{ if(window.SimPerm){ askNative(); return; } await requestMedia('cam'); await requestMedia('mic'); };
 
 const sheet=$('#sheet');
 function openSheet(){
   refreshPerms();
-  $('#sNick').value=S.nick||''; $('#sProv').value=S.provider; $('#sPhone').value=S.phone||''; { const ph=simPhone(); $('#phoneInfo').textContent=ph.length>=9?'사용 번호: '+ph.slice(0,3)+'-****-'+ph.slice(-4)+(S.phone?' (직접 입력)':' (런처에 등록된 번호)'):'등록된 번호가 없습니다.'; } $('#sGemKey').value=S.gemKey; $('#sGemModel').value=S.gemModel; $('#sEngine').value=S.engine; $('#sVision').value=S.vision; $('#sListen').value=S.listen; $('#sConv').value=S.convMode; $('#sBarge').checked=S.barge; $('#sGroqKey').value=S.groqKey; $('#sGroqModel').value=S.groqModel; $('#sTgToken').value=S.tgToken; $('#sTgChat').value=S.tgChat;
+  $('#sNick').value=S.nick||''; $('#sProv').value=S.provider; $('#sPhone').value=S.phone||''; { const ph=simPhone(); $('#phoneInfo').textContent=ph.length>=9?'사용 번호: '+ph.slice(0,3)+'-****-'+ph.slice(-4)+(S.phone?' (직접 입력)':' (런처에 등록된 번호)'):'⚠ 등록된 번호가 없습니다. SIM Tools 에 등록된 전화번호를 위 칸에 입력하고 저장하세요(이 번호로 AI 사용 권한을 확인합니다).'; } $('#sGemKey').value=S.gemKey; $('#sGemModel').value=S.gemModel; $('#sEngine').value=S.engine; $('#sVision').value=S.vision; $('#sListen').value=S.listen; $('#sConv').value=S.convMode; $('#sBarge').checked=S.barge; $('#sGroqKey').value=S.groqKey; $('#sGroqModel').value=S.groqModel; $('#sTgToken').value=S.tgToken; $('#sTgChat').value=S.tgChat;
   $('#sIdle').value=String(S.idleLimit); $('#sCam').value=S.camFacing; $('#sStandby').value=String(S.standbySec);
   $('#sGreet').checked=S.greet; $('#sFaceRec').checked=S.faceRec; $('#sFaceAlert').checked=S.faceAlert; $('#sFall').checked=S.fall; $('#sSound').checked=S.sound; $('#sAway').checked=S.away; $('#sMem').checked=S.mem;
   $('#sNotes').value=notes.join('\n'); sheet.hidden=false;

@@ -232,6 +232,9 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
     <select id="sProv"><option value="sim">SIM Tools AI (Supabase 서버에 등록된 키 · 권장)</option><option value="gemini">Gemini (키 직접 입력)</option><option value="groq">Groq (키 직접 입력)</option></select>
     <label>서버 AI 순서 (SIM Tools AI 선택 시)</label>
     <select id="sEngine"><option value="auto">자동: Gemini → 실패 시 Groq</option><option value="fast">빠른 응답: Groq → Gemini (영상 질문은 Gemini)</option><option value="gemini">Gemini만</option><option value="groq">Groq만</option></select>
+    <label>듣는 시간 (대화 이어가기)</label>
+    <select id="sListen"><option value="fast">짧게: 말 시작 10초 대기 · 0.85초 쉬면 종료</option><option value="normal">보통: 말 시작 20초 대기 · 1.2초 쉬면 종료</option><option value="long">길게: 말 시작 40초 대기 · 1.8초 쉬면 종료</option></select>
+    <div class="hint">로봇이 답한 뒤 이 시간 동안 다음 말을 기다립니다. 말이 길어지면 자동으로 더 들어요("그리고…", "~인데"처럼 이어질 듯한 말은 종료 판단을 2배 늦춥니다). 길게 할수록 자연스럽지만 답이 시작되는 시간은 조금 늦어집니다.</div>
     <label>영상 이해 (대화 중 카메라 장면 분석)</label>
     <select id="sVision"><option value="auto">필요할 때 (이거·표정·옷·문서 등을 말할 때)</option><option value="always">매번 영상 첨부 (느림·사용량 증가)</option><option value="off">끔</option></select>
     <div class="hint">영상이 필요한 말을 하면 말하는 동안 찍어 둔 카메라 사진을 AI(Gemini)에 함께 보내 표정·옷차림·동작·가리킨 물건·문서 글자를 보고 답합니다. 사진은 저장하지 않지만 AI 서버로 전송됩니다.</div>
@@ -308,7 +311,7 @@ const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } ca
 
 const S = Object.assign({
   tgToken:'', tgChat:'',
-  standbySec:60, mem:true, vision:'auto', idleLimit:60, away:false, greet:true, sound:false, fall:true, camFacing:'user', faceRec:true, faceAlert:true, provider:'sim', engine:'auto', nick:'', phone:'', gemKey:'', gemModel:'gemini-3.6-flash', groqKey:'', groqModel:'llama-3.3-70b-versatile'
+  standbySec:60, mem:true, vision:'auto', listen:'normal', idleLimit:60, away:false, greet:true, sound:false, fall:true, camFacing:'user', faceRec:true, faceAlert:true, provider:'sim', engine:'auto', nick:'', phone:'', gemKey:'', gemModel:'gemini-3.6-flash', groqKey:'', groqModel:'llama-3.3-70b-versatile'
 }, load('homebot.settings', {}));
 let notes = load('homebot.notes', []);
 if(!['sim','gemini','groq'].includes(S.provider)) S.provider='sim';   // 예전 설정(claude 등) 정리
@@ -442,31 +445,47 @@ const pickFrames=t=>{
   return MOTION_RE.test(t)?sh.slice(-3):sh.slice(-1);
 };
 
-/* ---- 음성 인식 1회: 말하는 동안 영상 캡처, 잠깐의 침묵이면 바로 종료(응답 시작 단축) ---- */
-const EP_MS=850;
-function listenOnce(ms=9000){
-  return new Promise(async res=>{
+/* ---- 음성 인식 1회: 말 시작을 넉넉히 기다리고, 말이 이어지면 계속 들음 ----
+   · 크롬은 무음 8초 안팎이면 인식 세션을 스스로 끝내므로, 기다릴 시간이 남아 있으면 자동으로 다시 시작
+   · 말하는 동안 카메라 프레임 캡처, 말이 잠깐 끊겨도(이어질 듯한 말은 2배) 기다렸다가 종료 */
+const LISTEN={fast:{wait:10000,ep:850,speech:20000},normal:{wait:20000,ep:1200,speech:40000},long:{wait:40000,ep:1800,speech:60000}};
+const OPEN_END=/(그리고|그런데|근데|그래서|하지만|인데|는데|니까|라서|해서|면서|지만|고|서|며|를|을|은|는|이|가|도|에|랑|와|과|로|의)$/, CLOSED_END=/[요다죠까네야.!?？]$/;
+function listenOnce(waitMs){
+  const L=LISTEN[S.listen]||LISTEN.normal, WAIT=waitMs||L.wait;
+  return new Promise(res=>{
     if(!SR){ log('이 브라우저는 음성인식을 지원하지 않습니다 (안드로이드 Chrome 권장)','warn'); res(null); return; }
     abortWake(); pauseAudio();          // 안드로이드 마이크 충돌 방지: 이상음 감시 일시 중지
-    const r=new SR(); r.lang='ko-KR'; r.interimResults=true; r.maxAlternatives=1; r.continuous=false;
-    let got=null, interim='', lastChange=0, ended=false;
-    lastShots=[];
+    lastShots=[]; setFace('listening');
+    const t0=performance.now();
+    let got=null, interim='', lastChange=0, ended=false, speechAt=0, r=null, rt=0;
     const fin=()=>{
-      if(ended) return; ended=true; clearTimeout(tm); clearInterval(ep); try{r.abort();}catch{} resumeAudio();
+      if(ended) return; ended=true; clearInterval(ck); clearTimeout(rt); try{ r&&r.abort(); }catch{} resumeAudio();
       if(!got&&interim.length>=2) got=interim;
       if(got){ lastListenEnd=performance.now(); shotNow(); say(got,'user'); }
       res(got);
     };
-    const tm=setTimeout(fin, ms);
-    const ep=setInterval(()=>{ if(!got&&interim&&performance.now()-lastChange>EP_MS){ got=interim; fin(); } },100);
-    r.onspeechstart=shotNow;
-    r.onresult=e=>{
-      const R=e.results[e.results.length-1], t=R[0].transcript.trim();
-      if(R.isFinal){ got=t; fin(); } else if(t!==interim){ interim=t; lastChange=performance.now(); }
+    const heard=()=>{ if(!speechAt) speechAt=performance.now(); };
+    const start=()=>{
+      if(ended) return;
+      r=new SR(); r.lang='ko-KR'; r.interimResults=true; r.maxAlternatives=1; r.continuous=false;
+      r.onspeechstart=()=>{ heard(); shotNow(); };
+      r.onresult=e=>{
+        heard(); const R=e.results[e.results.length-1], t=R[0].transcript.trim();
+        if(R.isFinal){ got=t; fin(); } else if(t!==interim){ interim=t; lastChange=performance.now(); }
+      };
+      r.onerror=e=>{ if(ended) return; const er=e&&e.error; if(er==='no-speech'||er==='aborted') return; fin(); };   // 무음 종료는 onend 에서 재시작
+      r.onend=()=>{ if(ended) return; if(got||interim) fin(); else rt=setTimeout(start,120); };
+      try{ r.start(); }catch{ rt=setTimeout(start,300); }
     };
-    r.onerror=fin; r.onend=fin;
-    setFace('listening');
-    try{ r.start(); }catch{ fin(); }
+    const ck=setInterval(()=>{
+      const now=performance.now();
+      if(!got&&interim){
+        const ep=(OPEN_END.test(interim)&&!CLOSED_END.test(interim))?L.ep*2:L.ep;
+        if(now-lastChange>ep){ got=interim; fin(); return; }
+      }
+      if(!speechAt&&now-t0>WAIT) fin(); else if(speechAt&&now-speechAt>L.speech) fin();
+    },100);
+    start();
   });
 }
 
@@ -905,8 +924,8 @@ async function dialog(first, opts={}){
     if(opts.pre){ setFace(opts.pre); await sleep(opts.preMs||900); }
     let pre=opts.heard||null; if(pre) say(pre,'user');
     if(first){ await speak(first); if(fu) addTurn(dw,'b',first); }
-    for(let i=0;i<6;i++){
-      const heard=pre||await listenOnce(9000); pre=null;
+    for(let i=0;i<20;i++){
+      const heard=pre||await listenOnce(); pre=null;
       if(!heard) break;
       lastActivity=performance.now();
       dw=spk()||dw; turns.push(heard); addTurn(dw,'u',heard);
@@ -1333,7 +1352,7 @@ $('#rAll').onclick=async()=>{ await requestMedia('cam'); await requestMedia('mic
 const sheet=$('#sheet');
 function openSheet(){
   refreshPerms();
-  $('#sNick').value=S.nick||''; $('#sProv').value=S.provider; $('#sPhone').value=S.phone||''; { const ph=simPhone(); $('#phoneInfo').textContent=ph.length>=9?'사용 번호: '+ph.slice(0,3)+'-****-'+ph.slice(-4)+(S.phone?' (직접 입력)':' (런처에 등록된 번호)'):'등록된 번호가 없습니다.'; } $('#sGemKey').value=S.gemKey; $('#sGemModel').value=S.gemModel; $('#sEngine').value=S.engine; $('#sVision').value=S.vision; $('#sGroqKey').value=S.groqKey; $('#sGroqModel').value=S.groqModel; $('#sTgToken').value=S.tgToken; $('#sTgChat').value=S.tgChat;
+  $('#sNick').value=S.nick||''; $('#sProv').value=S.provider; $('#sPhone').value=S.phone||''; { const ph=simPhone(); $('#phoneInfo').textContent=ph.length>=9?'사용 번호: '+ph.slice(0,3)+'-****-'+ph.slice(-4)+(S.phone?' (직접 입력)':' (런처에 등록된 번호)'):'등록된 번호가 없습니다.'; } $('#sGemKey').value=S.gemKey; $('#sGemModel').value=S.gemModel; $('#sEngine').value=S.engine; $('#sVision').value=S.vision; $('#sListen').value=S.listen; $('#sGroqKey').value=S.groqKey; $('#sGroqModel').value=S.groqModel; $('#sTgToken').value=S.tgToken; $('#sTgChat').value=S.tgChat;
   $('#sIdle').value=String(S.idleLimit); $('#sCam').value=S.camFacing; $('#sStandby').value=String(S.standbySec);
   $('#sGreet').checked=S.greet; $('#sFaceRec').checked=S.faceRec; $('#sFaceAlert').checked=S.faceAlert; $('#sFall').checked=S.fall; $('#sSound').checked=S.sound; $('#sAway').checked=S.away; $('#sMem').checked=S.mem;
   $('#sNotes').value=notes.join('\n'); sheet.hidden=false;
@@ -1342,7 +1361,7 @@ $('#btnSet').onclick=openSheet;
 $('#sCancel').onclick=()=>sheet.hidden=true;
 $('#sSave').onclick=()=>{
   Object.assign(S,{
-    nick:$('#sNick').value.trim(), provider:$('#sProv').value, phone:$('#sPhone').value.replace(/\D/g,''), gemKey:$('#sGemKey').value.trim(), gemModel:$('#sGemModel').value.trim()||'gemini-3.6-flash', engine:$('#sEngine').value, vision:$('#sVision').value, groqKey:$('#sGroqKey').value.trim(), groqModel:$('#sGroqModel').value.trim()||'llama-3.3-70b-versatile',
+    nick:$('#sNick').value.trim(), provider:$('#sProv').value, phone:$('#sPhone').value.replace(/\D/g,''), gemKey:$('#sGemKey').value.trim(), gemModel:$('#sGemModel').value.trim()||'gemini-3.6-flash', engine:$('#sEngine').value, vision:$('#sVision').value, listen:$('#sListen').value, groqKey:$('#sGroqKey').value.trim(), groqModel:$('#sGroqModel').value.trim()||'llama-3.3-70b-versatile',
     tgToken:$('#sTgToken').value.trim(), tgChat:$('#sTgChat').value.trim(),
     idleLimit:Number($('#sIdle').value), camFacing:$('#sCam').value, standbySec:Number($('#sStandby').value),
     greet:$('#sGreet').checked, faceRec:$('#sFaceRec').checked, faceAlert:$('#sFaceAlert').checked, fall:$('#sFall').checked, sound:$('#sSound').checked, away:$('#sAway').checked, mem:$('#sMem').checked

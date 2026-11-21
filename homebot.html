@@ -232,6 +232,8 @@ let stream=null, pose=null, raf=0, wl=null;
 let lastDet=0, lastSeen=-1e9, personPresent=false, lastActivity=0, lastInteract=0, lastGreet=-1e9;
 let fallStart=0, lastFall=-1e9, lastSoundAlert=-1e9, lastIntrusion=-1e9, lastAngle=null;
 const hist = [];
+const honor=n=>n?String(n).replace(/님$/,'')+'님, ':'';
+const callName=(ms=30000)=>curWho&&performance.now()-curWhoAt<ms?honor(curWho):'';
 const whoTag=()=>curWho&&performance.now()-curWhoAt<60000?` (${curWho})`:'';
 
 /* ============ UI 보조 ============ */
@@ -438,10 +440,10 @@ async function checkOnUser(opening, reasonIfSilent){
   }catch(e){ log('확인 시나리오 오류: '+e.message,'bad'); }
   finally{ busy=false; lastInteract=performance.now(); }
 }
-const onFall=()=>checkOnUser('괜찮으세요? 대답해 주세요.','쓰러짐 의심');
+const onFall=()=>checkOnUser(callName(120000)+'괜찮으세요? 대답해 주세요.','쓰러짐 의심');
 const onNoMotion=()=>{
   const m=Math.round(S.idleLimit/60);
-  return checkOnUser('계세요? 괜찮으신가요?',`${m}분 이상 움직임 없음`);
+  return checkOnUser(callName(120000)+'계세요? 괜찮으신가요?',`${m}분 이상 움직임 없음`);
 };
 
 /* ============ 비전: MediaPipe Pose ============ */
@@ -563,7 +565,7 @@ function doGreet(who){
   lastGreet=performance.now();
   const h=new Date().getHours();
   const g=h<11?'좋은 아침이에요':h<18?'안녕하세요':'안녕하세요, 오늘 하루 수고 많으셨어요';
-  dialog(`${who?who+'님, ':''}${g}! 오늘 기분은 어떠세요?`,{pre:'happy'});
+  dialog(`${honor(who)}${g}! 오늘 기분은 어떠세요?`,{pre:'happy'});
 }
 async function intrusionAlert(){
   log('외출 모드 중 사람 감지','warn');
@@ -616,7 +618,7 @@ function openFaceSheet(){
 function closeFaceSheet(){ if(registering) return; $('#faceSheet').hidden=true; $('#fVideo').srcObject=null; }
 async function runRegister(){
   if(registering) return;
-  const name=$('#fName').value.trim();
+  const name=$('#fName').value.trim().replace(/님$/,'');
   if(!name){ setFaceMsg('이름을 입력해 주세요'); return; }
   if(!running){ setFaceMsg('먼저 카메라를 켜 주세요'); return; }
   if(!(await loadFace())) return;
@@ -701,7 +703,7 @@ function tick(){
   }
   // 먼저 말걸기(안부)
   if(S.greet && !S.away && personPresent && !busy && !registering && !alertActive && now-lastInteract>300000 && now-lastGreet>300000){
-    lastGreet=now; dialog(`${curWho&&now-curWhoAt<30000?curWho+'님, ':''}잠깐 쉬어가실래요? 오늘 컨디션은 어떠세요?`);
+    lastGreet=now; dialog(`${callName()}잠깐 쉬어가실래요? 오늘 컨디션은 어떠세요?`);
   }
   checkSound(now);
 }
@@ -758,7 +760,7 @@ $('#btnMode').onclick=()=>{
   document.body.classList.toggle('mode-robot',!m); document.body.classList.toggle('mode-monitor',m);
   $('#btnMode').textContent=m?'🤖 로봇':'👁 모니터';
 };
-$('#robot').onclick=()=>{ if(running&&!busy) dialog('네, 말씀하세요.'); };
+$('#robot').onclick=()=>{ if(running&&!busy) dialog(callName()?'네, '+callName()+'말씀하세요.':'네, 말씀하세요.'); };
 
 /* ---- 권한 ---- */
 function setP(id,txt,cls){ const e=$(id); e.textContent=txt; e.className='pst '+(cls||''); }

@@ -429,9 +429,29 @@ function speak(text){
 }
 
 /* ============ 음성 입력 (STT) ============ */
+(function(){   // 안드로이드 앱(WebView)용 음성인식 어댑터
+  if(window.SpeechRecognition||window.webkitSpeechRecognition||!window.SimStt) return;
+  let cur=null;
+  window.__simStt=(ev,d)=>{ if(cur) cur._ev(ev,d); };
+  class SimSR{
+    constructor(){ this.lang='ko-KR'; this.continuous=false; this.interimResults=false; this.maxAlternatives=1; this.active=false; }
+    start(){ if(cur&&cur!==this) cur._ev('end',{}); cur=this; this.active=true; try{ SimStt.start(this.lang,!!this.interimResults); }catch(e){ this._ev('error',{error:'service-not-allowed'}); this._ev('end',{}); } }
+    stop(){ try{ SimStt.stop(); }catch{} }
+    abort(){ if(cur!==this||!this.active) return; this.active=false; try{ SimStt.abort(); }catch{} cur=null; setTimeout(()=>this.onend&&this.onend({}),0); }
+    _ev(ev,d){
+      if(ev==='start') this.onstart&&this.onstart({});
+      else if(ev==='speechstart') this.onspeechstart&&this.onspeechstart({});
+      else if(ev==='speechend') this.onspeechend&&this.onspeechend({});
+      else if(ev==='result'){ const R=Object.assign([{transcript:d.text||'',confidence:1}],{isFinal:!!d.final}); this.onresult&&this.onresult({resultIndex:0,results:[R]}); }
+      else if(ev==='error') this.onerror&&this.onerror({error:d.error||'aborted'});
+      else if(ev==='end'){ if(!this.active) return; this.active=false; if(cur===this) cur=null; this.onend&&this.onend({}); }
+    }
+  }
+  window.SpeechRecognition=SimSR;
+})();
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 /* ---- 카메라 프레임 캡처 (대화 중 영상 이해용) ---- */
-let lastShots=[], lastListenEnd=0;
+let ring=[], lastListenEnd=0;   // ring: 카메라를 항상 0.5초마다 작게 찍어 최근 4장만 보관(분석이 필요할 때 인코딩 없이 바로 전송)
 function grabFrame(maxEdge=1280,q=0.8){
   try{
     if(!running||video.readyState<2||!video.videoWidth) return null;
@@ -441,14 +461,22 @@ function grabFrame(maxEdge=1280,q=0.8){
     return c.toDataURL('image/jpeg',q).split(',')[1];
   }catch{ return null; }
 }
-const shotNow=()=>{ if(S.vision==='off') return; const f=grabFrame(); if(f){ lastShots.push(f); lastShots=lastShots.slice(-3); } };
+function ringTick(){
+  if(S.vision==='off'||!running||document.hidden||(standby&&!personPresent)) return;
+  const f=grabFrame(960,0.7); if(f){ ring.push({t:performance.now(),f}); if(ring.length>4) ring.shift(); }
+}
+setInterval(ringTick,500);
+const shotNow=ringTick;
+const freshFrames=(maxAge=5000)=>{ const n=performance.now(); return ring.filter(x=>n-x.t<maxAge); };
+const latestFrame=()=>{ const r=freshFrames(); if(r.length) return r[r.length-1].f; return grabFrame(960,0.7); };
 const VIS_RE=/이거|이것|이게|이건|저거|저것|저게|저건|그거|그것|이쪽|저쪽|여기|저기|이 (?:문서|종이|책|사진|옷|물건|약|음식|제품|상품)|보여|봐 ?(?:줘|봐|라|요)|보이|보고|쳐다|표정|얼굴|기분이 어|어때 ?보|옷|입은|입고|무슨 색|색깔|뭐 ?하|하고 있|동작|흔들|따라|읽어|글씨|글자|적혀|쓰여|문서|종이|영수증|사진|그림|물건|들고|가리키|어디 있|찾아|손/;
 const MOTION_RE=/동작|뭐 ?하|하고 있|흔들|따라|손|움직/;
 const pickFrames=t=>{
   if(S.vision==='off'||!(S.vision==='always'||VIS_RE.test(t))) return [];
-  let sh=lastShots.filter(Boolean);
-  if(!sh.length){ const f=grabFrame(); if(f) sh=[f]; }
-  return MOTION_RE.test(t)?sh.slice(-3):sh.slice(-1);
+  const r=freshFrames(); let sh=r.map(x=>x.f);
+  if(!sh.length){ const f=grabFrame(1280,0.8); if(f) sh=[f]; }
+  if(MOTION_RE.test(t)&&sh.length>=3) return [sh[0],sh[Math.floor(sh.length/2)],sh[sh.length-1]];   // 약 1.5초에 걸친 3장
+  return sh.slice(-1);
 };
 
 /* ---- 음성 인식 1회: 말 시작을 넉넉히 기다리고, 말이 이어지면 계속 들음 ----
@@ -461,7 +489,7 @@ function listenOnce(waitMs){
   return new Promise(res=>{
     if(!SR){ log('이 브라우저는 음성인식을 지원하지 않습니다 (안드로이드 Chrome 권장)','warn'); res(null); return; }
     abortWake(); pauseAudio();          // 안드로이드 마이크 충돌 방지: 이상음 감시 일시 중지
-    lastShots=[]; setFace('listening');
+    setFace('listening');
     const t0=performance.now();
     let got=null, interim='', lastChange=0, ended=false, speechAt=0, r=null, rt=0;
     const fin=()=>{
@@ -518,7 +546,7 @@ function startWake(){
         if(!e.results[i].isFinal) continue;
         const t=e.results[i][0].transcript.trim(), rest=wakeRest(t);
         if(rest===null) continue;            // 애칭 없이 한 말은 무시
-        log('호출어 감지: '+t,'info'); abortWake(); lastShots=[]; shotNow(); lastListenEnd=performance.now();
+        log('호출어 감지: '+t,'info'); abortWake(); shotNow(); lastListenEnd=performance.now();
         converse(rest?null:'네?',{heard:rest||null,pre:standby?'wake':null,preMs:450}); return;
       }
     };
@@ -1067,7 +1095,7 @@ function liveRun(dw,first,opts,turns){
     let uBuf='', bBuf='', uFlushed=true, alerted=false, lastEvt=performance.now(), lastFrame=0, gateUntil=0, audioAt=0, tick=0;
     const t0=performance.now(), CAP=10*60e3, idleMs={fast:15000,normal:30000,long:60000}[S.listen]||30000;
     const send=o=>{ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); };
-    const frame=(force)=>{ if(S.vision==='off'||closed||!connected) return; const n=performance.now(); if(!force&&n-lastFrame<2500) return; if(n-lastFrame<1000) return; const f=grabFrame(1024,0.7); if(f){ lastFrame=n; send({realtimeInput:{video:{data:f,mimeType:'image/jpeg'}}}); } };
+    const frame=(force)=>{ if(S.vision==='off'||closed||!connected) return; const n=performance.now(); if(!force&&n-lastFrame<2500) return; if(n-lastFrame<1000) return; const f=latestFrame(); if(f){ lastFrame=n; send({realtimeInput:{video:{data:f,mimeType:'image/jpeg'}}}); } };
     const flushUser=()=>{ const t=uBuf.trim(); uBuf=''; uFlushed=true; alerted=false; if(!t) return; say(t,'user'); turns.push(t); addTurn(dw,'u',t); hist.push({role:'user',content:t}); while(hist.length>12) hist.shift(); };
     const flushBot=()=>{ const t=bBuf.trim(); bBuf=''; if(!t) return; say(t,'bot'); addTurn(dw,'b',t); hist.push({role:'assistant',content:t}); while(hist.length>12) hist.shift(); };
     const finish=why=>{ if(closed) return; closed=true; clearInterval(iv); try{ mic&&mic.stop(); }catch{} const w=ws; ws=null; try{ w&&w.close(); }catch{} Pcm.flush(); Pcm.onIdle=null; speaking=false; flushUser(); flushBot(); log('실시간 대화 종료: '+why,'info'); resolve({connected,who:dw}); };
@@ -1103,7 +1131,7 @@ function liveRun(dw,first,opts,turns){
       const it=sc.inputTranscription&&sc.inputTranscription.text;
       if(it){ uBuf+=it; uFlushed=false; lastEvt=performance.now(); selfInt=0;
         if(!alerted&&/(119|살려|응급|구급)/.test(uBuf)){ alerted=true; if(!alertActive) raiseAlert('음성 도움 요청: '+uBuf.trim()); }
-        if(S.vision==='auto'||S.vision==='always') frame(VIS_RE.test(uBuf)); }
+        if(S.vision==='auto'||S.vision==='always') frame(true); }   // 말이 시작되는 즉시(첫 전사 조각) 보관해 둔 최신 장면 전송
       const parts=(sc.modelTurn&&sc.modelTurn.parts)||[];
       for(const pt of parts){ if(pt.inlineData&&pt.inlineData.data){
         if(!uFlushed) flushUser();
@@ -1111,7 +1139,7 @@ function liveRun(dw,first,opts,turns){
         Pcm.push(pt.inlineData.data); speaking=true; setFace('speaking'); lastEvt=performance.now(); } }
       const ot=sc.outputTranscription&&sc.outputTranscription.text;
       if(ot){ if(!uFlushed) flushUser(); bBuf+=ot; }
-      if(sc.turnComplete){ flushUser(); flushBot(); lastEvt=performance.now(); }
+      if(sc.turnComplete){ flushUser(); flushBot(); lastEvt=performance.now(); if(S.vision==='auto'||S.vision==='always') frame(true); }   // 다음 말 전에 최신 장면을 미리 전달
     };
     const onClose=(w)=>{
       if(closed||w!==ws) return; connected=false;

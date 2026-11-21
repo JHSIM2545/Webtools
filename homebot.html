@@ -106,6 +106,7 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
     <span class="chip" id="chipPerson">사람 없음</span>
     <span class="chip" id="chipIdle">무동작 0:00</span>
     <span class="chip" id="chipFace">얼굴 모델 대기</span>
+    <span class="chip" id="chipWake">호출어 꺼짐</span>
     <span class="chip" id="chipSound">소리 감시 꺼짐</span>
   </header>
   <div id="alertBar" hidden><span id="alertText"></span><button id="btnAck">확인</button></div>
@@ -185,6 +186,9 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
     <input type="password" id="sTgToken">
     <label>텔레그램 Chat ID</label>
     <input type="text" id="sTgChat">
+    <label>홈봇 애칭 (호출어)</label>
+    <input type="text" id="sNick" placeholder="예: 하루, 모모 (비우면 호출어 없이 터치·먼저 말걸기만)">
+    <div class="hint">설정하면 이 이름을 부른 뒤 하는 말만 듣습니다. 예: "하루야, 지금 몇 시야?" 이름만 부르면 "네?" 하고 다음 말을 기다리고, 대화가 이어지는 동안에는 이름 없이 이어서 말해도 됩니다. 인식이 잘 되는 2~3음절의 흔하지 않은 이름을 권장합니다. 안드로이드 Chrome은 상시 대기 중 인식 시작음이 날 수 있습니다.</div>
     <label>무동작 알림 기준</label>
     <select id="sIdle">
       <option value="60">1분 (테스트용)</option>
@@ -225,7 +229,7 @@ const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } ca
 
 const S = Object.assign({
   apiKey:'', model:'claude-haiku-5-5', tgToken:'', tgChat:'',
-  idleLimit:60, away:false, greet:true, sound:false, fall:true, camFacing:'user', faceRec:true, faceAlert:true, provider:'sim', phone:'', gemKey:'', gemModel:'gemini-3.6-flash'
+  idleLimit:60, away:false, greet:true, sound:false, fall:true, camFacing:'user', faceRec:true, faceAlert:true, provider:'sim', nick:'', phone:'', gemKey:'', gemModel:'gemini-3.6-flash'
 }, load('homebot.settings', {}));
 let notes = load('homebot.notes', []);
 
@@ -271,7 +275,7 @@ if('speechSynthesis' in window){ speechSynthesis.onvoiceschanged=pickVoice; pick
 
 function speak(text){
   return new Promise(res=>{
-    say(text,'bot'); setFace('speaking'); speaking=true;
+    say(text,'bot'); setFace('speaking'); speaking=true; abortWake();
     let t, done=false;
     const fin=()=>{ if(done) return; done=true; clearTimeout(t); speaking=false; res(); };
     if(!('speechSynthesis' in window)){ t=setTimeout(fin,1500); return; }
@@ -289,7 +293,7 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 function listenOnce(ms=9000){
   return new Promise(async res=>{
     if(!SR){ log('이 브라우저는 음성인식을 지원하지 않습니다 (안드로이드 Chrome 권장)','warn'); res(null); return; }
-    pauseAudio();                       // 안드로이드 마이크 충돌 방지: 이상음 감시 일시 중지
+    abortWake(); pauseAudio();          // 안드로이드 마이크 충돌 방지: 이상음 감시 일시 중지
     const r=new SR(); r.lang='ko-KR'; r.interimResults=false; r.maxAlternatives=1; r.continuous=false;
     let got=null, ended=false;
     const fin=()=>{ if(ended) return; ended=true; clearTimeout(tm); try{r.stop();}catch{} resumeAudio(); res(got); };
@@ -300,6 +304,41 @@ function listenOnce(ms=9000){
     try{ r.start(); }catch{ fin(); }
   });
 }
+
+/* ============ 호출어(애칭) 대기 ============ */
+const escRe=c=>c.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+// 애칭이 들어 있으면 그 뒤의 말(없으면 '')을, 없으면 null 반환
+function wakeRest(t){
+  const nick=(S.nick||'').trim(); if(!nick) return null;
+  const re=new RegExp(nick.split('').filter(c=>!/\s/.test(c)).map(escRe).join('[\\s,.]*'),'i');
+  const m=re.exec(t); if(!m) return null;
+  return t.slice(m.index+m[0].length).replace(/^[\s,.!?]*(?:(?:아|야)(?=[\s,.!?]|$))?[\s,.!?]*/,'').trim();
+}
+let wakeRec=null, wakeOn=false, wakeGen=0;
+function abortWake(){ try{ wakeRec&&wakeRec.abort(); }catch{} wakeRec=null; }
+function startWake(){
+  if(!SR||!running||wakeOn||!(S.nick||'').trim()) return;
+  wakeOn=true; const gen=++wakeGen; chip('#chipWake','호출어: '+S.nick,'on');
+  const loop=()=>{
+    if(!wakeOn||gen!==wakeGen||!running) return;
+    if(busy||speaking||registering||wakeRec){ setTimeout(loop,500); return; }
+    const r=new SR(); wakeRec=r; r.lang='ko-KR'; r.continuous=true; r.interimResults=false; r.maxAlternatives=1;
+    r.onresult=e=>{
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        if(!e.results[i].isFinal) continue;
+        const t=e.results[i][0].transcript.trim(), rest=wakeRest(t);
+        if(rest===null) continue;            // 애칭 없이 한 말은 무시
+        log('호출어 감지: '+t,'info'); abortWake();
+        dialog(rest?null:'네?',{heard:rest||null}); return;
+      }
+    };
+    r.onerror=ev=>{ if(ev.error==='not-allowed'||ev.error==='service-not-allowed'){ wakeOn=false; chip('#chipWake','호출어 권한 없음','warn'); log('호출어 대기 불가: 마이크 권한을 확인하세요','warn'); } };
+    r.onend=()=>{ if(wakeRec===r) wakeRec=null; setTimeout(loop,300); };
+    try{ r.start(); }catch{ wakeRec=null; setTimeout(loop,1000); }
+  };
+  loop();
+}
+function stopWake(){ wakeOn=false; wakeGen++; abortWake(); chip('#chipWake','호출어 꺼짐',''); }
 
 /* ============ 이상음 감시 (WebAudio RMS) ============ */
 let aStream=null, aCtx=null, analyser=null, aBuf=null, baseline=0.01;
@@ -428,7 +467,7 @@ async function think(text){
   }
   if(!hasLLM()){ log('AI 미연결: 설정에서 등록 번호/키를 확인하세요','warn'); return localReply(text); }
   hist.push({role:'user',content:text}); while(hist.length>12) hist.shift();
-  const system=`당신은 가정용 로봇 "홈봇"입니다. 따뜻하고 간결한 한국어 존댓말로 말하세요. 음성으로 읽히므로 1~2문장으로만 답하고, 목록·이모지·마크다운은 쓰지 마세요. 건강·응급 관련 질문에는 119 안내를 덧붙이세요. 현재 시각: ${new Date().toLocaleString('ko-KR')}. 사용자에 대해 기억하는 정보: ${notes.join('; ')||'없음'}.${curWho&&performance.now()-curWhoAt<30000?' 지금 대화 상대는 얼굴인식으로 확인된 '+curWho+'님입니다.':''}`;
+  const system=`당신은 가정용 로봇 "홈봇"입니다. 따뜻하고 간결한 한국어 존댓말로 말하세요. 음성으로 읽히므로 1~2문장으로만 답하고, 목록·이모지·마크다운은 쓰지 마세요. 건강·응급 관련 질문에는 119 안내를 덧붙이세요. 현재 시각: ${new Date().toLocaleString('ko-KR')}.${S.nick?' 당신의 애칭은 '+S.nick+'입니다.':''} 사용자에 대해 기억하는 정보: ${notes.join('; ')||'없음'}.${curWho&&performance.now()-curWhoAt<30000?' 지금 대화 상대는 얼굴인식으로 확인된 '+curWho+'님입니다.':''}`;
   try{
     const out=await askLLM(system,hist);
     hist.push({role:'assistant',content:out});
@@ -443,9 +482,10 @@ async function dialog(first, opts={}){
   busy=true;
   try{
     if(opts.pre){ setFace(opts.pre); await sleep(900); }
+    let pre=opts.heard||null; if(pre) say(pre,'user');
     if(first) await speak(first);
     for(let i=0;i<6;i++){
-      const heard=await listenOnce(9000);
+      const heard=pre||await listenOnce(9000); pre=null;
       if(!heard) break;
       lastActivity=performance.now();
       const reply=await think(heard);
@@ -772,12 +812,12 @@ async function start(){
   b.textContent='■ 정지'; b.disabled=false;
   lockScreen(); startAudio();
   if(!SR) log('이 브라우저는 음성인식을 지원하지 않습니다 (안드로이드 Chrome 권장)','warn');
-  tick();
-  await speak('홈봇을 시작합니다.');
+  tick(); startWake();
+  await speak(S.nick?`준비됐어요. 호출어는 ${S.nick}입니다.`:'홈봇을 시작합니다.');
   setFace('idle');
 }
 function stop(){
-  running=false; cancelAnimationFrame(raf);
+  stopWake(); running=false; cancelAnimationFrame(raf);
   try{ speechSynthesis.cancel(); }catch{}
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
   video.srcObject=null; stopAudio(); octx.clearRect(0,0,ov.width,ov.height);
@@ -831,7 +871,7 @@ $('#rAll').onclick=async()=>{ await requestMedia('cam'); await requestMedia('mic
 const sheet=$('#sheet');
 function openSheet(){
   refreshPerms();
-  $('#sProv').value=S.provider; $('#sPhone').value=S.phone||''; { const ph=simPhone(); $('#phoneInfo').textContent=ph.length>=9?'사용 번호: '+ph.slice(0,3)+'-****-'+ph.slice(-4)+(S.phone?' (직접 입력)':' (런처에 등록된 번호)'):'등록된 번호가 없습니다.'; } $('#sGemKey').value=S.gemKey; $('#sGemModel').value=S.gemModel; $('#sApiKey').value=S.apiKey; $('#sModel').value=S.model; $('#sTgToken').value=S.tgToken; $('#sTgChat').value=S.tgChat;
+  $('#sNick').value=S.nick||''; $('#sProv').value=S.provider; $('#sPhone').value=S.phone||''; { const ph=simPhone(); $('#phoneInfo').textContent=ph.length>=9?'사용 번호: '+ph.slice(0,3)+'-****-'+ph.slice(-4)+(S.phone?' (직접 입력)':' (런처에 등록된 번호)'):'등록된 번호가 없습니다.'; } $('#sGemKey').value=S.gemKey; $('#sGemModel').value=S.gemModel; $('#sApiKey').value=S.apiKey; $('#sModel').value=S.model; $('#sTgToken').value=S.tgToken; $('#sTgChat').value=S.tgChat;
   $('#sIdle').value=String(S.idleLimit); $('#sCam').value=S.camFacing;
   $('#sGreet').checked=S.greet; $('#sFaceRec').checked=S.faceRec; $('#sFaceAlert').checked=S.faceAlert; $('#sFall').checked=S.fall; $('#sSound').checked=S.sound; $('#sAway').checked=S.away;
   $('#sNotes').value=notes.join('\n'); sheet.hidden=false;
@@ -840,14 +880,14 @@ $('#btnSet').onclick=openSheet;
 $('#sCancel').onclick=()=>sheet.hidden=true;
 $('#sSave').onclick=()=>{
   Object.assign(S,{
-    provider:$('#sProv').value, phone:$('#sPhone').value.replace(/\D/g,''), gemKey:$('#sGemKey').value.trim(), gemModel:$('#sGemModel').value.trim()||'gemini-3.6-flash', apiKey:$('#sApiKey').value.trim(), model:$('#sModel').value.trim()||'claude-haiku-5-5',
+    nick:$('#sNick').value.trim(), provider:$('#sProv').value, phone:$('#sPhone').value.replace(/\D/g,''), gemKey:$('#sGemKey').value.trim(), gemModel:$('#sGemModel').value.trim()||'gemini-3.6-flash', apiKey:$('#sApiKey').value.trim(), model:$('#sModel').value.trim()||'claude-haiku-5-5',
     tgToken:$('#sTgToken').value.trim(), tgChat:$('#sTgChat').value.trim(),
     idleLimit:Number($('#sIdle').value), camFacing:$('#sCam').value,
     greet:$('#sGreet').checked, faceRec:$('#sFaceRec').checked, faceAlert:$('#sFaceAlert').checked, fall:$('#sFall').checked, sound:$('#sSound').checked, away:$('#sAway').checked
   });
   notes=$('#sNotes').value.split('\n').map(s=>s.trim()).filter(Boolean);
   store('homebot.settings',S); store('homebot.notes',notes);
-  if(running){ S.sound?startAudio():stopAudio(); if(S.faceRec) loadFace(); }
+  if(running){ S.sound?startAudio():stopAudio(); if(S.faceRec) loadFace(); stopWake(); startWake(); }
   sheet.hidden=true; log('설정 저장됨','info');
 };
 $('#tLLM').onclick=async()=>{

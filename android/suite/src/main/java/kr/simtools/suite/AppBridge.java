@@ -384,5 +384,16 @@ final class AppBridge {
         } });
     }
 
+    /** 글(링크)을 공유 창으로 보낸다 */
+    @JavascriptInterface public void shareText(final String title, final String text) {
+        a.runOnUiThread(new Runnable() { @Override public void run() {
+            try {
+                Intent i = new Intent(Intent.ACTION_SEND);
+                i.setType("text/plain"); i.putExtra(Intent.EXTRA_SUBJECT, title); i.putExtra(Intent.EXTRA_TEXT, text);
+                a.startActivity(Intent.createChooser(i, title));
+            } catch (Exception e) { /* 무시 */ }
+        } });
+    }
+
     void destroy() { }
 }

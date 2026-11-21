@@ -239,6 +239,13 @@
       const paintInst = () => { const bi = $('btnInstall'); inst.style.display = bi && bi.style.display !== 'none' ? 'flex' : 'none'; };
       mb.addEventListener('click', paintInst); paintInst();
       if (!window.SimLauncher) mk('btnApk', '<span>📥 SIM Tools 안드로이드 앱 받기 (APK)</span>', () => { pop.style.display = 'none'; const l = document.createElement('a'); l.href = 'https://github.com/JHSIM2545/Webtools/releases/download/suite-latest/SIM-Tools.apk'; l.download = 'SIM-Tools.apk'; l.rel = 'noopener'; document.body.appendChild(l); l.click(); l.remove(); });
+      mk('btnShareApp', '<span>🔗 SIM Tools 앱 공유하기</span>', () => {
+        pop.style.display = 'none';
+        const url = 'https://jhsim2545.github.io/Webtools/get-app.html', title = 'SIM Tools', text = 'SIM Tools 안드로이드 앱 내려받기\n' + url;
+        try { if (window.SimApp && window.SimApp.shareText) { window.SimApp.shareText(title, text); return; } } catch (e) {}
+        try { if (navigator.share) { navigator.share({ title, text, url }).catch(() => {}); return; } } catch (e) {}
+        try { navigator.clipboard.writeText(url).then(() => alert('링크를 복사했어요\n' + url)); } catch (e) { prompt('아래 링크를 복사해 보내세요', url); }
+      });
       mk('btnVer', '<span>ⓘ 버전 정보</span>', () => { pop.style.display = 'none'; if (window.simAppMenu) window.simAppMenu.open('ver'); });
       mk('btnPerm', '<span>🔐 권한 정보</span>', () => { pop.style.display = 'none'; if (window.simAppMenu) window.simAppMenu.open('perm'); });
       const hr = document.createElement('div'); hr.style.cssText = 'height:1px;background:var(--line);margin:4px 6px'; pop.appendChild(hr);

@@ -25,7 +25,7 @@ final class SuiteExtra {
     private SuiteExtra() {}
 
     /** 이 앱에 들어 있는 도구 id (런처 index.html 의 TOOLS 와 같은 id) */
-    private static final List<String> IDS = Arrays.asList("simtv", "note", "phone", "aitel", "assistant", "calendar", "folder", "message", "kbo", "orchestra", "radio", "calc", "map", "teams", "scan", "recipe", "brief", "price", "mirror", "pad");
+    private static final List<String> IDS = Arrays.asList("simtv", "note", "phone", "aitel", "assistant", "calendar", "folder", "message", "kbo", "orchestra", "radio", "calc", "map", "teams", "scan", "recipe", "brief", "price", "mirror", "game", "pad");
 
     static boolean valid(String id) { return id != null && IDS.contains(id); }
 

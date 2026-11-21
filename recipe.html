@@ -200,6 +200,20 @@ b.q{color:var(--accent);font-weight:800}
   <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="bgmDuck"> 음성 안내가 나올 때 배경음악 살짝 낮추기</label>
   <div class="row"><button id="bgmClose" class="pri">닫기</button></div>
 </div></div>
+<div class="ov" id="covov" hidden style="z-index:92"><div class="box" style="max-height:92vh;overflow:auto">
+  <h3>🖼 대표 이미지 편집</h3>
+  <canvas id="covCv" style="width:100%;border-radius:12px;background:#222;display:block"></canvas>
+  <div class="tag" id="covHint"></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap"><button id="covUp">📷 사진 올리기</button><button id="covStepBtn">🍳 레시피 사진에서</button><button id="covAi">🤖 AI로 만들기</button></div>
+  <div id="covStrip" style="display:flex;gap:6px;overflow-x:auto" hidden></div>
+  <input id="covTitle" placeholder="제목" maxlength="40"><input id="covSub" placeholder="작은 글씨 (선택)" maxlength="40">
+  <div id="covLay" style="display:flex;gap:6px;flex-wrap:wrap"><button data-l="bottom">아래</button><button data-l="top">위</button><button data-l="center">가운데</button><button data-l="box">상자</button></div>
+  <div id="covCol" style="display:flex;gap:6px;flex-wrap:wrap"><button data-c="#ffffff">흰색</button><button data-c="#ffe066">노랑</button><button data-c="#ff8a6b">주황</button><button data-c="#8ce99a">연두</button></div>
+  <label style="display:flex;align-items:center;gap:8px">글자 크기 <input type="range" id="covSize" min="60" max="140" step="2" style="flex:1"></label>
+  <label style="display:flex;align-items:center;gap:8px">배경 어둡기 <input type="range" id="covDark" min="0" max="90" step="2" style="flex:1"></label>
+  <input type="file" id="covFile" accept="image/*" hidden>
+  <div class="row"><button id="covCancel">취소</button><div class="spacer"></div><button id="covSave" class="pri">저장</button></div>
+</div></div>
 <input type="file" id="fPhoto" accept="image/*" multiple hidden>
 <input type="file" id="fSrc" accept="application/pdf,image/*" multiple hidden>
 
@@ -474,7 +488,7 @@ async function runExtract(makePayload, msg) {
     const ins = await c.from('recipes').insert({ owner: S.uid, owner_name: S.name, title: rec.title, data: rec, shared: false }).select().single();
     if (ins.error) throw ins.error;
     S.cache[ins.data.id] = ins.data; busy(false);
-    openRecipe(ins.data, false); queueImages(ins.data);
+    openRecipe(ins.data, false); queueImages(ins.data); autoTitleCover(ins.data).catch(() => {});
   } catch (e) { busy(false); throw e; }
 }
 /* 다른 앱(유튜브·인터넷 등)에서 '공유'로 들어온 링크 */
@@ -512,7 +526,7 @@ function renderDetail() {
     '<div class="row"><button id="dBack">‹ 목록</button><div class="spacer"></div>' + (ro ? '<span class="tag">' + esc(row.owner_name || '익명') + ' 님의 레시피</span>' : '<button class="dng" id="dDel">삭제</button>') + '</div>' +
     '<div class="hero" data-pic="cover">' + picInner(row, 'cover') + '</div>' +
     '<div class="dt"><h2>' + esc(d.title) + '</h2><p>' + esc(d.desc || '') + '</p></div>' +
-    '<div class="acts"><button class="pri" id="dCook">▶ 요리 시작</button>' + (ro ? '' : '<button id="dEdit">✏️ 수정 요청</button>') + '<button id="dUndo"' + (S.prev ? '' : ' hidden') + '>↩ 되돌리기</button><button id="dPdf">📄 PDF</button></div>' + share +
+    '<div class="acts"><button class="pri" id="dCook">▶ 요리 시작</button>' + (ro ? '' : '<button id="dEdit">✏️ 수정 요청</button>') + '<button id="dUndo"' + (S.prev ? '' : ' hidden') + '>↩ 되돌리기</button><button id="dPdf">📄 PDF</button>' + (ro ? '' : '<button id="dCov">🖼 대표 이미지</button>') + '</div>' + share +
     '<div class="card"><div class="row"><h3>재료</h3><div class="spacer"></div><button id="easyB" class="easy">간편용량</button><div class="step-r"><button id="sMinus">−</button><span id="sVal"></span><button id="sPlus">+</button></div></div><div class="ing" id="ingList"></div></div>' +
     '<div class="card"><h3>조리 순서</h3><div id="stepList" style="display:flex;flex-direction:column;gap:18px"></div></div>' +
     (d.tips && d.tips.length ? '<div class="card"><h3>팁</h3>' + d.tips.map(t => '<div class="tip">• ' + esc(t) + '</div>').join('') + '</div>' : '') +
@@ -527,6 +541,7 @@ function renderDetail() {
   $('dUndo').onclick = undoEdit;
   $('dCook').onclick = startCook;
   $('dPdf').onclick = exportPdf;
+  if ($('dCov')) $('dCov').onclick = openCover;
   $('sMinus').onclick = () => { setServ(Math.max(1, Math.round(curServ()) - 1)); };
   $('sPlus').onclick = () => { setServ(Math.round(curServ()) + 1); };
   $('easyB').onclick = () => toggleEasy();
@@ -588,7 +603,7 @@ async function delRecipe() {
   if (!confirm('이 레시피를 삭제할까요? 사진과 댓글도 함께 지워져요.')) return;
   try {
     const c = await client(); await session(); const d = S.row.data;
-    const urls = [d.cover, ...d.steps.map(s => s.img), ...(d.photos ? [...(d.photos.final || []), ...Object.values(d.photos.steps || {}).flat()] : [])].map(pathOf).filter(Boolean);
+    const urls = [d.cover, d.coverRaw, ...d.steps.map(s => s.img), ...(d.photos ? [...(d.photos.final || []), ...Object.values(d.photos.steps || {}).flat()] : [])].map(pathOf).filter(Boolean);
     const { error } = await c.from('recipes').delete().eq('id', S.row.id); if (error) throw error;
     if (urls.length) c.storage.from(BUCKET).remove(urls).catch(() => {});
     delete S.cache[S.row.id]; toast('삭제했어요'); closeDetail();
@@ -1092,6 +1107,113 @@ $('vClose').onclick = () => { $('voiceov').hidden = true; cancelSpeech(); };
 (window.simAppMenuExtra = window.simAppMenuExtra || []).push(
   { icon: '🎙️', label: 'AI 고품질 음성', get: () => pref.ai !== false, set: v => { pref.ai = !!v; savePref(); cancelSpeech(); aiBad = false; } },
   { icon: '🗣️', label: '음성 목소리 선택 · 들어보기', run: voiceOpen });
+
+/* ═══════ 대표 이미지(타이틀 이미지) 편집: 원본 사진 + 제목 글씨 → 새 대표 사진 ═══════ */
+const COVFONT = '"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo","Nanum Gothic",sans-serif';
+const COV0 = { layout: 'bottom', color: '#ffffff', size: 1, dark: .6, sub: '' };
+async function bitmapFrom(url) {   // 브라우저가 직접 못 받는 사진(유튜브 썸네일 등)은 서버가 대신 받아 준다
+  if (!url) return null;
+  try { const r = await fetch(url, { referrerPolicy: 'no-referrer' }); if (r.ok) return await createImageBitmap(await r.blob()); } catch (e) {}
+  try {
+    const ss = await session(); if (!ss) return null;
+    const r = await fetch(FN.replace('recipe-ai', 'recipe-img'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ss.access_token }, body: JSON.stringify({ url, phone: (localStorage.getItem('SIMAS_AI_PHONE') || '') }) });
+    const j = await r.json().catch(() => ({})); if (j.data) return await createImageBitmap(b64Blob(j.data, j.mime || 'image/jpeg'));
+  } catch (e) {}
+  return null;
+}
+function wrapCov(g, text, maxW) {
+  const out = []; String(text).split('\n').forEach(par => {
+    let line = ''; for (const w of par.split(/(\s+)/)) {
+      if (g.measureText(line + w).width <= maxW) { line += w; continue; }
+      if (line.trim()) { out.push(line.trim()); line = ''; }
+      if (g.measureText(w).width <= maxW) { line = w.trimStart(); continue; }
+      for (const ch of w) { if (g.measureText(line + ch).width > maxW && line) { out.push(line); line = ch; } else line += ch; }
+    }
+    if (line.trim()) out.push(line.trim());
+  }); return out;
+}
+function composeCover(cv, bm, o) {
+  const W = 1280, H = 800; cv.width = W; cv.height = H; const g = cv.getContext('2d');
+  g.fillStyle = '#2b2b2b'; g.fillRect(0, 0, W, H);
+  if (bm) { const k = Math.max(W / bm.width, H / bm.height), w = bm.width * k, h = bm.height * k; g.drawImage(bm, (W - w) / 2, (H - h) / 2, w, h); }
+  const title = String(o.title || '').trim(), sub = String(o.sub || '').trim(); if (!title && !sub) return;
+  const M = 80, pad = o.layout === 'box' ? 44 : 0, maxW = W - M * 2 - pad * 2; let px = Math.round(104 * o.size), lines = [];
+  for (; px > 36; px -= 4) { g.font = '800 ' + px + 'px ' + COVFONT; lines = wrapCov(g, title, maxW); if (lines.length <= 3 && lines.every(l => g.measureText(l).width <= maxW)) break; }
+  const spx = Math.max(30, Math.round(px * .38)), lh = Math.round(px * 1.2), bh = lines.length * lh + (sub ? Math.round(spx * 1.5) + 10 : 0);
+  const center = o.layout === 'center' || o.layout === 'box', al = center ? 'center' : 'left', tx = center ? W / 2 : M;
+  let y0;
+  if (o.layout === 'bottom') { y0 = H - M - bh; const gr = g.createLinearGradient(0, y0 - 220, 0, H); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(.55, 'rgba(0,0,0,' + o.dark * .8 + ')'); gr.addColorStop(1, 'rgba(0,0,0,' + o.dark + ')'); g.fillStyle = gr; g.fillRect(0, y0 - 220, W, H - y0 + 220); }
+  else if (o.layout === 'top') { y0 = M; const gr = g.createLinearGradient(0, 0, 0, y0 + bh + 220); gr.addColorStop(0, 'rgba(0,0,0,' + o.dark + ')'); gr.addColorStop(.45, 'rgba(0,0,0,' + o.dark * .8 + ')'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, W, y0 + bh + 220); }
+  else if (o.layout === 'center') { y0 = (H - bh) / 2; g.fillStyle = 'rgba(0,0,0,' + o.dark * .8 + ')'; g.fillRect(0, 0, W, H); }
+  else { y0 = H - M - bh - pad; g.fillStyle = 'rgba(0,0,0,' + Math.min(.85, o.dark + .15) + ')'; g.beginPath(); g.roundRect(M, y0 - pad, W - M * 2, bh + pad * 2, 28); g.fill(); y0 += 0; }
+  g.textAlign = al; g.textBaseline = 'top'; g.shadowColor = 'rgba(0,0,0,.65)'; g.shadowBlur = 14; g.shadowOffsetY = 3; g.fillStyle = o.color;
+  g.font = '800 ' + px + 'px ' + COVFONT; let y = y0; lines.forEach(l => { g.fillText(l, tx, y); y += lh; });
+  if (sub) { g.font = '600 ' + spx + 'px ' + COVFONT; g.fillStyle = 'rgba(255,255,255,.92)'; g.fillText(sub, tx, y + 8); }
+  g.shadowColor = 'transparent';
+}
+const CVS = { bm: null, rawUrl: '', rawBlob: null, ...COV0 };
+function covRender() {
+  const o = { title: $('covTitle').value, sub: $('covSub').value, layout: CVS.layout, color: CVS.color, size: CVS.size, dark: CVS.dark };
+  composeCover($('covCv'), CVS.bm, o);
+  $('covLay').querySelectorAll('button').forEach(b => b.classList.toggle('pri', b.dataset.l === CVS.layout));
+  $('covCol').querySelectorAll('button').forEach(b => b.classList.toggle('pri', b.dataset.c === CVS.color));
+}
+function covSetBm(bm, rawUrl, rawBlob) { CVS.bm = bm; CVS.rawUrl = rawUrl || ''; CVS.rawBlob = rawBlob || null; $('covHint').textContent = bm ? '' : '이 사진은 불러올 수 없어요. 사진을 올리거나 AI로 만들어 보세요'; covRender(); }
+async function openCover() {
+  const row = S.row; if (!row || S.ro) return; const d = row.data, fx = Object.assign({}, COV0, d.coverFx || {});
+  Object.assign(CVS, fx, { bm: null, rawUrl: '', rawBlob: null });
+  $('covTitle').value = fx.title || d.title || ''; $('covSub').value = fx.sub || ''; $('covSize').value = Math.round(CVS.size * 100); $('covDark').value = Math.round(CVS.dark * 100);
+  $('covStrip').hidden = true; $('covov').hidden = false; $('covHint').textContent = '사진 불러오는 중…'; covRender();
+  const cands = [d.coverRaw, d.cover, d.coverAlt, d.source && d.source.cover2].filter((x, i, a) => x && a.indexOf(x) === i);
+  for (const u of cands) { const bm = await bitmapFrom(u); if ($('covov').hidden) return; if (bm) { covSetBm(bm, u); return; } }
+  covSetBm(null);
+}
+$('covTitle').oninput = $('covSub').oninput = covRender;
+$('covLay').onclick = e => { const b = e.target.closest('button[data-l]'); if (b) { CVS.layout = b.dataset.l; covRender(); } };
+$('covCol').onclick = e => { const b = e.target.closest('button[data-c]'); if (b) { CVS.color = b.dataset.c; covRender(); } };
+$('covSize').oninput = e => { CVS.size = +e.target.value / 100; covRender(); };
+$('covDark').oninput = e => { CVS.dark = +e.target.value / 100; covRender(); };
+$('covUp').onclick = () => $('covFile').click();
+$('covFile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { covSetBm(await createImageBitmap(f), '', f); } catch (x) { toast('사진을 열지 못했어요'); } };
+$('covStepBtn').onclick = () => {
+  const d = S.row.data, list = [];
+  const add = u => { if (u && !list.includes(u)) list.push(u); };
+  add(d.coverRaw); add(d.cover); d.steps.forEach(s => add(s.img)); ((d.photos && d.photos.final) || []).forEach(add); Object.values((d.photos && d.photos.steps) || {}).flat().forEach(add);
+  const st = $('covStrip'); st.hidden = !st.hidden; if (st.hidden) return;
+  st.innerHTML = list.map(u => '<img src="' + esc(u) + '" referrerpolicy="no-referrer" style="height:64px;border-radius:8px;cursor:pointer;flex:none">').join('') || '<span class="tag">쓸 수 있는 사진이 없어요</span>';
+  st.querySelectorAll('img').forEach((im, i) => im.onclick = async () => { $('covHint').textContent = '사진 불러오는 중…'; const bm = await bitmapFrom(list[i]); covSetBm(bm, list[i]); });
+};
+$('covAi').onclick = async () => {
+  const d = S.row.data; $('covHint').textContent = 'AI가 사진을 만드는 중… (20~40초)'; $('covAi').disabled = true;
+  try { const r = await ai({ action: 'image', prompt: d.coverPrompt || (d.title + ', beautifully plated finished dish'), dish: d.title }, 70000); const blob = b64Blob(r.data, r.mime || 'image/png'); covSetBm(await createImageBitmap(blob), '', blob); }
+  catch (e) { $('covHint').textContent = 'AI 사진을 만들지 못했어요: ' + aiErr(e); } finally { $('covAi').disabled = false; }
+};
+$('covCancel').onclick = () => { $('covov').hidden = true; };
+$('covSave').onclick = async () => {
+  const row = S.row; if (!row || S.ro) return; const d = row.data;
+  if (!CVS.bm) { toast('먼저 사진을 골라 주세요'); return; }
+  $('covSave').disabled = true; busy(true, '대표 이미지 저장 중…');
+  try {
+    const blob = await new Promise(r => $('covCv').toBlob(r, 'image/jpeg', .88));
+    const url = await upload(blob); let raw = CVS.rawUrl;
+    if (!raw && CVS.rawBlob) raw = await upload(await toJpeg(CVS.rawBlob, 1600, .85));
+    const oldCover = d.cover, oldRaw = d.coverRaw;
+    d.cover = url; d.coverAlt = ''; d.coverRaw = raw || ''; d.coverFx = { layout: CVS.layout, color: CVS.color, size: CVS.size, dark: CVS.dark, sub: $('covSub').value.trim() };
+    if (d.title !== $('covTitle').value.trim()) d.coverFx.title = $('covTitle').value.trim();
+    persist(row); paintImg(row, 'cover');
+    const del = []; if (oldCover && oldCover !== d.coverRaw && oldCover !== url) del.push(oldCover); if (oldRaw && oldRaw !== d.coverRaw && oldRaw !== oldCover) del.push(oldRaw);
+    const ps = del.map(pathOf).filter(Boolean); if (ps.length) { try { (await client()).storage.from(BUCKET).remove(ps).catch(() => {}); } catch (e) {} }
+    $('covov').hidden = true; toast('대표 이미지를 바꿨어요');
+  } catch (e) { toast('저장하지 못했어요: ' + (e.message || e), 4000); } finally { busy(false); $('covSave').disabled = false; }
+};
+async function autoTitleCover(row) {   // 유튜브·웹에서 가져온 사진은 그대로 쓰지 않고 제목을 얹은 타이틀 이미지로 다시 만든다
+  const d = row.data, t = d.source && d.source.type; if (S.ro || !(t === 'youtube' || t === 'web') || !d.cover || pathOf(d.cover) || d.coverRaw) return;
+  let bm = null, rawUrl = ''; for (const u of [d.cover, d.coverAlt]) { if (!u) continue; bm = await bitmapFrom(u); if (bm) { rawUrl = u; break; } }
+  if (!bm) return;
+  const cv = document.createElement('canvas'); composeCover(cv, bm, Object.assign({ title: d.title }, COV0));
+  const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', .88)); const url = await upload(blob);
+  d.coverRaw = rawUrl; d.cover = url; d.coverAlt = ''; d.coverFx = Object.assign({}, COV0); persist(row); paintImg(row, 'cover');
+}
 $('cX').onclick = () => closeCook(false);
 $('cPrev').onclick = () => goto(G.i - 1, true);
 $('cNext').onclick = () => goto(G.i + 1, true);

@@ -490,20 +490,15 @@ function paintGrid(list, shared, keepChips) {
   const byCat = list.filter(r => !S.cat || catOf(r.data) === S.cat), shown = byCat.filter(r => q.every(w => hay(r).includes(w)));
   const cnt = {}; list.forEach(r => { const c = catOf(r.data); cnt[c] = (cnt[c] || 0) + 1; });
   $('catChips').innerHTML = '<button class="chip' + (S.cat ? '' : ' pri') + '" data-c="">전체 ' + list.length + '</button>' + CATS.filter(c => cnt[c]).map(c => '<button class="chip' + (S.cat === c ? ' pri' : '') + '" data-c="' + c + '">' + c + ' ' + cnt[c] + '</button>').join('');
-  const mc = {}; byCat.forEach(r => mainOf(r.data).forEach(m => { mc[m] = (mc[m] || 0) + 1; }));
-  const tops = Object.entries(mc).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12);
-  $('mainChips').innerHTML = tops.length ? '<span class="tag" style="align-self:center">주재료</span>' + tops.map(([m, n]) => '<button class="chip' + ((S.q || '').trim() === m ? ' pri' : '') + '" data-m="' + esc(m) + '">' + esc(m) + ' ' + n + '</button>').join('') : '';
   $('catChips').onclick = e => { const b = e.target.closest('button[data-c]'); if (!b) return; S.cat = b.dataset.c; paintGrid(list, shared); };
-  $('mainChips').onclick = e => { const b = e.target.closest('button[data-m]'); if (!b) return; S.q = (S.q || '').trim() === b.dataset.m ? '' : b.dataset.m; $('qBox').value = S.q; paintGrid(list, shared); };
   const g = $('gridBox');
   if (!shown.length) { g.innerHTML = '<div class="empty">조건에 맞는 레시피가 없어요</div>'; return; }
-  g.innerHTML = '<div class="grid">' + shown.map(r => '<div class="rc" data-id="' + r.id + '"><div class="im">' + (r.data.cover ? '<img src="' + esc(r.data.cover) + '" data-alt="' + esc(r.data.coverAlt || '') + '" referrerpolicy="no-referrer" loading="lazy" alt="" onerror="if(this.dataset.alt&&this.src!==this.dataset.alt){this.src=this.dataset.alt}else{this.remove()}">' : '🍳') + '</div><div class="tt">' + esc(r.title) + '</div><div class="mt"><span class="badge">' + esc(catOf(r.data)) + '</span>' + mainOf(r.data).slice(0, 2).map(m => '<span>' + esc(m) + '</span>').join('') + (shared ? '<span>' + esc(r.owner === S.uid ? '내 레시피' : r.owner_name || '익명') + '</span>' : (r.shared ? '<span class="badge">공유 중</span>' : '')) + '<span>' + (r.data.steps || []).length + '단계</span></div></div>').join('') + '</div>';
+  g.innerHTML = '<div class="grid">' + shown.map(r => '<div class="rc" data-id="' + r.id + '"><div class="im">' + (r.data.cover ? '<img src="' + esc(r.data.cover) + '" data-alt="' + esc(r.data.coverAlt || '') + '" referrerpolicy="no-referrer" loading="lazy" alt="" onerror="if(this.dataset.alt&&this.src!==this.dataset.alt){this.src=this.dataset.alt}else{this.remove()}">' : '🍳') + '</div><div class="tt">' + esc(r.title) + '</div><div class="mt"><span class="badge">' + esc(catOf(r.data)) + '</span>' + (shared ? '<span>' + esc(r.owner === S.uid ? '내 레시피' : r.owner_name || '익명') + '</span>' : (r.shared ? '<span class="badge">공유 중</span>' : '')) + '<span>' + (r.data.steps || []).length + '단계</span></div></div>').join('') + '</div>';
   g.querySelectorAll('.rc').forEach(el => el.onclick = () => openRecipe(list.find(r => r.id === el.dataset.id), shared));
 }
 function paintTags() {
   const box = $('dTags'); if (!box || !S.row) return; const d = S.row.data;
-  box.innerHTML = '<button class="chip pri" id="dCat">' + esc(catOf(d)) + (S.ro ? '' : ' ▾') + '</button>' + mainOf(d).map(m => '<button class="chip" data-m="' + esc(m) + '">' + esc(m) + '</button>').join('');
-  box.querySelectorAll('button[data-m]').forEach(b => b.onclick = () => { S.q = b.dataset.m; S.cat = ''; closeDetail(); });
+  box.innerHTML = '<button class="chip pri" id="dCat">' + esc(catOf(d)) + (S.ro ? '' : ' ▾') + '</button>' + '';
   if (!S.ro) $('dCat').onclick = pickCategory;
 }
 function pickCategory() {
@@ -518,7 +513,7 @@ async function viewList() {
   try { await loadLists(); } catch (e) { v.innerHTML = '<div class="empty">' + esc(aiErr(e)) + '</div>'; return; }
   const list = shared ? S.shared : S.mine;
   if (!list.length) { v.innerHTML = '<div class="empty">' + (shared ? '아직 공유된 레시피가 없어요' : '첫 레시피를 만들어 보세요') + '</div>' + (shared ? '' : '<button class="pri" id="goNew" style="padding:13px">✨ 새 레시피 만들기</button>'); const g = $('goNew'); if (g) g.onclick = () => setTab('new'); return; }
-  v.innerHTML = '<div class="card" style="padding:10px;gap:8px"><input id="qBox" type="search" placeholder="🔍 이름·재료·주재료 검색 (예: 닭고기, 김치)" value="' + esc(S.q || '') + '"><div class="chips" id="catChips"></div><div class="chips" id="mainChips"></div></div><div id="gridBox"></div>';
+  v.innerHTML = '<div class="card" style="padding:10px;gap:8px"><input id="qBox" type="search" placeholder="🔍 요리·재료 검색 (예: 닭고기, 김치)" value="' + esc(S.q || '') + '"><div class="chips" id="catChips"></div></div><div id="gridBox"></div>';
   $('qBox').oninput = e => { S.q = e.target.value; paintGrid(list, shared, true); };
   paintGrid(list, shared);
   tagMissing();

@@ -55,6 +55,16 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:
 #face[data-state=sleepy] .eye{transform:scaleY(.15)}
 #face[data-state=sleepy] .eye ellipse{animation:none}
 #face[data-state=sleepy] .m-flat{display:block}
+#face[data-state=standby]{--c:#4f9fc0}
+#face[data-state=standby] .eye{transform:scaleY(.66)}
+#face[data-state=standby] .eye ellipse{animation:blinkSlow 7s infinite}
+#face[data-state=standby] .m-flat{display:block;opacity:.55}
+#face[data-state=standby] #gaze{transition:transform .7s cubic-bezier(.45,0,.25,1)}
+#face[data-state=standby]~#say,#face[data-state=standby]~#stateLabel{opacity:.55}
+#face[data-state=wake]{--c:var(--ok)}
+#face[data-state=wake] .eye{transform:scale(1.25)}
+#face[data-state=wake] .m-o{display:block}
+@keyframes blinkSlow{0%,94%,100%{transform:scaleY(1)}96.5%{transform:scaleY(.08)}}
 #stateLabel{font-size:12px;color:var(--dim);letter-spacing:.08em}
 #say{min-height:44px;max-width:92vw;text-align:center;font-size:16px;line-height:1.45;color:var(--fg)}
 #logWrap{display:none;flex:1;min-height:0;flex-direction:column}
@@ -191,6 +201,16 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
     <label>홈봇 애칭 (호출어)</label>
     <input type="text" id="sNick" placeholder="예: 하루, 모모 (비우면 호출어 없이 터치·먼저 말걸기만)">
     <div class="hint">설정하면 이 이름을 부른 뒤 하는 말만 듣습니다. 예: "하루야, 지금 몇 시야?" 이름만 부르면 "네?" 하고 다음 말을 기다리고, 대화가 이어지는 동안에는 이름 없이 이어서 말해도 됩니다. 인식이 잘 되는 2~3음절의 흔하지 않은 이름을 권장합니다. 안드로이드 Chrome은 상시 대기 중 인식 시작음이 날 수 있습니다.</div>
+    <label>대기 모드 진입 (대화가 없을 때)</label>
+    <select id="sStandby">
+      <option value="0">사용 안 함</option>
+      <option value="30">30초</option>
+      <option value="60">1분</option>
+      <option value="180">3분</option>
+      <option value="300">5분</option>
+      <option value="600">10분</option>
+    </select>
+    <div class="hint">대기 모드에서는 눈을 이리저리 움직이며 주변을 살핍니다(카메라 감시·쓰러짐·소리 감시는 계속 동작). 애칭을 부르거나 화면을 터치하면 깨어나 대화를 시작해요. 애칭이 없으면 터치로만 깨울 수 있습니다.</div>
     <label>무동작 알림 기준</label>
     <select id="sIdle">
       <option value="60">1분 (테스트용)</option>
@@ -231,7 +251,7 @@ const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } ca
 
 const S = Object.assign({
   tgToken:'', tgChat:'',
-  idleLimit:60, away:false, greet:true, sound:false, fall:true, camFacing:'user', faceRec:true, faceAlert:true, provider:'sim', engine:'auto', nick:'', phone:'', gemKey:'', gemModel:'gemini-3.6-flash', groqKey:'', groqModel:'llama-3.3-70b-versatile'
+  standbySec:60, idleLimit:60, away:false, greet:true, sound:false, fall:true, camFacing:'user', faceRec:true, faceAlert:true, provider:'sim', engine:'auto', nick:'', phone:'', gemKey:'', gemModel:'gemini-3.6-flash', groqKey:'', groqModel:'llama-3.3-70b-versatile'
 }, load('homebot.settings', {}));
 let notes = load('homebot.notes', []);
 if(!['sim','gemini','groq'].includes(S.provider)) S.provider='sim';   // 예전 설정(claude 등) 정리
@@ -243,7 +263,7 @@ const ABSENT_GREET_MS = 20000;
 
 const video = $('#video'), cam = $('#cam'), ov = $('#ov'), octx = ov.getContext('2d');
 const face = $('#face');
-const LABEL = {idle:'대기',listening:'듣는 중',thinking:'생각 중',speaking:'말하는 중',alert:'경고',sleepy:'정지',happy:'반가워요'};
+const LABEL = {idle:'대기',listening:'듣는 중',thinking:'생각 중',speaking:'말하는 중',alert:'경고',sleepy:'정지',happy:'반가워요',standby:'대기 모드 · 감시 중',wake:'깨어남'};
 
 let running=false, busy=false, speaking=false, alertActive=false;
 let stream=null, pose=null, raf=0, wl=null;
@@ -264,7 +284,32 @@ function log(msg, lvl='info'){
   logs.unshift({t,msg,lvl}); if(logs.length>200) logs.pop();
   $('#log').innerHTML = logs.map(l=>`<div class="l ${l.lvl}"><b>${l.t}</b>${esc(l.msg)}</div>`).join('');
 }
-function setFace(s){ face.dataset.state=s; $('#stateLabel').textContent=LABEL[s]||s; }
+/* ---- 대기 모드: 일정 시간 대화가 없으면 눈을 두리번거리며 감시, 애칭을 부르면 깨어남 ---- */
+let standby=false, scanT=0, scanIdx=-1;
+const SCAN=[[-26,0],[26,0],[-22,-12],[22,-12],[0,-14],[-18,10],[18,10],[0,0],[-26,-4],[26,-4]];
+const gz=(x,y)=>{ $('#gaze').style.transform=`translate(${x}px,${y}px)`; };
+function scanStep(){
+  if(!standby) return;
+  if(Math.random()<.25){            // 가끔 좌→우로 천천히 훑어보기
+    gz(-26,0);
+    scanT=setTimeout(()=>{ if(!standby) return; gz(26,0); scanT=setTimeout(scanStep,1700); },1300);
+    return;
+  }
+  let i; do{ i=Math.floor(Math.random()*SCAN.length); }while(i===scanIdx);
+  scanIdx=i; gz(SCAN[i][0],SCAN[i][1]);
+  scanT=setTimeout(scanStep, 900+Math.random()*1800);
+}
+function enterStandby(){
+  if(standby) return;
+  setFace('standby'); standby=true;
+  $('#say').textContent=S.nick?`💤 대기 중 · "${S.nick}" 하고 불러 주세요`:'💤 대기 중 · 화면을 터치해 주세요';
+  log('대기 모드 진입','info'); scanStep();
+}
+function leaveStandby(){ standby=false; clearTimeout(scanT); gz(0,0); }
+function setFace(s){
+  if(standby&&s!=='standby') leaveStandby();
+  face.dataset.state=s; $('#stateLabel').textContent=LABEL[s]||s;
+}
 function say(text, who){
   $('#say').textContent = (who==='user'?'🧑 ':'🤖 ')+text;
   log((who==='user'?'사용자: ':'홈봇: ')+text,'chat');
@@ -332,7 +377,7 @@ function startWake(){
         const t=e.results[i][0].transcript.trim(), rest=wakeRest(t);
         if(rest===null) continue;            // 애칭 없이 한 말은 무시
         log('호출어 감지: '+t,'info'); abortWake();
-        dialog(rest?null:'네?',{heard:rest||null}); return;
+        dialog(rest?null:'네?',{heard:rest||null,pre:standby?'wake':null,preMs:450}); return;
       }
     };
     r.onerror=ev=>{ if(ev.error==='not-allowed'||ev.error==='service-not-allowed'){ wakeOn=false; chip('#chipWake','호출어 권한 없음','warn'); log('호출어 대기 불가: 마이크 권한을 확인하세요','warn'); } };
@@ -481,7 +526,7 @@ async function dialog(first, opts={}){
   if(busy||!running||registering) return;
   busy=true;
   try{
-    if(opts.pre){ setFace(opts.pre); await sleep(900); }
+    if(opts.pre){ setFace(opts.pre); await sleep(opts.preMs||900); }
     let pre=opts.heard||null; if(pre) say(pre,'user');
     if(first) await speak(first);
     for(let i=0;i<6;i++){
@@ -760,10 +805,15 @@ function tick(){
   faceStep(now,present); resolvePending(now); updateFaceChip(now);
 
   if(present){
-    const gx=Math.max(-1,Math.min(1,(0.5-lm[0].x)*2)), gy=Math.max(-1,Math.min(1,(lm[0].y-0.4)*2));
-    $('#gaze').style.transform=`translate(${(gx*14).toFixed(1)}px,${(gy*8).toFixed(1)}px)`;
+    if(!standby){
+      const gx=Math.max(-1,Math.min(1,(0.5-lm[0].x)*2)), gy=Math.max(-1,Math.min(1,(lm[0].y-0.4)*2));
+      gz((gx*14).toFixed(1),(gy*8).toFixed(1));
+    }
     if(S.fall) fallCheck(now,lm);
-  }else{ fallStart=0; $('#gaze').style.transform='translate(0,0)'; }
+  }else{ fallStart=0; if(!standby) gz(0,0); }
+
+  // 대기 모드 진입: 일정 시간 대화·상호작용이 없을 때
+  if(S.standbySec>0 && !standby && !busy && !speaking && !alertActive && !registering && now-lastInteract>S.standbySec*1000) enterStandby();
 
   // 칩 표시
   chip('#chipPerson', personPresent?'사람 있음':'사람 없음', personPresent?'on':'');
@@ -872,7 +922,7 @@ const sheet=$('#sheet');
 function openSheet(){
   refreshPerms();
   $('#sNick').value=S.nick||''; $('#sProv').value=S.provider; $('#sPhone').value=S.phone||''; { const ph=simPhone(); $('#phoneInfo').textContent=ph.length>=9?'사용 번호: '+ph.slice(0,3)+'-****-'+ph.slice(-4)+(S.phone?' (직접 입력)':' (런처에 등록된 번호)'):'등록된 번호가 없습니다.'; } $('#sGemKey').value=S.gemKey; $('#sGemModel').value=S.gemModel; $('#sEngine').value=S.engine; $('#sGroqKey').value=S.groqKey; $('#sGroqModel').value=S.groqModel; $('#sTgToken').value=S.tgToken; $('#sTgChat').value=S.tgChat;
-  $('#sIdle').value=String(S.idleLimit); $('#sCam').value=S.camFacing;
+  $('#sIdle').value=String(S.idleLimit); $('#sCam').value=S.camFacing; $('#sStandby').value=String(S.standbySec);
   $('#sGreet').checked=S.greet; $('#sFaceRec').checked=S.faceRec; $('#sFaceAlert').checked=S.faceAlert; $('#sFall').checked=S.fall; $('#sSound').checked=S.sound; $('#sAway').checked=S.away;
   $('#sNotes').value=notes.join('\n'); sheet.hidden=false;
 }
@@ -882,7 +932,7 @@ $('#sSave').onclick=()=>{
   Object.assign(S,{
     nick:$('#sNick').value.trim(), provider:$('#sProv').value, phone:$('#sPhone').value.replace(/\D/g,''), gemKey:$('#sGemKey').value.trim(), gemModel:$('#sGemModel').value.trim()||'gemini-3.6-flash', engine:$('#sEngine').value, groqKey:$('#sGroqKey').value.trim(), groqModel:$('#sGroqModel').value.trim()||'llama-3.3-70b-versatile',
     tgToken:$('#sTgToken').value.trim(), tgChat:$('#sTgChat').value.trim(),
-    idleLimit:Number($('#sIdle').value), camFacing:$('#sCam').value,
+    idleLimit:Number($('#sIdle').value), camFacing:$('#sCam').value, standbySec:Number($('#sStandby').value),
     greet:$('#sGreet').checked, faceRec:$('#sFaceRec').checked, faceAlert:$('#sFaceAlert').checked, fall:$('#sFall').checked, sound:$('#sSound').checked, away:$('#sAway').checked
   });
   notes=$('#sNotes').value.split('\n').map(s=>s.trim()).filter(Boolean);

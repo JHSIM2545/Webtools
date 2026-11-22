@@ -1943,7 +1943,7 @@ async function doUpgrade(){
   if(APP){
     try{
       const r=await fetch(REL_API,{headers:{Accept:'application/vnd.github+json'},cache:'no-store'}); const j=await r.json();
-      const m=/build\s*(\d+)/i.exec(j.body||''); const asset=(j.assets||[]).find(a=>/\.apk$/i.test(a.name));
+      const m=/build[=\s]*(\d+)/i.exec(j.body||''); const asset=(j.assets||[]).find(a=>/\.apk$/i.test(a.name));
       if(r.ok&&m&&asset&&Number(m[1])>Number(APP.versionCode())) newer={n:Number(m[1]),url:asset.browser_download_url};
       else if(!r.ok||!m) log('앱 버전 정보를 가져오지 못했어요 (HTTP '+r.status+')','warn');
     }catch(e){ log('앱 버전 확인 실패: '+e.message,'warn'); }

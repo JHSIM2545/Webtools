@@ -51,4 +51,3 @@ jobs:
           gh release view homebot-latest >/dev/null 2>&1 || gh release create homebot-latest --title "홈봇 (독립 앱)" --notes "홈봇 전용 APK" --latest=false
           gh release upload homebot-latest HomeBot.apk --clobber
           gh release edit homebot-latest --notes "홈봇 전용 APK · build ${{ github.run_number }}"
-          gh release edit homebot-latest --notes "build=${{ github.run_number }}"

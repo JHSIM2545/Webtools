@@ -81,6 +81,7 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new AppBridge(), "SimApp");
         installer = new Installer(this, web);
         web.addJavascriptInterface(new PhoneBridge(this), "SimPhone");
+        web.addJavascriptInterface(new CalendarBridge(this), "SimCal");
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -141,6 +142,10 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
         super.onRequestPermissionsResult(code, perms, res);
+        if (code == CalendarBridge.REQ_CAL) {
+            web.post(new Runnable() { @Override public void run() { web.evaluateJavascript("window.__simCalPerm&&window.__simCalPerm()", null); } });
+            return;
+        }
         if (code == PhoneBridge.REQ_PHONE) {
             web.post(new Runnable() { @Override public void run() { web.evaluateJavascript("window.__simPhonePerm&&window.__simPhonePerm()", null); } });
             return;

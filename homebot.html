@@ -555,6 +555,16 @@ function grabFrame(maxEdge=1280,q=0.8){
     return c.toDataURL('image/jpeg',q).split(',')[1];
   }catch{ return null; }
 }
+/* ---- 영상 비용 최적화: 장면이 바뀐 경우에만 전송(32x24 흑백 지문 비교) ---- */
+let sigCv=null;
+function sigOf(){
+  if(window.__sig) return window.__sig;
+  try{ if(!video.videoWidth) return null; sigCv=sigCv||document.createElement('canvas'); sigCv.width=32; sigCv.height=24;
+    const c=sigCv.getContext('2d',{willReadFrequently:true}); c.drawImage(video,0,0,32,24); const d=c.getImageData(0,0,32,24).data, g=new Uint8Array(768);
+    for(let i=0;i<768;i++) g[i]=d[4*i]*0.3+d[4*i+1]*0.59+d[4*i+2]*0.11; return g; }catch{ return null; }
+}
+const sigDiff=(a,b)=>{ if(!a||!b) return 99; let t=0; for(let i=0;i<a.length;i++) t+=Math.abs(a[i]-b[i]); return t/a.length; };
+const VID={chg:3.5, refresh:8000, perTurn:10, gapSpeech:2500, gapVis:500, edge:800, q:0.65};   // 변경 기준·무변화 갱신 주기(ms)·턴당 최대 장수·전송 간격
 function ringTick(){
   if(S.vision==='off'||!running||document.hidden||(standby&&!personPresent)) return;
   const f=grabFrame(960,0.7); if(f){ ring.push({t:performance.now(),f}); if(ring.length>4) ring.shift(); }
@@ -1206,10 +1216,17 @@ function liveRun(dw,first,opts,turns){
     let uBuf='', bBuf='', uFlushed=true, alerted=false, lastEvt=performance.now(), lastFrame=0, gateUntil=0, audioAt=0, tick=0;
     const t0=performance.now(), CAP=10*60e3, idleMs={fast:15000,normal:30000,long:60000}[S.listen]||30000;
     const send=o=>{ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); };
-    const frame=(force,gap=1000,fresh=false)=>{ if(S.vision==='off'||closed||!connected) return; const n=performance.now(); if(!force&&n-lastFrame<2500) return; if(n-lastFrame<gap) return; const f=fresh?(grabFrame(960,0.7)||latestFrame()):latestFrame(); if(f){ lastFrame=n; send({realtimeInput:{video:{data:f,mimeType:'image/jpeg'}}}); } };
+    let lastSig=null, turnFrames=0, sentN=0, skipN=0;
+    const frame=(force,gap=1000,fresh=false)=>{
+      if(S.vision==='off'||closed||!connected) return; const n=performance.now();
+      if(!force&&n-lastFrame<VID.gapSpeech) return; if(n-lastFrame<gap) return;
+      if(turnFrames>=VID.perTurn){ skipN++; return; }                        // 한 턴(말 한 번)당 장수 상한
+      const sg=sigOf(); if(sg&&lastSig&&sigDiff(sg,lastSig)<VID.chg&&n-lastFrame<VID.refresh){ skipN++; return; }   // 장면이 같으면 보내지 않음
+      const f=grabFrame(VID.edge,VID.q)||latestFrame();
+      if(f){ lastFrame=n; lastSig=sg||lastSig; turnFrames++; sentN++; window.__vsent=(window.__vsent||0)+1; send({realtimeInput:{video:{data:f,mimeType:'image/jpeg'}}}); } };
     const flushUser=()=>{ const t=uBuf.trim(); uBuf=''; uFlushed=true; alerted=false; if(!t) return; say(t,'user'); turns.push(t); addTurn(dw,'u',t); hist.push({role:'user',content:t}); while(hist.length>12) hist.shift(); };
     const flushBot=()=>{ const t=bBuf.trim(); bBuf=''; if(!t) return; say(t,'bot'); addTurn(dw,'b',t); hist.push({role:'assistant',content:t}); while(hist.length>12) hist.shift(); };
-    const finish=why=>{ if(closed) return; closed=true; clearInterval(iv); try{ mic&&mic.stop(); }catch{} const w=ws; ws=null; try{ w&&w.close(); }catch{} Pcm.flush(); Pcm.onIdle=null; speaking=false; flushUser(); flushBot(); log('실시간 대화 종료: '+why,'info'); resolve({connected,who:dw,onb:onbReq}); };
+    const finish=why=>{ if(closed) return; closed=true; clearInterval(iv); try{ mic&&mic.stop(); }catch{} const w=ws; ws=null; try{ w&&w.close(); }catch{} Pcm.flush(); Pcm.onIdle=null; speaking=false; flushUser(); flushBot(); log('실시간 대화 종료: '+why+(S.vision!=='off'?` · 영상 ${sentN}장 전송, ${skipN}장 생략`:''),'info'); resolve({connected,who:dw,onb:onbReq}); };
     const onTool=async tc=>{
       const out=await Promise.all((tc.functionCalls||[]).map(async f=>{
         let res={result:'ok'}; const a=f.args||{};
@@ -1243,7 +1260,7 @@ function liveRun(dw,first,opts,turns){
       const it=sc.inputTranscription&&sc.inputTranscription.text;
       if(it){ uBuf+=it; uFlushed=false; lastEvt=performance.now(); selfInt=0;
         if(!alerted&&/(119|살려|응급|구급)/.test(uBuf)){ alerted=true; if(!alertActive) raiseAlert('음성 도움 요청: '+uBuf.trim()); }
-        if(S.vision==='auto'||S.vision==='always') frame(true,400,true); }   // 말하는 동안 계속 '지금 이 순간'의 장면을 새로 찍어 전송(오래된 장면으로 답하는 문제 방지)(첫 전사 조각) 보관해 둔 최신 장면 전송
+        if(S.vision==='auto'||S.vision==='always') frame(true,VIS_RE.test(uBuf)?VID.gapVis:VID.gapSpeech,true); }   // 말하는 동안 계속 '지금 이 순간'의 장면을 새로 찍어 전송(오래된 장면으로 답하는 문제 방지)(첫 전사 조각) 보관해 둔 최신 장면 전송
       const parts=(sc.modelTurn&&sc.modelTurn.parts)||[];
       for(const pt of parts){ if(pt.inlineData&&pt.inlineData.data){
         if(!uFlushed) flushUser();
@@ -1251,7 +1268,7 @@ function liveRun(dw,first,opts,turns){
         Pcm.push(pt.inlineData.data); speaking=true; setFace('speaking'); lastEvt=performance.now(); } }
       const ot=sc.outputTranscription&&sc.outputTranscription.text;
       if(ot){ if(!uFlushed) flushUser(); bBuf+=ot; }
-      if(sc.turnComplete){ flushUser(); flushBot(); lastEvt=performance.now(); if(S.vision==='auto'||S.vision==='always') frame(true); }   // 다음 말 전에 최신 장면을 미리 전달
+      if(sc.turnComplete){ flushUser(); flushBot(); lastEvt=performance.now(); turnFrames=0; if(S.vision==='auto'||S.vision==='always') frame(true,1000); }   // 다음 말 전에 최신 장면을 미리 전달
     };
     const onClose=(w)=>{
       if(closed||w!==ws) return; connected=false;
@@ -1271,7 +1288,7 @@ function liveRun(dw,first,opts,turns){
       if(endReq&&!Pcm.busy&&n-lastEvt>2500) return finish('대화 종료 요청');
       if(connected&&!endReq&&!Pcm.busy&&uBuf===''&&n-lastEvt>7000&&nudges<2){ nudges++; lastEvt=n; send({realtimeInput:{text:'[시스템] 사용자가 잠시 조용합니다. 기억된 정보나 아직 모르는 기본 정보를 바탕으로, 자연스러운 질문이나 화제를 한 가지 먼저 건네세요. 짧게 한두 문장으로.'}}); }
       if(S.vision==='always'&&tick%3===0) frame(false);
-      if(S.vision!=='off'&&!uFlushed&&uBuf) frame(true,450,true);        // 사용자가 말하는 중에는 전사가 멈춰도 계속 새 장면 전송
+      if(S.vision!=='off'&&!uFlushed&&uBuf) frame(true,VIS_RE.test(uBuf)?VID.gapVis:VID.gapSpeech,true);        // 사용자가 말하는 중에는 전사가 멈춰도 계속 새 장면 전송
       lastInteract=n;
     },500);
     (async()=>{

@@ -1100,6 +1100,7 @@ async function think(text,sp=null,imgs=[]){
     const n=text.replace(/^기억해(줘|라|요)?[ ,:]*/,'').trim();
     if(n){ notes.push(n); store('homebot.notes',notes); return '알겠어요. 기억해 둘게요.'; }
   }
+  { const pi=phoneIntent(text); if(pi) return pi; }
   const li=localIntent(text); if(li) return li;
   if(!hasLLM()){ log('AI 미연결: 설정에서 등록 번호/키를 확인하세요','warn'); return '연결된 AI가 없어요.'; }
   hist.push({role:'user',content:text}); while(hist.length>12) hist.shift();
@@ -1208,6 +1209,7 @@ const LIVE_TOOLS=[{functionDeclarations:[
   {name:'lookup_info',description:'날씨·뉴스·주가·환율·교통·스포츠 결과·맛집·일정 등 실시간/최신 정보나 모르는 사실을 검색해서 확인한다. 이런 질문에는 추측하지 말고 반드시 호출한다.',parameters:{type:'OBJECT',properties:{query:{type:'STRING',description:'검색할 질문(지역·날짜 포함)'}},required:['query']}},
   {name:'save_profile',description:'대화 상대에 대해 새로 알게 된 기본 정보를 저장한다. field는 name(이름), honor(부르는 호칭), age(나이), region(현재 사는 지역), job(직업), wake(주로 일어나는 시간), sleep(주로 자는 시간), hobby(취미) 중 하나.',parameters:{type:'OBJECT',properties:{field:{type:'STRING',description:'name|age|region|job|wake|sleep|hobby'},value:{type:'STRING',description:'알게 된 내용'}},required:['field','value']}},
   {name:'start_onboarding',description:'등록되지 않은 처음 보는 사람이 등록(이름·호칭·얼굴·기본 정보)에 동의했을 때 호출한다. 호출하면 대화가 끝나고 음성 안내 등록이 시작된다.',parameters:{type:'OBJECT',properties:{}}},
+  {name:'call_contact',description:'사용자가 전화번호부(연락처)에 있는 사람에게 전화를 걸어 달라고 할 때 호출한다. name은 연락처 이름이나 호칭(엄마, 홍길동 등). 일치하는 사람이 한 명이면 전화가 걸리도록 예약되며, 호출 뒤 "○○님께 전화 걸게요" 한 문장으로 알리고 end_conversation 을 호출한다. 번호는 알려주지 않는다.',parameters:{type:'OBJECT',properties:{name:{type:'STRING',description:'연락처 이름/호칭'}},required:['name']}},
   {name:'end_conversation',description:'사용자가 대화를 끝내거나 작별 인사를 했을 때, 작별 인사를 마친 뒤 호출해 대화를 종료한다.',parameters:{type:'OBJECT',properties:{}}}
 ]}];
 const SILENCE={fast:1000,normal:1600,long:2400};
@@ -1247,6 +1249,13 @@ function liveRun(dw,first,opts,turns){
           if(f.name==='call_for_help'){ if(!alertActive) raiseAlert('음성 도움 요청: '+(a.reason||uBuf||'')); }
           else if(f.name==='remember'){ const n=String(a.note||'').trim(); if(n){ notes.push(n); store('homebot.notes',notes); } }
           else if(f.name==='end_conversation'){ endReq=true; }
+          else if(f.name==='call_contact'){ const r=contactFind(String(a.name||'')); log('📞 연락처 조회: '+(a.name||'')+' → '+r.status,'info');
+            if(r.status==='ok'){ pendingCall={name:r.name,number:r.number}; res={result:'ok',name:r.name,instruction:'곧 전화가 걸립니다. "'+r.name+'님께 전화 걸게요" 한 문장만 말하고 end_conversation 을 호출하세요.'}; }
+            else if(r.status==='multiple') res={result:'multiple',names:r.names,instruction:'누구에게 거는지 이름을 정확히 되물으세요.'};
+            else if(r.status==='none') res={result:'not_found',instruction:'연락처에서 찾지 못했다고 말하세요.'};
+            else if(r.status==='noperm') res={result:'no_permission',instruction:'연락처 권한 허용 화면이 떴으니 허용한 뒤 다시 말해 달라고 안내하세요.'};
+            else res={result:'unsupported',instruction:'이 기기에서는 전화 걸기를 지원하지 않는다고 말하세요.'};
+            if(pendingCall) endReq=true; }
           else if(f.name==='start_onboarding'){ onbReq=true; endReq=true; }
           else if(f.name==='lookup_info'){ const q=String(a.query||'').trim(); log('🔎 조회: '+q,'info'); $('#say').textContent='🔎 '+q; lastEvt=performance.now();
             try{ res={result:await lookupWeb(q)}; log('🔎 결과: '+res.result.slice(0,80),'info'); }catch(e){ log('조회 오류: '+e.message,'warn'); res={error:'조회에 실패했습니다. 모른다고 솔직히 말하세요.'}; } }
@@ -1338,6 +1347,7 @@ async function liveDialog(first,opts={}){
     busy=false; lastInteract=performance.now(); resumeAudio(); if(!alertActive&&running) setFace('idle');
     if(turns.length) extractMemory(dw,turns,opts.fu||null).catch(e=>log('기억 저장 오류: '+e.message,'warn'));
   }
+  if(pendingCall){ await dialPending(); return; }
   if(onb&&running){ log('새 사용자 등록을 시작합니다','info'); setTimeout(()=>startOnboarding(true),300); return; }
   if(!ok&&running){ log('기존 방식으로 대화합니다','warn'); return dialog(first,opts); }
 }
@@ -1379,12 +1389,14 @@ async function dialog(first, opts={}){
       if(sp.touched){ await sp.finish(); reply=sp.text; log('홈봇: '+reply,'chat'); }
       else await speak(reply);
       addTurn(dw,'b',reply);
+      if(pendingCall) break;
     }
   }catch(e){ log('대화 오류: '+e.message,'bad'); }
   finally{
     busy=false; lastInteract=performance.now(); if(!alertActive&&running) setFace('idle');
     if(turns.length) extractMemory(dw,turns,fu).catch(e=>log('기억 저장 오류: '+e.message,'warn'));   // 대화 종료 후 백그라운드로 기억 정리
   }
+  if(pendingCall) await dialPending();
 }
 
 /* ============ 단계식 안전 시나리오 ============ */
@@ -1960,7 +1972,40 @@ if(location.hash==='#debug') window.__hb={setWho:n=>{ curWho=n; curWhoAt=perform
 
 $('#btnFace').onclick=openFaceSheet;
 setTimeout(()=>{ if(S.faceRec&&faces.length) loadFace(); },1200);   // 등록된 얼굴이 있으면 앱을 켜자마자 인식 모델을 미리 불러와 누구인지 빨리 확인
-if(window.__hb) Object.assign(window.__hb,{speak:(t,o)=>speak(t,o),lookup:q=>lookupWeb(q),listen:w=>listenOnce(w),engine:()=>window.__engine,onb:()=>startOnboarding(true),faces:()=>faces,onbState:()=>({onbActive,registering,busy}),mockFace:()=>{ faceapi={detectSingleFace:()=>({withFaceLandmarks:()=>({withFaceDescriptor:()=>Promise.resolve({descriptor:new Float32Array(128).fill(.1),detection:{box:{x:10,y:10,width:60,height:60}}})})}),euclideanDistance:()=>0.1,TinyFaceDetectorOptions:function(){}}; faceReady=true; },shouldOnboard});
+if(window.__hb) Object.assign(window.__hb,{phoneIntent:t=>phoneIntent(t),pendingCall:()=>pendingCall,dial:()=>dialPending(),speak:(t,o)=>speak(t,o),lookup:q=>lookupWeb(q),listen:w=>listenOnce(w),engine:()=>window.__engine,onb:()=>startOnboarding(true),faces:()=>faces,onbState:()=>({onbActive,registering,busy}),mockFace:()=>{ faceapi={detectSingleFace:()=>({withFaceLandmarks:()=>({withFaceDescriptor:()=>Promise.resolve({descriptor:new Float32Array(128).fill(.1),detection:{box:{x:10,y:10,width:60,height:60}}})})}),euclideanDistance:()=>0.1,TinyFaceDetectorOptions:function(){}}; faceReady=true; },shouldOnboard});
+/* ---- 연락처 전화 걸기: 연락처에서 이름으로 번호를 찾아(번호는 AI에 보내지 않음) 전화 앱으로 연결 ---- */
+let pendingCall=null;
+const hon2=n=>/(엄마|아빠|어머니|아버지|어머님|아버님|형|누나|오빠|언니|삼촌|이모|고모|할머니|할아버지|님|과장|부장|팀장|차장|대리|대표|사장|선생|교수|원장)$/.test(n)?n:n+'님';
+const normNm=t=>String(t||'').toLowerCase().replace(/[^0-9a-z가-힣]/g,'').replace(/(님|씨)$/,'');
+function contactFind(name){
+  const P=window.SimPhone; if(!P) return {status:'unsupported'};
+  let pm={}; try{ pm=JSON.parse(P.perms()); }catch{}
+  if(!pm.contacts){ try{ P.request(); }catch{} return {status:'noperm'}; }
+  let r={items:[]}; try{ r=JSON.parse(P.find(name)); }catch{}
+  let items=r.items||[]; if(!items.length) return {status:'none'};
+  if(items.length>1){ const ex=items.filter(i=>normNm(i.name)===normNm(name)); if(ex.length===1) items=ex; }
+  if(items.length>1) return {status:'multiple',names:items.map(i=>i.name)};
+  return {status:'ok',name:items[0].name,number:items[0].number};
+}
+async function dialPending(){
+  const c=pendingCall; pendingCall=null; if(!c) return;
+  await sleep(500); let res='bad'; try{ res=window.SimPhone.call(c.number); }catch{}
+  log('📞 전화 연결: '+c.name+(res==='dial'?' (다이얼 화면 — 통화 버튼을 눌러 주세요)':''),'info');
+  if(res==='bad') log('전화를 걸지 못했어요','warn');
+}
+const CALL_RE=/(.{1,14}?)\s*(?:에게|한테|께|님께|님한테)?\s*(?:전화|통화)\s*(?:좀\s*)?(?:해\s*줘|해줘|해\s*봐|걸어\s*줘|걸어줘|걸어\s*봐|걸어|연결해\s*줘|연결해줘|연결해|할래|하자|하고\s*싶)/;
+function phoneIntent(text){      // 기본 대화 방식용: "엄마한테 전화해 줘"
+  const m=CALL_RE.exec(String(text).replace(/[.!?]/g,' ')); if(!m) return null;
+  const nm=m[1].replace(/^(지금|좀|빨리|바로|어|음|그|저기)\s*/,'').replace(/\s*(에게|한테)$/,'').replace(/\s*씨$/,'').trim(); if(!nm||nm.length>12) return null;
+  const r=contactFind(nm);
+  if(r.status==='unsupported') return '전화 걸기는 앱에서만 쓸 수 있어요.';
+  if(r.status==='noperm') return '연락처와 전화 권한을 허용해 주세요. 허용하신 뒤에 다시 말씀해 주세요.';
+  if(r.status==='none') return `연락처에서 ${nm}${/님$/.test(nm)?'':'님'}을 찾지 못했어요.`;
+  if(r.status==='multiple') return `${hon2(nm)}과 비슷한 분이 ${r.names.length}분 있어요. ${r.names.slice(0,4).join(', ')} 중에서 이름을 정확히 말씀해 주세요.`;
+  pendingCall={name:r.name,number:r.number};
+  return `${hon2(r.name)}께 전화를 걸게요.`;
+}
+window.__simPhonePerm=()=>log('연락처/전화 권한 상태가 바뀌었어요','info');
 /* ---- 더보기(⋮) 메뉴: 업그레이드 · 앱 종료 · (하단) 얼굴 · 설정 ---- */
 const moreMenu=$('#moreMenu'), closeMore=()=>{ moreMenu.hidden=true; };
 $('#btnMore').onclick=e=>{ e.stopPropagation(); moreMenu.hidden=!moreMenu.hidden; if(!moreMenu.hidden) refreshVer(); };
@@ -1968,6 +2013,7 @@ document.addEventListener('click',e=>{ if(!moreMenu.hidden&&!moreMenu.contains(e
 moreMenu.addEventListener('click',()=>closeMore());
 if(window.SimStt||window.SimApp) document.documentElement.classList.add('app');
 const APP=window.SimApp||null, REL_API='https://api.github.com/repos/JHSIM2545/Webtools/releases/tags/homebot-latest';
+window.__upd=(pct,state,msg)=>{ $('#say').textContent=(state==='down'?'⬇ ':state==='fail'||state==='perm'?'⚠ ':'📦 ')+msg; log('업그레이드: '+msg,state==='fail'?'bad':'info'); window.__updLast=[pct,state,msg]; };
 function refreshVer(){ $('#mVer').textContent=APP?'설치된 앱 build '+APP.versionCode():'웹 버전(브라우저)'; }
 async function doUpgrade(){
   log('업그레이드 확인 중…','info'); $('#say').textContent='🔄 업그레이드 확인 중…';
@@ -1982,7 +2028,9 @@ async function doUpgrade(){
   }
   if(newer){
     $('#say').textContent='🔄 새 앱 build '+newer.n+' 이(가) 있어요';
-    if(confirm('새 버전(build '+newer.n+')이 있습니다. 내려받아 설치할까요?\n(다운로드 후 알림/파일에서 설치를 눌러 주세요)')){ try{ APP.openUrl(newer.url); }catch{ window.open(newer.url,'_blank'); } return; }
+    if(confirm('새 버전(build '+newer.n+')이 있습니다. 지금 내려받아 바로 설치할까요?')){
+      if(APP.install){ try{ stop(); }catch{} $('#say').textContent='⬇ 내려받는 중…'; try{ APP.install(newer.url); return; }catch{} }
+      try{ APP.openUrl(newer.url); }catch{ window.open(newer.url,'_blank'); } return; }
   }
   // 화면(웹) 쪽은 항상 최신 파일로 다시 불러오기
   try{ const ks=await caches.keys(); await Promise.all(ks.map(k=>caches.delete(k))); }catch{}

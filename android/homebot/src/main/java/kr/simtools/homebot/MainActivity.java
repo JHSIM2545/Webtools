@@ -41,6 +41,7 @@ public class MainActivity extends Activity {
     private WebView web;
     private SttBridge stt;
     private TtsBridge tts;
+    private Installer installer;
     private PermissionRequest pendingMedia;
     private boolean usedLocal = false;
 
@@ -78,6 +79,8 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(tts, "SimTts");
         web.addJavascriptInterface(new PermBridge(), "SimPerm");
         web.addJavascriptInterface(new AppBridge(), "SimApp");
+        installer = new Installer(this, web);
+        web.addJavascriptInterface(new PhoneBridge(this), "SimPhone");
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -138,6 +141,10 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
         super.onRequestPermissionsResult(code, perms, res);
+        if (code == PhoneBridge.REQ_PHONE) {
+            web.post(new Runnable() { @Override public void run() { web.evaluateJavascript("window.__simPhonePerm&&window.__simPhonePerm()", null); } });
+            return;
+        }
         if (code != REQ_PERM) return;
         SharedPreferences.Editor ed = getSharedPreferences("perm", MODE_PRIVATE).edit();
         for (String p : perms) ed.putBoolean(p, true);
@@ -244,6 +251,11 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void install(final String url) {
+            runOnUiThread(new Runnable() { @Override public void run() { installer.start(url); } });
+        }
+
+        @JavascriptInterface
         public void speaker(final boolean on) {
             runOnUiThread(new Runnable() { @Override public void run() { setSpeaker(on); } });
         }
@@ -324,6 +336,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         routeOn = false; routeH.removeCallbacks(routeTick);
+        if (installer != null) installer.destroy();
         if (stt != null) stt.destroy();
         if (tts != null) tts.destroy();
         if (web != null) { web.removeJavascriptInterface("SimStt"); web.destroy(); }

@@ -39,6 +39,7 @@ public class MainActivity extends Activity {
     private static final int REQ_PERM = 91;
 
     private WebView web;
+    private FileBridge fileBridge;
     private SttBridge stt;
     private TtsBridge tts;
     private Installer installer;
@@ -82,6 +83,8 @@ public class MainActivity extends Activity {
         installer = new Installer(this, web);
         web.addJavascriptInterface(new PhoneBridge(this), "SimPhone");
         web.addJavascriptInterface(new CalendarBridge(this), "SimCal");
+        fileBridge = new FileBridge(this, web);
+        web.addJavascriptInterface(fileBridge, "SimFile");
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -137,6 +140,12 @@ public class MainActivity extends Activity {
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) need.add(Manifest.permission.CAMERA);
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) need.add(Manifest.permission.RECORD_AUDIO);
         return need;
+    }
+
+    @Override
+    protected void onActivityResult(int code, int res, Intent data) {
+        super.onActivityResult(code, res, data);
+        if (code == FileBridge.REQ_PICK && fileBridge != null) fileBridge.onResult(res, data);
     }
 
     @Override

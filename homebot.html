@@ -121,6 +121,13 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
 #sheetBody label{display:block;margin:10px 0 4px;color:var(--dim);font-size:12px}
 #sheetBody input[type=text],#sheetBody input[type=password],#sheetBody select,#sheetBody textarea{width:100%;padding:9px;border-radius:8px;border:1px solid var(--line);background:#0a1117;color:var(--fg);font-size:14px}
 #sheetBody textarea{min-height:70px}
+#sheetBody details.sec{border:1px solid var(--line);border-radius:12px;margin:8px 0;padding:0 12px;background:#0d151c}
+#sheetBody details.sec>summary{cursor:pointer;padding:12px 0;font-weight:600;font-size:14px;list-style:none}
+#sheetBody details.sec>summary::-webkit-details-marker{display:none}
+#sheetBody details.sec>summary::after{content:'＋';float:right;color:var(--dim)}
+#sheetBody details.sec[open]>summary::after{content:'－'}
+#sheetBody details.sec[open]{padding-bottom:10px}
+
 .row{display:flex;align-items:center;gap:8px;margin:8px 0}
 .row input{width:auto}
 .btns{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
@@ -146,6 +153,27 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
 #memSheet[hidden]{display:none}
 #memBody{width:100%;max-height:92dvh;overflow-y:auto;background:var(--panel);border-radius:18px 18px 0 0;padding:16px;font-size:14px}
 #memBody h3{margin:0 0 10px;font-size:16px}
+.mtabs{display:flex;gap:6px;margin:6px 0}
+.mtabs button{flex:1;padding:9px;border-radius:10px;border:1px solid var(--line);background:#0a1117;color:var(--dim);font-size:13px}
+.mtabs button.on{background:#12324a;color:#fff;border-color:#2c6a99}
+.mrow{display:flex;gap:6px;margin:8px 0}
+.mrow input,.mrow select{flex:1;min-width:0;padding:8px;border-radius:8px;border:1px solid var(--line);background:#0a1117;color:var(--fg);font-size:13px}
+.mcard{border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin:7px 0;background:#0d151c}
+.mcard .mh{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--dim);flex-wrap:wrap}
+.mcard .mh b{color:var(--fg);font-weight:600}
+.mcard .mt{margin:5px 0;font-size:13px;line-height:1.45;word-break:break-word}
+.mcard .mt.done{opacity:.5}
+.mcard textarea,.mcard input[type=text],.mcard input[type=date]{width:100%;padding:7px;border-radius:8px;border:1px solid var(--line);background:#0a1117;color:var(--fg);font-size:13px;margin:3px 0}
+.mcard .mb{display:flex;gap:6px;justify-content:flex-end}
+.mcard .mb button,.madd button{padding:4px 10px;border-radius:7px;border:1px solid var(--line);background:#0a1117;color:var(--fg);font-size:12px}
+.mcard .mb button.del{border-color:#5a2227;background:#1a0f10;color:#ffb3b3}
+.madd{border:1px dashed var(--line);border-radius:10px;padding:8px;margin:8px 0}
+.madd .mrow{margin:4px 0}
+.minsight{border:1px solid #2c6a99;background:#0e2233;border-radius:10px;padding:8px 10px;margin:7px 0;font-size:12px;line-height:1.45}
+#ltmBanner{position:fixed;left:8px;right:8px;top:8px;z-index:30;background:#12324a;border:1px solid #2c6a99;border-radius:12px;padding:10px 12px;display:flex;gap:8px;align-items:center;font-size:12px}
+#ltmBanner[hidden]{display:none}
+#ltmBanner span{flex:1}
+#ltmBanner button{padding:6px 10px;border-radius:8px;border:1px solid #2c6a99;background:#0a1117;color:#fff;font-size:12px}
 .mem-spk{border-top:1px solid var(--line);padding:10px 0}
 .mi{display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:13px;line-height:1.4}
 .mi>span:first-child{flex:1}
@@ -209,6 +237,7 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
   <button id="mExit">⏻ 앱 종료</button>
   <hr>
   <button id="btnFace">👤 얼굴 등록·인식</button>
+  <button id="btnMem">🧠 기억 관리</button>
   <button id="btnSet">⚙ 설정</button>
 </div>
 <div id="faceSheet" hidden>
@@ -232,40 +261,90 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
 
 <div id="memSheet" hidden>
   <div id="memBody">
-    <h3>🧠 화자별 기억</h3>
-    <div class="hint">얼굴로 확인된 사람별로 대화 내용과 기억할 일(상태·일정)을 저장합니다. 이 폰 브라우저에만 저장되며, 답변과 기억 추출을 위해 대화 문장이 AI 서버로 전송됩니다. 브라우저 데이터를 지우면 기억도 사라집니다.</div>
+    <h3>🧠 기억 관리</h3>
+    <div class="mtabs"><button id="tabLong" class="on">장기 기억</button><button id="tabShort">단기 기억 (7일)</button></div>
+    <div class="hint" id="memTabHint"></div>
+    <div class="mrow"><input type="text" id="memQ" placeholder="검색"><select id="memWho"></select></div>
+    <div id="memAdd"></div>
     <div id="memList"></div>
+    <div class="hint" id="memMsg"></div>
+    <div class="btns" id="memActs"></div>
     <div class="btns"><button id="memClose">닫기</button></div>
   </div>
 </div>
+<input type="file" id="ltmFile" accept=".json,application/json" hidden>
+<div id="ltmBanner" hidden><span>이전에 저장한 장기 기억 파일이 있으면 불러올 수 있어요.</span><button id="ltmBannerGo">불러오기</button><button id="ltmBannerNo">나중에</button></div>
 
 <div id="sheet" hidden>
   <div id="sheetBody">
     <h3>설정</h3>
-    <label>권한</label>
-    <div class="perm"><span>📷 카메라</span><span class="pst" id="pCam">확인 중</span><button id="rCam">요청</button></div>
-    <div class="perm"><span>🎤 마이크 (대화·이상음)</span><span class="pst" id="pMic">확인 중</span><button id="rMic">요청</button></div>
-    <div class="perm"><span>🗣 음성인식 지원</span><span class="pst" id="pSr">-</span><span></span></div>
-    <div class="perm"><span>🔊 음성출력 지원</span><span class="pst" id="pTts">-</span><span></span></div>
-    <div class="perm"><span>🔆 화면 켜짐 유지</span><span class="pst" id="pWl">-</span><span></span></div>
-    <div class="btns"><button id="rAll" class="primary">카메라+마이크 한 번에 요청</button></div>
-    <div class="hint" id="pHint">거부됨 상태에서는 앱에서 다시 요청할 수 없습니다. 주소창 왼쪽 자물쇠(또는 사이트 설정) → 권한에서 직접 허용해 주세요.</div>
-    <label>대화 AI</label>
-    <select id="sProv"><option value="sim">SIM Tools AI (Supabase 서버에 등록된 키 · 권장)</option><option value="gemini">Gemini (키 직접 입력)</option><option value="groq">Groq (키 직접 입력)</option></select>
-    <label>서버 AI 순서 (SIM Tools AI 선택 시)</label>
-    <select id="sEngine"><option value="auto">자동: Gemini → 실패 시 Groq</option><option value="fast">빠른 응답: Groq → Gemini (영상 질문은 Gemini)</option><option value="gemini">Gemini만</option><option value="groq">Groq만</option></select>
-    <label>듣는 시간 (대화 이어가기)</label>
-    <select id="sListen"><option value="fast">짧게: 말 시작 10초 대기 · 0.85초 쉬면 종료</option><option value="normal">보통: 말 시작 20초 대기 · 1.2초 쉬면 종료</option><option value="long">길게: 말 시작 40초 대기 · 1.8초 쉬면 종료</option></select>
-    <div class="hint">로봇이 답한 뒤 이 시간 동안 다음 말을 기다립니다. 말이 길어지면 자동으로 더 들어요("그리고…", "~인데"처럼 이어질 듯한 말은 종료 판단을 2배 늦춥니다). 길게 할수록 자연스럽지만 답이 시작되는 시간은 조금 늦어집니다.</div>
+    <details class="sec" open><summary>🎙 대화·음성</summary>
+    <label>홈봇 애칭 (호출어)</label>
+    <input type="text" id="sNick" placeholder="예: 하루, 모모 (비우면 호출어 없이 터치·먼저 말걸기만)">
+    <div class="hint">설정하면 이 이름을 부른 뒤 하는 말만 듣습니다. 예: "하루야, 지금 몇 시야?" 이름만 부르면 "네?" 하고 다음 말을 기다리고, 대화가 이어지는 동안에는 이름 없이 이어서 말해도 됩니다. 인식이 잘 되는 2~3음절의 흔하지 않은 이름을 권장합니다. 안드로이드 Chrome은 상시 대기 중 인식 시작음이 날 수 있습니다.</div>
     <label>대화 방식</label>
     <select id="sConv"><option value="live">실시간 전이중 (Gemini Live · 말 끊기 가능 · 권장)</option><option value="classic">기존 방식 (번갈아 말하기)</option></select>
     <div class="row"><input type="checkbox" id="sBarge"><span>로봇이 말하는 중에도 끼어들 수 있게 (끄면 긴 답변을 끝까지 말합니다 · 기본 꺼짐)</span></div>
     <div class="hint">실시간 방식은 말하는 도중에도 로봇이 듣고, 끼어들면 바로 멈춥니다. 연결에 실패하면 자동으로 기존 방식으로 대화합니다. 이어폰·외부 스피커가 없는 폰 하나로 쓸 때는 로봇 소리를 자기 말로 오인할 수 있어, 그런 경우 끼어들기를 끄면 로봇이 말하는 동안에는 듣지 않습니다. 오디오·영상 전송량에 따라 요금이 발생합니다(미리보기 서비스).</div>
     <div class="btns"><button id="tLive">실시간 대화 테스트 (저장 후)</button></div>
     <div class="hint" id="liveOut"></div>
+    <label>듣는 시간 (대화 이어가기)</label>
+    <select id="sListen"><option value="fast">짧게: 말 시작 10초 대기 · 0.85초 쉬면 종료</option><option value="normal">보통: 말 시작 20초 대기 · 1.2초 쉬면 종료</option><option value="long">길게: 말 시작 40초 대기 · 1.8초 쉬면 종료</option></select>
+    <div class="hint">로봇이 답한 뒤 이 시간 동안 다음 말을 기다립니다. 말이 길어지면 자동으로 더 들어요("그리고…", "~인데"처럼 이어질 듯한 말은 종료 판단을 2배 늦춥니다). 길게 할수록 자연스럽지만 답이 시작되는 시간은 조금 늦어집니다.</div>
     <label>영상 이해 (대화 중 카메라 장면 분석)</label>
     <select id="sVision"><option value="auto">필요할 때 (이거·표정·옷·문서 등을 말할 때)</option><option value="always">매번 영상 첨부 (느림·사용량 증가)</option><option value="off">끔</option></select>
     <div class="hint">영상이 필요한 말을 하면 말하는 동안 찍어 둔 카메라 사진을 AI(Gemini)에 함께 보내 표정·옷차림·동작·가리킨 물건·문서 글자를 보고 답합니다. 사진은 저장하지 않지만 AI 서버로 전송됩니다.</div>
+    <div class="row"><input type="checkbox" id="sGreet"><span>먼저 말걸기 (사람 등장 시 인사, 장시간 무대화 시 안부)</span></div>
+    <label>대기 모드 진입 (대화가 없을 때)</label>
+    <select id="sStandby">
+      <option value="0">사용 안 함</option>
+      <option value="30">30초</option>
+      <option value="60">1분</option>
+      <option value="180">3분</option>
+      <option value="300">5분</option>
+      <option value="600">10분</option>
+    </select>
+    <div class="hint">대기 모드에서는 눈을 이리저리 움직이며 주변을 살핍니다(카메라 감시·쓰러짐·소리 감시는 계속 동작). 애칭을 부르거나 화면을 터치하면 깨어나 대화를 시작해요. 애칭이 없으면 터치로만 깨울 수 있습니다.</div>
+    </details>
+    <details class="sec"><summary>📷 카메라·얼굴</summary>
+    <label>카메라</label>
+    <select id="sCam"><option value="user">전면</option><option value="environment">후면</option></select>
+    <div class="hint">카메라 변경은 정지 후 다시 시작하면 적용됩니다.</div>
+    <div class="row"><input type="checkbox" id="sFaceRec"><span>얼굴인식 사용 (등록된 가족 인사 / 미등록 얼굴 구분)</span></div>
+    <div class="row"><input type="checkbox" id="sFaceAlert"><span>미등록 얼굴 감지 시 가족 알림</span></div>
+    </details>
+    <details class="sec"><summary>🛡 안전·알림</summary>
+    <div class="row"><input type="checkbox" id="sFall"><span>쓰러짐 감시</span></div>
+    <div class="row"><input type="checkbox" id="sSound"><span>이상음(큰 소리) 감시</span></div>
+    <div class="row"><input type="checkbox" id="sAway"><span>외출 모드 (무동작 알림 끄고, 사람 감지 시 알림)</span></div>
+    <label>무동작 알림 기준</label>
+    <select id="sIdle">
+      <option value="60">1분 (테스트용)</option>
+      <option value="1800">30분</option>
+      <option value="3600">1시간</option>
+      <option value="7200">2시간</option>
+    </select>
+    <label>텔레그램 봇 토큰 (가족 알림)</label>
+    <input type="password" id="sTgToken">
+    <label>텔레그램 Chat ID</label>
+    <input type="text" id="sTgChat">
+    </details>
+    <details class="sec"><summary>📅 일정</summary>
+    <div class="row"><input type="checkbox" id="sCal"><span>휴대폰 일정 알려주기 (물어보면 대답 · 시작 전 미리 알림)</span></div>
+    <label>일정 미리 알림 시간</label>
+    <select id="sCalLead"><option value="10">10분 전</option><option value="30">30분 전</option><option value="60">1시간 전</option><option value="120">2시간 전</option></select>
+    <div class="hint">향후 2주 일정의 제목·시간·장소가 대화 중 AI에 참고로 전달됩니다(관련 대화 시 상기용). 일정은 읽기만 하고 수정하지 않습니다. (앱에서만 동작, 권한 필요)</div>
+    </details>
+    <details class="sec"><summary>🧠 기억</summary>
+    <div class="row"><input type="checkbox" id="sMem"><span>대화 내용 기억 (화자별 기억 + 안부·일정 먼저 물어보기)</span></div>
+    <div class="btns"><button id="bMem">🧠 기억 관리 열기 (단기·장기)</button></div>
+    <div class="hint">저장된 기억의 조회·수정·삭제·복사와 장기 기억 파일 저장·불러오기는 ⋮ 메뉴의 「기억 관리」에서도 열 수 있어요.</div>
+    </details>
+    <details class="sec"><summary>🔌 AI 연결 (고급)</summary>
+    <label>대화 AI</label>
+    <select id="sProv"><option value="sim">SIM Tools AI (Supabase 서버에 등록된 키 · 권장)</option><option value="gemini">Gemini (키 직접 입력)</option><option value="groq">Groq (키 직접 입력)</option></select>
+    <label>서버 AI 순서 (SIM Tools AI 선택 시)</label>
+    <select id="sEngine"><option value="auto">자동: Gemini → 실패 시 Groq</option><option value="fast">빠른 응답: Groq → Gemini (영상 질문은 Gemini)</option><option value="gemini">Gemini만</option><option value="groq">Groq만</option></select>
     <label>등록 전화번호 (SIM Tools AI용)</label>
     <input type="text" id="sPhone" inputmode="tel" placeholder="비워 두면 런처에 등록된 번호를 자동 사용">
     <div class="hint" id="phoneInfo"></div>
@@ -280,52 +359,22 @@ body.mode-monitor #cam{position:relative;top:0;right:0;width:auto;height:44dvh;m
     <div class="hint">SIM Tools AI는 Supabase 서버에 등록된 Gemini·Groq 키를 쓰므로 이 앱에는 키가 저장되지 않습니다(등록된 전화번호로 인증). 직접 입력한 키는 이 폰 브라우저에만 저장됩니다. 선택한 AI를 쓸 수 없으면 시간·날짜 등 간단한 규칙 응답만 합니다.</div>
     <div class="btns"><button id="tLLM">AI 연결 테스트 (저장 후)</button></div>
     <div class="hint" id="llmOut"></div>
-    <label>텔레그램 봇 토큰 (가족 알림)</label>
-    <input type="password" id="sTgToken">
-    <label>텔레그램 Chat ID</label>
-    <input type="text" id="sTgChat">
-    <label>홈봇 애칭 (호출어)</label>
-    <input type="text" id="sNick" placeholder="예: 하루, 모모 (비우면 호출어 없이 터치·먼저 말걸기만)">
-    <div class="hint">설정하면 이 이름을 부른 뒤 하는 말만 듣습니다. 예: "하루야, 지금 몇 시야?" 이름만 부르면 "네?" 하고 다음 말을 기다리고, 대화가 이어지는 동안에는 이름 없이 이어서 말해도 됩니다. 인식이 잘 되는 2~3음절의 흔하지 않은 이름을 권장합니다. 안드로이드 Chrome은 상시 대기 중 인식 시작음이 날 수 있습니다.</div>
-    <label>대기 모드 진입 (대화가 없을 때)</label>
-    <select id="sStandby">
-      <option value="0">사용 안 함</option>
-      <option value="30">30초</option>
-      <option value="60">1분</option>
-      <option value="180">3분</option>
-      <option value="300">5분</option>
-      <option value="600">10분</option>
-    </select>
-    <div class="hint">대기 모드에서는 눈을 이리저리 움직이며 주변을 살핍니다(카메라 감시·쓰러짐·소리 감시는 계속 동작). 애칭을 부르거나 화면을 터치하면 깨어나 대화를 시작해요. 애칭이 없으면 터치로만 깨울 수 있습니다.</div>
-    <label>무동작 알림 기준</label>
-    <select id="sIdle">
-      <option value="60">1분 (테스트용)</option>
-      <option value="1800">30분</option>
-      <option value="3600">1시간</option>
-      <option value="7200">2시간</option>
-    </select>
-    <label>카메라</label>
-    <select id="sCam"><option value="user">전면</option><option value="environment">후면</option></select>
-    <div class="hint">카메라 변경은 정지 후 다시 시작하면 적용됩니다.</div>
-    <div class="row"><input type="checkbox" id="sGreet"><span>먼저 말걸기 (사람 등장 시 인사, 장시간 무대화 시 안부)</span></div>
-    <div class="row"><input type="checkbox" id="sFall"><span>쓰러짐 감시</span></div>
-    <div class="row"><input type="checkbox" id="sCal"><span>휴대폰 일정 알려주기 (물어보면 대답 · 시작 전 미리 알림)</span></div>
-    <label>일정 미리 알림 시간</label>
-    <select id="sCalLead"><option value="10">10분 전</option><option value="30">30분 전</option><option value="60">1시간 전</option><option value="120">2시간 전</option></select>
-    <div class="hint">향후 2주 일정의 제목·시간·장소가 대화 중 AI에 참고로 전달됩니다(관련 대화 시 상기용). 일정은 읽기만 하고 수정하지 않습니다. (앱에서만 동작, 권한 필요)</div>
-    <div class="row"><input type="checkbox" id="sFaceRec"><span>얼굴인식 사용 (등록된 가족 인사 / 미등록 얼굴 구분)</span></div>
-    <div class="row"><input type="checkbox" id="sFaceAlert"><span>미등록 얼굴 감지 시 가족 알림</span></div>
-    <div class="row"><input type="checkbox" id="sSound"><span>이상음(큰 소리) 감시</span></div>
-    <div class="row"><input type="checkbox" id="sAway"><span>외출 모드 (무동작 알림 끄고, 사람 감지 시 알림)</span></div>
-    <div class="row"><input type="checkbox" id="sMem"><span>대화 내용 기억 (화자별 기억 + 안부·일정 먼저 물어보기)</span></div>
-    <div class="btns"><button id="bMem">🧠 기억 보기·관리</button></div>
-    <label>기억할 정보 (한 줄에 하나. 대화 중 "기억해 ..."라고 말해도 추가됨)</label>
-    <textarea id="sNotes"></textarea>
+    </details>
+    <details class="sec"><summary>🔧 권한·진단 (고급)</summary>
+    <label>권한</label>
+    <div class="perm"><span>📷 카메라</span><span class="pst" id="pCam">확인 중</span><button id="rCam">요청</button></div>
+    <div class="perm"><span>🎤 마이크 (대화·이상음)</span><span class="pst" id="pMic">확인 중</span><button id="rMic">요청</button></div>
+    <div class="perm"><span>🗣 음성인식 지원</span><span class="pst" id="pSr">-</span><span></span></div>
+    <div class="perm"><span>🔊 음성출력 지원</span><span class="pst" id="pTts">-</span><span></span></div>
+    <div class="perm"><span>🔆 화면 켜짐 유지</span><span class="pst" id="pWl">-</span><span></span></div>
+    <div class="btns"><button id="rAll" class="primary">카메라+마이크 한 번에 요청</button></div>
+    <div class="hint" id="pHint">거부됨 상태에서는 앱에서 다시 요청할 수 없습니다. 주소창 왼쪽 자물쇠(또는 사이트 설정) → 권한에서 직접 허용해 주세요.</div>
     <div class="btns">
       <button id="tTalk">말 걸기 테스트</button>
       <button id="tFall">쓰러짐 시나리오 테스트</button>
       <button id="tAlert">알림 전송 테스트</button>
     </div>
+    </details>
     <div class="btns">
       <button id="sCancel">닫기</button>
       <button id="sSave" class="primary">저장</button>
@@ -339,7 +388,7 @@ const $ = s => document.querySelector(s);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const NATIVE_KEYS=['homebot.mem','homebot.faces','homebot.notes','homebot.settings','homebot.last'];
+const NATIVE_KEYS=['homebot.mem','homebot.faces','homebot.notes','homebot.settings','homebot.last','homebot.stm','homebot.ltm'];
 const mirror=(k,str)=>{ try{ if(window.SimApp&&SimApp.put&&NATIVE_KEYS.includes(k)) SimApp.put(k,str); }catch{} };
 if(window.SimApp&&SimApp.get){ for(const k of NATIVE_KEYS){ try{ if(localStorage.getItem(k)==null){ const v=SimApp.get(k); if(v) localStorage.setItem(k,v); } }catch{} } }   // 앱 데이터 복원: 웹 저장소가 비어 있으면 앱 내부 백업에서 되살림
 for(const k of NATIVE_KEYS){ try{ const v=localStorage.getItem(k); if(v!=null) mirror(k,v); }catch{} }   // 이미 있는 데이터도 앱 내부에 사본 만들기
@@ -525,7 +574,7 @@ function speak(text,opts={}){
     say(text,'bot'); setFace('speaking'); speaking=true; abortWake();
     let done=false; const fin=()=>{ if(done) return; done=true; if(tok===speakTok) speaking=false; res(); };
     try{ speechSynthesis.cancel(); }catch{} Pcm.flush();
-    if(useGeminiTts()&&!alertActive&&!opts.device){      // 실시간 대화와 같은 Gemini 목소리로 안내 멘트도 통일
+    if(useGeminiTts()&&!alertActive&&!opts.device&&!registering&&!onbActive){    // 얼굴 등록·갱신 안내는 항상 기기(디바이스) TTS      // 실시간 대화와 같은 Gemini 목소리로 안내 멘트도 통일
       try{ const pcm=await geminiTts(text); if(tok!==speakTok){ fin(); return; } ttsFails=0; engineSet('Gemini TTS · '+LIVE_VOICE); await playPcm(pcm,tok); fin(); return; }
       catch(e){ if(tok!==speakTok){ fin(); return; } if(++ttsFails>=2){ ttsSkipUntil=performance.now()+600000; log('Gemini 음성 합성 실패 → 10분간 기기 음성 사용: '+e.message,'warn'); } else log('Gemini 음성 합성 실패, 이번만 기기 음성: '+e.message,'warn'); }
     }
@@ -886,6 +935,7 @@ function pruneMem(){
   if(n) log(`오래된 대화 ${n}건 정리(7일 초과)`,'info'); return n;
 }
 function memSave(){
+  try{ ltmSaveSoon(); }catch{}
   const put=()=>{ const t=JSON.stringify(mem); localStorage.setItem(MEM_KEY,t); mirror(MEM_KEY,t); };
   try{ put(); }catch{
     for(const k in mem) mem[k].turns=mem[k].turns.slice(-Math.floor(MEM_TURNS/4));
@@ -949,19 +999,20 @@ ${fu?`로봇이 먼저 건넨 말: "${fu.text}" (항목 id=${fu.id})\n`:''}기�
 이번 대화에서 화자가 한 말:
 ${turns.map((t,i)=>`${i+1}) ${t}`).join('\n')}
 
-출력 형식: {"thread":"이번 대화를 마친 시점에서 다음에 이어서 나눌 이야기를, 로봇이 먼저 건넬 수 있는 자연스러운 존댓말 한 문장으로(예: \"아까 말씀하신 여행 준비는 어디까지 하셨어요?\"). 이어갈 게 없으면 빈 문자열","new":[{"text":"기억할 내용 한 줄 요약","kind":"status|event|fact","date":"YYYY-MM-DD 또는 null","ask":"","cheer":"","after":""}],"updates":[{"id":"항목id","status":"done|open"}]}
+출력 형식: {"thread":"이번 대화를 마친 시점에서 다음에 이어서 나눌 이야기를, 로봇이 먼저 건넬 수 있는 자연스러운 존댓말 한 문장으로(예: \"아까 말씀하신 여행 준비는 어디까지 하셨어요?\"). 이어갈 게 없으면 빈 문자열","new":[{"text":"기억할 내용 한 줄 요약","kind":"status|event|fact","date":"YYYY-MM-DD 또는 null","ask":"","cheer":"","after":""}],"updates":[{"id":"항목id","status":"done|open"}],"people":[{"name":"이름","rel":"화자와의 관계(아버지·친구·직장 상사 등)","note":"짧은 메모"}]}
 규칙:
 - kind=status: 화자 주변의 계속되는 상황(가족의 입원·아픔, 걱정거리 등). ask에 다음에 만났을 때 물어볼 자연스러운 존댓말 질문 1~2문장(예: "아버지께서는 좀 어떠세요? 퇴원은 하셨나요?").
 - kind=event: 날짜가 있는 앞으로의 일정(시험·면접·약속 등). date는 위 달력으로 계산. cheer는 그날 건넬 말(예: "오늘 시험이시죠? 시험 잘 보세요!"), after는 지난 뒤 물어볼 말(예: "시험은 잘 보셨어요?").
 - kind=fact: 오래 기억할 취향·가족관계·습관. ask/cheer/after는 빈 문자열.
 - 단순 질문, 잡담, 로봇에 대한 명령(시간·날씨 묻기 등)은 기억하지 말고 "new"를 빈 배열로 두세요.
 - 미해결 항목의 새 소식이 있으면 updates에 넣으세요(퇴원했다·시험이 끝났다 → done, 아직이다 → open).
+- people: 이번 대화에서 새로 알게 된 화자 주변 사람(가족·친구·동료)의 이름과 관계. 이름이 없으면 관계(예: 아버지)를 name에 쓰세요. 없으면 빈 배열.
 - 문구에 화자 이름은 넣지 말고 모두 한국어 존댓말로 쓰세요.`;
   let t=await askLLM(sys,[{role:'user',content:usr}],{kind:'memory',maxTokens:900});
   t=String(t).replace(/```(?:json)?/g,''); const a=t.indexOf('{'), b=t.lastIndexOf('}');
   if(a<0||b<a) throw new Error('JSON 형식이 아님');
   const j=JSON.parse(t.slice(a,b+1));
-  return {new:Array.isArray(j.new)?j.new:[],updates:Array.isArray(j.updates)?j.updates:[],thread:typeof j.thread==='string'?j.thread.trim().slice(0,150):''};
+  return {new:Array.isArray(j.new)?j.new:[],updates:Array.isArray(j.updates)?j.updates:[],people:Array.isArray(j.people)?j.people.slice(0,5):[],thread:typeof j.thread==='string'?j.thread.trim().slice(0,150):''};
 }
 function localExtract(turns,fu){   // AI 없이도 최소한의 규칙으로 일정·상태 추출
   const res={new:[],updates:[]}, base=new Date();
@@ -999,6 +1050,12 @@ function applyMemory(who,m,res,turns){
   for(const u of res.updates||[]){
     const it=m.items.find(i=>i.id===u.id); if(!it) continue;
     if(u.status==='done'){ it.status='done'; log(`기억 갱신 [${who||'미확인'}] 완료 처리: ${it.text}`,'info'); }
+  }
+  for(const pe of res.people||[]){
+    const name=String(pe&&pe.name||'').trim().slice(0,20); if(!name) continue; m.people=m.people||[];
+    const ex=m.people.find(x=>x.name===name);
+    if(ex){ if(pe.rel&&!ex.rel) ex.rel=String(pe.rel).slice(0,20); if(pe.note&&!ex.note) ex.note=String(pe.note).slice(0,80); }
+    else{ m.people.push({id:uid(),name,rel:String(pe.rel||'').slice(0,20),note:String(pe.note||'').slice(0,80)}); log(`인간관계 기억 [${who||'미확인'}] ${name}${pe.rel?' ('+pe.rel+')':''}`,'info'); }
   }
   if(m.items.length>200) m.items=m.items.slice(-200);
   memSave();
@@ -1100,6 +1157,79 @@ function profileCtx(who){
   return (known.length?'\n이미 아는 정보는 절대 다시 묻지 마세요.':'')+(p.honor?`
 이 사람을 부를 때는 "${p.honor}"이라고 부르세요.`:'')+(known.length?`\n이 사람의 기본 정보: ${known.join(', ')}.`:'')+(miss.length?`\n아직 모르는 기본 정보: ${miss.join(', ')}.`:'');
 }
+
+/* ============ 단기 / 장기 기억 ============
+   단기: 최근 7일 대화·설정 변경·행동 기록(자동 저장, 7일 뒤 자동 삭제)
+   장기: "기억해 줘" 요청·프로필·사실·주요 일정·인간관계(영구) → 파일로도 저장, 앱 시작 시 자동 로드 */
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const STM_KEY='homebot.stm', LTM_KEY='homebot.ltm', LTM_FILE='homebot-longterm.json';
+let stm=load(STM_KEY,[]); if(!Array.isArray(stm)) stm=[];
+function stmPrune(){ const cut=Date.now()-MEM_DAYS*864e5, b=stm.length; stm=stm.filter(e=>e&&e.t>=cut); if(stm.length>400) stm=stm.slice(-400); return b!==stm.length; }
+function stmSave(){ store(STM_KEY,stm); }
+function stmAdd(tag,text,who){ if(!S.mem||!text) return; stm.push({id:uid(),t:Date.now(),kind:tag,who:who||'',x:String(text).slice(0,200)}); stmPrune(); stmSave(); }
+try{ if(stmPrune()) stmSave(); }catch{}
+setInterval(()=>{ try{ if(stmPrune()) stmSave(); }catch{} },6*3600e3);
+function ltmBuild(){
+  const who={};
+  for(const k of Object.keys(mem)){ const m=mem[k]; if(!m) continue;
+    const items=(m.items||[]).filter(i=>i.kind==='fact'||(i.kind==='event'&&i.status!=='done')).map(i=>({id:i.id,kind:i.kind,text:i.text,date:i.date||null,createdAt:i.createdAt||0}));
+    const profile=m.profile||{}, people=(m.people||[]).map(p=>({id:p.id,name:p.name,rel:p.rel||'',note:p.note||''}));
+    if(Object.keys(profile).length||items.length||people.length) who[k]={profile,items,people};
+  }
+  return {app:'homebot-ltm',v:1,savedAt:new Date().toISOString(),notes:[...notes],who};
+}
+const ltmCount=o=>(o.notes||[]).length+Object.values(o.who||{}).reduce((a,w)=>a+Object.keys(w.profile||{}).length+(w.items||[]).length+(w.people||[]).length,0);
+function ltmMerge(o){      // 기존 것은 그대로 두고 없는 것만 채운다. 추가한 개수 반환(형식이 다르면 -1)
+  if(!o||o.app!=='homebot-ltm') return -1; let n=0; const today=ymd(new Date());
+  for(const t of o.notes||[]){ const x=String(t||'').trim().slice(0,300); if(x&&!notes.includes(x)){ notes.push(x); n++; } }
+  for(const k of Object.keys(o.who||{})){
+    const w=o.who[k]||{}, m=mget(k==='미확인'?null:k);
+    m.profile=m.profile||{}; for(const f of Object.keys(w.profile||{})) if(!m.profile[f]&&PROF.some(x=>x[0]===f)){ m.profile[f]=String(w.profile[f]).slice(0,60); n++; }
+    for(const it of w.items||[]){
+      const text=String(it.text||'').trim().slice(0,100); if(!text) continue; const kind=it.kind==='event'?'event':'fact';
+      if(kind==='event'&&(!it.date||it.date<today)) continue;
+      if(m.items.some(i=>(it.id&&i.id===it.id)||(i.kind===kind&&i.text===text))) continue;
+      m.items.push({id:it.id||uid(),text,kind,date:kind==='event'?it.date:null,createdAt:it.createdAt||Date.now(),status:'open',
+        ask:'',cheer:kind==='event'?'오늘 중요한 일정이 있으시죠? 잘 해내실 거예요!':'',after:kind==='event'?'그 일정은 어떻게 되셨어요?':'',askedAt:0,askCount:0,cheered:false,afterAsked:false}); n++;
+    }
+    m.people=m.people||[]; for(const pe of w.people||[]){ const name=String(pe.name||'').trim().slice(0,20); if(name&&!m.people.some(x=>x.name===name)){ m.people.push({id:pe.id||uid(),name,rel:String(pe.rel||'').slice(0,20),note:String(pe.note||'').slice(0,80)}); n++; } }
+  }
+  if(n){ store('homebot.notes',notes); try{ memSave(); }catch{} }
+  return n;
+}
+let ltmLast='', ltmTimer=0, ltmFileMsg='';
+function ltmFlush(force){
+  clearTimeout(ltmTimer); ltmTimer=0;
+  const o=ltmBuild(); if(!ltmCount(o)) return;               // 비어 있으면(새로 설치 직후 등) 기존 파일을 덮어쓰지 않음
+  const body=JSON.stringify({...o,savedAt:''}); if(!force&&body===ltmLast) return; ltmLast=body;
+  const txt=JSON.stringify(o,null,1); store(LTM_KEY,o);
+  try{ if(window.SimFile&&SimFile.save){ ltmFileMsg=String(SimFile.save(LTM_FILE,txt)); if(ltmFileMsg.startsWith('err')) log('장기 기억 파일 저장 실패: '+ltmFileMsg,'warn'); } }catch(e){ log('장기 기억 파일 저장 실패: '+e.message,'warn'); }
+}
+function ltmSaveSoon(){ if(ltmTimer) return; ltmTimer=setTimeout(()=>{ try{ ltmFlush(); }catch{} },2500); }
+addEventListener('pagehide',()=>{ try{ ltmFlush(); }catch{} });
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ try{ ltmFlush(); }catch{} } });
+function ltmBoot(){      // 앱 로드 시: 저장해 둔 장기 기억을 읽어 현재 기억에 합친다
+  let n=0; try{ const prev=load(LTM_KEY,null); if(prev) n=Math.max(0,ltmMerge(prev)); }catch{}
+  if(n) log(`장기 기억 ${n}개를 불러왔어요`,'info');
+  try{ ltmFlush(); }catch{}
+  if(window.SimFile&&!ltmCount(ltmBuild())&&!faces.length&&localStorage.getItem('homebot.ltmask')!=='1') $('#ltmBanner').hidden=false;
+}
+async function ltmImportText(text){
+  let o=null; try{ o=JSON.parse(text); }catch{}
+  const n=ltmMerge(o); const msg=n<0?'장기 기억 파일 형식이 아니에요.':`장기 기억 ${n}개를 불러왔어요${n===0?' (이미 모두 있어요)':''}.`;
+  $('#memMsg').textContent=msg; log(msg,n<0?'warn':'info'); if(n>0){ ltmFlush(true); renderMem(); } return n;
+}
+window.__ltmFile=t=>{ if(t==null){ $('#memMsg').textContent='파일을 불러오지 못했어요.'; return; } $('#ltmBanner').hidden=true; ltmImportText(t); };
+function pickLtmFile(){ if(window.SimFile&&SimFile.pick){ try{ SimFile.pick(); return; }catch{} } $('#ltmFile').click(); }
+$('#ltmFile').onchange=async e=>{ const f=e.target.files&&e.target.files[0]; if(f){ ltmImportText(await f.text()); } e.target.value=''; };
+$('#ltmBannerGo').onclick=()=>pickLtmFile();
+$('#ltmBannerNo').onclick=()=>{ $('#ltmBanner').hidden=true; try{ localStorage.setItem('homebot.ltmask','1'); }catch{} };
+function ltmExportFile(){
+  ltmFlush(true); const o=ltmBuild(), txt=JSON.stringify(o,null,1);
+  if(window.SimFile&&SimFile.save&&ltmFileMsg.startsWith('ok')){ $('#memMsg').textContent='💾 저장했어요: '+ltmFileMsg.slice(3); return; }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'})); a.download=LTM_FILE; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  $('#memMsg').textContent='💾 파일로 내려받았어요: '+LTM_FILE;
+}
 /* ---- 실시간 정보 조회(날씨·뉴스·시세 등): 서버가 구글 검색으로 확인 ---- */
 const Think=(()=>{ let tm=null, ctx=null;
   const knock=(at,f,g)=>{ const t=ctx.currentTime+at, o=ctx.createOscillator(), e=ctx.createGain(); o.type='triangle'; o.frequency.setValueAtTime(f,t); o.frequency.exponentialRampToValueAtTime(f*0.55,t+0.05);
@@ -1136,8 +1266,9 @@ async function think(text,sp=null,imgs=[]){
   }
   if(/^기억해/.test(text)){
     const n=text.replace(/^기억해(줘|라|요)?[ ,:]*/,'').trim();
-    if(n){ notes.push(n); store('homebot.notes',notes); return '알겠어요. 기억해 둘게요.'; }
+    if(n){ notes.push(n); store('homebot.notes',notes); ltmSaveSoon(); return '알겠어요. 기억해 둘게요.'; }
   }
+  { const fi=faceUpdateIntent(text); if(fi) return fi; }
   { const pi=phoneIntent(text); if(pi) return pi; }
   if(S.cal!==false){ const si=scheduleIntent(text); if(si) return si; }
   const li=localIntent(text); if(li) return li;
@@ -1250,6 +1381,7 @@ const LIVE_TOOLS=[{functionDeclarations:[
   {name:'save_profile',description:'대화 상대에 대해 새로 알게 된 기본 정보를 저장한다. field는 name(이름), honor(부르는 호칭), age(나이), region(현재 사는 지역), job(직업), wake(주로 일어나는 시간), sleep(주로 자는 시간), hobby(취미) 중 하나.',parameters:{type:'OBJECT',properties:{field:{type:'STRING',description:'name|age|region|job|wake|sleep|hobby'},value:{type:'STRING',description:'알게 된 내용'}},required:['field','value']}},
   {name:'start_onboarding',description:'등록되지 않은 처음 보는 사람이 등록(이름·호칭·얼굴·기본 정보)에 동의했을 때 호출한다. 호출하면 대화가 끝나고 음성 안내 등록이 시작된다.',parameters:{type:'OBJECT',properties:{}}},
   {name:'call_contact',description:'사용자가 전화번호부(연락처)에 있는 사람에게 전화를 걸어 달라고 할 때 호출한다. name은 연락처 이름이나 호칭(엄마, 홍길동 등). 일치하는 사람이 한 명이면 전화가 걸리도록 예약되며, 호출 뒤 "○○님께 전화 걸게요" 한 문장으로 알리고 end_conversation 을 호출한다. 번호는 알려주지 않는다.',parameters:{type:'OBJECT',properties:{name:{type:'STRING',description:'연락처 이름/호칭'}},required:['name']}},
+  {name:'update_face',description:'사용자가 등록된 자신의 얼굴을 갱신·다시 등록·다시 찍어 달라고 할 때 호출한다. name은 갱신할 사람 이름(대화 상대 본인이면 생략). 호출하면 대화가 끝나고 곧바로 얼굴 촬영 모드가 시작되어 음성 안내에 따라 사진을 찍는다. 호출 뒤 "얼굴 사진을 다시 찍을게요" 한 문장만 말하고 end_conversation 을 호출한다.',parameters:{type:'OBJECT',properties:{name:{type:'STRING',description:'갱신할 사람 이름(선택)'}}}},
   {name:'get_schedule',description:'사용자 휴대폰 일정표(캘린더)의 일정을 확인한다. 오늘·내일·이번 주 일정, 약속, 스케줄을 묻거나 "다음 일정"을 물으면 호출한다. date는 YYYY-MM-DD(생략하면 오늘), days는 며칠치인지(기본 1, 최대 14). 결과를 1~2문장으로 자연스럽게 말하고, 일정이 없으면 없다고 말한다.',parameters:{type:'OBJECT',properties:{date:{type:'STRING',description:'시작 날짜 YYYY-MM-DD'},days:{type:'NUMBER',description:'조회할 일수'}}}},
   {name:'end_conversation',description:'사용자가 대화를 끝내거나 작별 인사를 했을 때, 작별 인사를 마친 뒤 호출해 대화를 종료한다.',parameters:{type:'OBJECT',properties:{}}}
 ]}];
@@ -1289,7 +1421,7 @@ function liveRun(dw,first,opts,turns){
         let res={result:'ok'}; const a=f.args||{};
         try{
           if(f.name==='call_for_help'){ if(!alertActive) raiseAlert('음성 도움 요청: '+(a.reason||uBuf||'')); }
-          else if(f.name==='remember'){ const n=String(a.note||'').trim(); if(n){ notes.push(n); store('homebot.notes',notes); } }
+          else if(f.name==='remember'){ const n=String(a.note||'').trim(); if(n){ notes.push(n); store('homebot.notes',notes); ltmSaveSoon(); } }
           else if(f.name==='end_conversation'){ endReq=true; }
           else if(f.name==='call_contact'){ const r=contactFind(String(a.name||'')); log('📞 연락처 조회: '+(a.name||'')+' → '+r.status,'info');
             if(r.status==='ok'){ pendingCall={name:r.name,number:r.number}; res={result:'ok',name:r.name,instruction:'곧 전화가 걸립니다. "'+r.name+'님께 전화 걸게요" 한 문장만 말하고 end_conversation 을 호출하세요.'}; }
@@ -1298,6 +1430,11 @@ function liveRun(dw,first,opts,turns){
             else if(r.status==='noperm') res={result:'no_permission',instruction:'연락처 권한 허용 화면이 떴으니 허용한 뒤 다시 말해 달라고 안내하세요.'};
             else res={result:'unsupported',instruction:'이 기기에서는 전화 걸기를 지원하지 않는다고 말하세요.'};
             if(pendingCall) endReq=true; }
+          else if(f.name==='update_face'){ const t=S.faceRec?faceUpdateTarget(String(a.name||'')||null):{off:true};
+            if(t.name){ pendingFace={name:t.name}; endReq=true; res={result:'ok',name:t.name,instruction:'곧 얼굴 촬영이 시작됩니다. "'+honName(t.name)+'의 얼굴 사진을 다시 찍을게요" 한 문장만 말하고 end_conversation 을 호출하세요.'}; }
+            else if(t.ask) res={result:'multiple',names:t.names,instruction:'누구의 얼굴을 갱신할지 이름을 되물으세요.'};
+            else if(t.none) res={result:'no_face',instruction:'등록된 얼굴이 없다고 말하고 더보기 메뉴의 얼굴 등록을 안내하세요.'};
+            else res={result:'disabled',instruction:'설정에서 얼굴인식이 꺼져 있다고 말하세요.'}; }
           else if(f.name==='get_schedule'){ const r=S.cal===false?{status:'off'}:calToolText(a); log('📅 일정 조회: '+(a.date||'오늘')+' '+(a.days||1)+'일 → '+r.status+(r.count!=null?' '+r.count+'건':''),'info');
             if(r.status==='ok') res={result:r.text,count:r.count,instruction:'위 일정을 바탕으로 질문에 짧게 답하세요. 일정 추가·변경은 할 수 없다고 안내하세요.'};
             else if(r.status==='noperm') res={result:'no_permission',instruction:'일정 권한 허용 화면이 떴으니 허용한 뒤 다시 물어봐 달라고 안내하세요.'};
@@ -1395,9 +1532,11 @@ async function liveDialog(first,opts={}){
   }catch(e){ log('실시간 대화 오류: '+e.message,'bad'); }
   finally{
     busy=false; lastInteract=performance.now(); resumeAudio(); if(!alertActive&&running) setFace('idle');
+    if(turns.length) stmAdd('대화',`대화 종료 · 말씀 ${turns.length}회 · 첫 말: ${String(turns[0]).slice(0,30)}`,dw);
     if(turns.length) extractMemory(dw,turns,opts.fu||null).catch(e=>log('기억 저장 오류: '+e.message,'warn'));
   }
   if(myGen!==GEN||!running) return;
+  if(pendingFace&&myGen===GEN&&running){ await runFaceUpdate(); return; }
   if(pendingCall){ await dialPending(); return; }
   if(onb&&running){ log('새 사용자 등록을 시작합니다','info'); setTimeout(()=>startOnboarding(true),300); return; }
   if(!ok&&running){ log('기존 방식으로 대화합니다','warn'); return dialog(first,opts); }
@@ -1446,8 +1585,10 @@ async function dialog(first, opts={}){
   }catch(e){ log('대화 오류: '+e.message,'bad'); }
   finally{
     busy=false; lastInteract=performance.now(); if(!alertActive&&running) setFace('idle');
+    if(turns.length) stmAdd('대화',`대화 종료 · 말씀 ${turns.length}회 · 첫 말: ${String(turns[0]).slice(0,30)}`,dw);
     if(turns.length) extractMemory(dw,turns,fu).catch(e=>log('기억 저장 오류: '+e.message,'warn'));   // 대화 종료 후 백그라운드로 기억 정리
   }
+  if(pendingFace&&myGen===GEN&&running) await runFaceUpdate();
   if(pendingCall&&myGen===GEN&&running) await dialPending();
 }
 
@@ -1666,8 +1807,7 @@ function shutter(){          // 사진 촬영음(찰칵) + 화면 번쩍임
 const ttsPrefetchLater=()=>ttsPrefetch(['정면을 바라봐 주세요.','좋아요. 고개를 왼쪽으로 살짝 돌려 주세요.','좋아요. 이번에는 오른쪽으로 살짝 돌려 주세요.','좋아요. 살짝 위를 봐 주세요.','좋아요. 마지막이에요. 살짝 아래를 봐 주세요.']);
 const VSTEPS=['정면을 바라봐 주세요.','고개를 왼쪽으로 살짝 돌려 주세요.','이번에는 오른쪽으로 살짝 돌려 주세요.','살짝 위를 봐 주세요.','마지막이에요. 살짝 아래를 봐 주세요.'];
 // 얼굴 5장 촬영(촬영음 포함). voice=true면 동작 요구를 음성으로 안내
-async function registerCore(name,voice){
-  ttsPrefetchLater();
+async function registerCore(name,voice,replace=false){
   const got=[]; let thumb=null;
   for(let i=0;i<STEPS.length;i++){
     if(!running) return {ok:false};
@@ -1685,9 +1825,9 @@ async function registerCore(name,voice){
     await sleep(500);
   }
   const p=faces.find(x=>x.name===name);
-  if(p){ p.descs.push(...got); p.descs=p.descs.slice(-15); if(thumb) p.thumb=thumb; }
+  if(p){ if(replace) p.descs=got; else{ p.descs.push(...got); p.descs=p.descs.slice(-15); } if(thumb) p.thumb=thumb; }
   else faces.push({id:Date.now().toString(36),name,descs:got,thumb});
-  store('homebot.faces',faces); renderFaces(); log('얼굴 등록: '+name,'info');
+  store('homebot.faces',faces); renderFaces(); log('얼굴 등록: '+name,'info'); stmAdd('행동',(replace?'얼굴 갱신 촬영: ':'얼굴 등록 촬영: ')+name,name);
   return {ok:true,count:got.length};
 }
 async function runRegister(){
@@ -1706,6 +1846,45 @@ async function runRegister(){
 }
 
 /* ---- 처음 사용자 등록: 이름·호칭 → 얼굴 등록(음성 안내 + 촬영음) → 기본 정보 하나씩 묻기 → 편한 대화 ---- */
+
+/* ---- 얼굴 갱신: "얼굴 갱신해 줘" → 바로 촬영 모드(음성 안내는 기기 TTS) ---- */
+let pendingFace=null;
+const FACE_UPD_RE=/얼굴.{0,10}(갱신|재등록|다시\s*등록|새로\s*등록|새로\s*찍|다시\s*찍|업데이트|다시\s*인식|바꿔|새로\s*고침)|(갱신|재등록|업데이트).{0,6}얼굴/;
+const honName=n=>honor(n).replace(/,\s*$/,'')||(n+'님');
+function faceUpdateTarget(hint){
+  const nm=s=>String(s||'').replace(/님$/,'');
+  const byHint=hint?faces.find(f=>nm(f.name)===nm(hint)):null; if(byHint) return {name:byHint.name};
+  if(!faces.length) return {none:true};
+  const cur=spkG(); if(cur&&faces.some(f=>f.name===cur)) return {name:cur};
+  if(faces.length===1) return {name:faces[0].name};
+  return {ask:true,names:faces.map(f=>f.name)};
+}
+function faceUpdateIntent(text){      // 기본 대화 방식용
+  if(!FACE_UPD_RE.test(String(text))) return null;
+  if(!S.faceRec) return '설정에서 얼굴인식을 켜야 얼굴을 갱신할 수 있어요.';
+  const hint=(faces.find(f=>String(text).includes(f.name))||{}).name;
+  const t=faceUpdateTarget(hint);
+  if(t.none) return '등록된 얼굴이 아직 없어요. 더보기 메뉴의 얼굴 등록을 이용해 주세요.';
+  if(t.ask) return `누구의 얼굴을 갱신할까요? ${t.names.slice(0,4).join(', ')} 중에서 이름을 말씀해 주세요.`;
+  pendingFace={name:t.name};
+  return `${honName(t.name)}의 얼굴 사진을 다시 찍을게요.`;
+}
+async function runFaceUpdate(){
+  const c=pendingFace; pendingFace=null; if(!c||!running||registering||onbActive) return;
+  const myGen=GEN; registering=true; busy=true; setFace('happy');
+  try{
+    if(liveCur) liveCur.finish('얼굴 갱신');
+    if(!(await loadFace())){ await speak('얼굴 인식 준비가 아직 안 됐어요. 잠시 뒤에 다시 해 봐요.'); return; }
+    await speak(`${honName(c.name)}의 얼굴을 다시 등록할게요. 제가 안내하는 대로 천천히 고개를 움직여 주세요. 찍을 때마다 찰칵 소리가 나요.`);
+    const r=await registerCore(c.name,true,true);
+    if(myGen!==GEN||!running) return;
+    if(!r.ok){ await speak('얼굴이 잘 보이지 않아서 갱신을 마치지 못했어요. 밝은 곳에서 다시 해 봐요.'); stmAdd('행동',`얼굴 갱신 실패 (${c.name})`,c.name); return; }
+    curWho=c.name; curWhoAt=performance.now(); unknownStreak=0; store('homebot.last',{name:c.name,at:Date.now()});
+    stmAdd('행동',`얼굴 갱신 완료 (${c.name})`,c.name); log('얼굴 갱신 완료: '+c.name,'info');
+    await speak(`${honName(c.name)}의 얼굴 갱신이 끝났어요. 새로 찍은 얼굴로 알아볼게요.`);
+  }catch(e){ log('얼굴 갱신 오류: '+e.message,'bad'); }
+  finally{ registering=false; busy=false; lastInteract=performance.now(); if(running&&!alertActive) setFace('idle'); }
+}
 let onbActive=false, onbSkipUntil=0;
 const shouldOnboard=()=>S.faceRec&&running&&!faces.length&&!onbActive&&!busy&&!registering&&performance.now()>onbSkipUntil;
 const CANCEL_RE=/(그만|다음에|나중에|안 ?할래|하기 ?싫|취소)/, PASS_RE=/(패스|넘어가|건너뛰|말하기 ?(싫|곤란)|비밀|안 ?알려)/;
@@ -1796,6 +1975,7 @@ function updatePresence(now,present){
   }
 }
 async function onArrive(absent,now){
+  if(now-(window.__lastArriveLog||-1e9)>20*60e3){ window.__lastArriveLog=now; stmAdd('도착','사람 감지(도착)'); }
   if(S.away){
     if(now-lastIntrusion>60000){ lastIntrusion=now; pendingIntrusion={at:now}; }
     return;
@@ -1909,7 +2089,7 @@ async function start(){
   lockScreen(); startAudio(); try{ if(window.SimApp&&SimApp.speaker) SimApp.speaker(true); }catch{}     // 앱: 통화(수화기) 출력이 아니라 스피커폰으로
   if(!SR) log('이 브라우저는 음성인식을 지원하지 않습니다 (안드로이드 Chrome 권장)','warn');
   tick(); startWake();
-  if(!hasLLM()){ log('AI 사용 번호가 없어 대화 AI에 연결할 수 없습니다 → 설정에서 번호를 입력하세요','warn'); openSheet(); setTimeout(()=>{ try{ $('#sPhone').scrollIntoView({block:'center'}); $('#sPhone').focus(); }catch{} },300); }
+  if(!hasLLM()){ log('AI 사용 번호가 없어 대화 AI에 연결할 수 없습니다 → 설정에서 번호를 입력하세요','warn'); openSheet(); setTimeout(()=>{ try{ const d=$('#sPhone').closest('details'); if(d) d.open=true; $('#sPhone').scrollIntoView({block:'center'}); $('#sPhone').focus(); }catch{} },300); }
   setFace('idle');
 }
 function stop(){
@@ -1918,7 +2098,7 @@ function stop(){
   for(const m of [...micSet]){ try{ m.stop(); }catch{} }   // 남아 있는 마이크 전부 해제
   try{ listenAbort&&listenAbort(); }catch{}               // 듣는 중인 음성인식 중단
   speakTok++; try{ Pcm.flush(); Pcm.onIdle=null; }catch{} try{ Think.stop(); }catch{}   // 안내 음성(Gemini 포함)·생각 소리 중단
-  onbActive=false; registering=false; pendingCall=null; alertActive=false;
+  onbActive=false; registering=false; pendingCall=null; pendingFace=null; alertActive=false;
   try{ if(window.SimApp&&SimApp.speaker) SimApp.speaker(false); }catch{}
   stopWake(); cancelAnimationFrame(raf);
   try{ speechSynthesis.cancel(); }catch{}
@@ -1983,18 +2163,21 @@ function openSheet(){
   $('#sNick').value=S.nick||''; $('#sProv').value=S.provider; $('#sPhone').value=S.phone||''; { const ph=simPhone(); $('#phoneInfo').textContent=ph.length>=9?'사용 번호: '+ph.slice(0,3)+'-****-'+ph.slice(-4)+(S.phone?' (직접 입력)':' (런처에 등록된 번호)'):'⚠ 등록된 번호가 없습니다. SIM Tools 에 등록된 전화번호를 위 칸에 입력하고 저장하세요(이 번호로 AI 사용 권한을 확인합니다).'; } $('#sGemKey').value=S.gemKey; $('#sGemModel').value=S.gemModel; $('#sEngine').value=S.engine; $('#sVision').value=S.vision; $('#sListen').value=S.listen; $('#sConv').value=S.convMode; $('#sBarge').checked=S.barge; $('#sGroqKey').value=S.groqKey; $('#sGroqModel').value=S.groqModel; $('#sTgToken').value=S.tgToken; $('#sTgChat').value=S.tgChat;
   $('#sIdle').value=String(S.idleLimit); $('#sCam').value=S.camFacing; $('#sStandby').value=String(S.standbySec);
   $('#sGreet').checked=S.greet; $('#sFaceRec').checked=S.faceRec; $('#sFaceAlert').checked=S.faceAlert; $('#sFall').checked=S.fall; $('#sCal').checked=S.cal!==false; $('#sCalLead').value=String(S.calLead||30); $('#sSound').checked=S.sound; $('#sAway').checked=S.away; $('#sMem').checked=S.mem;
-  $('#sNotes').value=notes.join('\n'); sheet.hidden=false;
+  sheet.hidden=false;
 }
 $('#btnSet').onclick=openSheet;
 $('#sCancel').onclick=()=>sheet.hidden=true;
 $('#sSave').onclick=()=>{
+  const oldS={...S};
   Object.assign(S,{
     nick:$('#sNick').value.trim(), provider:$('#sProv').value, phone:$('#sPhone').value.replace(/\D/g,''), gemKey:$('#sGemKey').value.trim(), gemModel:$('#sGemModel').value.trim()||'gemini-3.6-flash', engine:$('#sEngine').value, vision:$('#sVision').value, listen:$('#sListen').value, convMode:$('#sConv').value, barge:$('#sBarge').checked, groqKey:$('#sGroqKey').value.trim(), groqModel:$('#sGroqModel').value.trim()||'llama-3.3-70b-versatile',
     tgToken:$('#sTgToken').value.trim(), tgChat:$('#sTgChat').value.trim(),
     idleLimit:Number($('#sIdle').value), camFacing:$('#sCam').value, standbySec:Number($('#sStandby').value),
     greet:$('#sGreet').checked, faceRec:$('#sFaceRec').checked, faceAlert:$('#sFaceAlert').checked, fall:$('#sFall').checked, cal:$('#sCal').checked, calLead:Number($('#sCalLead').value)||30, sound:$('#sSound').checked, away:$('#sAway').checked, mem:$('#sMem').checked
   });
-  notes=$('#sNotes').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  { const LB={nick:'애칭',provider:'대화 AI',engine:'서버 AI 순서',convMode:'대화 방식',barge:'끼어들기',listen:'듣는 시간',vision:'영상 이해',standbySec:'대기 모드(초)',idleLimit:'무동작 알림 기준(초)',camFacing:'카메라',greet:'먼저 말걸기',fall:'쓰러짐 감시',cal:'일정 알려주기',calLead:'일정 미리 알림(분)',faceRec:'얼굴인식',faceAlert:'미등록 얼굴 알림',sound:'이상음 감시',away:'외출 모드',mem:'대화 기억'};
+    const fv=v=>v===true?'켬':v===false?'끔':String(v);
+    for(const k of Object.keys(LB)) if(oldS[k]!==S[k]) stmAdd('설정',`${LB[k]}: ${fv(oldS[k])} → ${fv(S[k])}`); }
   store('homebot.settings',S); store('homebot.notes',notes);
   if(running){ S.sound?startAudio():stopAudio(); if(S.faceRec) loadFace(); stopWake(); startWake(); }
   if(S.cal&&window.SimCal){ try{ if(!SimCal.perm()) SimCal.request(); }catch{} }
@@ -2012,30 +2195,126 @@ $('#tTalk').onclick=()=>{ sheet.hidden=true; converse('테스트입니다. 하�
 $('#tFall').onclick=()=>{ sheet.hidden=true; if(!running){ log('먼저 ▶ 시작을 누르세요','warn'); return; } onFall(); };
 $('#tAlert').onclick=async()=>{ sheet.hidden=true; if(!running){ log('먼저 ▶ 시작을 누르세요','warn'); return; } await raiseAlert('테스트 알림'); };
 
-function renderMem(){
-  const L=$('#memList'), ks=Object.keys(mem);
-  if(!ks.length){ L.innerHTML='<div class="hint" style="margin-top:10px">아직 저장된 기억이 없습니다.</div>'; return; }
-  const KI={status:'🩺',event:'📅',fact:'📝'};
-  L.innerHTML=ks.map(k=>{
-    const m=mem[k], items=[...m.items].reverse();
-    return `<div class="mem-spk"><b>${esc(k)}</b> <span class="hint">대화 ${m.turns.length}줄 · 기억 ${m.items.length}개</span>${m.profile?`<div class="hint">👤 ${PROF.filter(([f])=>m.profile[f]).map(([f,l])=>l+': '+esc(m.profile[f])).join(' · ')}</div>`:''}
-      ${items.map(i=>`<div class="mi ${i.status==='done'?'done':''}"><span>${KI[i.kind]||'📝'} ${esc(i.text)}${i.date?` · ${kdate(i.date)}`:''}${i.status==='done'?' · 완료':''}</span><button data-di="${esc(k)}|${i.id}">삭제</button></div>`).join('')||'<div class="hint">기억 항목 없음</div>'}
-      <div class="btns"><button data-ex="${esc(k)}">대화 기록 내보내기</button><button data-wipe="${esc(k)}">전체 삭제</button></div></div>`;
-  }).join('');
-  L.querySelectorAll('[data-di]').forEach(b=>b.onclick=()=>{ const [k,id]=b.dataset.di.split('|'); if(mem[k]){ mem[k].items=mem[k].items.filter(i=>i.id!==id); memSave(); renderMem(); } });
-  L.querySelectorAll('[data-wipe]').forEach(b=>b.onclick=()=>{ const k=b.dataset.wipe; if(confirm(k+' 님의 대화 기록과 기억을 모두 삭제할까요?')){ delete mem[k]; memSave(); renderMem(); } });
-  L.querySelectorAll('[data-ex]').forEach(b=>b.onclick=()=>{
-    const k=b.dataset.ex, a=document.createElement('a');
-    a.href=URL.createObjectURL(new Blob([JSON.stringify(mem[k],null,1)],{type:'application/json'})); a.download=`homebot-memory-${k}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),5000);
-  });
+
+let memTab='long', memView=[], memEditIdx=-1;
+const KIND_L={note:'📌 기억 요청',prof:'👤 프로필',fact:'📝 사실',event:'📅 일정',person:'👥 인간관계',turn:'💬 대화',status:'🩺 진행 중',thread:'🔁 이어갈 대화',stm:'📊 기록'};
+const personLine=p=>`${p.name}${p.rel?' ('+p.rel+')':''}${p.note?' — '+p.note:''}`;
+function ltmEntries(){
+  const out=[]; notes.forEach((t,i)=>out.push({src:'note',i,who:'공통',kind:'note',text:t}));
+  for(const k of Object.keys(mem)){ const m=mem[k]; if(!m) continue;
+    for(const [f,l] of PROF) if(m.profile&&m.profile[f]) out.push({src:'prof',who:k,f,kind:'prof',text:`${l}: ${m.profile[f]}`,val:String(m.profile[f])});
+    for(const it of m.items||[]) if(it.kind==='fact'||it.kind==='event') out.push({src:'item',who:k,id:it.id,kind:it.kind,text:it.text,date:it.date,done:it.status==='done'});
+    for(const pe of m.people||[]) out.push({src:'person',who:k,id:pe.id,kind:'person',text:personLine(pe)});
+  }
+  return out;
 }
-$('#bMem').onclick=()=>{ renderMem(); $('#memSheet').hidden=false; };
+function stmEntries(){
+  const out=[], cut=Date.now()-MEM_DAYS*864e5;
+  for(const k of Object.keys(mem)){ const m=mem[k]; if(!m) continue;
+    for(const t of m.turns||[]) if(t.t>=cut) out.push({src:'turn',who:k,t:t.t,ref:t,kind:'turn',text:(t.r==='u'?'🗣 ':'🤖 ')+t.x,raw:t.x});
+    for(const it of m.items||[]) if(it.kind==='status') out.push({src:'item',who:k,id:it.id,kind:'status',t:it.createdAt||0,text:it.text,done:it.status==='done'});
+    if(m.thread&&m.thread.t>=cut) out.push({src:'thread',who:k,t:m.thread.t,kind:'thread',text:m.thread.x});
+  }
+  for(const e of stm) out.push({src:'stm',who:e.who||'공통',id:e.id,t:e.t,kind:'stm',tag:e.kind,text:e.x});
+  return out.sort((a,b)=>b.t-a.t);
+}
+function stmInsight(){      // 행동 분석: 최근 7일 사람이 나타난 시간대
+  const hrs=stm.filter(e=>e.kind==='도착').map(e=>new Date(e.t).getHours()); if(hrs.length<3) return '';
+  const c={}; hrs.forEach(h=>c[h]=(c[h]||0)+1); const top=Object.entries(c).sort((a,b)=>b[1]-a[1])[0]; const h=+top[0];
+  return `최근 7일 동안 모습이 보인 횟수 ${hrs.length}회 · 주로 ${h<12?'오전':'오후'} ${h%12||12}시대에 나타났어요.`;
+}
+const memWhoList=()=>[...new Set([...faces.map(f=>f.name),...Object.keys(mem)])];
+const fmtT=t=>{ const d=new Date(t); return `${d.getMonth()+1}/${d.getDate()} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+function memToast(t){ $('#memMsg').textContent=t; }
+async function copyText(t){
+  try{ await navigator.clipboard.writeText(t); }catch{ const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); }catch{} ta.remove(); }
+  window.__copied=t; memToast('📋 복사했어요');
+}
+const entryText=e=>e.src==='turn'?e.raw:e.text;
+function renderMem(){
+  const L=$('#memList'), who=$('#memWho').value||'*', q=($('#memQ').value||'').trim().toLowerCase();
+  $('#tabLong').classList.toggle('on',memTab==='long'); $('#tabShort').classList.toggle('on',memTab==='short');
+  $('#memTabHint').textContent=memTab==='long'?'기억해 달라고 하신 것, 프로필, 중요한 사실·일정, 인간관계를 영구 보관합니다. 파일로도 저장돼 앱을 새로 설치해도 불러올 수 있어요.':'최근 대화, 설정 변경, 행동 기록을 자동으로 7일 동안 보관한 뒤 지웁니다.';
+  let list=memTab==='long'?ltmEntries():stmEntries();
+  if(who!=='*') list=list.filter(e=>e.who===who||(e.who==='공통'&&who==='공통'));
+  if(q) list=list.filter(e=>(e.text+' '+(e.who||'')).toLowerCase().includes(q));
+  memView=list; const ins=memTab==='short'?stmInsight():'';
+  $('#memAdd').innerHTML=memTab==='long'?`<details class="madd"><summary>＋ 기억 직접 추가</summary>
+    <div class="mrow"><select id="addType"><option value="note">기억 메모(공통)</option><option value="fact">사실</option><option value="person">인간관계</option><option value="event">일정</option></select><select id="addWho">${memWhoList().map(n=>`<option>${esc(n)}</option>`).join('')||'<option>미확인</option>'}</select></div>
+    <div class="mrow"><input type="text" id="addText" placeholder="내용"><input type="date" id="addDate" hidden></div><div class="mb" style="text-align:right"><button id="addGo">추가</button></div></details>`:'';
+  if(memTab==='long'){ const ty=$('#addType'); const upd=()=>{ const t=ty.value; $('#addWho').hidden=t==='note'; $('#addDate').hidden=t!=='event'; $('#addText').placeholder=t==='person'?'이름 / 관계 / 메모 (예: 영희 / 누나 / 부산 거주)':t==='event'?'일정 내용 (날짜 선택)':'내용'; }; ty.onchange=upd; upd();
+    $('#addGo').onclick=()=>memAdd(); }
+  L.innerHTML=(ins?`<div class="minsight">📊 ${esc(ins)}</div>`:'')+(list.length?list.slice(0,300).map((e,i)=>{
+    const ed=i===memEditIdx;
+    const head=`<div class="mh"><b>${KIND_L[e.kind]||''}${e.tag?' · '+esc(e.tag):''}</b><span>${esc(e.who||'')}</span>${e.t?`<span>${fmtT(e.t)}</span>`:''}${e.date?`<span>${kdate(e.date)}</span>`:''}${e.done?'<span>완료</span>':''}</div>`;
+    const body=ed?`<textarea id="medit">${esc(e.src==='prof'?e.val:e.src==='person'?(()=>{ const pe=(mem[e.who].people||[]).find(x=>x.id===e.id)||{}; return [pe.name,pe.rel||'',pe.note||''].join(' / '); })():entryText(e))}</textarea>${e.kind==='event'?`<input type="date" id="medate" value="${esc(e.date||'')}">`:''}`:`<div class="mt ${e.done?'done':''}">${esc(e.text)}</div>`;
+    const btns=ed?`<button data-a="save" data-i="${i}">저장</button><button data-a="cancel" data-i="${i}">취소</button>`:`<button data-a="edit" data-i="${i}">✏️ 수정</button><button data-a="copy" data-i="${i}">📋 복사</button><button class="del" data-a="del" data-i="${i}">🗑 삭제</button>`;
+    return `<div class="mcard">${head}${body}<div class="mb">${btns}</div></div>`;
+  }).join('')+(list.length>300?`<div class="hint">최근 300개만 표시했어요. 검색으로 좁혀 보세요.</div>`:''):'<div class="hint" style="margin-top:10px">저장된 기억이 없습니다.</div>');
+  L.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>memAct(b.dataset.a,Number(b.dataset.i)));
+  $('#memActs').innerHTML=memTab==='long'?'<button id="aCopy">📋 전체 복사</button><button id="aSave">💾 파일로 저장</button><button id="aLoad">📂 파일 불러오기</button>':'<button id="aCopy">📋 전체 복사</button><button id="aWipe" class="del">🗑 단기 기억 전체 삭제</button>';
+  $('#aCopy').onclick=()=>copyText(memView.map(e=>`[${KIND_L[e.kind]||''}${e.tag?' '+e.tag:''}] ${e.who||''}${e.t?' '+fmtT(e.t):''} ${entryText(e)}`).join('\n')||'(없음)');
+  if(memTab==='long'){ $('#aSave').onclick=ltmExportFile; $('#aLoad').onclick=pickLtmFile; }
+  else $('#aWipe').onclick=()=>{ if(!confirm('단기 기억(최근 대화·설정 변경·행동 기록)을 모두 삭제할까요?')) return; for(const k of Object.keys(mem)){ const m=mem[k]; if(!m) continue; m.turns=[]; delete m.thread; m.items=(m.items||[]).filter(i=>i.kind!=='status'); } stm=[]; stmSave(); memSave(); renderMem(); memToast('단기 기억을 모두 삭제했어요.'); };
+}
+function memAct(a,i){
+  const e=memView[i]; if(!e) return;
+  if(a==='copy') return copyText(`${entryText(e)}`);
+  if(a==='edit'){ memEditIdx=i; return renderMem(); }
+  if(a==='cancel'){ memEditIdx=-1; return renderMem(); }
+  if(a==='save'){ const v=($('#medit').value||'').trim(); if(!v) return memToast('내용을 입력해 주세요.'); memApplyEdit(e,v,($('#medate')||{}).value); memEditIdx=-1; renderMem(); return memToast('✏️ 수정했어요.'); }
+  if(a==='del'){ if(!confirm('이 기억을 삭제할까요?')) return; memApplyDelete(e); memEditIdx=-1; renderMem(); memToast('🗑 삭제했어요.'); }
+}
+function memApplyEdit(e,v,date){
+  const m=e.who&&mem[e.who];
+  if(e.src==='note'){ notes[e.i]=v.slice(0,300); store('homebot.notes',notes); }
+  else if(e.src==='prof'&&m){ m.profile[e.f]=v.slice(0,60); memSave(); }
+  else if(e.src==='item'&&m){ const it=m.items.find(x=>x.id===e.id); if(it){ it.text=v.slice(0,100); if(it.kind==='event'&&/^\d{4}-\d{2}-\d{2}$/.test(date||'')) it.date=date; } memSave(); }
+  else if(e.src==='person'&&m){ const pe=(m.people||[]).find(x=>x.id===e.id); if(pe){ const [n,r,t]=v.split('/').map(x=>x.trim()); if(n) pe.name=n.slice(0,20); pe.rel=(r||'').slice(0,20); pe.note=(t||'').slice(0,80); } memSave(); }
+  else if(e.src==='turn'&&m){ e.ref.x=v.slice(0,300); memSave(); }
+  else if(e.src==='thread'&&m&&m.thread){ m.thread.x=v.slice(0,150); memSave(); }
+  else if(e.src==='stm'){ const x=stm.find(y=>y.id===e.id); if(x) x.x=v.slice(0,200); stmSave(); }
+  try{ ltmFlush(); }catch{}
+}
+function memApplyDelete(e){
+  const m=e.who&&mem[e.who];
+  if(e.src==='note'){ notes.splice(e.i,1); store('homebot.notes',notes); }
+  else if(e.src==='prof'&&m){ delete m.profile[e.f]; memSave(); }
+  else if(e.src==='item'&&m){ m.items=m.items.filter(x=>x.id!==e.id); memSave(); }
+  else if(e.src==='person'&&m){ m.people=(m.people||[]).filter(x=>x.id!==e.id); memSave(); }
+  else if(e.src==='turn'&&m){ m.turns=m.turns.filter(x=>x!==e.ref); memSave(); }
+  else if(e.src==='thread'&&m){ delete m.thread; memSave(); }
+  else if(e.src==='stm'){ stm=stm.filter(x=>x.id!==e.id); stmSave(); }
+  try{ ltmFlush(true); }catch{}      // 삭제는 파일에도 바로 반영(다음 실행 때 되살아나지 않게)
+}
+function memAdd(){
+  const t=$('#addType').value, v=($('#addText').value||'').trim(), who=$('#addWho').value||'미확인'; if(!v) return memToast('내용을 입력해 주세요.');
+  if(t==='note'){ notes.push(v.slice(0,300)); store('homebot.notes',notes); }
+  else{ const m=mget(who==='미확인'?null:who);
+    if(t==='person'){ const [n,r,x]=v.split('/').map(z=>z.trim()); m.people=m.people||[]; m.people.push({id:uid(),name:(n||v).slice(0,20),rel:(r||'').slice(0,20),note:(x||'').slice(0,80)}); }
+    else if(t==='event'){ const d=$('#addDate').value; if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return memToast('날짜를 골라 주세요.');
+      m.items.push({id:uid(),text:v.slice(0,100),kind:'event',date:d,createdAt:Date.now(),status:'open',ask:'',cheer:'오늘 중요한 일정이 있으시죠? 잘 해내실 거예요!',after:'그 일정은 어떻게 되셨어요?',askedAt:0,askCount:0,cheered:false,afterAsked:false}); }
+    else m.items.push({id:uid(),text:v.slice(0,100),kind:'fact',date:null,createdAt:Date.now(),status:'open',ask:'',cheer:'',after:'',askedAt:0,askCount:0,cheered:false,afterAsked:false});
+    memSave(); }
+  try{ ltmFlush(true); }catch{}; $('#addText').value=''; renderMem(); memToast('추가했어요.');
+}
+function openMem(tab){
+  memTab=tab||'long'; memEditIdx=-1; $('#memQ').value=''; $('#memMsg').textContent='';
+  $('#memWho').innerHTML='<option value="*">전체</option><option value="공통">공통</option>'+memWhoList().map(n=>`<option>${esc(n)}</option>`).join('');
+  renderMem(); $('#memSheet').hidden=false;
+}
+$('#tabLong').onclick=()=>{ memTab='long'; memEditIdx=-1; renderMem(); };
+$('#tabShort').onclick=()=>{ memTab='short'; memEditIdx=-1; renderMem(); };
+$('#memQ').oninput=()=>{ memEditIdx=-1; renderMem(); }; $('#memWho').onchange=()=>{ memEditIdx=-1; renderMem(); };
+$('#bMem').onclick=()=>{ openMem('long'); };
+$('#btnMem').onclick=()=>openMem('long');
 $('#memClose').onclick=()=>{ $('#memSheet').hidden=true; };
 if(location.hash==='#debug') window.__hb={setWho:n=>{ curWho=n; curWhoAt=performance.now(); },mem:()=>mem,due:(w,t)=>dueFollowUp(w,t),parse:t=>parseDates(t).map(ymd),fu:w=>{ const d=dueFollowUp(w); return d?startFollowUp(w,d):null; }};
 
 $('#btnFace').onclick=openFaceSheet;
+ltmBoot();
 setTimeout(()=>{ if(S.faceRec&&faces.length) loadFace(); },1200);   // 등록된 얼굴이 있으면 앱을 켜자마자 인식 모델을 미리 불러와 누구인지 빨리 확인
-if(window.__hb) Object.assign(window.__hb,{calAdv:t=>calAdvanceMsg(t),calCtx:()=>{ calCtxCache.t=0; return calContext(); },calDbg:()=>({running,cal:S.cal,away:S.away,personPresent,busy,speaking,registering,alertActive,onbActive,lead:S.calLead}),setPresent:v=>{personPresent=v;},sched:t=>scheduleIntent(t),calTick:()=>{ calLastCheck=-1e9; return calTick(performance.now()); },calToolText,calDoneClear:()=>calDone.clear(),phoneIntent:t=>phoneIntent(t),pendingCall:()=>pendingCall,dial:()=>dialPending(),speak:(t,o)=>speak(t,o),lookup:q=>lookupWeb(q),listen:w=>listenOnce(w),engine:()=>window.__engine,onb:()=>startOnboarding(true),faces:()=>faces,onbState:()=>({onbActive,registering,busy}),mockFace:()=>{ faceapi={detectSingleFace:()=>({withFaceLandmarks:()=>({withFaceDescriptor:()=>Promise.resolve({descriptor:new Float32Array(128).fill(.1),detection:{box:{x:10,y:10,width:60,height:60}}})})}),euclideanDistance:()=>0.1,TinyFaceDetectorOptions:function(){}}; faceReady=true; },shouldOnboard});
+if(window.__hb) Object.assign(window.__hb,{ltmBuild:()=>ltmBuild(),ltmMerge:o=>ltmMerge(o),ltmFlush:()=>ltmFlush(true),stm:()=>stm,openMem,stmAdd,faceIntent:t=>faceUpdateIntent(t),pendingFace:()=>pendingFace,runFace:()=>runFaceUpdate(),calAdv:t=>calAdvanceMsg(t),calCtx:()=>{ calCtxCache.t=0; return calContext(); },calDbg:()=>({running,cal:S.cal,away:S.away,personPresent,busy,speaking,registering,alertActive,onbActive,lead:S.calLead}),setPresent:v=>{personPresent=v;},sched:t=>scheduleIntent(t),calTick:()=>{ calLastCheck=-1e9; return calTick(performance.now()); },calToolText,calDoneClear:()=>calDone.clear(),phoneIntent:t=>phoneIntent(t),pendingCall:()=>pendingCall,dial:()=>dialPending(),speak:(t,o)=>speak(t,o),lookup:q=>lookupWeb(q),listen:w=>listenOnce(w),engine:()=>window.__engine,onb:()=>startOnboarding(true),faces:()=>faces,onbState:()=>({onbActive,registering,busy}),mockFace:()=>{ faceapi={detectSingleFace:()=>({withFaceLandmarks:()=>({withFaceDescriptor:()=>Promise.resolve({descriptor:new Float32Array(128).fill(.1),detection:{box:{x:10,y:10,width:60,height:60}}})})}),euclideanDistance:()=>0.1,TinyFaceDetectorOptions:function(){}}; faceReady=true; },shouldOnboard});
 /* ---- 연락처 전화 걸기: 연락처에서 이름으로 번호를 찾아(번호는 AI에 보내지 않음) 전화 앱으로 연결 ---- */
 let pendingCall=null;
 const hon2=n=>/(엄마|아빠|어머니|아버지|어머님|아버님|형|누나|오빠|언니|삼촌|이모|고모|할머니|할아버지|님|과장|부장|팀장|차장|대리|대표|사장|선생|교수|원장)$/.test(n)?n:n+'님';
@@ -2053,6 +2332,7 @@ function contactFind(name){
 async function dialPending(){
   const c=pendingCall; pendingCall=null; if(!c) return;
   await sleep(500); let res='bad'; try{ res=window.SimPhone.call(c.number); }catch{}
+  stmAdd('행동','전화 걸기: '+c.name);
   log('📞 전화 연결: '+c.name+(res==='dial'?' (다이얼 화면 — 통화 버튼을 눌러 주세요)':''),'info');
   if(res==='bad') log('전화를 걸지 못했어요','warn');
 }
@@ -2176,6 +2456,7 @@ async function calTick(now){
   const mins=Math.round((e.start-t)/60000);
   const when=mins<=1?'곧':mins<60?mins+'분 뒤':(mins%60?Math.floor(mins/60)+'시간 '+mins%60+'분 뒤':Math.floor(mins/60)+'시간 뒤');
   const msg=`${callName(60000)}${when} ${kTime(e.start)}에 ${e.title} 일정이 있어요.${e.loc?' 장소는 '+e.loc+'입니다.':''}`;
+  stmAdd('일정 알림','시작 임박 일정 알림: '+e.title);
   busy=true; log('📅 일정 알림: '+e.title,'info'); setFace('happy');
   try{ await speak(msg); }catch{} finally{ busy=false; lastInteract=performance.now(); if(!alertActive&&running) setFace('idle'); }
 }

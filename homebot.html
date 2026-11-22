@@ -385,6 +385,7 @@ const gz=(x,y)=>{ const t=`translate(${(x*11).toFixed(1)}px,${(y*7).toFixed(1)}p
 const LABEL = {idle:'대기',listening:'듣는 중',thinking:'생각 중',speaking:'말하는 중',alert:'경고',sleepy:'정지',happy:'반가워요',standby:'대기 모드 · 감시 중',wake:'깨어남'};
 
 let running=false, busy=false, speaking=false, alertActive=false;
+let GEN=0, liveCur=null, listenAbort=null; const micSet=new Set();     // GEN: 시작/중지마다 증가(이전 세션의 늦은 작업이 새 세션에 끼어들지 못하게), liveCur: 열려 있는 실시간 세션은 항상 1개
 let stream=null, pose=null, raf=0, wl=null;
 let lastDet=0, lastSeen=-1e9, personPresent=false, lastActivity=0, lastInteract=0, lastGreet=-1e9;
 let fallStart=0, lastFall=-1e9, lastSoundAlert=-1e9, lastIntrusion=-1e9, lastAngle=null;
@@ -515,6 +516,8 @@ function deviceSpeak(text,tok,fin){
 function speak(text,opts={}){
   const tok=++speakTok;
   return new Promise(async res=>{
+    if(!running&&!alertActive){ res(); return; }
+    if(liveCur) liveCur.finish('안내 음성 출력');      // 실시간 음성과 안내 음성이 동시에 나오지 않게
     say(text,'bot'); setFace('speaking'); speaking=true; abortWake();
     let done=false; const fin=()=>{ if(done) return; done=true; if(tok===speakTok) speaking=false; res(); };
     try{ speechSynthesis.cancel(); }catch{} Pcm.flush();
@@ -595,17 +598,19 @@ const OPEN_END=/(그리고|그런데|근데|그래서|하지만|인데|는데|�
 function listenOnce(waitMs){
   const L=LISTEN[S.listen]||LISTEN.normal, WAIT=waitMs||L.wait;
   return new Promise(res=>{
+    if(!running){ res(null); return; }
     if(!SR){ log('이 브라우저는 음성인식을 지원하지 않습니다 (안드로이드 Chrome 권장)','warn'); res(null); return; }
     abortWake(); pauseAudio();          // 안드로이드 마이크 충돌 방지: 이상음 감시 일시 중지
     setFace('listening');
     const t0=performance.now();
     let got=null, interim='', part='', lastChange=0, ended=false, speechAt=0, r=null, rt=0;
     const fin=()=>{
-      if(ended) return; ended=true; clearInterval(ck); clearTimeout(rt); try{ r&&r.abort(); }catch{} resumeAudio();
+      if(ended) return; ended=true; clearInterval(ck); clearTimeout(rt); try{ r&&r.abort(); }catch{} listenAbort=null; resumeAudio();
       if(!got&&(part||interim).length>=2) got=((part+' '+interim).trim());
       if(got){ lastListenEnd=performance.now(); shotNow(); say(got,'user'); }
       res(got);
     };
+    listenAbort=()=>{ got=null; interim=''; part=''; fin(); };
     const heard=()=>{ if(!speechAt) speechAt=performance.now(); };
     const start=()=>{
       if(ended) return;
@@ -1191,7 +1196,8 @@ async function micStart(onChunk){
       if(acc.length>=640){ const o=new Int16Array(acc.length); for(let j=0;j<o.length;j++){ const v=Math.max(-1,Math.min(1,acc[j])); o[j]=v<0?v*32768:v*32767; } acc=[]; onChunk(o.buffer); } };
   }
   src.connect(node); if(!usedWorklet){ const z=ctx.createGain(); z.gain.value=0; node.connect(z); z.connect(ctx.destination); }
-  return {stop(){ try{ node.disconnect(); src.disconnect(); }catch{} ms.getTracks().forEach(t=>t.stop()); try{ ctx.close(); }catch{} }};
+  const h={stop(){ micSet.delete(h); try{ node.disconnect(); src.disconnect(); }catch{} ms.getTracks().forEach(t=>t.stop()); try{ const pr=ctx.state!=='closed'&&ctx.close(); pr&&pr.catch&&pr.catch(()=>{}); }catch{} }};
+  micSet.add(h); return h;
 }
 async function liveToken(){
   if(S.provider==='gemini'&&S.gemKey) return {key:S.gemKey,models:[S.liveModel||'gemini-3.8-live','gemini-3.1-flash-live-preview']};
@@ -1254,23 +1260,24 @@ const LIVE_RULES='\n\n[실시간 음성 대화 규칙] 사용자가 말하는 �
 let liveFails=0, liveSkipUntil=0;
 
 function liveRun(dw,first,opts,turns){
+  if(liveCur) liveCur.finish('새 대화로 교체');
   return new Promise(resolve=>{
-    let ws=null, mic=null, handle=null, closed=false, connected=false, endReq=false, retries=0, selfInt=0, bargeOff=false;
+    let ws=null, mic=null, micP=null, handle=null, closed=false, connected=false, endReq=false, retries=0, selfInt=0, bargeOff=false;
     let nudges=0, onbReq=false;
     let uBuf='', bBuf='', uFlushed=true, alerted=false, lastEvt=performance.now(), lastFrame=0, gateUntil=0, audioAt=0, tick=0;
     const t0=performance.now(), CAP=10*60e3, idleMs={fast:15000,normal:30000,long:60000}[S.listen]||30000;
-    const send=o=>{ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); };
+    const send=o=>{ if(!closed&&ws&&ws.readyState===1) ws.send(JSON.stringify(o)); };
     let lastSig=null, turnFrames=0, sentN=0, skipN=0;
     const frame=(force,gap=1000,fresh=false)=>{
-      if(S.vision==='off'||closed||!connected) return; const n=performance.now();
+      if(S.vision==='off'||closed||!connected||!running||!stream||!video.srcObject) return; const n=performance.now();      // 카메라가 꺼져 있으면 영상 전송 안 함
       if(!force&&n-lastFrame<VID.gapSpeech) return; if(n-lastFrame<gap) return;
       if(turnFrames>=VID.perTurn){ skipN++; return; }                        // 한 턴(말 한 번)당 장수 상한
       const sg=sigOf(); if(sg&&lastSig&&sigDiff(sg,lastSig)<VID.chg&&n-lastFrame<VID.refresh){ skipN++; return; }   // 장면이 같으면 보내지 않음
-      const f=grabFrame(VID.edge,VID.q)||latestFrame();
+      const f=grabFrame(VID.edge,VID.q);
       if(f){ lastFrame=n; lastSig=sg||lastSig; turnFrames++; sentN++; window.__vsent=(window.__vsent||0)+1; send({realtimeInput:{video:{data:f,mimeType:'image/jpeg'}}}); } };
     const flushUser=()=>{ const t=uBuf.trim(); uBuf=''; uFlushed=true; alerted=false; if(!t) return; say(t,'user'); turns.push(t); addTurn(dw,'u',t); hist.push({role:'user',content:t}); while(hist.length>12) hist.shift(); };
     const flushBot=()=>{ const t=bBuf.trim(); bBuf=''; if(!t) return; say(t,'bot'); addTurn(dw,'b',t); hist.push({role:'assistant',content:t}); while(hist.length>12) hist.shift(); };
-    const finish=why=>{ if(closed) return; closed=true; clearInterval(iv); try{ mic&&mic.stop(); }catch{} const w=ws; ws=null; try{ w&&w.close(); }catch{} Pcm.flush(); Pcm.onIdle=null; speaking=false; flushUser(); flushBot(); log('실시간 대화 종료: '+why+(S.vision!=='off'?` · 영상 ${sentN}장 전송, ${skipN}장 생략`:''),'info'); resolve({connected,who:dw,onb:onbReq}); };
+    const finish=why=>{ if(closed) return; closed=true; clearInterval(iv); if(liveCur===handleObj) liveCur=null; try{ mic&&mic.stop(); }catch{} if(!mic&&micP) micP.then(m=>{ try{ m.stop(); }catch{} }).catch(()=>{}); try{ Think.stop(); }catch{} const w=ws; ws=null; try{ w&&w.close(); }catch{} Pcm.flush(); Pcm.onIdle=null; speaking=false; flushUser(); flushBot(); log('실시간 대화 종료: '+why+(S.vision!=='off'?` · 영상 ${sentN}장 전송, ${skipN}장 생략`:''),'info'); resolve({connected,who:dw,onb:onbReq}); };
     const onTool=async tc=>{
       const out=await Promise.all((tc.functionCalls||[]).map(async f=>{
         let res={result:'ok'}; const a=f.args||{};
@@ -1326,14 +1333,17 @@ function liveRun(dw,first,opts,turns){
       if(handle&&retries<3&&performance.now()-t0<CAP){ retries++; log('연결이 끊겨 이어서 재연결합니다('+retries+')','warn'); connect(handle).catch(e=>finish('재연결 실패: '+e.message)); }
       else finish('연결 종료');
     };
+    const handleObj={finish}; liveCur=handleObj;
     Pcm.onIdle=()=>{ speaking=false; lastEvt=performance.now(); gateUntil=performance.now()+400; if(!closed) setFace('listening'); };
     const connect=async h=>{
       const sys=buildSystem(dw,'')+LIVE_RULES;
       const c=await liveConnect((m,l)=>liveSetup(m,l,sys,h),onMsg,onClose,msg=>log('실시간: '+msg,'warn'));
+      if(closed){ try{ c.ws.close(); }catch{} throw new Error('중지됨'); }       // 연결되는 사이 중지/교체됐으면 바로 닫기(연결이 남아 계속 말하는 문제 방지)
       ws=c.ws; connected=true; engineSet('Gemini Live · '+LIVE_VOICE); log(`실시간 연결됨 · ${c.m} (${c.lay})${h?' · 이어서':''}`,'info'); return c;
     };
     const iv=setInterval(()=>{
       if(closed) return; const n=performance.now(); tick++;
+      if(!running||!stream) return finish('중지됨');
       if(n-t0>CAP) return finish('최대 시간(10분)');
       if(!Pcm.busy&&n-lastEvt>idleMs&&uBuf===''&&connected) return finish('말씀이 없어 종료');
       if(endReq&&!Pcm.busy&&n-lastEvt>2500) return finish('대화 종료 요청');
@@ -1344,13 +1354,13 @@ function liveRun(dw,first,opts,turns){
     },500);
     (async()=>{
       try{
-        const micP=micStart(buf=>{
-          if(!connected||!ws||ws.readyState!==1) return;
+        micP=micStart(buf=>{
+          if(closed||!connected||!ws||ws.readyState!==1) return;
           if((!S.barge||bargeOff)&&(Pcm.busy||performance.now()<gateUntil)) return;     // 끼어들기 끔: 로봇이 말하는 동안은 듣지 않음
           ws.send(JSON.stringify({realtimeInput:{audio:{data:b64(buf),mimeType:'audio/pcm;rate=16000'}}}));
         });
         Pcm.ensure(); setFace('thinking');
-        await connect(null); mic=await micP; setFace('listening');
+        await connect(null); mic=await micP; if(closed){ try{ mic.stop(); }catch{} return; } setFace('listening');
         if(first&&!opts.lead){ if(opts.fu) addTurn(dw,'b',first); send({realtimeInput:{text:`[시작] 먼저 다음 내용을 자연스러운 말투로 말해 대화를 시작하세요: "${first}"`}}); }
         else if(opts.heard) send({realtimeInput:{text:`사용자가 방금 이렇게 말했습니다: "${opts.heard}"`}});
         else if(opts.lead||!first) send({realtimeInput:{text:`[시작] 사용자가 앞에 있습니다. 지금은 ${new Date().toLocaleString('ko-KR')}입니다. 시간대와 기억된 정보를 바탕으로 짧게 인사하고, ${opts.resume?'직전 대화를 이어서 이렇게 말을 건네세요: "'+opts.resume+'"':'직전 대화가 있으면 그 이야기를 이어서, 없으면 의미 있는 질문 하나로'} 먼저 대화를 이끄세요. 누구인지 확인되지 않은 사람이면 자기소개를 하고 이름을 여쭤보세요.`}});
@@ -1364,7 +1374,7 @@ function liveRun(dw,first,opts,turns){
 }
 async function liveDialog(first,opts={}){
   if(busy||!running||registering) return;
-  busy=true; const turns=[]; let dw=spkG(); let ok=false, onb=false;
+  busy=true; const myGen=GEN; const turns=[]; let dw=spkG(); let ok=false, onb=false;
   try{
     abortWake(); pauseAudio();
     if(histWho!==dw){ hist.length=0; histWho=dw; }
@@ -1376,6 +1386,7 @@ async function liveDialog(first,opts={}){
     busy=false; lastInteract=performance.now(); resumeAudio(); if(!alertActive&&running) setFace('idle');
     if(turns.length) extractMemory(dw,turns,opts.fu||null).catch(e=>log('기억 저장 오류: '+e.message,'warn'));
   }
+  if(myGen!==GEN||!running) return;
   if(pendingCall){ await dialPending(); return; }
   if(onb&&running){ log('새 사용자 등록을 시작합니다','info'); setTimeout(()=>startOnboarding(true),300); return; }
   if(!ok&&running){ log('기존 방식으로 대화합니다','warn'); return dialog(first,opts); }
@@ -1401,15 +1412,16 @@ $('#tLive').onclick=liveTest;
 
 async function dialog(first, opts={}){
   if(busy||!running||registering) return;
-  busy=true; const turns=[], fu=opts.fu||null; let dw=spkG();
+  busy=true; const myGen=GEN; const turns=[], fu=opts.fu||null; let dw=spkG();
   try{
     if(histWho!==dw){ hist.length=0; histWho=dw; }          // 대화 상대가 바뀌면 단기 문맥 초기화
     if(opts.pre){ setFace(opts.pre); await sleep(opts.preMs||900); }
     let pre=opts.heard||null; if(pre) say(pre,'user');
     if(first){ await speak(first); if(fu) addTurn(dw,'b',first); }
     for(let i=0;i<20;i++){
+      if(myGen!==GEN||!running) break;
       const heard=pre||await listenOnce(); pre=null;
-      if(!heard) break;
+      if(!heard||myGen!==GEN||!running) break;
       lastActivity=performance.now();
       dw=spk()||dw; turns.push(heard); addTurn(dw,'u',heard);
       const tEnd=lastListenEnd||performance.now(), imgs=pickFrames(heard), sp=makeSpeaker();
@@ -1425,7 +1437,7 @@ async function dialog(first, opts={}){
     busy=false; lastInteract=performance.now(); if(!alertActive&&running) setFace('idle');
     if(turns.length) extractMemory(dw,turns,fu).catch(e=>log('기억 저장 오류: '+e.message,'warn'));   // 대화 종료 후 백그라운드로 기억 정리
   }
-  if(pendingCall) await dialPending();
+  if(pendingCall&&myGen===GEN&&running) await dialPending();
 }
 
 /* ============ 단계식 안전 시나리오 ============ */
@@ -1647,6 +1659,7 @@ async function registerCore(name,voice){
   ttsPrefetchLater();
   const got=[]; let thumb=null;
   for(let i=0;i<STEPS.length;i++){
+    if(!running) return {ok:false};
     if(voice){ setFaceMsg(`${i+1}/${STEPS.length} ${STEPS[i]}`); await speak((i?'좋아요. ':'')+VSTEPS[i]); await sleep(900); }
     else for(let c=2;c>=1;c--){ setFaceMsg(`${i+1}/${STEPS.length} ${STEPS[i]} (${c})`); await sleep(700); }
     let ok=false;
@@ -1857,6 +1870,7 @@ async function lockScreen(){
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&running) lockScreen(); });
 
 async function start(){
+  GEN++;
   if(running) return;
   const b=$('#btnStart'); b.disabled=true; $('#say').textContent='카메라를 켜는 중…';
   try{
@@ -1887,8 +1901,14 @@ async function start(){
   setFace('idle');
 }
 function stop(){
+  GEN++; running=false;                                   // 이후 모든 대기 중인 대화·타이머는 무효
+  try{ liveCur&&liveCur.finish('중지'); }catch{}          // 실시간 연결(WebSocket)·마이크·영상 전송 종료
+  for(const m of [...micSet]){ try{ m.stop(); }catch{} }   // 남아 있는 마이크 전부 해제
+  try{ listenAbort&&listenAbort(); }catch{}               // 듣는 중인 음성인식 중단
+  speakTok++; try{ Pcm.flush(); Pcm.onIdle=null; }catch{} try{ Think.stop(); }catch{}   // 안내 음성(Gemini 포함)·생각 소리 중단
+  onbActive=false; registering=false; pendingCall=null; alertActive=false;
   try{ if(window.SimApp&&SimApp.speaker) SimApp.speaker(false); }catch{}
-  stopWake(); running=false; cancelAnimationFrame(raf);
+  stopWake(); cancelAnimationFrame(raf);
   try{ speechSynthesis.cancel(); }catch{}
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
   video.srcObject=null; stopAudio(); octx.clearRect(0,0,ov.width,ov.height);

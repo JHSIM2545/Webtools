@@ -335,7 +335,11 @@ const $ = s => document.querySelector(s);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const NATIVE_KEYS=['homebot.mem','homebot.faces','homebot.notes','homebot.settings','homebot.last'];
+const mirror=(k,str)=>{ try{ if(window.SimApp&&SimApp.put&&NATIVE_KEYS.includes(k)) SimApp.put(k,str); }catch{} };
+if(window.SimApp&&SimApp.get){ for(const k of NATIVE_KEYS){ try{ if(localStorage.getItem(k)==null){ const v=SimApp.get(k); if(v) localStorage.setItem(k,v); } }catch{} } }   // 앱 데이터 복원: 웹 저장소가 비어 있으면 앱 내부 백업에서 되살림
+for(const k of NATIVE_KEYS){ try{ const v=localStorage.getItem(k); if(v!=null) mirror(k,v); }catch{} }   // 이미 있는 데이터도 앱 내부에 사본 만들기
+const store = (k, v) => { try{ const t=JSON.stringify(v); localStorage.setItem(k, t); mirror(k,t); } catch {} };
 
 const S = Object.assign({
   tgToken:'', tgChat:'',
@@ -864,13 +868,22 @@ function makeSpeaker(){
 const MEM_KEY='homebot.mem', MEM_TURNS=400, WDN=['일','월','화','수','목','금','토'];
 let mem=load(MEM_KEY,{}), histWho=null, lastFU=-1e9, lastFUChk=0;
 function memSave(){
-  const put=()=>localStorage.setItem(MEM_KEY,JSON.stringify(mem));
+  const put=()=>{ const t=JSON.stringify(mem); localStorage.setItem(MEM_KEY,t); mirror(MEM_KEY,t); };
   try{ put(); }catch{
     for(const k in mem) mem[k].turns=mem[k].turns.slice(-Math.floor(MEM_TURNS/4));
     try{ put(); }catch(e){ log('기억 저장 실패(저장공간 부족): '+e.message,'warn'); }
   }
 }
-const spk=()=>curWho&&performance.now()-curWhoAt<90000?curWho:null;     // 얼굴로 확인된 화자(없으면 미확인)
+const spk=()=>curWho&&performance.now()-curWhoAt<90000?curWho:null;
+// 얼굴 확인 전/만료 후에도 '아마 이 사람'을 빨리 추정: 등록자가 1명이면 그 사람, 아니면 마지막으로 확인된 사람(12시간 이내)
+function guessWho(){
+  const st=spk(); if(st) return {name:st,tentative:false};
+  if(faces.length===1) return {name:faces[0].name,tentative:true};
+  const l=load('homebot.last',null);
+  if(l&&Date.now()-l.at<12*3600e3&&faces.some(f=>f.name===l.name)) return {name:l.name,tentative:true};
+  return null;
+}
+const spkG=()=>{ const g=guessWho(); return g?g.name:null; };     // 얼굴로 확인된 화자(없으면 미확인)
 const mget=w=>{ const k=w||'미확인'; return mem[k]||(mem[k]={turns:[],items:[]}); };
 function addTurn(w,r,x){
   if(!S.mem||!x) return;
@@ -1046,7 +1059,7 @@ function profileCtx(who){
   if(!S.mem) return '';
   const p=profOf(who), known=PROF.filter(([k])=>p[k]).map(([k,l])=>`${l}: ${p[k]}`);
   const miss=PROF.filter(([k])=>!p[k]&&!(k==='name'&&who)).map(x=>x[1]);
-  return (p.honor?`
+  return (known.length?'\n이미 아는 정보는 절대 다시 묻지 마세요.':'')+(p.honor?`
 이 사람을 부를 때는 "${p.honor}"이라고 부르세요.`:'')+(known.length?`\n이 사람의 기본 정보: ${known.join(', ')}.`:'')+(miss.length?`\n아직 모르는 기본 정보: ${miss.join(', ')}.`:'');
 }
 /* ---- 실시간 정보 조회(날씨·뉴스·시세 등): 서버가 구글 검색으로 확인 ---- */
@@ -1061,7 +1074,7 @@ const Think=(()=>{ let tm=null, ctx=null;
 })();
 async function lookupWeb(q){ Think.start(); try{ return await lookupWeb0(q); } finally{ Think.stop(); } }
 async function lookupWeb0(q){
-  const region=profOf(spk()).region||'';
+  const region=profOf(spkG()).region||'';
   if(S.provider==='gemini'&&S.gemKey){
     const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${S.gemModel||'gemini-3.6-flash'}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':S.gemKey},
       body:JSON.stringify({systemInstruction:{parts:[{text:`현재 시각 ${new Date().toLocaleString('ko-KR')}. 검색으로 최신 정보를 확인해 한국어로 핵심만 3문장 이내로 말하듯 답한다. 목록·마크다운 금지.${region?' 사용자 거주 지역: '+region+'.':''}`}]},contents:[{role:'user',parts:[{text:q}]}],tools:[{google_search:{}}]})});
@@ -1075,7 +1088,7 @@ async function lookupWeb0(q){
 }
 const INFO_RE=/날씨|기온|몇 ?도|비 ?(와|올|오)|눈 ?(와|올|오)|미세먼지|뉴스|소식|주가|코스피|환율|시세|검색|알아봐|찾아봐|경기 ?결과|몇 ?대 ?몇|교통|운세|맛집|개봉|최신/;
 function buildSystem(who,text,visNote=''){
-  return `당신은 가정용 로봇 "홈봇"입니다. 따뜻하고 간결한 한국어 존댓말로 말하세요. 음성으로 읽히므로 1~2문장으로만 답하고, 목록·이모지·마크다운은 쓰지 마세요. 건강·응급 관련 질문에는 119 안내를 덧붙이세요. 현재 시각: ${new Date().toLocaleString('ko-KR')}.${S.nick?' 당신의 애칭은 '+S.nick+'입니다.':''} 모두에게 해당하는 기억: ${notes.join('; ')||'없음'}.${who?' 지금 대화 상대는 얼굴인식으로 확인된 '+who+'님입니다.':' 지금 대화 상대는 누구인지 확인되지 않았습니다.'}${memContext(who,text)}${profileCtx(who)}${S.mem?'\n기억하는 내용은 대화에 자연스럽게 반영하되, 묻지 않았는데 민감한 사적 내용을 불쑥 꺼내지는 마세요.':''}${visNote}`;
+  return `당신은 가정용 로봇 "홈봇"입니다. 따뜻하고 간결한 한국어 존댓말로 말하세요. 음성으로 읽히므로 1~2문장으로만 답하고, 목록·이모지·마크다운은 쓰지 마세요. 건강·응급 관련 질문에는 119 안내를 덧붙이세요. 현재 시각: ${new Date().toLocaleString('ko-KR')}.${S.nick?' 당신의 애칭은 '+S.nick+'입니다.':''} 모두에게 해당하는 기억: ${notes.join('; ')||'없음'}.${who?(who===spk()?' 지금 대화 상대는 얼굴인식으로 확인된 '+who+'님입니다.':' 지금 대화 상대는 얼굴 확인 전이지만 '+who+'님일 가능성이 높습니다. 이미 아는 사이이니 이름이나 기본 정보를 다시 묻지 말고 '+who+'님으로 자연스럽게 대하고, 다른 사람이라고 하면 그때 정정하세요.'):(faces.length?' 지금 대화 상대는 아직 확인되지 않았습니다. 등록된 사람: '+faces.map(f=>f.name).join(', ')+'. 이름을 처음부터 묻지 말고 "혹시 '+faces[0].name+'님이세요?"처럼 등록된 이름으로 먼저 확인하세요.':' 지금 대화 상대는 누구인지 확인되지 않았습니다.')}${memContext(who,text)}${profileCtx(who)}${S.mem?'\n기억하는 내용은 대화에 자연스럽게 반영하되, 묻지 않았는데 민감한 사적 내용을 불쑥 꺼내지는 마세요.':''}${visNote}`;
 }
 async function think(text,sp=null,imgs=[]){
   setFace('thinking');
@@ -1090,7 +1103,7 @@ async function think(text,sp=null,imgs=[]){
   const li=localIntent(text); if(li) return li;
   if(!hasLLM()){ log('AI 미연결: 설정에서 등록 번호/키를 확인하세요','warn'); return '연결된 AI가 없어요.'; }
   hist.push({role:'user',content:text}); while(hist.length>12) hist.shift();
-  const who=spk(), vis=imgs&&imgs.length>0;
+  const who=spkG(), vis=imgs&&imgs.length>0;
   let info='';
   if(INFO_RE.test(text)){ try{ $('#say').textContent='🔎 알아보는 중…'; info=await lookupWeb(text); log('🔎 조회 완료: '+info.slice(0,60),'info'); info='\n실시간 조회 결과(이 내용을 근거로 답하세요): '+info; }catch(e){ log('조회 오류: '+e.message,'warn'); info='\n실시간 정보 조회에 실패했습니다. 확인할 수 없는 최신 정보는 모른다고 솔직히 말하세요.'; } }
   const visNote=vis?`\n방금 로봇 카메라로 본 장면이 이미지${imgs.length>1?' '+imgs.length+'장(시간순)':''}로 함께 주어졌습니다. 사람의 표정·옷차림·동작, 사용자가 가리키거나 들고 있는 물건, 문서의 글자를 직접 보고 구체적으로 답하세요. 이미지에서 확인되지 않는 것은 추측하지 말고 보이지 않는다고 말하세요. 문서를 읽어 달라고 하면 핵심만 3문장 이내로 읽어 주세요.`
@@ -1313,7 +1326,7 @@ function liveRun(dw,first,opts,turns){
 }
 async function liveDialog(first,opts={}){
   if(busy||!running||registering) return;
-  busy=true; const turns=[]; let dw=spk(); let ok=false, onb=false;
+  busy=true; const turns=[]; let dw=spkG(); let ok=false, onb=false;
   try{
     abortWake(); pauseAudio();
     if(histWho!==dw){ hist.length=0; histWho=dw; }
@@ -1349,7 +1362,7 @@ $('#tLive').onclick=liveTest;
 
 async function dialog(first, opts={}){
   if(busy||!running||registering) return;
-  busy=true; const turns=[], fu=opts.fu||null; let dw=spk();
+  busy=true; const turns=[], fu=opts.fu||null; let dw=spkG();
   try{
     if(histWho!==dw){ hist.length=0; histWho=dw; }          // 대화 상대가 바뀌면 단기 문맥 초기화
     if(opts.pre){ setFace(opts.pre); await sleep(opts.preMs||900); }
@@ -1503,7 +1516,7 @@ function faceStep(now,present){
   detectFace(video).then(r=>{
     if(!r) return;
     const t=performance.now(), m=matchFace(r.descriptor); lastFaceDist=m.dist;
-    if(m.person){ curWho=m.person.name; curWhoAt=t; unknownStreak=0; }
+    if(m.person){ curWho=m.person.name; curWhoAt=t; unknownStreak=0; if(!window.__lastSave||t-window.__lastSave>30000){ window.__lastSave=t; store('homebot.last',{name:curWho,at:Date.now()}); } }
     else{ unknownStreak++; if(unknownStreak===3) onUnknownFace(t); }
   }).catch(e=>log('얼굴 인식 오류: '+e.message,'warn')).finally(()=>{ faceBusy=false; });
 }
@@ -1679,7 +1692,7 @@ async function startOnboarding(manual){
     registering=true; let res;
     try{ res=await registerCore(name,true); }finally{ registering=false; }
     if(!res.ok){ await speak('얼굴이 잘 보이지 않아서 등록을 마치지 못했어요. 밝은 곳에서 나중에 다시 해 봐요.'); onbSkipUntil=performance.now()+600000; return; }
-    curWho=name; curWhoAt=performance.now(); unknownStreak=0;
+    curWho=name; curWhoAt=performance.now(); unknownStreak=0; store('homebot.last',{name,at:Date.now()});
     await speak(`모두 등록되었어요. 이제 제가 ${hon}${eul(hon)} 알아볼 수 있게 되었어요.`);
     await speak(`${hon}에 대해 조금만 더 알려 주시겠어요? 말씀하기 곤란한 건 패스라고 하시면 넘어갈게요.`);
     let silent=0;
@@ -1946,6 +1959,7 @@ $('#memClose').onclick=()=>{ $('#memSheet').hidden=true; };
 if(location.hash==='#debug') window.__hb={setWho:n=>{ curWho=n; curWhoAt=performance.now(); },mem:()=>mem,due:(w,t)=>dueFollowUp(w,t),parse:t=>parseDates(t).map(ymd),fu:w=>{ const d=dueFollowUp(w); return d?startFollowUp(w,d):null; }};
 
 $('#btnFace').onclick=openFaceSheet;
+setTimeout(()=>{ if(S.faceRec&&faces.length) loadFace(); },1200);   // 등록된 얼굴이 있으면 앱을 켜자마자 인식 모델을 미리 불러와 누구인지 빨리 확인
 if(window.__hb) Object.assign(window.__hb,{speak:(t,o)=>speak(t,o),lookup:q=>lookupWeb(q),listen:w=>listenOnce(w),engine:()=>window.__engine,onb:()=>startOnboarding(true),faces:()=>faces,onbState:()=>({onbActive,registering,busy}),mockFace:()=>{ faceapi={detectSingleFace:()=>({withFaceLandmarks:()=>({withFaceDescriptor:()=>Promise.resolve({descriptor:new Float32Array(128).fill(.1),detection:{box:{x:10,y:10,width:60,height:60}}})})}),euclideanDistance:()=>0.1,TinyFaceDetectorOptions:function(){}}; faceReady=true; },shouldOnboard});
 /* ---- 더보기(⋮) 메뉴: 업그레이드 · 앱 종료 · (하단) 얼굴 · 설정 ---- */
 const moreMenu=$('#moreMenu'), closeMore=()=>{ moreMenu.hidden=true; };

@@ -232,6 +232,17 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** 얼굴·기억·설정 백업: 웹 저장소(출처가 바뀌면 비어 보임)와 별개로 앱 내부에 사본을 보관 */
+        @JavascriptInterface
+        public void put(String key, String val) {
+            try { getSharedPreferences("hbdata", MODE_PRIVATE).edit().putString(key, val).apply(); } catch (Exception ignore) { }
+        }
+
+        @JavascriptInterface
+        public String get(String key) {
+            try { return getSharedPreferences("hbdata", MODE_PRIVATE).getString(key, ""); } catch (Exception e) { return ""; }
+        }
+
         @JavascriptInterface
         public void speaker(final boolean on) {
             runOnUiThread(new Runnable() { @Override public void run() { setSpeaker(on); } });

@@ -6,6 +6,9 @@
 <meta name="theme-color" content="#05080c">
 <title>홈봇 프로토타입 v0.1</title>
 <style>
+html.app,html.app *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+html.app input,html.app textarea{-webkit-user-select:text;user-select:text}
+html.app,html.app body{overscroll-behavior:none}
 #btnMore{width:34px;height:26px;padding:0;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-size:18px;line-height:1}
 #moreMenu{position:fixed;top:44px;right:8px;z-index:9000;min-width:200px;background:#10161c;border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.6);display:flex;flex-direction:column}
 #moreMenu[hidden]{display:none}
@@ -1804,14 +1807,14 @@ async function start(){
   lastActivity=now; lastInteract=now; lastSeen=-1e9; personPresent=false; prevG=null;
   chip('#chipCam','카메라 ON','on');
   b.textContent='■ 정지'; b.disabled=false;
-  lockScreen(); startAudio();
+  lockScreen(); startAudio(); try{ if(window.SimApp&&SimApp.speaker) SimApp.speaker(true); }catch{}     // 앱: 통화(수화기) 출력이 아니라 스피커폰으로
   if(!SR) log('이 브라우저는 음성인식을 지원하지 않습니다 (안드로이드 Chrome 권장)','warn');
   tick(); startWake();
   if(!hasLLM()){ log('AI 사용 번호가 없어 대화 AI에 연결할 수 없습니다 → 설정에서 번호를 입력하세요','warn'); openSheet(); setTimeout(()=>{ try{ $('#sPhone').scrollIntoView({block:'center'}); $('#sPhone').focus(); }catch{} },300); }
-  await speak(S.nick?`준비됐어요. 호출어는 ${S.nick}입니다.`:'홈봇을 시작합니다.');
   setFace('idle');
 }
 function stop(){
+  try{ if(window.SimApp&&SimApp.speaker) SimApp.speaker(false); }catch{}
   stopWake(); running=false; cancelAnimationFrame(raf);
   try{ speechSynthesis.cancel(); }catch{}
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
@@ -1931,6 +1934,7 @@ const moreMenu=$('#moreMenu'), closeMore=()=>{ moreMenu.hidden=true; };
 $('#btnMore').onclick=e=>{ e.stopPropagation(); moreMenu.hidden=!moreMenu.hidden; if(!moreMenu.hidden) refreshVer(); };
 document.addEventListener('click',e=>{ if(!moreMenu.hidden&&!moreMenu.contains(e.target)) closeMore(); });
 moreMenu.addEventListener('click',()=>closeMore());
+if(window.SimStt||window.SimApp) document.documentElement.classList.add('app');
 const APP=window.SimApp||null, REL_API='https://api.github.com/repos/JHSIM2545/Webtools/releases/tags/homebot-latest';
 function refreshVer(){ $('#mVer').textContent=APP?'설치된 앱 build '+APP.versionCode():'웹 버전(브라우저)'; }
 async function doUpgrade(){
@@ -1957,7 +1961,8 @@ function doExit(){
   if(!confirm('홈봇을 종료할까요?')) return;
   try{ if(running) stop(); }catch{} try{ speechSynthesis.cancel(); }catch{}
   window.__exit=1;
-  if(APP){ try{ APP.exit(); return; }catch{} }
+  if(APP&&APP.exit){ try{ APP.exit(); return; }catch{} }
+  if(window.SimStt){ $('#say').textContent='⏻ 이전 버전 앱이라 종료 기능이 없어요. 최신 APK를 설치한 뒤 사용해 주세요.'; log('앱 종료는 최신 APK에서만 동작합니다','warn'); return; }
   window.close(); $('#say').textContent='⏻ 종료했어요. 브라우저에서는 탭을 닫아 주세요.';
 }
 $('#mUpdate').onclick=doUpgrade; $('#mExit').onclick=doExit;

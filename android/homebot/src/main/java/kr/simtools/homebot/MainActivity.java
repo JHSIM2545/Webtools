@@ -11,7 +11,12 @@ import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.Uri;
+import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.PermissionRequest;
@@ -57,6 +62,15 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(true);
         s.setBuiltInZoomControls(false);
+        s.setSupportZoom(false);
+        s.setTextZoom(100);
+        s.setSaveFormData(false);
+        web.setVerticalScrollBarEnabled(false);
+        web.setHorizontalScrollBarEnabled(false);
+        web.setLongClickable(false);
+        web.setHapticFeedbackEnabled(false);
+        web.setOnLongClickListener(new View.OnLongClickListener() { @Override public boolean onLongClick(View v) { return true; } });
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);
 
         stt = new SttBridge(this, web);
         web.addJavascriptInterface(stt, "SimStt");
@@ -149,6 +163,55 @@ public class MainActivity extends Activity {
         web.post(new Runnable() { @Override public void run() { web.evaluateJavascript("window.__simPerm&&window.__simPerm()", null); } });
     }
 
+    // ---- 스피커폰 출력: 마이크(통화 모드)가 켜져 있으면 소리가 수화기(귀대는 스피커)로 나가므로 외부 스피커로 돌린다 ----
+    private final Handler routeH = new Handler(Looper.getMainLooper());
+    private boolean routeOn = false;
+    private final Runnable routeTick = new Runnable() {
+        @Override public void run() {
+            if (!routeOn) return;
+            forceSpeaker();
+            routeH.postDelayed(this, 1500);       // 웹뷰가 마이크를 열 때마다 통화 모드로 되돌리므로 계속 확인
+        }
+    };
+
+    private void setSpeaker(boolean on) {
+        if (on == routeOn) { if (on) forceSpeaker(); return; }
+        routeOn = on;
+        routeH.removeCallbacks(routeTick);
+        if (on) { forceSpeaker(); routeH.postDelayed(routeTick, 1500); }
+        else releaseSpeaker();
+    }
+
+    /** 이어폰·블루투스·USB 같은 외부 기기가 연결돼 있으면 그쪽을 존중하고, 없으면 기기 스피커로 고정 */
+    private void forceSpeaker() {
+        try {
+            AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (am == null) return;
+            if (Build.VERSION.SDK_INT >= 31) {
+                AudioDeviceInfo spk = null;
+                for (AudioDeviceInfo d : am.getAvailableCommunicationDevices()) {
+                    int t = d.getType();
+                    if (t == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || t == AudioDeviceInfo.TYPE_BLE_HEADSET || t == AudioDeviceInfo.TYPE_WIRED_HEADSET
+                            || t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || t == AudioDeviceInfo.TYPE_USB_HEADSET) return;
+                    if (t == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) spk = d;
+                }
+                AudioDeviceInfo cur = am.getCommunicationDevice();
+                if (spk != null && (cur == null || cur.getType() != AudioDeviceInfo.TYPE_BUILTIN_SPEAKER)) am.setCommunicationDevice(spk);
+            } else {
+                if (am.isBluetoothScoOn() || am.isWiredHeadsetOn()) return;
+                if (!am.isSpeakerphoneOn()) am.setSpeakerphoneOn(true);
+            }
+        } catch (Throwable ignore) { }
+    }
+
+    private void releaseSpeaker() {
+        try {
+            AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (am == null) return;
+            if (Build.VERSION.SDK_INT >= 31) am.clearCommunicationDevice(); else am.setSpeakerphoneOn(false);
+        } catch (Throwable ignore) { }
+    }
+
     /** 더보기 메뉴: 설치된 앱 버전 조회 · 업데이트 APK 내려받기 · 앱 종료 */
     final class AppBridge {
         @JavascriptInterface
@@ -170,11 +233,22 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void speaker(final boolean on) {
+            runOnUiThread(new Runnable() { @Override public void run() { setSpeaker(on); } });
+        }
+
+        @JavascriptInterface
         public void exit() {
             runOnUiThread(new Runnable() {
                 @Override public void run() {
-                    try { stt.destroy(); } catch (Throwable t) { /* 없으면 무시 */ }
+                    try { setSpeaker(false); } catch (Throwable t) { /* 무시 */ }
+                    try { stt.destroy(); } catch (Throwable t) { /* 무시 */ }
+                    try { tts.destroy(); } catch (Throwable t) { /* 무시 */ }
                     finishAndRemoveTask();
+                    // 웹뷰 프로세스까지 완전히 끝내 마이크·카메라 사용 표시도 함께 꺼지게 한다
+                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                        @Override public void run() { android.os.Process.killProcess(android.os.Process.myPid()); System.exit(0); }
+                    }, 400);
                 }
             });
         }
@@ -238,6 +312,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        routeOn = false; routeH.removeCallbacks(routeTick);
         if (stt != null) stt.destroy();
         if (tts != null) tts.destroy();
         if (web != null) { web.removeJavascriptInterface("SimStt"); web.destroy(); }

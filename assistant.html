@@ -137,6 +137,7 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 #liveHistBtn{position:absolute;right:14px;top:calc(12px + env(safe-area-inset-top));background:#161b28;border:1px solid #2a3145;color:var(--text);border-radius:99px;padding:6px 12px;font-size:13px}
 #hist{position:fixed;inset:0;z-index:99;background:#070a10;display:none;flex-direction:column}#hist.on{display:flex}
 #hist .hb{display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;border-bottom:1px solid #2a3145}#hist .hb b{flex:1;font-size:16px}#hist .hb button{background:#161b28;border:1px solid #2a3145;color:var(--text);border-radius:10px;padding:7px 12px;font-size:13px}
+#histAct{display:none;gap:10px;padding:10px 14px calc(12px + env(safe-area-inset-bottom));border-top:1px solid #2a3145}#hist.det #histAct{display:flex}#histAct button{flex:1;padding:12px;border-radius:12px;background:#161b28;border:1px solid #2a3145;color:var(--text);font-size:14px;font-weight:600}#histAct button.pr{background:var(--accent);border-color:var(--accent);color:#031a2b}
 #histBody{flex:1;overflow-y:auto;padding:12px 14px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
 #histBody .ses{align-self:stretch;text-align:center;color:var(--sub);font-size:12px;margin:14px 0 4px}
 #histBody .row{display:flex;flex-direction:column;gap:8px}
@@ -221,7 +222,7 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
   <input id="liveVol" type="range" min="1" max="4" step="0.5" style="display:none"><i id="liveLvl" style="display:none"></i>
 </div>
 <div id="drwBk"></div><aside id="drw"><div class="dh"><b>주요 대화</b><button id="drwX" aria-label="닫기">✕</button></div><div id="drwBody"></div></aside>
-<div id="hist"><div class="hb"><button id="histBack">‹ 닫기</button><b id="histTitle">음성 대화 기록</b><button id="histDel">전체 삭제</button></div><div id="histBody"></div></div>
+<div id="hist"><div class="hb"><button id="histBack">‹ 닫기</button><b id="histTitle">음성 대화 기록</b><button id="histDel">전체 삭제</button></div><div id="histBody"></div><div id="histAct"><button id="histTxt">💬 이어서 글자 대화</button><button id="histVoice" class="pr">🎙 이어서 말하기</button></div></div>
 <div id="aiBusy" role="status" aria-live="polite"><span class="ico">🔎</span><span class="txt">AI가 찾아보고 있습니다</span><span class="dots"><i></i><i></i><i></i></span></div>
 <div id="toast"></div>
 
@@ -839,6 +840,7 @@ function addMsg(kind, html, btns, tok) {
 /* 어시스턴트 말풍선: plain=읽어줄 문장, html=화면에 보일 내용(없으면 plain) */
 function bot(plain, o) {
   o = o || {};
+  if (RES && !LIVE.on && plain) { try { hLog('bot', plain); RES.turns.push({ r: 'bot', t: plain, at: Date.now() }); } catch (e) {} }
   addMsg('bot', o.html || esc(plain), o.btns, o.tok);
   const asking = pending && (pending.stage === 'fill' || pending.stage === 'confirm' || pending.stage === 'pick' || pending.stage === 'callok' || pending.stage === 'dok' || pending.stage === 'dpick');
   const barge = asking && lastVoice && SR && !listening && pending && (pending.stage === 'dpick' || pending.stage === 'pick');
@@ -849,6 +851,7 @@ const sys = t => addMsg('sys', esc(t));
 
 /* ───────── 대화 흐름 (슬롯 채우기) ───────── */
 let pending = null;
+let RES = null;   // 이어가는 중인 지난 대화 { id, turns:[{r,t,at}] }
 const newP = (intent, sl) => { autoTried = false; return { tok: rid(), intent, sl: sl || {}, ask: null, stage: 'fill', tries: 0 }; };
 const cancelP = msg => { pending = null; if (msg) bot(msg); };
 
@@ -1621,7 +1624,7 @@ const aiUsable = () => !!gKey() && navigator.onLine !== false && Date.now() >= a
 async function geminiCall(phone, text, mode, extra) {
   const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), mode ? 20000 : 13000);
   try {
-    const r = await fetch(GURL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mode ? Object.assign({ phone, text, mode }, extra || {}) : { phone, text }) });
+    const r = await fetch(GURL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mode ? Object.assign({ phone, text, mode }, extra || {}) : Object.assign({ phone, text }, extra && extra.ctx ? { ctx: extra.ctx } : {})) });
     const j = await r.json().catch(() => ({}));
     if (r.ok && j.text) return String(j.text).trim();
     throw new Error(r.status === 403 ? '등록되지 않은 전화번호예요' : r.status === 429 ? (j.error === 'limit' ? '오늘 AI 사용 한도를 넘었어요. 내일 다시 사용해 주세요' : '잠시 뒤 다시 말씀해 주세요') : '응답 실패 (' + r.status + (j.detail ? ' · ' + j.detail : '') + ')');
@@ -1673,7 +1676,7 @@ async function askGemini(text) {   // true=처리함, false=실패 → 호출한
   sys('Gemini가 해석하는 중…');
   Busy.start();
   try {
-    let out; try { out = await geminiCall(gKey(), text); } finally { Busy.stop(); }
+    let out; try { out = await geminiCall(gKey(), text, undefined, { ctx: ctxTurns() }); } finally { Busy.stop(); }
     const line = out.split('\n').map(x => x.trim()).find(x => /^(CMD|SAY)\s*:/i.test(x)) || ('SAY: ' + out.split('\n')[0]);
     const body = line.replace(/^(CMD|SAY)\s*:\s*/i, '').trim();
     if (/^CMD/i.test(line)) {
@@ -1712,9 +1715,9 @@ function hSave(list) { let l = list; while (l.length) { try { localStorage.setIt
 const hmm = d => { const x = new Date(d); return (x.getHours() < 12 ? '오전 ' : '오후 ') + (x.getHours() % 12 || 12) + ':' + String(x.getMinutes()).padStart(2, '0'); };
 function hLog(kind, text) {
   text = String(text || '').trim(); if (!text) return;
-  const l = hLoad(); let ses = l[l.length - 1];
-  if (!ses || ses.id !== LIVE.hid) { ses = { id: LIVE.hid, at: Date.now(), m: [] }; l.push(ses); while (l.length > HMAX) l.shift(); }
-  ses.m.push({ r: kind, t: text, at: Date.now() }); hSave(l);
+  const l = hLoad(); let ses = l.find(x => x.id === LIVE.hid);
+  if (!ses) { ses = { id: LIVE.hid, at: Date.now(), m: [] }; l.push(ses); while (l.length > HMAX) l.shift(); }
+  ses.up = Date.now(); ses.m.push({ r: kind, t: text, at: Date.now() }); hSave(l);
 }
 function liveBubble(kind, add) {
   if (!add) return;
@@ -1933,7 +1936,7 @@ async function liveTools(calls) {
   liveSend({ toolResponse: { functionResponses: resp } }); if (!LIVE.srcs.length) liveSet('듣고 있어요', '🎙', false);
 }
 function liveMsg(m) {
-  if (m.ready) { LIVE.ready = true; LIVE.retries = 0; LIVE.recoverN = 0; LIVE.reconnecting = false; liveSet('듣고 있어요', '🎙', false); return; }
+  if (m.ready) { if (LIVE.ctx) { try { liveSend({ clientContent: { turns: LIVE.ctx, turnComplete: false } }); } catch (e) {} LIVE.ctx = null; } LIVE.ready = true; LIVE.retries = 0; LIVE.recoverN = 0; LIVE.reconnecting = false; liveSet('듣고 있어요', '🎙', false); return; }
   if (m.error) { liveFail(m.error === 'forbidden' ? '등록되지 않은 전화번호예요. ✨에서 확인해 주세요' : '서버 오류'); return; }
   if (m.upstreamClosed) { liveReconnect('upstream'); return; }
   if (m.sessionResumptionUpdate) { if (m.sessionResumptionUpdate.newHandle) LIVE.handle = m.sessionResumptionUpdate.newHandle; return; }
@@ -2020,8 +2023,7 @@ async function liveStart() {
   if (!gKey()) { toast('✨에서 등록된 전화번호를 먼저 입력해 주세요', 4200); return; }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !(window.AudioContext || window.webkitAudioContext) || !window.AudioWorkletNode) { toast('이 브라우저는 실시간 음성 대화를 지원하지 않아요', 4200); return; }
   if (listening) { try { rec.stop(); } catch (e) {} }
-  stopSpeak(); unlockAudio(); LIVE.sid = (LIVE.sid || 0) + 1; LIVE.reconnecting = false; LIVE.on = true; LIVE.ending = false; LIVE.retries = 0; LIVE.handle = LIVE.keep || ''; LIVE.keep = ''; LIVE.muted = false; LIVE.bub = { me: null, bot: null }; if (!LIVE.handle) LIVE.hid = 's' + Date.now();
-  if (!LIVE.handle) $('liveChat').innerHTML = '';
+  stopSpeak(); unlockAudio(); LIVE.sid = (LIVE.sid || 0) + 1; LIVE.reconnecting = false; LIVE.on = true; LIVE.ending = false; LIVE.retries = 0; LIVE.handle = LIVE.keep || ''; LIVE.keep = ''; LIVE.muted = false; LIVE.bub = { me: null, bot: null }; if (!LIVE.handle) { const rs = LIVE.resume; LIVE.hid = rs ? rs.id : 's' + Date.now(); if (!rs) RES = null; LIVE.ctx = rs ? liveCtxTurns(rs.turns) : null; $('liveChat').innerHTML = ''; if (rs) { rs.turns.slice(-20).forEach(m => { const el = document.createElement('div'); el.className = 'kb ' + m.r; el.style.opacity = '.75'; el.textContent = m.t; const sm = document.createElement('small'); sm.textContent = hmm(m.at); el.appendChild(sm); $('liveChat').appendChild(el); }); const dv = document.createElement('div'); dv.style.cssText = 'align-self:center;font-size:12px;color:var(--sub);padding:4px'; dv.textContent = '— 지난 대화를 이어서 해요 —'; $('liveChat').appendChild(dv); setTimeout(() => { const lc = $('liveChat'); lc.scrollTop = lc.scrollHeight; }, 50); } LIVE.resume = null; }
   $('live').classList.add('on', 'conn'); $('liveConnTxt').textContent = '연결 중…'; $('liveMe').textContent = ''; $('liveBot').textContent = ''; $('liveActs').innerHTML = ''; $('liveMute').textContent = '🎤'; $('liveMute').classList.remove('off'); liveSet('연결 중…', '🎙', false); $('liveVol').value = LIVE.vol; spkLabel();
   try {
     LIVE.autoBt = false; LIVE.stream = await liveAcq(); LIVE.loud = 0; LIVE.readyAt = 0;
@@ -2075,17 +2077,20 @@ function liveEnd(silent) {
   try { liveFlushLog(); } catch (e) {} $('live').classList.remove('on'); liveTurnEnd();
 }
 
+let HCUR = '';
 function histRender(idx) {
   const body = $('histBody'), l = hLoad().filter(x => x.m && x.m.length);
   body.innerHTML = ''; $('histDel').style.display = l.length ? '' : 'none';
   const dt = d => { const x = new Date(d); return (x.getMonth() + 1) + '월 ' + x.getDate() + '일 (' + '일월화수목금토'[x.getDay()] + ') ' + hmm(d); };
+  $('hist').classList.remove('det');
   if (idx == null) {
     $('histTitle').textContent = '음성 대화 기록'; $('histBack').textContent = '‹ 닫기';
     if (!l.length) { body.innerHTML = '<div class="ses">저장된 음성 대화가 없어요</div>'; return; }
-    l.slice().reverse().forEach(ses => { const b = document.createElement('button'); b.className = 'lst'; const first = (ses.m.find(x => x.r === 'me') || ses.m[0]).t; b.textContent = first.length > 40 ? first.slice(0, 40) + '…' : first; const sm = document.createElement('small'); sm.textContent = dt(ses.at) + ' · ' + ses.m.length + '개 말풍선'; b.appendChild(sm); b.onclick = () => histRender(ses.id); body.appendChild(b); });
+    l.slice().sort((x, y) => (y.up || y.at) - (x.up || x.at)).forEach(ses => { const b = document.createElement('button'); b.className = 'lst'; const first = (ses.m.find(x => x.r === 'me') || ses.m[0]).t; b.textContent = first.length > 40 ? first.slice(0, 40) + '…' : first; const sm = document.createElement('small'); sm.textContent = dt(ses.at) + ' · ' + ses.m.length + '개 말풍선'; b.appendChild(sm); b.onclick = () => histRender(ses.id); body.appendChild(b); });
     return;
   }
   const ses = l.find(x => x.id === idx); if (!ses) return histRender();
+  HCUR = ses.id; $('hist').classList.add('det');
   $('histTitle').textContent = dt(ses.at); $('histBack').textContent = '‹ 목록'; $('histBack').dataset.back = '1';
   let last = '';
   ses.m.forEach(m => { const day = new Date(m.at).toDateString(); if (day !== last) { last = day; const h = document.createElement('div'); h.className = 'ses'; h.textContent = dt(m.at).replace(/ \S+ \d+:\d+$/, ''); body.appendChild(h); } const e = document.createElement('div'); e.className = 'kb ' + m.r; e.textContent = m.t; const sm = document.createElement('small'); sm.textContent = hmm(m.at); e.appendChild(sm); body.appendChild(e); });
@@ -2096,7 +2101,7 @@ $('histBack').onclick = () => { if ($('histBack').dataset.back === '1') { $('his
 $('histDel').onclick = () => { if (confirm('저장된 음성 대화 기록을 모두 지울까요?')) { try { localStorage.removeItem(HKEY); } catch (e) {} $('histBack').dataset.back = ''; histRender(); toast('기록을 지웠어요'); } };
 $('liveHistBtn').onclick = histOpen;
 function drwRender() {
-  const b = $('drwBody'), l = hLoad().filter(x => x.m && x.m.length).reverse(); b.innerHTML = '';
+  const b = $('drwBody'), l = hLoad().filter(x => x.m && x.m.length).sort((x, y) => (y.up || y.at) - (x.up || x.at)); b.innerHTML = '';
   if (!l.length) { b.innerHTML = '<div class="em">아직 음성 대화가 없어요.<br>🎙로 AI와 대화하면 여기에 쌓여요.</div>'; return; }
   let last = '';
   l.forEach(ses => {
@@ -2111,6 +2116,28 @@ function drwRender() {
 function drwOpen() { drwRender(); $('drw').classList.add('on'); $('drwBk').classList.add('on'); }
 function drwClose() { $('drw').classList.remove('on'); $('drwBk').classList.remove('on'); }
 $('btnDrw').onclick = drwOpen; $('drwBk').onclick = drwClose; $('drwX').onclick = drwClose;
+
+/* 이전 대화 이어가기: 기록한 대화를 다시 불러와 글자·음성 어느 쪽으로든 맥락을 이어서 대화한다 */
+const ctxTurns = () => (RES ? RES.turns.slice(-12).map(x => ({ r: x.r, t: String(x.t).slice(0, 200) })) : null);
+function liveCtxTurns(m) {
+  const out = [];
+  m.slice(-24).forEach(x => { const role = x.r === 'me' ? 'user' : 'model', t = String(x.t).slice(0, 300), last = out[out.length - 1]; if (last && last.role === role) last.parts[0].text += ' ' + t; else out.push({ role, parts: [{ text: t }] }); });
+  if (!out.length) return null;
+  if (out[0].role !== 'user') out.unshift({ role: 'user', parts: [{ text: '(지난 대화 이어서)' }] });
+  out[0].parts[0].text = '[지난 대화를 이어서 진행한다. 아래는 사용자와 나눈 이전 대화이며 맥락으로 기억하고, 사용자가 말하면 이어서 답한다.] ' + out[0].parts[0].text;
+  return out;
+}
+function resumeSession(id, mode) {
+  const ses = hLoad().find(x => x.id === id); if (!ses || !ses.m.length) return toast('대화를 불러오지 못했어요');
+  $('hist').classList.remove('on'); drwClose();
+  if (LIVE.on) liveEnd();
+  RES = { id: ses.id, turns: ses.m.slice() }; LIVE.hid = ses.id; pending = null;
+  if (mode === 'voice') { LIVE.resume = RES; return liveStart(); }
+  setTab('chat'); sys('— 지난 대화를 이어서 해요 (' + new Date(ses.at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }) + ') —');
+  ses.m.slice(-16).forEach(m => { const d = addMsg(m.r === 'me' ? 'me' : 'bot', esc(m.t)); d.style.opacity = '.8'; });
+  sys('아래에 이어서 입력하세요'); try { $('txt').focus(); } catch (e) {}
+}
+$('histTxt').onclick = () => resumeSession(HCUR, 'text'); $('histVoice').onclick = () => resumeSession(HCUR, 'voice');
 const liveCapable = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && (window.AudioContext || window.webkitAudioContext) && window.AudioWorkletNode);
 // 하단 대화 버튼: 실시간 대화(번호 등록·지원 브라우저) → 아니면 기존 한 번 듣기 → 그것도 안 되면 이유를 화면에 안내
 function whyNot() {
@@ -2849,7 +2876,7 @@ async function phoneFallback(name) {   // 연락처에 없을 때: SIM Map 장�
 
 async function handleText(raw, viaAI) {
   const text = String(raw || '').trim(); if (!text) return;
-  if (!viaAI) addMsg('me', esc(text)); const n = NLU.normalize(text);
+  if (!viaAI) addMsg('me', esc(text)); if (RES && !viaAI && !LIVE.on) { hLog('me', text); RES.turns.push({ r: 'me', t: text, at: Date.now() }); } const n = NLU.normalize(text);
   if (pending && /^(취소|그만|중지|됐어|아니야?\s*그만|그만해)/.test(n)) return cancelP('취소했어요.');
   if (pending) {
     const p = pending, di = NLU.detect(text);

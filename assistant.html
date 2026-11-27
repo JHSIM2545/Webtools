@@ -33,9 +33,9 @@ input:focus{border-color:var(--accent)}
 .pane.on{display:block}
 #pChat.on{display:flex;flex-direction:column;padding-bottom:84px}
 #chat{flex:1;display:flex;flex-direction:column;gap:10px}
-.msg{max-width:88%;padding:10px 13px;border-radius:16px;font-size:14.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
-.msg.bot{background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:5px;align-self:flex-start}
-.msg.me{background:#10304a;border:1px solid #1d5a85;border-bottom-right-radius:5px;align-self:flex-end}
+.msg{max-width:78%;padding:9px 12px;border-radius:16px;font-size:15.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.msg.bot{max-width:88%;background:#2a3145;color:#f1f4fa;border:0;border-top-left-radius:4px;align-self:flex-start}
+.msg.me{background:#fee500;color:#191919;border:0;border-top-right-radius:4px;align-self:flex-end;font-weight:500}
 .msg.sys{align-self:center;background:none;color:var(--sub);font-size:12.5px;text-align:center;max-width:94%}
 .msg .sub{display:block;color:var(--sub);font-size:12.5px;margin-top:2px}
 .msg .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
@@ -121,7 +121,7 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 #liveChat{width:min(460px,100%);flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:8px 4px;text-align:left;scroll-behavior:smooth}#liveChat:empty{display:none}
 #live.on:not(.conn) #liveMid{justify-content:flex-start}
 #live #liveWave{width:min(120px,34vw)}
-.kb{max-width:78%;padding:9px 12px;font-size:16px;line-height:1.5;font-weight:500;word-break:break-word;overflow-wrap:anywhere;white-space:pre-wrap;border-radius:16px}
+.kb{max-width:78%;padding:9px 12px;font-size:15.5px;line-height:1.5;font-weight:500;word-break:break-word;overflow-wrap:anywhere;white-space:pre-wrap;border-radius:16px}
 .kb.me{align-self:flex-end;background:#fee500;color:#191919;border-top-right-radius:4px}
 .kb.bot{align-self:flex-start;background:#2a3145;color:#f1f4fa;border-top-left-radius:4px}
 .kb small{display:block;font-size:10.5px;opacity:.55;margin-top:3px;font-weight:400}

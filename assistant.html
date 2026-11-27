@@ -1484,7 +1484,7 @@ async function acallApi(o) {
 function aicallIntent(t) {
   const m = String(t).match(/^(.{1,30}?)\s*(?:에게|한테|께|에)\s*(?:AI\s*로\s*|대신\s*)?전화(?:를)?\s*(?:대신\s*)?(?:해서|걸어서|해가지고|하고서?)\s*(.{2,200})$/);
   if (!m) return null;
-  let purpose = m[2].replace(/\s*(해\s*줘|해줘|해\s*주세요|해\s*줄래|줄래|주세요|줘)[.!]*$/, '').replace(/[.!]+$/, '').trim();
+  let purpose = m[2].replace(/\s*(줄래|주세요|줘)[.!]*$/, '').replace(/[.!]+$/, '').trim();
   if (purpose.length < 2) purpose = m[2].trim();
   return { k: 'aicall', who: m[1].trim(), purpose };
 }

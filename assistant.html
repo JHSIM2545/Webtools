@@ -2615,7 +2615,8 @@ const fdK = d => { if (!d) return '미정'; const s0 = String(d), y = s0.slice(0
 async function salesCall(m) {   // 서버 함수 assistant-sales 호출 → { j, err }
   const phone = gKey();
   const body = { phone, op: m.k };
-  if (m.k === 'lookup') Object.assign(body, { q: m.q, kind: m.kind || 'any', month: m.month || undefined, day: m.day || undefined, from: m.from || undefined, to: m.to || undefined, label: m.label || undefined, upcoming: m.upcoming || undefined });
+  /* 일보 용어: 말로 '개시'는 일보에서 기산일 기준, '수주'는 계약일 기준 금액이다 */
+  if (m.k === 'lookup') Object.assign(body, { q: m.q, kind: (m.kind === 'start' ? 'billing' : m.kind) || 'any', month: m.month || undefined, day: m.day || undefined, from: m.from || undefined, to: m.to || undefined, label: m.label || undefined, upcoming: m.upcoming || undefined });
   else if (m.k === 'branch') Object.assign(body, { branch: m.branch, month: m.month || undefined, day: m.day || undefined, metric: m.metric });
   else Object.assign(body, { ym: m.ym, metric: m.metric, filter: m.filter || undefined });
   let j, err = '';
@@ -2626,6 +2627,10 @@ async function salesCall(m) {   // 서버 함수 assistant-sales 호출 → { j,
     j = await r.json().catch(() => ({}));
     if (!r.ok) err = r.status === 403 ? '등록되지 않은 전화번호예요' : '응답 실패 (' + r.status + (j.detail ? ' · ' + j.detail : '') + ')';
   } catch (e) { err = e && e.name === 'AbortError' ? '응답이 늦어요' : '연결 실패'; } finally { clearTimeout(to); Busy.stop(); }
+  if (j && m.k === 'lookup' && m.kind === 'start') {   // 사용자가 말한 '개시'라는 이름으로 답한다(조회는 기산일 기준)
+    if (Array.isArray(j.groups)) j.groups.forEach(g => { if (g.label === '기산') g.label = '개시'; });
+    if (j.text) j.text = j.text.replace(/기산은 /g, '개시는 ').replace(/기산 최근/g, '개시 최근');
+  }
   return { j, err };
 }
 function salesHtml(m, j) {
@@ -2643,7 +2648,9 @@ async function salesAsk(m) {
   sys('영업일보를 조회하는 중…');
   const { j, err } = await salesCall(m);
   if (err || !j || !j.text) return bot('일보를 조회하지 못했어요' + (err ? ' (' + err + ')' : '') + '. 잠시 뒤 다시 시도해 주세요.');
-  const html = salesHtml(m, j);
+  let html = salesHtml(m, j);
+  const basis = m.k === 'lookup' ? ({ order: '계약일 기준', start: '기산일 기준', billing: '기산일 기준' })[m.kind] : '';
+  if (basis && html) html += '<span class="sub">' + basis + (m.kind === 'order' ? ' (수주 = 계약일이 해당 기간인 건)' : ' (일보의 개시 = 기산일이 해당 기간인 건)') + '</span>';
   return bot(j.text, html ? { html } : undefined);
 }
 

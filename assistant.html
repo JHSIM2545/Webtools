@@ -1381,6 +1381,98 @@ async function tripHandle(m) {
     } catch (e) { return bot('출발 알림을 설정하지 못했어요. ' + (e && e.message || '')); }
   }
 }
+/* ───── 날씨·뉴스: SIM Brief 에서 정한 지역·뉴스 분야·관심 키워드를 같은 저장소에서 읽어 그대로 쓴다 ───── */
+const BR_WX = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-weather', BR_NEWS = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/brief-news';
+const BR_CATS = [['politics', '정치'], ['economy', '경제'], ['society', '사회'], ['culture', '문화'], ['sports', '스포츠'], ['stock', '증권']];
+function briefCfg() { try { return JSON.parse(localStorage.getItem('simbrief.v1') || 'null') || {}; } catch (e) { return {}; } }
+const brKm = (a, b, c, d) => { const R = 6371, r = x => x * Math.PI / 180, dl = r(c - a), dn = r(d - b), h = Math.sin(dl / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+const brGrade = (v, c) => v == null ? '' : v <= c[0] ? '좋음' : v <= c[1] ? '보통' : v <= c[2] ? '나쁨' : '매우 나쁨';
+const brAgo = t => { if (!t) return ''; const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? '방금' : m < 60 ? m + '분 전' : m < 1440 ? Math.floor(m / 60) + '시간 전' : Math.floor(m / 1440) + '일 전'; };
+const brDeg = n => n == null ? '' : (Math.round(n) < 0 ? '영하 ' + Math.abs(Math.round(n)) : Math.round(n)) + '도';
+const brFetch = async (url, ms) => { const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), ms); try { const r = await fetch(url, { signal: ctl.signal }); const j = await r.json(); if (!r.ok || !j || j.ok === false) throw new Error('fail'); return j; } finally { clearTimeout(to); } };
+const brCache = new Map();
+async function brWeather() {
+  const c = briefCfg(), w = Object.assign({ name: '서울', lat: 37.5665, lon: 126.978 }, c.weather || {});
+  let lat = +w.lat, lon = +w.lon, name = w.name || '서울';
+  if (w.mode === 'auto' || !c.weather) {   // 'SIM Brief → 현재 위치(자동)'면 지금 있는 곳 기준
+    try { const p = await Promise.race([curPos(), new Promise((_, r) => setTimeout(r, 3500))]); if (!w.located || brKm(lat, lon, p.lat, p.lng) > 3) name = '현재 위치'; lat = p.lat; lon = p.lng; } catch (e) {}
+  }
+  const key = lat.toFixed(2) + ',' + lon.toFixed(2), hit = brCache.get('w' + key); if (hit && Date.now() - hit.at < 10 * 60000) return hit.v;
+  Busy.start('날씨를 찾아보고 있습니다');
+  try { const v = await brFetch(BR_WX + '?lat=' + lat.toFixed(3) + '&lon=' + lon.toFixed(3) + '&name=' + encodeURIComponent(name), 15000); brCache.set('w' + key, { at: Date.now(), v }); return v; } finally { Busy.stop(); }
+}
+function brWxText(v, day) {
+  const d = v.daily && v.daily[day]; if (!d) return '';
+  const n = v.now || {}, nm = ['오늘', '내일', '모레'][day];
+  let s = (v.name || '') + ' ' + nm + ' 날씨는 ' + (d.wf || '') + '이고, ';
+  if (day === 0 && n.temp != null) s += '지금 기온은 ' + brDeg(n.temp) + ', ';
+  if (d.min != null && d.max != null && !(day === 0 && d.partial)) s += '최저 ' + brDeg(d.min) + ' 최고 ' + brDeg(d.max) + ', ';
+  s += '강수확률은 ' + (d.pop == null ? '정보 없음' : d.pop + '퍼센트') + '예요.';
+  const g10 = brGrade(v.pm10, [30, 80, 150]), g25 = brGrade(v.pm25, [15, 35, 75]);
+  if (day === 0 && (g10 || g25)) s += ' ' + (g25 ? '초미세먼지 ' + g25 : '') + (g25 && g10 ? ', ' : '') + (g10 ? '미세먼지 ' + g10 : '') + '이에요.';
+  if (d.pop >= 60) s += ' 우산을 챙기세요.';
+  return s;
+}
+function brWxHtml(v) {
+  const rows = [], n = v.now || {};
+  (v.daily || []).forEach((d, i) => { if (!d) return; rows.push([['오늘', '내일', '모레'][i], (d.emoji || '') + ' ' + (d.wf || '') + ' · ' + (d.partial ? '지금 ' + Math.round(n.temp) + '°' : Math.round(d.min) + '° / ' + Math.round(d.max) + '°') + ' · 강수 ' + (d.pop == null ? '-' : d.pop + '%')]); });
+  const g10 = brGrade(v.pm10, [30, 80, 150]), g25 = brGrade(v.pm25, [15, 35, 75]); if (g10 || g25) rows.push(['미세먼지', (g25 ? '초미세먼지 ' + g25 : '') + (g25 && g10 ? ' · ' : '') + (g10 ? '미세먼지 ' + g10 : '')]);
+  return '<b>' + esc((n.emoji || '🌤️') + ' ' + (v.name || '') + (n.temp != null ? ' · 지금 ' + Math.round(n.temp) + '°' : '')) + '</b>' + kvRows(rows) + '<span class="sub">SIM Brief 지역 설정 · 기상청 동네예보</span>';
+}
+async function brNews(kind, kw, n) {
+  const c = briefCfg(); let q;
+  if (kw) q = '?kw=' + encodeURIComponent(kw); else if (kind === 'custom') { const k = (c.kw || []).join(','); if (!k) return { none: true, items: [] }; q = '?kw=' + encodeURIComponent(k); } else q = '?cat=' + (kind || 'all');
+  q += '&n=' + (n || 8); const hit = brCache.get('n' + q); if (hit && Date.now() - hit.at < 8 * 60000) return hit.v;
+  Busy.start('뉴스를 찾아보고 있습니다');
+  try {
+    const j = await brFetch(BR_NEWS + q, 30000); let items, groups = null;
+    if (kw || kind === 'custom') items = (j.news && j.news.custom) || [];
+    else if (!kind || kind === 'all') { const on = c.cats || {}; groups = BR_CATS.filter(x => on[x[0]] !== false && j.news && j.news[x[0]]).map(x => ({ id: x[0], name: x[1], items: j.news[x[0]].slice(0, 2) })); items = groups.flatMap(g => g.items.map(i => Object.assign({ cat: g.name }, i))); }
+    else items = (j.news && j.news[kind]) || [];
+    const v = { items, groups }; brCache.set('n' + q, { at: Date.now(), v }); return v;
+  } finally { Busy.stop(); }
+}
+const brCatName = id => (BR_CATS.find(x => x[0] === id) || [, ''])[1];
+function brNewsHtml(title, items) {
+  return '<b>' + esc(title) + '</b>' + (items.length ? items.map(x => '<a class="nl" href="' + esc(x.link) + '" target="_blank" rel="noopener noreferrer" style="display:block;color:inherit;text-decoration:none;margin-top:8px;line-height:1.45">• ' + esc(x.title) + '<span class="sub" style="display:block">' + esc((x.cat ? x.cat + ' · ' : '') + (x.kw ? '#' + x.kw + ' · ' : '') + (x.src || '') + (x.at ? ' · ' + brAgo(x.at) : '')) + '</span></a>').join('') : '<span class="sub">표시할 뉴스가 없어요</span>');
+}
+const brNewsSpeech = (head, items, k) => head + ' ' + items.slice(0, k || 3).map((x, i) => ['첫째', '둘째', '셋째', '넷째'][i] + ', ' + String(x.title).replace(/\[[^\]]*\]|\([^)]*\)/g, '').trim() + '.').join(' ');
+function briefIntent(t) {
+  const wx = /(날씨|기온|일기예보|예보|미세먼지|초미세먼지|우산|비\s?(오|와|내리|올)|눈\s?(오|와|내리|올)|추워|더워|쌀쌀|기상)/.test(t), nw = /(뉴스|헤드라인|기사\s*(알려|읽어|보여)|소식\s*(알려|뭐|있)|브리핑)/.test(t);
+  if (!wx && !nw) return null;
+  if (/(수주|계약|해약|개시|기산|유증|전망|영업일보|인상|인하)/.test(t)) return null;
+  if (/(일정|알람|메모|전화|연락처|문자|길안내|내비|가자)/.test(t) && !/(날씨|뉴스|브리핑)/.test(t)) return null;
+  const day = /모레/.test(t) ? 2 : /내일/.test(t) ? 1 : 0;
+  if (wx && nw) return { k: 'bbrief', day };
+  if (/브리핑/.test(t)) return { k: 'bbrief', day };
+  if (wx) return { k: 'bwx', day };
+  const n = t.replace(/\s/g, ''), cat = BR_CATS.find(x => n.includes(x[1]) || (x[0] === 'stock' && /주식|증시/.test(n)));
+  if (/(관심|맞춤|내\s*뉴스|키워드)/.test(t)) return { k: 'bnews', kind: 'custom' };
+  if (cat) return { k: 'bnews', kind: cat[0] };
+  let kw = t.replace(/(오늘|최신|요즘|주요|최근|지금|좀|해줘|해\s*줘|알려\s*줘|알려줄래|알려주세요|읽어\s*줘|보여\s*줘|있어|뭐야|뭐\s*있어|관련|에\s*대한|의|에|뉴스|소식|기사|헤드라인|[?.!])/g, ' ').replace(/\s+/g, ' ').trim();
+  if (kw && kw.length >= 2 && kw.length <= 20) return { k: 'bnews', kw };
+  return { k: 'bnews', kind: 'all' };
+}
+async function briefHandle(m) {
+  try {
+    if (m.k === 'bwx' || m.k === 'bbrief') {
+      sys('날씨를 확인하는 중…'); const v = await brWeather(), text = brWxText(v, m.day || 0);
+      if (!text) { if (m.k === 'bwx') return bot('날씨 정보를 가져오지 못했어요.'); }
+      else if (m.k === 'bwx') return bot(text, { html: brWxHtml(v), btns: [{ label: 'SIM Brief 열기', href: 'brief.html' }] });
+      else bot(text, { html: brWxHtml(v) });
+    }
+    if (m.k === 'bnews' || m.k === 'bbrief') {
+      const kind = m.k === 'bbrief' ? 'all' : m.kind, kw = m.k === 'bbrief' ? '' : m.kw;
+      sys((kw ? '"' + kw + '" ' : kind === 'custom' ? '관심 ' : kind && kind !== 'all' ? brCatName(kind) + ' ' : '') + '뉴스를 찾는 중…');
+      const r = await brNews(kind, kw, kind === 'all' ? 3 : 8);
+      if (r.none) return bot('SIM Brief에 관심 키워드가 없어요. SIM Brief의 맞춤 뉴스에서 키워드를 추가해 주세요.', { btns: [{ label: 'SIM Brief 열기', href: 'brief.html' }] });
+      const title = (kw ? '#' + kw : kind === 'custom' ? '✨ 관심 뉴스' : kind && kind !== 'all' ? brCatName(kind) + ' 뉴스' : '📰 오늘의 주요 뉴스');
+      if (!r.items.length) return bot('가져온 뉴스가 없어요.' + (kw ? ' (' + kw + ' 최근 24시간)' : ''));
+      const say = brNewsSpeech(kw ? kw + ' 관련 최신 뉴스예요.' : kind === 'custom' ? '관심 뉴스예요.' : kind && kind !== 'all' ? brCatName(kind) + ' 주요 뉴스예요.' : '오늘의 주요 뉴스예요.', r.items, kind === 'all' ? 4 : 3);
+      return bot(say, { html: brNewsHtml(title, r.items), btns: [{ label: 'SIM Brief 열기', href: 'brief.html' }] });
+    }
+  } catch (e) { return bot('정보를 가져오지 못했어요. 인터넷 연결을 확인해 주세요.'); }
+}
 async function navFlow(sl) {
   if (sl.dest && !sl.noAlias) {   // 기억한 장소(집·사무실·어머니댁…)면 저장된 주소로 바로
     const kp = kbPlace(sl.dest);
@@ -1602,6 +1694,23 @@ const LTOOLS = {
     $('liveActs').innerHTML = ''; const tb = document.createElement('a'); tb.className = 'btn primary'; tb.style.padding = '14px 22px'; tb.textContent = '📞 ' + (c.name || '') + ' ' + no; tb.href = 'tel:' + no.replace(/[^0-9+]/g, ''); $('liveActs').appendChild(tb);
     setTimeout(() => { try { location.href = 'tel:' + no.replace(/[^0-9+]/g, ''); } catch (e) {} }, 700);
     return { ok: true, name: c.name, number: no, note: '화면의 전화 버튼도 함께 떴어요' };
+  },
+  async get_weather(a) {
+    try {
+      const day = Math.max(0, Math.min(2, Math.round(+a.day || 0))), v = await brWeather(), text = brWxText(v, day); if (!text) return { ok: false, error: '날씨 정보를 가져오지 못했어요' };
+      const html = brWxHtml(v); try { liveCard(html); $('liveNum').innerHTML = html; } catch (e) {}
+      return { ok: true, summary: text, note: 'summary 를 자연스럽게 한두 문장으로 말한다. 화면에도 표시했다.' };
+    } catch (e) { return { ok: false, error: '날씨를 가져오지 못했어요' }; }
+  },
+  async get_news(a) {
+    try {
+      const nm = String(a.category || '').replace(/\s/g, ''), cat = BR_CATS.find(x => nm && nm.includes(x[1]) || (x[0] === 'stock' && /주식|증시/.test(nm))), kw = String(a.keyword || '').trim();
+      const kind = kw ? '' : /관심|맞춤|내/.test(nm) ? 'custom' : cat ? cat[0] : 'all';
+      const r = await brNews(kind, kw, kind === 'all' ? 3 : 8); if (r.none) return { ok: false, error: 'SIM Brief에 관심 키워드가 없어요. SIM Brief 맞춤 뉴스에서 추가해야 해요' };
+      if (!r.items.length) return { ok: false, error: '가져온 뉴스가 없어요' };
+      const title = kw ? '#' + kw : kind === 'custom' ? '✨ 관심 뉴스' : cat ? cat[1] + ' 뉴스' : '📰 오늘의 주요 뉴스', html = brNewsHtml(title, r.items); try { liveCard(html); $('liveNum').innerHTML = html; } catch (e) {}
+      return { ok: true, headlines: r.items.slice(0, kind === 'all' ? 6 : 5).map(x => ({ title: x.title, source: x.src, when: brAgo(x.at), category: x.cat || '' })), note: '상위 3개 정도만 제목 위주로 짧게 읽는다. 전체 목록은 화면에 표시했다.' };
+    } catch (e) { return { ok: false, error: '뉴스를 가져오지 못했어요' }; }
   },
   async add_event(a) {
     const d = L_DT(a.date, a.all_day ? '' : a.time); if (!d) return { ok: false, error: '날짜 형식이 맞지 않아요' };
@@ -2085,6 +2194,7 @@ const KB_PLACEWORD = /^(?:우리\s*)?(집|사무실|회사|직장|본가|친정(
 function memIntent(text) {
   const t = String(text).trim();
   { const ti = tripIntent(t); if (ti) return ti; }
+  { const bi = briefIntent(t); if (bi) return bi; }
   // 1) 잊기
   if (/잊어|기억.{0,8}(삭제|지워|초기화)/.test(t)) {
     const q = t.replace(/(잊어버려|잊어\s*줘|잊어줘|잊어|지워\s*줘|지워줘|지워|삭제\s*해?\s*줘|삭제해줘|삭제|초기화)\S*/g, '').replace(/기억(한|해\s*둔|해둔)?\s*(거|것|내용|들)?/g, '').replace(/(을|를|은|는|도)\s*$/, '').replace(/(주소|위치)\s*$/, '').trim();
@@ -2139,6 +2249,7 @@ function kbDel(it) {
 }
 async function memHandle(m) {
   if (m.k === 'eta' || m.k === 'arrive' || m.k === 'tripcancel') return tripHandle(m);
+  if (m.k === 'bwx' || m.k === 'bnews' || m.k === 'bbrief') return briefHandle(m);
   if (m.k === 'nav') return navFlow(m.sl);
   if (m.k === 'mapfind') {
     const mp = await mapFind(m.q);

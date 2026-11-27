@@ -1905,6 +1905,12 @@ const LTOOLS = {
     catch (e) { return { ok: false, error: String(e && e.message || e) }; }
   },
   async cancel_arrival() { TRIPS.length = 0; tripSave(); try { window.SimApp && window.SimApp.tripStop && window.SimApp.tripStop(); } catch (e) {} try { await tripApi({ a: 'cancel' }); } catch (e) {} return { ok: true }; },
+  async get_daily_report(a) {
+    const r = await dailyFetch({ mode: a && a.mode }); if (r.err) return { ok: false, error: r.err };
+    const j = r.j, copied = await copyText(j.text);
+    liveCard(dailyHtml(j, copied), [{ label: '📋 다시 복사', primary: true, fn: async () => { await copyText(j.text); } }]);
+    return { ok: true, answer: koSpeech(j.speech), copied, note: '전체 보고서는 화면에 띄우고 클립보드에 복사했어요. 말로는 answer의 수주·해약·유지감소·유지증가 네 가지만 읽어 주고, 나머지 항목은 읽지 마세요. 마지막에 "전체 내용은 화면에 띄우고 복사해 뒀어요"라고 알려 주세요.' };
+  },
   async ask_sales(a) {
     if (!(window.simAuth && window.simAuth.isOwner())) return { ok: false, error: '영업일보 조회는 심정환 계정으로 로그인했을 때만 쓸 수 있어요' };
     const q = String(a.question || '').trim(); if (!q) return { ok: false, error: '질문이 비었어요' };
@@ -2398,6 +2404,7 @@ function memIntent(text) {
   const t = String(text).trim();
   { const ti = tripIntent(t); if (ti) return ti; }
   { const ac = aicallIntent(t); if (ac) return ac; }
+  { const di = dailyIntent(t); if (di) return di; }
   { const bi = briefIntent(t); if (bi) return bi; }
   // 1) 잊기
   if (/잊어|기억.{0,8}(삭제|지워|초기화)/.test(t)) {
@@ -2454,6 +2461,7 @@ function kbDel(it) {
 async function memHandle(m) {
   if (m.k === 'eta' || m.k === 'arrive' || m.k === 'tripcancel') return tripHandle(m);
   if (m.k === 'aicall') return aicallHandle(m);
+  if (m.k === 'daily') return dailyShow(m);
   if (m.k === 'bwx' || m.k === 'bnews' || m.k === 'bbrief') return briefHandle(m);
   if (m.k === 'nav') return navFlow(m.sl);
   if (m.k === 'mapfind') {
@@ -2540,6 +2548,34 @@ function relRange(t, now) {   // "지난주 금요일", "어제", "최근 일주
   if ((m = t.match(/최근\s*(\d+)?\s*(일주일|주일|일|주)/))) { const n = m[2] === '일주일' ? 7 : m[2] === '일' ? +m[1] || 1 : (+m[1] || 1) * 7; return out(add(base, -(n - 1)), base, '최근 ' + n + '일'); }
   return null;
 }
+/* ───────── 일일실적보고 TEXT: "일일실적보고 복사해줘" · "일일실적 알려줘" ─────────
+   포털 일일실적보고 TEXT 보고창과 같은 글을 화면에 띄우고 클립보드에 자동 복사. 음성 대화에서는 수주·해약·유지감소·유지증가만 말한다. */
+function dailyIntent(raw) {
+  const t = String(raw || '').replace(/\s+/g, '');
+  if (!/일일실적(보고)?/.test(t)) return null;
+  if (/(수정|입력|저장|삭제|예상치)/.test(t)) return null;
+  return { k: 'daily', mode: /전망/.test(t) ? '전망' : /마감/.test(t) ? '마감' : undefined };
+}
+async function copyText(txt) {
+  try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(txt); return true; } } catch (e) {}
+  try { const ta = document.createElement('textarea'); ta.value = txt; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0'; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, txt.length); const ok = document.execCommand('copy'); ta.remove(); return !!ok; } catch (e) { return false; }
+}
+function dailyHtml(j, copied) {
+  return '<b>📋 일일실적보고 (' + esc(j.mode) + ')</b><div style="white-space:pre-wrap;font-size:13px;line-height:1.55;margin-top:6px;user-select:text">' + esc(j.text) + '</div><span class="sub">' + (copied ? '클립보드에 복사했어요. 다른 곳에 붙여 넣으세요.' : '자동 복사가 막혀 있어요. 아래 복사 버튼을 눌러 주세요.') + '</span>';
+}
+async function dailyFetch(m) {
+  if (!(window.simAuth && window.simAuth.isOwner())) return { err: '영업일보 조회는 심정환 계정으로 로그인했을 때만 쓸 수 있어요.' };
+  if (!gKey()) return { err: '일보를 조회하려면 등록된 전화번호가 필요해요. 런처의 AI 설정에서 등록해 주세요.' };
+  const { j, err } = await salesCall({ k: 'daily', mode: m && m.mode });
+  if (err || !j || !j.text) return { err: '일일실적보고를 가져오지 못했어요' + (err ? ' (' + err + ')' : '') };
+  return { j };
+}
+async function dailyShow(m) {
+  sys('일일실적보고를 만드는 중…');
+  const r = await dailyFetch(m); if (r.err) return bot(r.err);
+  const j = r.j, copied = await copyText(j.text);
+  return bot(j.speech, { html: dailyHtml(j, copied), btns: [{ label: '📋 다시 복사', primary: true, fn: async () => { const ok = await copyText(j.text); sys(ok ? '복사했어요.' : '복사하지 못했어요. 글을 길게 눌러 직접 복사해 주세요.'); } }] });
+}
 function salesIntent(raw) {
   const t = String(raw).replace(/계야처|계얀처|계약쳐|게약처|계약처럼/g, '계약처').replace(/\s+/g, ' ').trim();
   if (!/(수주|계약|개시|기산|해약|인상|인하|재개시|재개|중지|유증|유지증가|유감|유지감소|유지금액|유지건수|상품\s*일보|안전\s*상품|계약처|거래처|고객사|전망)/.test(t)) return null;
@@ -2618,6 +2654,7 @@ async function salesCall(m) {   // 서버 함수 assistant-sales 호출 → { j,
   /* 일보 용어: 말로 '개시'는 일보에서 기산일 기준, '수주'는 계약일 기준 금액이다 */
   if (m.k === 'lookup') Object.assign(body, { q: m.q, kind: (m.kind === 'start' ? 'billing' : m.kind) || 'any', month: m.month || undefined, day: m.day || undefined, from: m.from || undefined, to: m.to || undefined, label: m.label || undefined, upcoming: m.upcoming || undefined });
   else if (m.k === 'branch') Object.assign(body, { branch: m.branch, month: m.month || undefined, day: m.day || undefined, metric: m.metric });
+  else if (m.k === 'daily') Object.assign(body, { mode: m.mode || undefined });
   else Object.assign(body, { ym: m.ym, metric: m.metric, filter: m.filter || undefined });
   let j, err = '';
   const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 20000);

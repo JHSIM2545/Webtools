@@ -55,11 +55,11 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 .composer{display:flex;align-items:center;gap:8px;padding:8px 12px calc(10px + env(safe-area-inset-bottom));background:var(--bg)}
 .composer{padding-left:10px;padding-right:10px}
 .inwrap{position:relative;flex:1;min-width:0}
-.inwrap input{padding-right:54px}
-.inwrap .send{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:36px;height:36px;font-size:15px;background:var(--accent2);border-color:var(--accent2);color:#031a2b}
+.inwrap input{padding-right:56px}
+.inwrap .send{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:40px;height:40px;font-size:16px;background:var(--accent2);border-color:var(--accent2);color:#031a2b}
 .msg.me{white-space:pre-wrap;word-break:break-word}
 .send{width:44px;height:44px;border-radius:50%;padding:0;font-size:18px;flex:none}
-.mic{position:fixed;right:16px;bottom:calc(112px + env(safe-area-inset-bottom));z-index:40;box-shadow:0 6px 18px rgba(0,0,0,.55);width:64px;height:64px;border-radius:50%;padding:0;flex:none;background:var(--accent);border-color:var(--accent);color:#031a2b;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.mic{position:static;width:40px;height:40px;border-radius:50%;padding:0;flex:none;background:var(--accent);border-color:var(--accent);color:#031a2b;overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:none}
 .mic svg{width:100%;height:100%;display:block}
 .mic.on{animation:micwave 1.6s ease-out infinite}
 @keyframes micwave{0%{box-shadow:0 0 0 0 rgba(76,201,240,.7),0 0 0 0 rgba(76,201,240,.45)}70%{box-shadow:0 0 0 22px rgba(76,201,240,0),0 0 0 40px rgba(76,201,240,0)}100%{box-shadow:0 0 0 0 rgba(76,201,240,0),0 0 0 0 rgba(76,201,240,0)}}
@@ -181,10 +181,9 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 <div class="pane" id="pAlarm"></div>
 
 <div id="chatBar">
-  <div class="chips" id="chips"></div>
   <div class="listen" id="listen"><em id="interim">듣고 있어요…</em></div>
   <div class="composer">
-    <div class="inwrap"><input id="txt" type="text" placeholder="말하거나 입력하세요 · 문자를 붙여넣으면 일정 등록" autocomplete="off" enterkeyhint="send">
+    <div class="inwrap"><input id="txt" type="text" placeholder="메시지 입력" autocomplete="off" enterkeyhint="send">
     <button class="send" id="btnSend" title="보내기">➤</button></div>
     <button class="mic" id="btnMic" title="대화 (실시간 음성 대화)">
       <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="60" fill="#4cc9f0"/><g stroke="#031a2b" stroke-width="7" stroke-linecap="round"><path d="M42 44v32"/><path d="M60 32v56"/><path d="M78 52v16"/></g></svg>
@@ -2961,20 +2960,8 @@ function sendTyped() { const v = $('txt').value.trim(); if (!v) return; $('txt')
 $('btnSend').onclick = sendTyped;
 $('txt').addEventListener('paste', () => setTimeout(() => { if (looksLikeMessage($('txt').value)) sendTyped(); }, 30));
 $('txt').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); sendTyped(); } });
-/* 받아쓰기 자동 전송: 차량 등 마이크 권한 팝업이 안 뜨는 환경에서 키보드 🎤 받아쓰기를 쓰기 위한 옵션 */
 let autoSend = ls.get('SIMAS_AUTOSEND', '0') === '1', autoT = 0;
-(() => {
-  const b = document.createElement('button'); b.id = 'chipAuto';
-  const paint = () => { b.textContent = autoSend ? '🎤 받아쓰기 자동전송 ON' : '🎤 받아쓰기 자동전송'; b.style.color = autoSend ? 'var(--accent,#4cc9f0)' : ''; b.style.borderColor = autoSend ? 'var(--accent,#4cc9f0)' : ''; };
-  b.onclick = () => { autoSend = !autoSend; ls.set('SIMAS_AUTOSEND', autoSend ? '1' : '0'); paint(); if (autoSend) { $('txt').focus(); toast('키보드의 🎤로 말하면 말이 끝난 뒤 자동으로 전송돼요', 3600); } };
-  paint(); $('chips').appendChild(b);
-  $('txt').addEventListener('input', () => { clearTimeout(autoT); if (autoSend && $('txt').value.trim()) autoT = setTimeout(sendTyped, 1600); });
-})();
-(() => { const b = document.createElement('button'); b.textContent = '🔄 기기 동기화'; b.onclick = () => { location.href = 'index.html?sync=1'; }; $('chips').appendChild(b); })();
-(() => { const b = document.createElement('button'); b.textContent = '📩 문자로 일정 등록'; b.onclick = () => { $('txt').focus(); toast('받은 문자를 입력창에 붙여넣으면 일정으로 등록해요', 3600); }; $('chips').appendChild(b); })();
-['기억한 거 보여줘', '11월 말 유증 전망은?', '메모해줘', '연락처 저장해줘', '전화번호 찾아줘', '전화 걸어줘', '길안내 해줘', '일정 추가해줘', '알람 맞춰줘', '오늘 일정 알려줘'].forEach(t => {
-  const b = document.createElement('button'); b.textContent = t; b.onclick = () => { lastVoice = false; unlockAudio(); handleText(t); }; $('chips').appendChild(b);
-});
+$('txt').addEventListener('input', () => { clearTimeout(autoT); if (autoSend && $('txt').value.trim()) autoT = setTimeout(sendTyped, 1600); });
 
 (async () => {
   setTtsBtn();

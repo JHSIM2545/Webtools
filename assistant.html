@@ -127,6 +127,12 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 .kb small{display:block;font-size:10.5px;opacity:.55;margin-top:3px;font-weight:400}
 .kb.me small{text-align:right}
 #liveNum{width:min(420px,94%);max-height:38vh;overflow-y:auto;text-align:left;font-size:17px;line-height:1.55;background:#101626;border:1px solid #2a3145;border-radius:14px;padding:12px 14px}#liveNum:empty{display:none}#liveNum b{display:block;font-size:17px;margin-bottom:4px}#liveNum .sub{color:var(--sub);font-size:14px}
+#btnDrw{background:none;border:0;color:var(--text);font-size:22px;line-height:1;padding:4px 8px;margin-left:2px}
+#drwBk{position:fixed;inset:0;z-index:97;background:rgba(0,0,0,.55);display:none}#drwBk.on{display:block}
+#drw{position:fixed;left:0;top:0;bottom:0;width:min(320px,86vw);z-index:98;background:var(--panel);border-right:1px solid var(--line);transform:translateX(-102%);transition:transform .22s;display:flex;flex-direction:column}#drw.on{transform:none}
+#drw .dh{display:flex;align-items:center;padding:calc(12px + env(safe-area-inset-top)) 14px 10px;border-bottom:1px solid var(--line)}#drw .dh b{flex:1;font-size:16px}#drw .dh button{background:none;border:0;color:var(--sub);font-size:18px}
+#drwBody{flex:1;overflow-y:auto;padding:8px}
+#drwBody .it{display:block;width:100%;text-align:left;background:none;border:0;border-radius:10px;padding:10px 12px;color:var(--text);font-size:14px;line-height:1.4}#drwBody .it:active{background:rgba(127,127,127,.2)}#drwBody .it small{display:block;color:var(--sub);font-size:11.5px;margin-top:2px}#drwBody .em{color:var(--sub);font-size:13px;padding:18px 12px}
 #liveHistBtn{position:absolute;right:14px;top:calc(12px + env(safe-area-inset-top));background:#161b28;border:1px solid #2a3145;color:var(--text);border-radius:99px;padding:6px 12px;font-size:13px}
 #hist{position:fixed;inset:0;z-index:99;background:#070a10;display:none;flex-direction:column}#hist.on{display:flex}
 #hist .hb{display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;border-bottom:1px solid #2a3145}#hist .hb b{flex:1;font-size:16px}#hist .hb button{background:#161b28;border:1px solid #2a3145;color:var(--text);border-radius:10px;padding:7px 12px;font-size:13px}
@@ -159,6 +165,7 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 <body>
 <div class="bar">
   <a class="back" href="index.html" title="SIM Tools">‹</a>
+  <button id="btnDrw" title="주요 대화 목록" aria-label="메뉴">☰</button>
   <h1>SIM <span>Assistant</span></h1>
 </div>
 <div class="tabs" id="tabs">
@@ -166,7 +173,6 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
   <button data-t="memo">메모<i id="cMemo">0</i></button>
   <button data-t="event">일정<i id="cEvent">0</i></button>
   <button data-t="alarm">알람<i id="cAlarm">0</i></button>
-  <button id="tabHist" title="음성 대화 기록" style="flex:none;padding:12px 14px">🕘</button>
 </div>
 
 <div class="pane on" id="pChat"><div id="chat"></div></div>
@@ -214,6 +220,7 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
   </div>
   <input id="liveVol" type="range" min="1" max="4" step="0.5" style="display:none"><i id="liveLvl" style="display:none"></i>
 </div>
+<div id="drwBk"></div><aside id="drw"><div class="dh"><b>주요 대화</b><button id="drwX" aria-label="닫기">✕</button></div><div id="drwBody"></div></aside>
 <div id="hist"><div class="hb"><button id="histBack">‹ 닫기</button><b id="histTitle">음성 대화 기록</b><button id="histDel">전체 삭제</button></div><div id="histBody"></div></div>
 <div id="aiBusy" role="status" aria-live="polite"><span class="ico">🔎</span><span class="txt">AI가 찾아보고 있습니다</span><span class="dots"><i></i><i></i><i></i></span></div>
 <div id="toast"></div>
@@ -2054,7 +2061,23 @@ function histRender(idx) {
 function histOpen() { $('histBack').dataset.back = ''; histRender(); $('hist').classList.add('on'); }
 $('histBack').onclick = () => { if ($('histBack').dataset.back === '1') { $('histBack').dataset.back = ''; histRender(); } else $('hist').classList.remove('on'); };
 $('histDel').onclick = () => { if (confirm('저장된 음성 대화 기록을 모두 지울까요?')) { try { localStorage.removeItem(HKEY); } catch (e) {} $('histBack').dataset.back = ''; histRender(); toast('기록을 지웠어요'); } };
-$('liveHistBtn').onclick = histOpen; $('tabHist').onclick = histOpen;
+$('liveHistBtn').onclick = histOpen;
+function drwRender() {
+  const b = $('drwBody'), l = hLoad().filter(x => x.m && x.m.length).reverse(); b.innerHTML = '';
+  if (!l.length) { b.innerHTML = '<div class="em">아직 음성 대화가 없어요.<br>🎙로 AI와 대화하면 여기에 쌓여요.</div>'; return; }
+  let last = '';
+  l.forEach(ses => {
+    const d = new Date(ses.at), day = (d.getMonth() + 1) + '월 ' + d.getDate() + '일 (' + '일월화수목금토'[d.getDay()] + ')';
+    if (day !== last) { last = day; const h = document.createElement('div'); h.className = 'em'; h.style.cssText = 'padding:12px 12px 4px;font-size:12px'; h.textContent = day; b.appendChild(h); }
+    const first = (ses.m.find(x => x.r === 'me') || ses.m[0]).t, it = document.createElement('button'); it.className = 'it';
+    it.textContent = first.length > 34 ? first.slice(0, 34) + '…' : first; const sm = document.createElement('small'); sm.textContent = hmm(ses.at) + ' · 말풍선 ' + ses.m.length + '개'; it.appendChild(sm);
+    it.onclick = () => { drwClose(); histRender(ses.id); $('hist').classList.add('on'); $('histBack').dataset.back = ''; $('histBack').textContent = '‹ 닫기'; $('histDel').style.display = 'none'; };
+    b.appendChild(it);
+  });
+}
+function drwOpen() { drwRender(); $('drw').classList.add('on'); $('drwBk').classList.add('on'); }
+function drwClose() { $('drw').classList.remove('on'); $('drwBk').classList.remove('on'); }
+$('btnDrw').onclick = drwOpen; $('drwBk').onclick = drwClose; $('drwX').onclick = drwClose;
 const liveCapable = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && (window.AudioContext || window.webkitAudioContext) && window.AudioWorkletNode);
 // 하단 대화 버튼: 실시간 대화(번호 등록·지원 브라우저) → 아니면 기존 한 번 듣기 → 그것도 안 되면 이유를 화면에 안내
 function whyNot() {

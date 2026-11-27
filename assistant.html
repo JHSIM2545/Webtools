@@ -1473,6 +1473,65 @@ async function briefHandle(m) {
     }
   } catch (e) { return bot('정보를 가져오지 못했어요. 인터넷 연결을 확인해 주세요.'); }
 }
+/* ───────── AI 전화 대행: "OO에게 전화해서 …라고 물어봐 줘" → 확인 카드 → KAT 발신(assistant-call) → 결과 ───────── */
+const ACALL = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-call';
+async function acallApi(o) {
+  const r = await fetch(ACALL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ phone: gKey() }, o)), signal: AbortSignal.timeout ? AbortSignal.timeout(25000) : undefined });
+  let j = null; try { j = await r.json(); } catch (e) {}
+  if (!r.ok) { const e = new Error((j && (j.message || j.error)) || ('HTTP ' + r.status)); e.code = j && j.code; e.status = r.status; throw e; }
+  return j || {};
+}
+function aicallIntent(t) {
+  const m = String(t).match(/^(.{1,30}?)\s*(?:에게|한테|께|에)\s*(?:AI\s*로\s*|대신\s*)?전화(?:를)?\s*(?:대신\s*)?(?:해서|걸어서|해가지고|하고서?)\s*(.{2,200})$/);
+  if (!m) return null;
+  let purpose = m[2].replace(/\s*(해\s*줘|해줘|해\s*주세요|해\s*줄래|줄래|주세요|줘)[.!]*$/, '').replace(/[.!]+$/, '').trim();
+  if (purpose.length < 2) purpose = m[2].trim();
+  return { k: 'aicall', who: m[1].trim(), purpose };
+}
+const aicallErr = e => ({ AO002: 'AI 발신 이용 승인이 아직 안 났어요(KAT Cloud 승인 대기).', AO016: '체험 발신 시간을 모두 사용했어요.', KC008: 'KAT Cloud 체험 기간이 끝났어요.' }[e && e.code] || (e && e.status === 429 ? '오늘 전화 대행 한도를 넘었어요.' : '전화를 걸지 못했어요. ' + (e && e.message || '')));
+async function aicallHandle(m) {
+  if (!gKey()) return bot('전화 대행을 쓰려면 등록된 전화번호가 필요해요. ✨에서 먼저 입력해 주세요.', { btns: [{ label: '📱 전화번호 등록', primary: true, fn: openAi }] });
+  let to = '', name = m.who;
+  const dg = m.who.replace(/\D/g, '');
+  if (dg.length >= 8) { to = dg; name = m.who.replace(/[\d\-\s]/g, '') || to; }
+  else {
+    const res = await lookupContacts({ name: m.who }), usable = res.filter(c => c.mobile || c.tel);
+    if (!usable.length) return bot(m.who + '님의 연락처를 찾지 못했어요. 전화번호를 직접 말씀해 주세요. 예: "02-123-4567에 전화해서 …"');
+    if (usable.length > 1) return bot('여러 명이 있어요. 한 분을 골라 주세요.', { html: '<b>' + usable.length + '명을 찾았어요</b>' + usable.slice(0, 5).map(whoHtml).join(''), btns: usable.slice(0, 5).map(c => ({ label: c.name || c.company, fn: () => aicallConfirm(c.name || c.company, c.mobile || c.tel, m.purpose) })).concat([{ label: '취소', fn: () => bot('취소했어요.') }]) });
+    to = usable[0].mobile || usable[0].tel; name = usable[0].name || usable[0].company;
+  }
+  return aicallConfirm(name, to, m.purpose);
+}
+function aicallConfirm(name, to, purpose) {
+  const d = String(to).replace(/\D/g, ''); let used = false;
+  const html = '<b>🤖 AI가 대신 전화할까요?</b>' +
+    '<div style="margin-top:8px"><b>받는 분</b> ' + esc(name) + ' · ' + esc(to) + '</div>' +
+    '<div style="margin-top:4px"><b>용건</b> ' + esc(purpose) + '</div>' +
+    '<span class="sub">AI가 통화 시작 때 AI 비서임을 밝히고, 용건 범위 안에서만 말해요. 통화는 최대 8분이며 결과를 여기로 알려 드려요. 약속·결제·개인정보는 말하지 않아요.</span>';
+  bot(name + '님께 AI가 전화해서 "' + purpose + '" 용건을 전할까요?', { html, btns: [{ label: '📞 AI가 전화 걸기', primary: true, fn: () => { if (used) return; used = true; aicallStart(name, d, purpose); } }, { label: '취소', fn: () => { used = true; bot('취소했어요.'); } }] });
+}
+async function aicallStart(name, to, purpose) {
+  let rid0;
+  try {
+    sys('AI 전화를 거는 중…');
+    const r = await acallApi({ action: 'call', to, purpose, ownerName: (window.simAuth && window.simAuth.user && (((window.simAuth.user() || {}).user_metadata || {}).full_name)) || '', timeLimit: 300 });
+    rid0 = r.requestId || r.request_id; if (!rid0) throw new Error('접수 번호를 받지 못했어요');
+  } catch (e) { return bot(aicallErr(e)); }
+  bot('전화를 걸었어요. 통화가 끝나면 결과를 알려 드릴게요.', { html: '<b>📞 ' + esc(name) + '님께 발신 중</b><span class="sub">연결되면 AI가 용건을 전해요. 이 화면을 닫아도 돼요.</span>', btns: [{ label: '⛔ 중단', fn: async () => { try { await acallApi({ action: 'cancel', requestId: rid0 }); bot('통화를 중단했어요.'); } catch (e) { bot('중단하지 못했어요. ' + (e.message || '')); } } }] });
+  const t0 = Date.now(); let st = null, tries = 0;
+  while (Date.now() - t0 < 9 * 60 * 1000) {
+    await sleep(3000);
+    try { st = await acallApi({ action: 'status', requestId: rid0 }); tries = 0; } catch (e) { if (++tries > 5) return bot('통화 상태를 확인하지 못했어요. ' + (e.message || '')); continue; }
+    if (st.endedAt || /END|FINISH|COMPLET|FAIL|NO_ANSWER|BUSY|CANCEL|REJECT|TIMEOUT/i.test(String(st.status || ''))) break;
+  }
+  if (!st) return bot('통화 결과를 받지 못했어요.');
+  let ex = null;
+  if (!st.summary && st.analysisStatus !== 'READY') for (let i = 0; i < 8 && !(ex && ex.summary); i++) { await sleep(3000); try { ex = await acallApi({ action: 'status', requestId: rid0 }); } catch (e) { break; } if (ex.analysisStatus === 'READY' || ex.analysisStatus === 'FAILED') break; }
+  const f = ex || st, answered = !!(f.answeredAt), sum = f.summary ? (typeof f.summary === 'string' ? f.summary : JSON.stringify(f.summary)) : '';
+  const head = answered ? '📞 ' + name + '님과 통화했어요' : '📵 ' + name + '님이 전화를 받지 않았어요';
+  const sub = [f.duration ? Math.round(f.duration) + '초' : '', f.endReason || ''].filter(Boolean).join(' · ');
+  bot(answered ? (sum ? name + '님과 통화를 마쳤어요. ' + sum : name + '님과 통화를 마쳤어요. 요약은 아직 없어요.') : name + '님이 전화를 받지 않았어요.', { html: '<b>' + esc(head) + '</b>' + (sum ? '<div style="margin-top:6px;line-height:1.5">' + esc(sum) + '</div>' : (answered ? '<span class="sub">요약은 녹음·전사 설정이 켜져 있어야 받을 수 있어요</span>' : '')) + (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') });
+}
 async function navFlow(sl) {
   if (sl.dest && !sl.noAlias) {   // 기억한 장소(집·사무실·어머니댁…)면 저장된 주소로 바로
     const kp = kbPlace(sl.dest);
@@ -2194,6 +2253,7 @@ const KB_PLACEWORD = /^(?:우리\s*)?(집|사무실|회사|직장|본가|친정(
 function memIntent(text) {
   const t = String(text).trim();
   { const ti = tripIntent(t); if (ti) return ti; }
+  { const ac = aicallIntent(t); if (ac) return ac; }
   { const bi = briefIntent(t); if (bi) return bi; }
   // 1) 잊기
   if (/잊어|기억.{0,8}(삭제|지워|초기화)/.test(t)) {
@@ -2249,6 +2309,7 @@ function kbDel(it) {
 }
 async function memHandle(m) {
   if (m.k === 'eta' || m.k === 'arrive' || m.k === 'tripcancel') return tripHandle(m);
+  if (m.k === 'aicall') return aicallHandle(m);
   if (m.k === 'bwx' || m.k === 'bnews' || m.k === 'bbrief') return briefHandle(m);
   if (m.k === 'nav') return navFlow(m.sl);
   if (m.k === 'mapfind') {

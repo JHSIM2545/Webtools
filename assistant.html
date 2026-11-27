@@ -1127,7 +1127,9 @@ async function findFlow(intent, sl) {
   const head = !nExact ? '"' + sl.name + '"과 똑같은 이름은 없어요. 비슷한 이름이에요 — ' + cands.length + '명' : nExact === cands.length ? nExact + '명을 찾았어요' : '"' + sl.name + '" ' + nExact + '명, 비슷한 이름 ' + (cands.length - nExact) + '명';
   const rowHtml = (c, i) => '<div class="who" style="margin-top:8px"><div class="av" style="background:' + AVC[(String(c.name).charCodeAt(0) || 0) % AVC.length] + '">' + (i + 1) + '</div><div><b>' + esc(c.name || c.company) + '</b>' + (i >= nExact ? ' <small style="color:var(--warn,#f5b041)">비슷한 이름</small>' : '') + '<small>' + esc([c.company, c.title, c.mobile || c.tel].filter(Boolean).join(' · ')) + '</small></div></div>';
   const say = (!nExact ? '"' + sl.name + '"과 똑같은 이름은 없지만 비슷한 이름이 있어요.' : nExact === cands.length ? cands.length + '명을 찾았어요.' : '"' + sl.name + '"과 비슷한 이름도 함께 찾았어요.') + ' 몇 번째 분인가요?' + cands.map((c, i) => ' ' + (i + 1) + '번 ' + (c.name || c.company) + (c.company ? ' ' + c.company : '')).join(',');
-  bot(say, { html: '<b>' + esc(head) + '</b>' + cands.map(rowHtml).join(''), tok: pending.tok, btns: cands.map((c, i) => ({ label: (i + 1) + '. ' + (c.name || c.company), fn: () => pickContact(pending, c) })).concat([{ label: '취소', fn: () => cancelP('취소했어요.') }]) });
+  const one = !nExact && cands.length === 1, c0 = cands[0];
+  if (one) pending.one = true;
+  bot(one ? '"' + sl.name + '"님은 연락처에 없고, 비슷한 이름으로 ' + (c0.name || c0.company) + '님이 있어요. ' + (c0.name || c0.company) + '님을 찾으시는 건가요?' : say, { html: '<b>' + esc(head) + '</b>' + cands.map(rowHtml).join(''), tok: pending.tok, btns: (one ? [{ label: '네, ' + (c0.name || c0.company) + '님이에요', primary: true, fn: () => pickContact(pending, c0) }, { label: '아니요', fn: () => cancelP('알겠어요. 이름을 다시 말씀해 주세요.') }] : cands.map((c, i) => ({ label: (i + 1) + '. ' + (c.name || c.company), fn: () => pickContact(pending, c) })).concat([{ label: '취소', fn: () => cancelP('취소했어요.') }])) });
 }
 function pickContact(p, c) { pending = null; presentContact(p.intent, p.sl, c); }
 function presentContact(intent, sl, c) {
@@ -1758,6 +1760,23 @@ const liveSend = o => { try { if (LIVE.ws && LIVE.ws.readyState === 1) LIVE.ws.s
 /* 도구 실행 — 서버(Gemini)가 부르면 이 폰의 데이터에 실제로 적용한다 */
 const L_DT = (d, t) => { const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(d || '').trim()), h = /^(\d{1,2}):(\d{2})/.exec(String(t || '').trim()); if (!m) return null; return new Date(+m[1], +m[2] - 1, +m[3], h ? +h[1] : 0, h ? +h[2] : 0); };
 function liveCard(html, btns) { addMsg('bot', html, btns); }
+/* 음성 대화에서 연락처 고르기: 후보 번호(index)나 후보 이름으로 정확히 집어 낸다 */
+const liveCQ = q => { let t = String(q || '').replace(/\s*[\(（\[].*$/, '').trim(); if (t.length > 2) t = t.replace(/(님|씨)$/, ''); return t; };
+function liveCPick(a) {
+  const L = LIVE.ccands; if (!L || !L.length) return null;
+  let i = a && a.index != null ? Math.round(+a.index) : 0;
+  if (!i) { const m = /^\s*(\d)\s*(?:번|번째)?\s*$/.exec(String(a && a.query || '')); if (m) i = +m[1]; }
+  if (i >= 1 && i <= L.length) return L[i - 1];
+  const q = liveCQ(a && a.query).replace(/\s/g, ''); if (q) { const m = L.filter(c => String(c.name || '').replace(/\s/g, '') === q); if (m.length === 1) return m[0]; }
+  return null;
+}
+function liveCallTo(c) {
+  const no = c.mobile || c.tel; if (!no) return { ok: false, error: '전화번호가 없어요' };
+  liveCard(whoHtml(c), callBtns(c, true).filter(b => b.href && b.href.startsWith('tel')));
+  $('liveActs').innerHTML = ''; const tb = document.createElement('a'); tb.className = 'btn primary'; tb.style.padding = '14px 22px'; tb.textContent = '📞 ' + (c.name || '') + ' ' + no; tb.href = 'tel:' + no.replace(/[^0-9+]/g, ''); $('liveActs').appendChild(tb);
+  setTimeout(() => { try { location.href = 'tel:' + no.replace(/[^0-9+]/g, ''); } catch (e) {} }, 700);
+  return { ok: true, name: c.name, number: no, note: '화면의 전화 버튼도 함께 떴어요' };
+}
 const LTOOLS = {
   async save_memo(a) {
     const c = String(a.content || '').trim(); if (!c) return { ok: false, error: '내용이 비었어요' };
@@ -1777,28 +1796,42 @@ const LTOOLS = {
     return { ok: true, updated: !!dup, name: row.name };
   },
   async find_contact(a) {
-    const r = (await lookupContacts({ name: String(a.query || '') })).slice(0, 5);
-    if (!r.length) { const why = devDiag || '휴대폰 연락처·SIM Phone 모두 일치 없음'; liveCard('<b>' + esc(a.query || '') + '</b><span class="sub">' + esc(why) + '</span>', devPickBtns('find', { name: a.query })); return { ok: true, found: 0, reason: why, note: '못 찾은 이유(reason)를 사용자에게 그대로 알려 주세요. 휴대폰 연락처를 못 읽은 것이면 연락처에 없다고 단정하지 마세요' }; }
+    const pk = liveCPick(a);
+    if (pk) { liveCard(contactCard(pk), callBtns(pk, true)); return { ok: true, found: 1, contacts: [{ name: pk.name, company: pk.company, title: pk.title, mobile: pk.mobile, tel: pk.tel, email: pk.email }] }; }
+    const q = liveCQ(a.query);
+    let r = (await lookupContacts({ name: q })).slice(0, 5);
+    await loadContacts(); LIVE.offered = LIVE.offered || new Set();
+    const asked = LIVE.offered.has(q.replace(/\s/g, ''));
+    const fz = asked || (r.length && r[0].name && String(r[0].name).replace(/\s/g, '') === q.replace(/\s/g, '')) ? [] : fuzzyFind({ name: q }, r, devList.concat(contacts));
+    if (fz.length) {   // 음성 인식이 이름을 잘못 알아들었을 수 있다 → 비슷한 이름을 찾았다고 확인부터 한다
+      const all = r.concat(fz).slice(0, 5); LIVE.ccands = all; all.forEach(c => LIVE.offered.add(String(c.name || '').replace(/\s/g, '')));
+      liveCard(all.map((c, i) => '<div style="margin-top:4px"><b>' + (i + 1) + '.</b> ' + whoHtml(c) + '</div>').join(''), all.map((c, i) => ({ label: (i + 1) + '. ' + (c.name || c.company), fn: () => { LIVE.ccands = [c]; liveCard(contactCard(c), callBtns(c, true)); } })));
+      return { ok: false, similar: true, error: '"' + q + '" 이름은 연락처에 없고, 음성 인식이 잘못 알아들었을 수 있어요. 비슷한 이름이 있으니 "OO님 말씀이세요?"라고 사용자에게 확인하세요(여럿이면 번호를 붙여 물어보세요). 사용자가 고르면 그 번호를 index 로, 또는 그 이름 그대로 다시 find_contact 하세요', candidates: all.map((c, i) => ({ index: i + 1, name: c.name, company: c.company, title: c.title })) };
+    }
+    if (!r.length) { const why = devDiag || '휴대폰 연락처·SIM Phone 모두 일치 없음'; liveCard('<b>' + esc(a.query || '') + '</b><span class="sub">' + esc(why) + '</span>', devPickBtns('find', { name: q })); return { ok: true, found: 0, reason: why, note: '못 찾은 이유(reason)를 사용자에게 그대로 알려 주세요. 휴대폰 연락처를 못 읽은 것이면 연락처에 없다고 단정하지 마세요' }; }
+    LIVE.ccands = r;
     liveCard(contactCard(r[0]), callBtns(r[0], true));
-    return { ok: true, found: r.length, contacts: r.map(c => ({ name: c.name, company: c.company, title: c.title, mobile: c.mobile, tel: c.tel, email: c.email })) };
+    return { ok: true, found: r.length, contacts: r.map((c, i) => ({ index: i + 1, name: c.name, company: c.company, title: c.title, mobile: c.mobile, tel: c.tel, email: c.email })) };
   },
   async call_contact(a) {
-    const r = await lookupContacts({ name: String(a.query || '') });
-    await loadContacts(); LIVE.offered = LIVE.offered || new Set();
-    const qn = String(a.query || '').replace(/\s/g, ''), asked = LIVE.offered.has(qn);   // 방금 비슷한 이름으로 확인해 준 이름을 사용자가 고른 경우는 다시 묻지 않는다
-    const fz = asked ? [] : fuzzyFind({ name: a.query }, r, devList.concat(contacts));
-    if (fz.length) {
-      const all = r.concat(fz).slice(0, 5); all.forEach(c => LIVE.offered.add(String(c.name || '').replace(/\s/g, '')));
-      liveCard(all.map((c, i) => whoHtml(c)).join(''), all.map(c => ({ label: '📞 ' + c.name, href: 'tel:' + String(c.mobile || c.tel || '').replace(/[^0-9+]/g, '') })));
-      return { ok: false, error: '음성 인식이 이름을 잘못 알아들었을 수 있어요. 같은/비슷한 이름이 있으니 누구인지 사용자에게 확인하세요. 사용자가 고르면 그 이름 그대로 다시 call_contact 하세요', candidates: all.map(c => c.name + (c.company ? ' (' + c.company + ')' : '')) };
+    let c = liveCPick(a);
+    if (!c) {
+      const q = liveCQ(a.query), qn = q.replace(/\s/g, '');
+      const r = await lookupContacts({ name: q });
+      await loadContacts(); LIVE.offered = LIVE.offered || new Set();
+      const asked = LIVE.offered.has(qn);   // 방금 비슷한 이름으로 확인해 준 이름을 사용자가 고른 경우는 다시 묻지 않는다
+      const exacts = r.filter(x => String(x.name || '').replace(/\s/g, '') === qn);
+      const fz = asked || exacts.length ? [] : fuzzyFind({ name: q }, r, devList.concat(contacts));
+      const ask = (list, why) => { const all = list.slice(0, 5); LIVE.ccands = all; all.forEach(x => LIVE.offered.add(String(x.name || '').replace(/\s/g, '')));
+        liveCard(all.map((x, i) => '<div style="margin-top:4px"><b>' + (i + 1) + '.</b> ' + whoHtml(x) + '</div>').join(''), all.map((x, i) => ({ label: '📞 ' + (i + 1) + '. ' + (x.name || x.company), fn: () => liveCallTo(x) })));
+        return { ok: false, similar: why === 'similar', error: why === 'similar' ? '"' + q + '" 이름은 연락처에 없고 음성 인식이 잘못 알아들었을 수 있어요. 비슷한 이름이 있으니 "OO님께 거는 게 맞나요?"라고 사용자에게 확인하세요(여럿이면 번호를 붙여 물어보세요). 사용자가 맞다고 하거나 번호를 고르면 그 번호를 index 로 call_contact 하세요. 연락처에 없다고 말하지 마세요' : '같은 이름이거나 비슷한 사람이 여러 명이에요. 번호를 붙여 읽어 주고 누구인지 물어보세요. 사용자가 번호를 고르면 그 번호를 index 로 call_contact 하세요(이름을 다시 말해 찾지 마세요)', candidates: all.map((x, i) => ({ index: i + 1, name: x.name, company: x.company, title: x.title, phone_last4: String(x.mobile || x.tel || '').replace(/\D/g, '').slice(-4) })) }; };
+      if (fz.length) return ask(r.concat(fz), 'similar');
+      if (!r.length) { const why = devDiag || '휴대폰 연락처·SIM Phone 모두 일치 없음'; liveCard('<b>' + esc(a.query || '') + '</b><span class="sub">' + esc(why) + '</span>', devPickBtns('call', { name: q })); return { ok: false, error: '못 찾았어요. 이유: ' + why + '. 휴대폰 연락처를 못 읽은 것이면 "연락처에 없다"고 하지 말고 이유를 그대로 알려 주세요. 화면의 버튼으로 직접 고를 수도 있어요' }; }
+      if (exacts.length === 1) c = exacts[0];
+      else if (r.length > 1) return ask(r, 'many');
+      else c = r[0];
     }
-    if (!r.length) { const why = devDiag || '휴대폰 연락처·SIM Phone 모두 일치 없음'; liveCard('<b>' + esc(a.query || '') + '</b><span class="sub">' + esc(why) + '</span>', devPickBtns('call', { name: a.query })); return { ok: false, error: '못 찾았어요. 이유: ' + why + '. 휴대폰 연락처를 못 읽은 것이면 "연락처에 없다"고 하지 말고 이유를 그대로 알려 주세요. 화면의 버튼으로 직접 고를 수도 있어요' }; }
-    if (r.length > 1 && String(r[0].name).replace(/\s/g, '') !== String(a.query || '').replace(/\s/g, '')) return { ok: false, error: '여러 명이에요. 누구인지 물어보세요', candidates: r.slice(0, 4).map(c => c.name + (c.company ? ' (' + c.company + ')' : '')) };
-    const c = r[0], no = c.mobile || c.tel; if (!no) return { ok: false, error: '전화번호가 없어요' };
-    liveCard(whoHtml(c), callBtns(c, true).filter(b => b.href && b.href.startsWith('tel')));
-    $('liveActs').innerHTML = ''; const tb = document.createElement('a'); tb.className = 'btn primary'; tb.style.padding = '14px 22px'; tb.textContent = '📞 ' + (c.name || '') + ' ' + no; tb.href = 'tel:' + no.replace(/[^0-9+]/g, ''); $('liveActs').appendChild(tb);
-    setTimeout(() => { try { location.href = 'tel:' + no.replace(/[^0-9+]/g, ''); } catch (e) {} }, 700);
-    return { ok: true, name: c.name, number: no, note: '화면의 전화 버튼도 함께 떴어요' };
+    return liveCallTo(c);
   },
   async get_weather(a) {
     try {
@@ -1842,7 +1875,7 @@ const LTOOLS = {
     const q = String(a.query || '').trim(); if (!q) return { ok: false, error: '목적지가 비었어요' };
     try { const mp = await mapFind(q); if (mp.length) { LIVE.cands = mp.map(mapCand);
       liveCard('<b>SIM Map 저장 장소 ' + mp.length + '곳</b>' + LIVE.cands.map((c, i) => '<div class="who" style="margin-top:6px"><div class="av" style="background:#0ea5e9">' + (i + 1) + '</div><div><b>' + esc(c.name) + '</b><small>' + esc(c.addr || '') + '</small></div></div>').join(''));
-      return { ok: true, source: 'SIM Map(사용자가 직접 저장한 장소)', note: '사용자가 SIM Map에 저장해 둔 장소예요. 정확하므로 후보가 1곳이면 바로 start_navigation 하세요', candidates: LIVE.cands.map((c, i) => ({ index: i + 1, name: c.name, address: c.addr })) }; } } catch (e) {}
+      const qn0 = q.replace(/\s/g, '').toLowerCase(), sim0 = !LIVE.cands.some(c => String(c.name || '').replace(/\s/g, '').toLowerCase() === qn0); return { ok: true, similar: sim0, source: 'SIM Map(사용자가 직접 저장한 장소)', note: sim0 ? '말한 이름과 똑같은 장소는 없고 비슷한 이름의 저장 장소예요. 음성 인식이 잘못 알아들었을 수 있으니 "OO 말씀이세요?"라고 확인한 뒤 맞다고 하면 start_navigation 하세요' : '사용자가 SIM Map에 저장해 둔 장소예요. 정확하므로 후보가 1곳이면 바로 start_navigation 하세요', candidates: LIVE.cands.map((c, i) => ({ index: i + 1, name: c.name, address: c.addr })) }; } } catch (e) {}
     const kp = kbPlace(q);
     if (kp && kp.lat != null) { LIVE.cands = [kbPlaceCand(kp)]; liveCard('<b>' + esc(kp.name) + ' — 기억한 장소</b>' + kvRows([['주소', kp.addr || kp.q]])); return { ok: true, note: '사용자가 기억해 둔 장소예요', candidates: [{ index: 1, name: kp.name, address: kp.addr || kp.q, exact_number_matched: true }] }; }
     let r = []; try { r = await searchPlaces(q); } catch (e) { return { ok: false, error: '위치 검색에 실패했어요' }; }
@@ -2873,6 +2906,7 @@ async function continueP(p, text, n) {
     return bot('"네" 또는 "아니오"로 답해 주세요.', { tok: p.tok, btns: [{ label: '저장', primary: true, fn: () => doConfirm(p, true) }, { label: '취소', fn: () => doConfirm(p, false) }] });
   }
   if (p.stage === 'pick') {
+    if (p.cands.length === 1) { if (NLU.isYes(n)) return pickContact(p, p.cands[0]); if (NLU.isNo(n)) return cancelP('알겠어요. 이름을 다시 말씀해 주세요.'); }
     const i = pickIndex(n, p.cands.length);
     if (i >= 0) return pickContact(p, p.cands[i]);
     const f = p.cands.filter(c => [c.name, c.company, c.title].join(' ').replace(/\s/g, '').toLowerCase().includes(n.replace(/\s/g, '').toLowerCase()));

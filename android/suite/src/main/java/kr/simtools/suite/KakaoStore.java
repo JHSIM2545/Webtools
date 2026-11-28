@@ -55,11 +55,13 @@ final class KakaoStore {
 
     static synchronized void reply(String id, Reply r) { REPLIES.put(id, r); }
 
-    static synchronized void add(Context c, String id, String name, boolean group, String sender, String text, long at) {
+    static synchronized void add(Context c, String id, String name, boolean named, boolean group, String sender, String text, long at, String dbg) {
         try {
             JSONObject all = rooms(c), r = all.optJSONObject(id);
             if (r == null) r = new JSONObject().put("on", false).put("read", 0);
-            r.put("name", name).put("group", group).put("last", Math.max(at, r.optLong("last")));
+            // 방 이름이 담긴 알림으로 한 번 알아낸 이름은, 이름 칸이 없는 알림(보낸 사람 이름만 있는 것)으로 덮어쓰지 않는다
+            if (named || !r.optBoolean("named")) r.put("name", name).put("group", group).put("named", named);
+            r.put("dbg", dbg).put("last", Math.max(at, r.optLong("last")));
             all.put(id, r);
             if (all.length() > MAX_ROOM) {   // 오래된 '꺼진 방'부터 정리
                 String old = null; long t = Long.MAX_VALUE;

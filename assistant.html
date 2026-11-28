@@ -3410,15 +3410,18 @@ function renderKakao() {
   el.innerHTML = (ok ? '' : '<div class="banner"><b>알림 접근을 허용해 주세요.</b><br>스위치가 회색으로 막혀 있으면 ① 앱 정보 → 오른쪽 위 ⋮ → <b>제한된 설정 허용</b> ② 알림 접근 설정에서 켜기</div><div class="card"><div class="tx"><b>설정 열기</b></div><button data-kk="info">① 앱 정보</button><button data-kk="access">② 알림 접근</button></div>')
     + '<div class="banner">켠 방의 대화만 <b>이 폰에 3일간</b> 저장해요. 요약하면 그 대화가 AI(Gemini)로 전송돼요. 카톡 알림이 꺼진 방, 열어 보고 있는 방의 메시지는 모이지 않아요.</div>'
     + (a.length ? a.map(r => '<div class="card"><div class="tx"><b>' + esc(r.name) + (r.on && r.unread ? '<span class="pill on">' + r.unread + '</span>' : '') + '</b><small>' + (r.group ? '단체방' : '1:1') + ' · ' + esc(fmtDT(new Date(r.last))) + (r.on ? ' · 저장 ' + r.count + '개' + (r.canReply ? '' : ' · 새 메시지가 와야 답장 가능') : '') + '</small>'
-      + (r.on ? '<div><button data-kk="sum" data-id="' + esc(r.id) + '">요약</button> <button data-kk="reply" data-id="' + esc(r.id) + '">답장</button></div>' : '') + '</div><label class="sw"><input type="checkbox" data-kkon="' + esc(r.id) + '"' + (r.on ? ' checked' : '') + '><i></i></label></div>').join('')
+      + (r.on ? '<div><button data-kk="view" data-id="' + esc(r.id) + '">' + (KK.open === r.id ? '접기' : '내용') + '</button> <button data-kk="sum" data-id="' + esc(r.id) + '">요약</button> <button data-kk="reply" data-id="' + esc(r.id) + '">답장</button></div>' : '')
+      + (r.on && KK.open === r.id ? kkMsgs(r.id).slice(-30).map(m => '<small style="display:block;margin-top:6px"><b>' + esc(m.s) + '</b> ' + esc(m.t) + ' (' + esc(hmm(m.at)) + ')</small>').join('') : '')
+      + (r.dbg ? '<small><a href="#" data-kk="dbg" data-id="' + esc(r.id) + '">방 이름이 다른가요?</a>' + (KK.dbg === r.id ? '<br>' + esc(r.dbg) : '') + '</small>' : '') + '</div><label class="sw"><input type="checkbox" data-kkon="' + esc(r.id) + '"' + (r.on ? ' checked' : '') + '><i></i></label></div>').join('')
       : '<div class="empty">아직 받은 카톡 알림이 없어요<br>새 카톡이 오면 방이 여기에 나타나요</div>')
     + (a.length ? '<div class="card"><div class="tx"><b>저장한 카톡 모두 지우기</b></div><button data-kk="clear">삭제</button></div>' : '');
 }
 $('pKakao').addEventListener('click', e => {
-  const b = e.target.closest('button[data-kk]'); if (!b || !kkB()) return;
+  const b = e.target.closest('[data-kk]'); if (!b || !kkB()) return; e.preventDefault();
   const k = b.dataset.kk, r = b.dataset.id && kkRooms().find(x => x.id === b.dataset.id);
   if (k === 'info') kkB().openAppInfo(); else if (k === 'access') kkB().openAccess();
   else if (k === 'clear') { if (confirm('저장한 카톡과 방 선택을 모두 지울까요?')) { kkB().clear(); pending = null; renderKakao(); } }
+  else if (r && (k === 'view' || k === 'dbg')) { const f = k === 'view' ? 'open' : 'dbg'; KK[f] = KK[f] === r.id ? '' : r.id; renderKakao(); }
   else if (r && k === 'sum') { unlockAudio(); setTab('chat'); kkSummary(r); }
   else if (r && k === 'reply') { unlockAudio(); kkAskText(r); }
 });

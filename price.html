@@ -163,7 +163,7 @@ main{max-width:720px;margin:0 auto;padding:12px 12px calc(28px + env(safe-area-i
 <script>
 'use strict';
 const SB_URL = 'https://rgamgjdnhunzzwzsbnbs.supabase.co', SB_KEY = 'sb_publishable_hnBcVEuMXFRdFRqJhOM0OQ_rp72JywU';
-const FN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/price-ai', FN_SHOP = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/price-shop';
+const FN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/price-ai', FN_SHOP = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/price-shop', FN_LOOKUP = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/price-lookup';
 const KEY = 'simprice.v1';
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -343,18 +343,17 @@ const cleanName = n => String(n || '').replace(/\s*[\(（\[][^\)）\]]*[\)）\]]
 const hue = t => { let h = 0; for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 
 async function onBarcode(code) {
-  stopCam(); setScanMsg('<span class="spin"></span>상품을 찾는 중…');
+  stopCam(); setScanMsg(''); busyStart('lookup');
   try {
-    const j = await api({ action: 'lookup', barcode: code }, 60000), c = (j.candidates || [])[0];
-    if (c) { setScanMsg(''); $('inName').value = cleanName(c.name) || c.name; S.guess = !c.confirmed; return search(); }
-    $('inName').value = ''; setScanMsg('이 바코드는 등록된 정보가 없어요. 상품명을 입력하거나 🛍️ 상품 사진을 찍어 보세요.', true);
-  } catch (e) { setScanMsg(esc(e.message), true); }
+    const j = await api({ barcode: code }, 40000, FN_LOOKUP), c = (j.candidates || [])[0];
+    if (c) { $('inName').value = cleanName(c.name) || c.name; S.guess = !c.confirmed; return search(); }
+    busyStop(); $('inName').value = ''; setScanMsg('이 바코드는 등록된 정보가 없어요. 상품명을 입력하거나 🛍️ 상품 사진을 찍어 보세요.', true);
+  } catch (e) { busyStop(); setScanMsg(esc(e.message), true); }
 }
-
 /* 조회 중 진행 표시: 경과 시간 + 진행 막대(점근선으로 차오르다 완료 시 100%) + 단계 문구 */
 let busyTimer = null;
-function busyStart() {
-  const t0 = Date.now(), msgs = [[0, '구글에서 검색하는 중…'], [5, '쇼핑몰 가격을 찾는 중…'], [11, '쿠팡 가격을 확인하는 중…'], [18, '가격을 정리하는 중…'], [28, '조금만 더 기다려 주세요…']];
+function busyStart(kind) {
+  const t0 = Date.now(), msgs = kind === 'lookup' ? [[0, '바코드를 확인하는 중…'], [4, '상품 정보를 찾는 중…'], [10, '조금만 더 기다려 주세요…']] : [[0, '구글에서 검색하는 중…'], [5, '쇼핑몰 가격을 찾는 중…'], [11, '쿠팡 가격을 확인하는 중…'], [18, '가격을 정리하는 중…'], [28, '조금만 더 기다려 주세요…']];
   $('pfill').style.transition = 'none'; $('pfill').style.width = '0%'; void $('pfill').offsetWidth; $('pfill').style.transition = '';
   $('busy').classList.add('on');
   const tick = () => { const t = (Date.now() - t0) / 1000; $('busyT').textContent = Math.floor(t) + '초'; $('pfill').style.width = (92 * (1 - Math.exp(-t / 9))).toFixed(1) + '%'; $('busyMsg').textContent = msgs.filter(m => t >= m[0]).pop()[1]; };

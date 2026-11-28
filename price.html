@@ -130,6 +130,7 @@ main{max-width:720px;margin:0 auto;padding:12px 12px calc(28px + env(safe-area-i
   <a class="back" href="index.html" aria-label="런처로">‹</a>
   <h1>SIM <span>Price</span></h1>
   <div class="spacer"></div>
+  <button class="sm" id="btnReset" aria-label="화면 초기화">↺ 초기화</button>
 </header>
 <div id="busy" aria-live="polite"><div class="stage"><svg viewBox="0 0 180 150" fill="none" stroke-linecap="round" stroke-linejoin="round">
 <g class="cart" stroke="#fff" stroke-width="7"><path d="M28 62h18l14 44h66l12-32H52"/><circle cx="68" cy="124" r="8" fill="#fff"/><circle cx="118" cy="124" r="8" fill="#fff"/></g>
@@ -397,6 +398,11 @@ $('btnGo').onclick = () => { S.guess = false; search(); };
 $('inName').addEventListener('keydown', e => { if (e.key === 'Enter') { S.guess = false; search(); } });
 $('inName').addEventListener('input', () => { S.guess = false; });
 $('inPrice').addEventListener('input', e => { const v = e.target.value.replace(/\D/g, ''); S.mart = +v || 0; e.target.value = v ? (+v).toLocaleString('ko-KR') : ''; if (S.res) renderShelf(); });
+$('btnReset').onclick = () => {
+  stopCam(); busyStop(); S.name = ''; S.guess = false; S.mart = 0; S.res = null;
+  $('inName').value = ''; $('inPrice').value = ''; $('res').innerHTML = ''; $('pname').innerHTML = '';
+  show('cShelf', false); setScanMsg(''); window.scrollTo({ top: 0, behavior: 'smooth' });
+};
 $('btnCam').onclick = startCam;
 $('btnPhoto').onclick = () => $('filePhoto').click();
 $('filePhoto').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) photoBarcode(f); };

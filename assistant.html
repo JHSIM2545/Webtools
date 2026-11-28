@@ -3292,11 +3292,17 @@ function recipeOne(rec) {
   return bot(rec.title + ' 레시피를 화면에 띄웠어요.', { html: recCard(rec), say: full, btns: [{ label: '🔊 읽어주기', primary: true, fn: () => { lastVoice = true; speak(full); } }, { label: '⏹ 멈춤', fn: stopSpeak }] });
 }
 
-function pmWelcome() {   // 다시 접속했을 때 지난 대화 이어가기
-  const l = hLoad().filter(x => x.m && x.m.some(y => y.r === 'me')).sort((a, b) => (b.up || b.at) - (a.up || a.at))[0];
-  if (!l || Date.now() - (l.up || l.at) > 7 * 864e5) return;
-  const last = l.m.filter(y => y.r === 'me').slice(-1)[0].t, sm = PM.summ.length ? PM.summ[PM.summ.length - 1].text : '';
-  addMsg('bot', '<b>지난 대화를 이어갈까요?</b><span class="sub">' + esc(new Date(l.up || l.at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })) + ' · ' + esc(sm || ('"' + String(last).slice(0, 40) + '"')) + '</span>', [{ label: '글로 이어서', primary: true, fn: () => resumeSession(l.id, 'text') }, { label: '음성으로 이어서', fn: () => resumeSession(l.id, 'voice') }]);
+function pmWelcome() {   // 접속하면 먼저 인사하고, 기억 중 중요한 것이 있으면 먼저 말을 건다(없으면 인사만)
+  const h = new Date().getHours(), nm = PM.prof.name ? PM.prof.name + '님, ' : '';
+  const hi = h < 5 ? '늦은 시간이네요' : h < 11 ? '좋은 아침이에요' : h < 14 ? '점심 시간이네요' : h < 18 ? '좋은 오후예요' : '좋은 저녁이에요';
+  const td = todayStr(), tm = new Date(Date.now() + 2 * 864e5), lim = tm.getFullYear() + '-' + String(tm.getMonth() + 1).padStart(2, '0') + '-' + String(tm.getDate()).padStart(2, '0');
+  const now = Date.now(), DAY = 864e5; let say = '';
+  const up = PM.situ.filter(x => x.date && x.date >= td && x.date <= lim && (x.kind === 'schedule' || x.kind === 'event')).sort((a, b) => a.date.localeCompare(b.date))[0];
+  if (up) say = (up.date === td ? '오늘' : up.date === lim ? '모레' : '내일') + ' ' + up.text + ' 일정이 있다고 하셨죠. 준비는 잘 되고 계세요?';
+  if (!say) { const w = PM.situ.filter(x => ['worry', 'self', 'family', 'friend'].includes(x.kind) && now - (x.at || 0) < 7 * DAY).slice(-1)[0]; if (w) say = '지난번에 "' + w.text.replace(/[.\s]+$/, '') + '" 말씀하셨는데, 요즘은 어떠세요?'; }
+  if (!say) { const l = PM.summ.slice(-1)[0]; if (l && now - l.at < 3 * DAY && l.text.length > 8) say = '지난 대화에서 ' + l.text.replace(/[.\s]+$/, '') + ' 이야기를 했었죠. 이어서 말씀하실 게 있으세요?'; }
+  if (!PM.prof.name && !say) return;   // 아는 게 없으면 기본 안내만
+  bot(nm + hi + '.' + (say ? ' ' + say : ''));
 }
 /* ───────── 카톡 도우미 (안드로이드 앱 전용) ─────────
    앱이 모은 카톡 알림(켜 둔 방만, 이 폰 안에 보관)을 요약하고, 사용자가 확인한 답장만 보낸다.

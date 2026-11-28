@@ -82,6 +82,18 @@ a.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#031a2
 @media (prefers-reduced-motion:reduce){#camOv.load #camGuide i{animation:none}}
 #camClose{position:absolute;top:calc(12px + env(safe-area-inset-top));right:14px;width:42px;height:42px;border-radius:50%;padding:0;background:rgba(0,0,0,.55);border:1px solid #556;color:#fff;font-size:18px}
 #camNote{position:absolute;top:calc(16px + env(safe-area-inset-top));left:14px;right:70px;color:#fff;font-size:14px;text-shadow:0 1px 4px #000}
+#callPanel{position:fixed;right:10px;bottom:calc(76px + env(safe-area-inset-bottom));width:min(84vw,300px);max-height:42vh;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.45);z-index:80;display:none;flex-direction:column;font-size:11.5px;overflow:hidden}
+#callPanel.on{display:flex}
+#callPanel .cph{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);font-size:12.5px}
+#callPanel .cph span{flex:1;color:var(--sub)}
+#callPanel .cph button{width:24px;height:24px;padding:0;border-radius:50%;font-size:12px;flex:none}
+#callPanel .cpb{overflow:auto;padding:7px 10px;line-height:1.45}
+#callPanel .cpl i{color:var(--sub);font-style:normal;margin-right:4px}
+#callPanel .cpn{color:var(--sub);margin-top:5px;font-size:10.5px}
+.cpt{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.cpm{max-width:88%;padding:4px 8px;border-radius:9px;font-size:11.5px;line-height:1.4;word-break:break-word}
+.cpm.a{align-self:flex-start;background:#1b2a3a}
+.cpm.c{align-self:flex-end;background:#27344a}
 .cam{width:40px;height:40px;border-radius:50%;padding:0;flex:none;font-size:19px;display:flex;align-items:center;justify-content:center;background:var(--panel);border:1px solid var(--line);box-shadow:none}
 #attach{display:none;align-items:center;gap:10px;padding:6px 12px;background:var(--bg);border-top:1px solid var(--line)}
 #attach.on{display:flex}
@@ -1554,7 +1566,7 @@ function aicallIntent(t) {
   if (purpose.length < 2) purpose = m[2].trim();
   return { k: 'aicall', who: m[1].trim(), purpose };
 }
-const aicallErr = e => ({ AO002: 'AI 발신 이용 승인이 아직 안 났어요(KAT Cloud 승인 대기).', AO016: '체험 발신 시간을 모두 사용했어요.', KC008: 'KAT Cloud 체험 기간이 끝났어요.' }[e && e.code] || (e && e.status === 429 ? '오늘 전화 대행 한도를 넘었어요.' : '전화를 걸지 못했어요. ' + (e && e.message || '')));
+const aicallErr = e => ({ AO002: 'AI 발신이 막혀 있어요. KAT 운영자가 발신을 멈췄거나 체험·이용이 중지된 상태예요(KAT 콘솔에서 확인).', AO016: '체험 발신 시간을 모두 사용했어요.', KC008: 'KAT Cloud 체험 기간이 끝났어요.', KC161: '프로젝트 예산 설정 때문에 AI 발신이 멈춰 있어요(KAT 콘솔 사용량·예산).', AO013: '이미 통화 중인 AI 발신이 있어요. 끝난 뒤 다시 걸어 주세요.', AO014: '오늘 AI 발신 한도를 넘었어요.' }[e && e.code] || (e && e.status === 429 ? '오늘 전화 대행 한도를 넘었어요.' : '전화를 걸지 못했어요. ' + (e && e.message || '')));
 async function aicheckRun() {
   if (!gKey()) return bot('AI 전화 점검을 하려면 등록된 전화번호가 필요해요. ✨에서 먼저 입력해 주세요.', { btns: [{ label: '📱 전화번호 등록', primary: true, fn: openAi }] });
   sys('AI 전화 연결을 점검하는 중…'); Busy.start(); let r = null, err = null;
@@ -1574,40 +1586,62 @@ async function aicallHandle(m) {
   else {
     const res = await lookupContacts({ name: m.who }), usable = res.filter(c => c.mobile || c.tel);
     if (!usable.length) return bot(m.who + '님의 연락처를 찾지 못했어요. 전화번호를 직접 말씀해 주세요. 예: "02-123-4567에 전화해서 …"');
-    if (usable.length > 1) return bot('여러 명이 있어요. 한 분을 골라 주세요.', { html: '<b>' + usable.length + '명을 찾았어요</b>' + usable.slice(0, 5).map(whoHtml).join(''), btns: usable.slice(0, 5).map(c => ({ label: c.name || c.company, fn: () => aicallConfirm(c.name || c.company, c.mobile || c.tel, m.purpose) })).concat([{ label: '취소', fn: () => bot('취소했어요.') }]) });
-    to = usable[0].mobile || usable[0].tel; name = usable[0].name || usable[0].company;
+    if (usable.length > 1) return bot('여러 명이 있어요. 한 분을 골라 주세요.', { html: '<b>' + usable.length + '명을 찾았어요</b>' + usable.slice(0, 5).map(whoHtml).join(''), btns: usable.slice(0, 5).map(c => ({ label: c.name || c.company, fn: () => aicallConfirm(c.name || c.company, c.mobile || c.tel, m.purpose, 'contact') })).concat([{ label: '취소', fn: () => bot('취소했어요.') }]) });
+    to = usable[0].mobile || usable[0].tel; name = usable[0].name || usable[0].company; m = Object.assign({}, m, { rel: 'contact' });
   }
-  return aicallConfirm(name, to, m.purpose);
+  let rel = m.rel || 'business';
+  if (!m.rel && dg.length >= 8) { try { await loadContacts(); rel = contacts.some(c => [c.mobile, c.tel].some(x => String(x || '').replace(/\D/g, '') === dg)) ? 'contact' : 'business'; } catch (e) {} }
+  return aicallConfirm(name, to, m.purpose, rel);
 }
-function aicallConfirm(name, to, purpose) {
+function aicallConfirm(name, to, purpose, rel) {
   const d = String(to).replace(/\D/g, ''); let used = false;
   const html = '<b>🤖 AI가 대신 전화할까요?</b>' +
     '<div style="margin-top:8px"><b>받는 분</b> ' + esc(name) + ' · ' + esc(to) + '</div>' +
     '<div style="margin-top:4px"><b>용건</b> ' + esc(purpose) + '</div>' +
-    '<span class="sub">AI가 통화 시작 때 AI 비서임을 밝히고, 용건 범위 안에서만 말해요. 통화는 최대 8분이며 결과를 여기로 알려 드려요. 약속·결제·개인정보는 말하지 않아요.</span>';
-  bot(name + '님께 AI가 전화해서 "' + purpose + '" 용건을 전할까요?', { html, btns: [{ label: '📞 AI가 전화 걸기', primary: true, fn: () => { if (used) return; used = true; aicallStart(name, d, purpose); } }, { label: '취소', fn: () => { used = true; bot('취소했어요.'); } }] });
+    '<span class="sub">' + (rel === 'contact' ? '연락처에 있는 분이라 "' + esc(OWNER_NAME()) + '님 대신 전화 드렸어요"라고 말해요.' : '등록되지 않은 곳이라 "문의가 있어 전화 드렸습니다"처럼 용건부터 바로 말해요.') + ' 통화 시작 때 AI임을 알리는 안내는 통신 서비스(KAT) 규칙이라 뺄 수 없어요. 용건 범위 안에서만 말하고 약속·결제·개인정보는 말하지 않아요. 통화는 최대 5분이에요.</span>';
+  bot(name + '님께 AI가 전화해서 "' + purpose + '" 용건을 전할까요?', { html, btns: [{ label: '📞 AI가 전화 걸기', primary: true, fn: () => { if (used) return; used = true; aicallStart(name, d, purpose, rel); } }, { label: '취소', fn: () => { used = true; bot('취소했어요.'); } }] });
 }
-async function aicallStart(name, to, purpose) {
+const OWNER_NAME = () => (window.simAuth && window.simAuth.user && (((window.simAuth.user() || {}).user_metadata || {}).full_name)) || '심정환';
+const CALL_EV = { 'call.started': '발신 중…', 'call.routed': '통신망에 연결됐어요', 'call.answered': '상대가 전화를 받았어요', 'ai.first_response': '말을 시작했어요', 'ai.interrupted': '상대가 말을 끊었어요', 'call.transferred': '전화가 넘겨졌어요', 'call.ended': '통화가 끝났어요', 'recording.ready': '녹음이 준비됐어요', 'transcript.ready': '대화 기록이 준비됐어요' };
+const callHms = iso => { try { return new Date(iso).toLocaleTimeString('ko-KR', { hour12: false }); } catch (e) { return ''; } };
+function callPanel(name) {
+  let p = $('callPanel');
+  if (!p) { p = document.createElement('div'); p.id = 'callPanel'; p.innerHTML = '<div class="cph"><b></b><span></span><button title="닫기" aria-label="닫기">✕</button></div><div class="cpb"></div>'; document.body.appendChild(p); p.querySelector('button').onclick = () => p.classList.remove('on'); }
+  p.querySelector('b').textContent = '📞 ' + name; p.classList.add('on'); return p;
+}
+const callTrHtml = tr => (tr && tr.length) ? '<div class="cpt">' + tr.map(x => '<div class="cpm ' + (x.role === 'agent' ? 'a' : 'c') + '">' + esc(x.text) + '</div>').join('') + '</div>' : '';
+function callEvHtml(ev) { const ls = (ev || []).filter(e => CALL_EV[e.t]).map(e => '<div class="cpl"><i>' + esc(callHms(e.at)) + '</i>' + esc(CALL_EV[e.t]) + (e.t === 'call.ended' && e.d ? ' (' + esc(e.d) + ')' : '') + '</div>'); return ls.length ? ls.join('') : '<div class="cpl">발신 요청을 보냈어요…</div>'; }
+function callPanelLive(p, st, t0) {
+  const sec = Math.round((Date.now() - t0) / 1000); p.querySelector('.cph span').textContent = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+  p.querySelector('.cpb').innerHTML = callEvHtml(st && st.events) + '<div class="cpn">실시간 대화 글자는 통신 서비스가 주지 않아, 통화가 끝난 뒤 보여 드려요.</div>';
+}
+function callPanelDone(p, f) {
+  p.querySelector('.cph span').textContent = '종료';
+  const tr = f.transcript || [], none = !tr.length ? '<div class="cpn">' + (f.recordingEnabled === false ? '통화 녹음·받아쓰기가 꺼져 있어 대화 내용은 볼 수 없어요(KAT 콘솔 설정 › 개인정보·녹음).' : '대화 내용은 아직 준비되지 않았어요.') + '</div>' : '';
+  p.querySelector('.cpb').innerHTML = callEvHtml(f.events) + callTrHtml(tr) + none;
+}
+async function aicallStart(name, to, purpose, rel) {
   let rid0;
   try {
     sys('AI 전화를 거는 중…');
-    const r = await acallApi({ action: 'call', to, purpose, ownerName: (window.simAuth && window.simAuth.user && (((window.simAuth.user() || {}).user_metadata || {}).full_name)) || '', timeLimit: 300 });
+    const r = await acallApi({ action: 'call', to, purpose, ownerName: OWNER_NAME(), relation: rel === 'contact' ? 'contact' : 'business', timeLimit: 300 });
     rid0 = r.requestId || r.request_id; if (!rid0) throw new Error('접수 번호를 받지 못했어요');
   } catch (e) { return bot(aicallErr(e)); }
   bot('전화를 걸었어요. 통화가 끝나면 결과를 알려 드릴게요.', { html: '<b>📞 ' + esc(name) + '님께 발신 중</b><span class="sub">연결되면 AI가 용건을 전해요. 이 화면을 닫아도 돼요.</span>', btns: [{ label: '⛔ 중단', fn: async () => { try { await acallApi({ action: 'cancel', requestId: rid0 }); bot('통화를 중단했어요.'); } catch (e) { bot('중단하지 못했어요. ' + (e.message || '')); } } }] });
-  const t0 = Date.now(); let st = null, tries = 0;
+  const t0 = Date.now(); let st = null, tries = 0; const cp = callPanel(name); callPanelLive(cp, null, t0);
   while (Date.now() - t0 < 9 * 60 * 1000) {
     await sleep(3000);
-    try { st = await acallApi({ action: 'status', requestId: rid0 }); tries = 0; } catch (e) { if (++tries > 5) return bot('통화 상태를 확인하지 못했어요. ' + (e.message || '')); continue; }
+    try { st = await acallApi({ action: 'status', requestId: rid0 }); tries = 0; callPanelLive(cp, st, t0); } catch (e) { if (++tries > 5) return bot('통화 상태를 확인하지 못했어요. ' + (e.message || '')); continue; }
     if (st.endedAt || /END|FINISH|COMPLET|FAIL|NO_ANSWER|BUSY|CANCEL|REJECT|TIMEOUT/i.test(String(st.status || ''))) break;
   }
   if (!st) return bot('통화 결과를 받지 못했어요.');
   let ex = null;
   if (!st.summary && st.analysisStatus !== 'READY') for (let i = 0; i < 8 && !(ex && ex.summary); i++) { await sleep(3000); try { ex = await acallApi({ action: 'status', requestId: rid0 }); } catch (e) { break; } if (ex.analysisStatus === 'READY' || ex.analysisStatus === 'FAILED') break; }
-  const f = ex || st, answered = !!(f.answeredAt), sum = f.summary ? (typeof f.summary === 'string' ? f.summary : JSON.stringify(f.summary)) : '';
+  const f = Object.assign({}, st, ex || {}); if (!(ex && ex.events) && st.events) f.events = st.events; callPanelDone(cp, f);
+  const answered = !!(f.answeredAt), sum = f.summary ? (typeof f.summary === 'string' ? f.summary : JSON.stringify(f.summary)) : '';
   const head = answered ? '📞 ' + name + '님과 통화했어요' : '📵 ' + name + '님이 전화를 받지 않았어요';
   const sub = [f.duration ? Math.round(f.duration) + '초' : '', f.endReason || ''].filter(Boolean).join(' · ');
-  bot(answered ? (sum ? name + '님과 통화를 마쳤어요. ' + sum : name + '님과 통화를 마쳤어요. 요약은 아직 없어요.') : name + '님이 전화를 받지 않았어요.', { html: '<b>' + esc(head) + '</b>' + (sum ? '<div style="margin-top:6px;line-height:1.5">' + esc(sum) + '</div>' : (answered ? '<span class="sub">요약은 녹음·전사 설정이 켜져 있어야 받을 수 있어요</span>' : '')) + (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') });
+  bot(answered ? (sum ? name + '님과 통화를 마쳤어요. ' + sum : name + '님과 통화를 마쳤어요. 요약은 아직 없어요.') : name + '님이 전화를 받지 않았어요.', { html: '<b>' + esc(head) + '</b>' + (sum ? '<div style="margin-top:6px;line-height:1.5">' + esc(sum) + '</div>' : (answered ? '<span class="sub">요약은 녹음·전사 설정이 켜져 있어야 받을 수 있어요</span>' : '')) + (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') + callTrHtml(f.transcript) });
 }
 async function navFlow(sl) {
   if (sl.dest && !sl.noAlias) {   // 기억한 장소(집·사무실·어머니댁…)면 저장된 주소로 바로

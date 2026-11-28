@@ -50,58 +50,62 @@ main{max-width:720px;margin:0 auto;padding:12px 12px calc(28px + env(safe-area-i
 @keyframes scanl{from{top:15%}to{top:85%}}
 .cam .hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:13px;color:#fff;text-shadow:0 1px 3px #000}
 
-/* 상품 */
-.badge{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px;vertical-align:1px}
-.badge.ok{background:#3ecf8e26;color:var(--ok)}
-.badge.un{background:#ffb86b26;color:var(--warn)}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.chip{font-size:13px;padding:5px 10px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);cursor:pointer}
-.chip.on{border-color:var(--accent);color:var(--accent2)}
-.sub{color:var(--sub);font-size:13px}
+
+/* 공통 부품 */
+.msg{padding:10px 12px;border-radius:12px;background:var(--panel2);font-size:14px;margin-top:10px}
+.msg.err{background:#ff6b6b1f;color:#ffb3b3}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#000c;color:#fff;padding:9px 16px;border-radius:99px;font-size:13.5px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;max-width:90vw;text-align:center}
+.toast.show{opacity:1}
+.hide{display:none!important}
+
 .price-in{position:relative;flex:1}
 .price-in input{padding-right:34px;font-size:20px;font-weight:700;text-align:right}
 .price-in::after{content:"원";position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--sub)}
+/* 검색창 + 4가지 입력 방법 */
+.search{display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:6px 6px 6px 14px}
+.search input{border:0;background:transparent;padding:10px 0;font-size:16px;flex:1;min-width:0}
+.search input:focus{border:0}
+.search button{border-radius:12px;padding:10px 16px;font-size:18px}
+.tools{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.tools button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 4px;border-radius:14px;font-size:12.5px;color:var(--sub)}
+.tools button i{font-style:normal;font-size:24px;line-height:1}
+.tools button.pri{color:#fff}
 
-/* 결과 */
-.sum{border-radius:12px;padding:14px;margin-bottom:10px}
-.sum.good{background:#3ecf8e1f;border:1px solid #3ecf8e55}
-.sum.bad{background:#ff6b6b1c;border:1px solid #ff6b6b55}
-.sum.even{background:var(--panel2);border:1px solid var(--line)}
-.sum b{font-size:20px;display:block;letter-spacing:-.4px}
-.sum .sub{margin-top:3px}
-.list{display:grid;gap:8px}
-.it{display:flex;gap:10px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:8px;text-decoration:none;color:inherit}
-.it img{width:56px;height:56px;border-radius:8px;object-fit:cover;background:#000;flex:none}
-.it .tx{flex:1;min-width:0}
-.it .tt{font-size:13.5px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.it .ml{font-size:12.5px;color:var(--sub);margin-top:2px}
-.it .pr{text-align:right;flex:none}
-.it .pr b{font-size:16px;font-variant-numeric:tabular-nums}
-.it .pr small{display:block;font-size:12px}
-.it.best{border-color:var(--ok)}
-.neg{color:var(--ok)}.pos{color:var(--bad)}
-.tag-sus{font-size:11px;color:var(--warn);border:1px solid var(--warn);border-radius:6px;padding:0 5px;margin-left:4px}
-.note{font-size:12.5px;color:var(--sub);line-height:1.55;margin-top:10px}
-.msg{padding:10px 12px;border-radius:10px;background:var(--panel2);font-size:14px;margin-top:10px}
-.msg.err{background:#ff6b6b1f;color:#ffb3b3}
-.hist{display:grid;gap:6px}
-.hist .h{display:flex;gap:8px;align-items:center;padding:9px 10px;background:var(--panel2);border-radius:10px;cursor:pointer;font-size:14px}
-.hist .h .n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hist .h small{color:var(--sub);flex:none}
-.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
-@keyframes sp{to{transform:rotate(360deg)}}
-.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#000c;color:#fff;padding:9px 16px;border-radius:99px;font-size:13.5px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
-.toast.show{opacity:1}
-.hide{display:none!important}
+/* 선반 */
+.tag{background:#ffe14d;color:#1a1a1a;border-radius:6px 6px 14px 14px;padding:10px 14px 12px;margin-bottom:14px;box-shadow:0 3px 0 #b39b1f}
+.tag small{display:block;font-size:12px;font-weight:700;letter-spacing:.3px;opacity:.75}
+.tag .price-in input{background:transparent;border:0;border-bottom:2px dashed #1a1a1a55;border-radius:0;color:#1a1a1a;font-size:28px;padding:2px 28px 2px 0}
+.tag .price-in input::placeholder{color:#1a1a1a55}
+.tag .price-in::after{color:#1a1a1a;right:0;font-weight:700}
+#pname{font-size:17px;font-weight:700;letter-spacing:-.3px;margin:2px 2px 10px;line-height:1.35}
+#pname small{display:inline-block;margin-left:6px;font-size:11px;font-weight:700;color:var(--warn);border:1px solid var(--warn);border-radius:6px;padding:0 5px;vertical-align:2px}
+.verdict{border-radius:14px;padding:12px 14px;margin-bottom:6px;font-size:14px}
+.verdict b{display:block;font-size:19px;letter-spacing:-.4px}
+.verdict.good{background:#3ecf8e1f;border:1px solid #3ecf8e55}
+.verdict.bad{background:#ff6b6b1c;border:1px solid #ff6b6b55}
+.verdict.even{background:var(--panel);border:1px solid var(--line)}
+.rowb{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 12px 0;position:relative}
+.rowb::after{content:"";grid-column:1/-1;height:12px;margin:0 -12px;border-radius:4px;background:linear-gradient(#a8784d,#6a4429);box-shadow:0 8px 12px -6px #000a}
+.tile{position:relative;display:flex;flex-direction:column;gap:4px;background:#fffaf2;color:#1b1b1f;border-radius:14px 14px 0 0;padding:12px 12px 10px;text-decoration:none;min-height:132px;box-shadow:inset 0 -10px 14px -12px #0003}
+.tile .shop{align-self:flex-start;font-size:12px;font-weight:800;color:#fff;border-radius:99px;padding:2px 9px}
+.tile .nm{font-size:12.5px;line-height:1.35;color:#555;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex:1}
+.tile .pc{font-size:21px;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.tile .df{font-size:12.5px;font-weight:700}
+.tile .df.neg{color:#0a9d63}.tile .df.pos{color:#e0443e}
+.tile.best{box-shadow:0 0 0 3px #3ecf8e,inset 0 -10px 14px -12px #0003}
+.tile .rb{position:absolute;top:-1px;right:10px;background:#3ecf8e;color:#06331f;font-size:11.5px;font-weight:800;padding:3px 8px 5px;border-radius:0 0 8px 8px}
+.tile.none{background:transparent;border:2px dashed #ffffff30;color:var(--sub);justify-content:center;align-items:center;text-align:center;box-shadow:none}
+.tile.none .shop{background:#555!important}
+.gbtn{display:block;text-align:center;text-decoration:none;margin-top:18px;padding:13px;border-radius:14px;background:var(--accent);color:#fff;font-weight:700}
+.fine{text-align:center;font-size:12px;color:var(--sub);margin-top:10px}
 
 /* 차량 디스플레이처럼 가로로 길고 세로가 짧은 화면: 좌우 배치 */
 @media (orientation:landscape) and (max-height:560px){
   main{max-width:none;grid-template-columns:1fr 1fr;align-items:start}
-  #cScan,#cProd,#cMart{grid-column:1}
-  #cRes,#cHist{grid-column:2}
-  #cRes{grid-row:1 / span 3}
+  #cShelf{grid-column:2;grid-row:1 / span 2}
 }
-
 #busy{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(15,15,20,.72);backdrop-filter:blur(2px)}
 #busy.on{display:flex}
 #busy .stage{position:relative;width:180px;height:150px}
@@ -129,49 +133,26 @@ main{max-width:720px;margin:0 auto;padding:12px 12px calc(28px + env(safe-area-i
 <g class="mag"><circle cx="90" cy="44" r="22" stroke="#fda4af" stroke-width="7" fill="rgba(255,255,255,.18)"/><path d="M106 60l20 20" stroke="#f43f5e" stroke-width="9"/></g></svg></div>
 <p>구글에서 가격을 조사하는 중…</p><small>최대 40초 걸려요</small></div>
 <main>
-  <section class="card" id="cScan">
-    <h2>① 바코드</h2>
-    <div class="cam" id="cam"><video id="vid" playsinline muted></video><div class="frame"></div><div class="hint">바코드를 네모 안에 맞춰 주세요</div></div>
-    <div class="row wrap" style="margin-top:8px">
-      <button class="pri" id="btnCam">📷 카메라로 찍기</button>
-      <button id="btnPhoto">🖼️ 사진에서 읽기</button>
-      <input type="file" id="filePhoto" accept="image/*" class="hide">
+  <section id="cSearch">
+    <div class="cam" id="cam" style="margin-bottom:10px"><video id="vid" playsinline muted></video><div class="frame"></div><div class="hint">바코드를 네모 안에 맞춰 주세요</div></div>
+    <div class="search">
+      <input id="inName" type="text" placeholder="상품명 또는 바코드 번호" autocomplete="off" enterkeyhint="search">
+      <button class="pri" id="btnGo" aria-label="검색">🔍</button>
     </div>
-    <div class="row" style="margin-top:8px">
-      <input id="inCode" type="tel" inputmode="numeric" placeholder="바코드 숫자 직접 입력 (예: 8801234567890)" maxlength="14">
-      <button id="btnCode">조회</button>
+    <div class="tools">
+      <button class="pri" id="btnCam"><i>📷</i><span>바코드 스캔</span></button>
+      <button id="btnPhoto"><i>🖼️</i><span>바코드 사진</span></button>
+      <button id="btnId"><i>🛍️</i><span>상품 사진</span></button>
+      <button id="btnTag"><i>🏷️</i><span>가격표</span></button>
     </div>
+    <input type="file" id="filePhoto" accept="image/*" class="hide">
     <div class="msg hide" id="scanMsg"></div>
   </section>
 
-  <section class="card hide" id="cProd">
-    <h2>② 상품</h2>
-    <div class="sub" id="prodMeta"></div>
-    <input id="inName" type="text" placeholder="상품명 (브랜드·용량·수량 포함할수록 정확해요)" style="margin-top:6px" autocomplete="off">
-    <div class="chips" id="cands"></div>
-    <div class="note" id="prodNote"></div>
-    <div class="row" style="margin-top:8px"><button id="btnId">📷 상품 앞면 사진으로 이름 찾기</button><input type="file" id="fileId" accept="image/*" capture="environment" class="hide"></div>
-  </section>
-
-  <section class="card hide" id="cMart">
-    <h2>③ 마트 가격</h2>
-    <div class="row">
-      <div class="price-in"><input id="inPrice" type="tel" inputmode="numeric" placeholder="0"></div>
-      <button id="btnTag" title="가격표 사진을 찍으면 AI가 읽어요">🏷️ 가격표 읽기</button>
-      <input type="file" id="fileTag" accept="image/*" capture="environment" class="hide">
-    </div>
-    <div class="note" id="tagNote"></div>
-    <button class="pri" id="btnCmp" style="width:100%;margin-top:10px">온라인 가격 비교</button>
-  </section>
-
-  <section class="card hide" id="cRes">
-    <h2>온라인몰 가격</h2>
+  <section class="hide" id="cShelf">
+    <div id="pname"></div>
+    <div class="tag"><small>마트 가격</small><div class="price-in"><input id="inPrice" type="tel" inputmode="numeric" placeholder="가격표 숫자 입력"></div></div>
     <div id="res"></div>
-  </section>
-
-  <section class="card hide" id="cHist">
-    <div class="row" style="margin-bottom:8px"><h2 style="margin:0;flex:1">최근 비교</h2><button class="sm" id="btnClear">지우기</button></div>
-    <div class="hist" id="hist"></div>
   </section>
 </main>
 <div class="toast" id="toast"></div>
@@ -188,10 +169,6 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2400); }
 const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
-
-/* ── 기록 (기기 저장, 로그인 계정 동기화는 sync.js) ── */
-let DB = (() => { try { const d = JSON.parse(lsGet(KEY) || 'null'); return d && Array.isArray(d.hist) ? d : { hist: [] }; } catch (e) { return { hist: [] }; } })();
-const saveDB = () => lsSet(KEY, JSON.stringify(DB));
 
 /* ── 로그인 세션 (런처와 공유) ── */
 const NS = window.SimSession || null;
@@ -284,7 +261,7 @@ async function startCam() {
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } }); }
   catch (e) { setScanMsg('카메라 권한이 필요해요. 권한을 허용해 주세요.', true); return; }
   const v = $('vid'); v.srcObject = stream; await v.play().catch(() => {});
-  $('cam').classList.add('on'); $('btnCam').textContent = '⏹ 카메라 끄기'; setScanMsg('');
+  $('cam').classList.add('on'); $('btnCam').classList.add('on'); $('btnCam').lastElementChild.textContent = '카메라 끄기'; setScanMsg('');
   scanning = true;
   let busy = false;
   const loop = async () => {
@@ -308,7 +285,7 @@ async function startCam() {
 function stopCam() {
   scanning = false;
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-  $('vid').srcObject = null; $('cam').classList.remove('on'); $('btnCam').textContent = '📷 카메라로 찍기';
+  $('vid').srcObject = null; $('cam').classList.remove('on'); $('btnCam').classList.remove('on'); $('btnCam').lastElementChild.textContent = '바코드 스캔';
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopCam(); });
 function loadImg(file) { return new Promise((res, rej) => { const u = URL.createObjectURL(file), im = new Image(); im.onload = () => { res(im); setTimeout(() => URL.revokeObjectURL(u), 3000); }; im.onerror = () => rej(new Error('img')); im.src = u; }); }
@@ -322,65 +299,6 @@ async function photoBarcode(file) {
     if (code) { setScanMsg(''); onBarcode(code); } else setScanMsg('사진에서 바코드를 읽지 못했어요. 바코드가 크게 나오게 다시 찍거나 숫자를 직접 입력해 주세요.', true);
   } catch (e) { setScanMsg('사진을 열지 못했어요.', true); }
 }
-
-/* ── 흐름 ── */
-const S = { tried: [], code: '', name: '', cands: [], conf: null, src: '', mart: 0, res: null };
-const show = (id, on) => $(id).classList.toggle('hide', !on);
-
-const cleanName = n => String(n || '').replace(/\s*[\(（\[][^\)）\]]*[\)）\]]/g, '').replace(/\s+/g, ' ').trim();
-async function onBarcode(code) {
-  S.code = code; S.res = null; show('cRes', false);
-  $('inCode').value = code;
-  setScanMsg('<span class="spin"></span>' + esc(code) + ' 상품 확인 중…');
-  try {
-    const j = await api({ action: 'lookup', barcode: code }, 60000);
-    S.cands = j.candidates || []; S.tried = j.tried || [];
-    if (S.cands.length) { pick(0); setScanMsg(''); $('btnCmp').click(); return; }
-    else { S.name = ''; S.conf = null; S.src = ''; renderProd(); }
-    setScanMsg('');
-  } catch (e) { setScanMsg(esc(e.message), true); S.cands = []; S.name = ''; S.conf = null; renderProd(); }
-  $('cProd').scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-function pick(i) { const c = S.cands[i]; if (!c) return; S.name = cleanName(c.name) || c.name; S.conf = c.confirmed; S.src = c.source; S.sel = i; renderProd(); }
-function renderProd() {
-  show('cProd', true); show('cMart', true);
-  $('inName').value = S.name;
-  const meta = [];
-  if (S.code) meta.push('바코드 ' + esc(S.code));
-  if (S.name && S.conf === true) meta.push('<span class="badge ok">확인됨</span> ' + esc(S.src));
-  else if (S.name && S.conf === false) meta.push('<span class="badge un">미확인</span> ' + esc(S.src));
-  $('prodMeta').innerHTML = meta.join(' · ');
-  $('cands').innerHTML = S.cands.length > 1 ? S.cands.map((c, i) => '<span class="chip' + (i === S.sel ? ' on' : '') + '" data-i="' + i + '">' + esc(c.name.slice(0, 28)) + '</span>').join('') : '';
-  $('prodNote').textContent = !S.name ? (S.code ? '이 바코드는 ' + (S.tried.length ? S.tried.join('·') : '바코드 DB') + '에서 찾지 못했어요. 상품 앞면 사진을 찍거나 상품명을 직접 입력해 주세요.' : '상품명을 입력해 주세요.')
-    : S.conf === false ? '바코드와 정확히 일치하는 등록 정보를 찾지 못해 추정한 이름이에요. 실제 상품과 같은지 확인하고 필요하면 고쳐 주세요.'
-    : '용량·수량(예: 5입, 1.5L)이 마트 상품과 같은지 확인해 주세요.';
-}
-$('cands').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) pick(+c.dataset.i); });
-$('inName').addEventListener('input', () => { S.name = $('inName').value; if (S.conf !== null) { S.conf = null; S.src = '직접 수정'; renderMetaOnly(); } });
-function renderMetaOnly() { $('prodMeta').innerHTML = (S.code ? '바코드 ' + esc(S.code) + ' · ' : '') + '<span class="badge un">직접 수정</span>'; }
-
-$('btnId').onclick = async () => { const f = await shoot('상품 앞면을 찍어 주세요'); if (f) handleId(f); };
-$('fileId').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) handleId(f); };
-async function handleId(f) {
-  $('prodNote').innerHTML = '<span class="spin"></span>사진에서 상품명을 읽는 중…'; $('btnId').disabled = true;
-  try {
-    const j = await api({ action: 'identify', image: await fileToDataUrl(f, 1600) }, 50000);
-    if (j.name) { S.name = cleanName(j.name) || j.name; S.conf = false; S.src = '사진 인식(AI)'; S.cands = []; renderProd(); setTimeout(() => $('btnCmp').click(), 300); $('prodNote').textContent = '사진에서 읽은 이름이에요. 용량·수량이 실제와 같은지 확인하고 필요하면 고쳐 주세요.'; }
-    else $('prodNote').textContent = '사진에서 상품명을 읽지 못했어요. 글자가 크게 보이게 다시 찍거나 직접 입력해 주세요.';
-  } catch (err) { $('prodNote').textContent = err.message; }
-  $('btnId').disabled = false;
-}
-$('btnCam').onclick = startCam;
-$('btnPhoto').onclick = () => $('filePhoto').click();
-$('filePhoto').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) photoBarcode(f); };
-$('btnCode').onclick = () => {
-  const c = $('inCode').value.replace(/\D/g, '');
-  if (c.length < 8) return toast('바코드 숫자를 입력해 주세요');
-  if (!validEan(c)) { setScanMsg('숫자가 올바른 바코드가 아니에요 (끝자리 검증 실패). 다시 확인해 주세요.', true); return; }
-  setScanMsg(''); onBarcode(c);
-};
-$('inCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnCode').click(); });
-$('inPrice').addEventListener('input', e => { const v = e.target.value.replace(/\D/g, ''); S.mart = +v || 0; e.target.value = v ? (+v).toLocaleString('ko-KR') : ''; });
 
 /* 앱 안 카메라: 미리보기 + 촬영 버튼. 카메라를 못 쓰면 갤러리 선택으로 대신한다 */
 function shoot(title) {
@@ -412,91 +330,90 @@ function shoot(title) {
   });
 }
 
-/* 가격표 사진 읽기 */
 function fileToDataUrl(file, max) {
   return loadImg(file).then(im => { let w = im.naturalWidth, h = im.naturalHeight; const k = Math.min(1, max / Math.max(w, h)); w = Math.round(w * k); h = Math.round(h * k); const cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(im, 0, 0, w, h); return cv.toDataURL('image/jpeg', .85); });
 }
-$('btnTag').onclick = async () => { const f = await shoot('가격표를 찍어 주세요'); if (f) handleTag(f); };
-$('fileTag').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) handleTag(f); };
-async function handleTag(f) {
-  $('tagNote').innerHTML = '<span class="spin"></span>가격표를 읽는 중…'; $('btnTag').disabled = true;
-  try {
-    const j = await api({ action: 'tag', image: await fileToDataUrl(f, 1600) }, 50000);
-    if (j.price) { S.mart = j.price; $('inPrice').value = j.price.toLocaleString('ko-KR'); }
-    if (j.name && !S.name) { S.name = j.name; S.conf = null; S.src = '가격표'; renderProd(); }
-    const parts = [];
-    if (!j.readable || !j.price) parts.push('가격을 확실히 읽지 못했어요. 숫자를 직접 입력해 주세요.');
-    else parts.push('읽은 가격 ' + won(j.price) + ' — 가격표와 같은지 확인해 주세요.');
-    if (j.list_price && j.list_price !== j.price) parts.push('(다른 표기 가격: ' + won(j.list_price) + ')');
-    if (j.unit_price_text) parts.push('단위가격: ' + j.unit_price_text);
-    if (j.note) parts.push('행사: ' + j.note);
-    $('tagNote').textContent = parts.join(' · ');
-    if (j.barcode && !S.code && validEan(j.barcode)) { S.code = j.barcode; $('inCode').value = j.barcode; renderProd(); }
-  } catch (err) { $('tagNote').textContent = err.message; }
-  $('btnTag').disabled = false;
-}
+/* ── 흐름: 검색 → 선반 ── */
+const S = { name: '', guess: false, mart: 0, res: null };
+const show = (id, on) => $(id).classList.toggle('hide', !on);
+const cleanName = n => String(n || '').replace(/\s*[\(（\[][^\)）\]]*[\)）\]]/g, '').replace(/\s+/g, ' ').trim();
+const hue = t => { let h = 0; for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 
-/* 비교 — 몰별 가격 (구글 2,000원 · 쿠팡 1,950원 · 쿠팡 미확인) */
-$('btnCmp').onclick = async () => {
-  const q = $('inName').value.trim();
-  if (!q) return toast('상품명을 입력해 주세요');
-  show('cRes', false); $('busy').classList.add('on');
-  $('btnCmp').disabled = true;
+async function onBarcode(code) {
+  stopCam(); setScanMsg('<span class="spin"></span>상품을 찾는 중…');
   try {
-    const j = await api({ q, coupang: true }, 55000, FN_SHOP);
-    show('cRes', true); S.res = j; renderRes(); addHist(j);
-  } catch (e) { show('cRes', true); $('res').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; }
-  $('busy').classList.remove('on'); $('btnCmp').disabled = false;
-  $('cRes').scrollIntoView({ behavior: 'smooth', block: 'start' });
-};
-const okRes = j => ((j && j.items) || []).filter(x => x.priceNum > 0);
-function renderRes() {
-  const j = S.res, mart = S.mart; if (!j) { $('res').innerHTML = ''; return; }
-  const items = okRes(j), best = items[0]; let h = '';
-  if (!best) {
-    h += '<div class="sum even"><b>가격을 확인하지 못했어요</b><div class="sub">' + esc(j.note || '검색 결과에서 가격을 찾지 못했어요') + '</div></div>';
-  } else if (mart > 0) {
+    const j = await api({ action: 'lookup', barcode: code }, 60000), c = (j.candidates || [])[0];
+    if (c) { setScanMsg(''); $('inName').value = cleanName(c.name) || c.name; S.guess = !c.confirmed; return search(); }
+    $('inName').value = ''; setScanMsg('이 바코드는 등록된 정보가 없어요. 상품명을 입력하거나 🛍️ 상품 사진을 찍어 보세요.', true);
+  } catch (e) { setScanMsg(esc(e.message), true); }
+}
+async function search() {
+  const v = $('inName').value.trim(); if (!v) return toast('상품명이나 바코드를 입력해 주세요');
+  const digits = v.replace(/\D/g, '');
+  if (/^[\d\s-]+$/.test(v) && digits.length >= 8) { if (!validEan(digits)) return setScanMsg('올바른 바코드 숫자가 아니에요. 다시 확인해 주세요.', true); return onBarcode(digits); }
+  S.name = cleanName(v) || v; $('inName').value = S.name; setScanMsg('');
+  show('cShelf', true); S.res = null; $('res').innerHTML = ''; renderName();
+  $('busy').classList.add('on'); $('btnGo').disabled = true;
+  try { S.res = await api({ q: S.name, coupang: true }, 55000, FN_SHOP); }
+  catch (e) { S.res = { items: [], err: e.message }; }
+  $('busy').classList.remove('on'); $('btnGo').disabled = false;
+  renderShelf(); $('cShelf').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function renderName() { $('pname').innerHTML = esc(S.name) + (S.guess ? '<small>AI 추정</small>' : ''); }
+function renderShelf() {
+  const j = S.res, mart = S.mart; if (!j) return;
+  const items = (j.items || []).filter(x => x.priceNum > 0), best = items[0]; let h = '';
+  if (best && mart > 0) {
     const d = mart - best.priceNum, p = Math.abs(d) / mart * 100;
-    if (p < 1) h += '<div class="sum even"><b>마트와 거의 같아요</b><div class="sub">마트 ' + won(mart) + ' · ' + esc(best.shop || '최저') + ' ' + won(best.priceNum) + '</div></div>';
-    else if (d > 0) h += '<div class="sum good"><b>온라인이 ' + won(d) + ' (' + p.toFixed(1) + '%) 저렴</b><div class="sub">마트 ' + won(mart) + ' → ' + esc(best.shop || '최저') + ' ' + won(best.priceNum) + '</div></div>';
-    else h += '<div class="sum bad"><b>마트가 ' + won(-d) + ' (' + p.toFixed(1) + '%) 저렴</b><div class="sub">마트 ' + won(mart) + ' · 온라인 최저 ' + esc(best.shop || '') + ' ' + won(best.priceNum) + '</div></div>';
-  } else h += '<div class="sum even"><b>검색된 최저 ' + esc(best.shop || '') + ' ' + won(best.priceNum) + '</b><div class="sub">마트 가격을 입력하면 차이를 계산해 드려요</div></div>';
-  const hasCp = items.some(x => /쿠팡/.test(x.shop));
-  h += '<div class="list">' + items.map(x => {
+    if (p < 1) h += '<div class="verdict even"><b>마트와 거의 같아요</b></div>';
+    else if (d > 0) h += '<div class="verdict good"><b>온라인이 ' + won(d) + ' 저렴</b>' + p.toFixed(1) + '% · ' + esc(best.shop || '최저') + ' ' + won(best.priceNum) + '</div>';
+    else h += '<div class="verdict bad"><b>마트가 ' + won(-d) + ' 저렴</b>' + p.toFixed(1) + '% · 온라인 최저 ' + won(best.priceNum) + '</div>';
+  }
+  const tiles = items.map(x => {
     const diff = mart > 0 ? x.priceNum - mart : null;
-    const inner = '<div class="tx"><div class="tt"><b>' + esc(x.shop || '쇼핑몰') + '</b> ' + won(x.priceNum) + '</div><div class="ml">' + esc(x.name) + (x.cond ? ' · ' + esc(x.cond) : '') + '</div></div>' +
-      '<div class="pr">' + (diff != null ? '<small class="' + (diff < 0 ? 'neg' : 'pos') + '">' + (diff < 0 ? '▼ ' : '▲ ') + won(Math.abs(diff)) + '</small>' : '') + '</div>';
-    return x.url ? '<a class="it' + (x === best ? ' best' : '') + '" href="' + esc(x.url) + '" target="_blank" rel="noopener">' + inner + '</a>' : '<div class="it' + (x === best ? ' best' : '') + '">' + inner + '</div>';
-  }).join('') + (hasCp ? '' : '<div class="it"><div class="tx"><div class="tt"><b>쿠팡</b> <span style="opacity:.7">미확인</span></div><div class="ml">검색 결과에서 쿠팡 가격을 확인하지 못했어요</div></div></div>') + '</div>';
-  const gl = 'https://www.google.com/search?tbm=shop&q=' + encodeURIComponent(j.query || '');
-  h += '<a class="pri" style="display:block;text-align:center;text-decoration:none;margin-top:10px;padding:12px;border-radius:12px" href="' + esc(gl) + '" target="_blank" rel="noopener">🔍 가격 찾아보러가기 (구글 쇼핑)</a>';
-  if (j.note && best) h += '<div class="note">' + esc(j.note) + '</div>';
-  if ((j.sources || []).length) h += '<div class="note">출처: ' + j.sources.slice(0, 5).map(x => '<a href="' + esc(x.uri) + '" target="_blank" rel="noopener">' + esc(x.title || '링크') + '</a>').join(' · ') + '</div>';
-  h += '<div class="note">구글 검색 결과에서 읽은 <b>검색 시점 가격</b>이라 실제와 다를 수 있어요(AI가 읽은 값). 배송비·쿠폰·카드할인은 반영되지 않았고 용량·수량이 같은지 상품 페이지에서 확인하세요.</div>';
+    const inner = (x === best ? '<span class="rb">최저가</span>' : '') + '<span class="shop" style="background:hsl(' + hue(x.shop) + ' 55% 42%)">' + esc(x.shop || '쇼핑몰') + '</span><div class="nm">' + esc(x.name) + (x.cond ? ' · ' + esc(x.cond) : '') + '</div><div class="pc">' + won(x.priceNum) + '</div>' + (diff != null ? '<div class="df ' + (diff < 0 ? 'neg' : 'pos') + '">' + (diff < 0 ? '▼ ' : '▲ ') + won(Math.abs(diff)) + '</div>' : '');
+    return x.url ? '<a class="tile' + (x === best ? ' best' : '') + '" href="' + esc(x.url) + '" target="_blank" rel="noopener">' + inner + '</a>' : '<div class="tile' + (x === best ? ' best' : '') + '">' + inner + '</div>';
+  });
+  if (!items.some(x => /쿠팡/.test(x.shop))) tiles.push('<div class="tile none"><span class="shop">쿠팡</span><div>미확인</div></div>');
+  if (!items.length && j.err) h += '<div class="msg err">' + esc(j.err) + '</div>';
+  let rows = ''; for (let i = 0; i < tiles.length; i += 2) rows += '<div class="rowb">' + tiles[i] + (tiles[i + 1] || '<div></div>') + '</div>';
+  h += rows + '<a class="gbtn" href="https://www.google.com/search?tbm=shop&q=' + encodeURIComponent(S.name) + '" target="_blank" rel="noopener">🔍 가격 찾아보러가기</a><div class="fine">검색 시점 가격 · AI가 읽은 값이라 다를 수 있어요 · 배송비 제외</div>';
   $('res').innerHTML = h;
 }
+$('btnGo').onclick = () => { S.guess = false; search(); };
+$('inName').addEventListener('keydown', e => { if (e.key === 'Enter') { S.guess = false; search(); } });
+$('inName').addEventListener('input', () => { S.guess = false; });
+$('inPrice').addEventListener('input', e => { const v = e.target.value.replace(/\D/g, ''); S.mart = +v || 0; e.target.value = v ? (+v).toLocaleString('ko-KR') : ''; if (S.res) renderShelf(); });
+$('btnCam').onclick = startCam;
+$('btnPhoto').onclick = () => $('filePhoto').click();
+$('filePhoto').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) photoBarcode(f); };
 
-/* 기록 */
-function addHist(j) {
-  const best = okRes(j)[0]; if (!best) return;
-  DB.hist = [{ t: Date.now(), code: S.code, name: $('inName').value.trim(), mart: S.mart || 0, online: best.priceNum, mall: best.shop || '' }].concat(DB.hist.filter(h => !(h.name === $('inName').value.trim() && h.mart === S.mart))).slice(0, 30);
-  saveDB(); renderHist();
+/* 상품 앞면 사진 → 이름 → 바로 검색 */
+$('btnId').onclick = async () => { const f = await shoot('상품 앞면을 찍어 주세요'); if (f) handleId(f); };
+async function handleId(f) {
+  setScanMsg('<span class="spin"></span>상품 이름을 읽는 중…'); $('btnId').disabled = true;
+  try {
+    const j = await api({ action: 'identify', image: await fileToDataUrl(f, 1600) }, 50000);
+    if (j.name) { setScanMsg(''); $('inName').value = cleanName(j.name) || j.name; S.guess = true; search(); }
+    else setScanMsg('상품 이름을 읽지 못했어요. 글자가 크게 보이게 다시 찍거나 직접 입력해 주세요.', true);
+  } catch (err) { setScanMsg(esc(err.message), true); }
+  $('btnId').disabled = false;
 }
-function renderHist() {
-  show('cHist', DB.hist.length > 0);
-  $('hist').innerHTML = DB.hist.map((h, i) => '<div class="h" data-i="' + i + '"><span class="n">' + esc(h.name) + '</span><small>' + (h.mart ? '마트 ' + won(h.mart) + ' · ' : '') + '온라인 ' + won(h.online) + '</small></div>').join('');
+
+/* 가격표 사진 → 마트 가격 */
+$('btnTag').onclick = async () => { const f = await shoot('가격표를 찍어 주세요'); if (f) handleTag(f); };
+async function handleTag(f) {
+  setScanMsg('<span class="spin"></span>가격표를 읽는 중…'); $('btnTag').disabled = true;
+  try {
+    const j = await api({ action: 'tag', image: await fileToDataUrl(f, 1600) }, 50000);
+    setScanMsg(''); show('cShelf', true);
+    if (j.price) { S.mart = j.price; $('inPrice').value = j.price.toLocaleString('ko-KR'); if (S.res) renderShelf(); toast('가격표 ' + won(j.price) + (j.note ? ' · ' + j.note : '') + ' — 맞는지 확인해 주세요'); }
+    else toast('가격을 읽지 못했어요. 숫자를 직접 입력해 주세요');
+    if (j.name && !$('inName').value.trim()) { $('inName').value = cleanName(j.name) || j.name; S.guess = true; search(); }
+    else if (!S.name) { renderName(); }
+  } catch (err) { setScanMsg(esc(err.message), true); }
+  $('btnTag').disabled = false;
 }
-$('hist').addEventListener('click', e => {
-  const r = e.target.closest('.h'); if (!r) return; const h = DB.hist[+r.dataset.i]; if (!h) return;
-  S.code = h.code || ''; S.name = h.name; S.cands = []; S.conf = null; S.src = '기록'; S.mart = h.mart || 0;
-  $('inCode').value = S.code; renderProd(); $('prodMeta').innerHTML = (S.code ? '바코드 ' + esc(S.code) + ' · ' : '') + '<span class="badge un">지난 기록</span>';
-  $('inPrice').value = S.mart ? S.mart.toLocaleString('ko-KR') : ''; $('prodNote').textContent = '지난 기록이에요. 다시 비교하면 지금 가격으로 갱신돼요.';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-});
-$('btnClear').onclick = () => { DB.hist = []; saveDB(); renderHist(); };
-window.addEventListener('storage', () => { try { const d = JSON.parse(lsGet(KEY) || 'null'); if (d && Array.isArray(d.hist)) { DB = d; renderHist(); } } catch (e) {} });
-renderHist();
-renderProd();   // 바코드 없이도 상품명 입력·상품 사진 찾기를 바로 쓸 수 있게 처음부터 보여 준다
 </script>
 </body>
 </html>

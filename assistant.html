@@ -840,7 +840,7 @@ function addMsg(kind, html, btns, tok) {
 /* 어시스턴트 말풍선: plain=읽어줄 문장, html=화면에 보일 내용(없으면 plain) */
 function bot(plain, o) {
   o = o || {};
-  if (RES && !LIVE.on && plain) { try { hLog('bot', plain); RES.turns.push({ r: 'bot', t: plain, at: Date.now() }); } catch (e) {} }
+  if (!LIVE.on && plain) { try { hEnsure(); hLog('bot', plain); if (RES) RES.turns.push({ r: 'bot', t: plain, at: Date.now() }); pmNote('bot', plain); } catch (e) {} }
   addMsg('bot', o.html || esc(plain), o.btns, o.tok);
   const asking = pending && (pending.stage === 'fill' || pending.stage === 'confirm' || pending.stage === 'pick' || pending.stage === 'callok' || pending.stage === 'dok' || pending.stage === 'dpick');
   const barge = asking && lastVoice && SR && !listening && pending && (pending.stage === 'dpick' || pending.stage === 'pick');
@@ -1718,6 +1718,7 @@ function hLog(kind, text) {
   const l = hLoad(); let ses = l.find(x => x.id === LIVE.hid);
   if (!ses) { ses = { id: LIVE.hid, at: Date.now(), m: [] }; l.push(ses); while (l.length > HMAX) l.shift(); }
   ses.up = Date.now(); ses.m.push({ r: kind, t: text, at: Date.now() }); hSave(l);
+  if (LIVE.on || LIVE.ending) pmNote(kind, text);
 }
 function liveBubble(kind, add) {
   if (!add) return;
@@ -1911,6 +1912,31 @@ const LTOOLS = {
     liveCard(dailyHtml(j, copied), [{ label: '📋 다시 복사', primary: true, fn: async () => { await copyText(j.text); } }]);
     return { ok: true, answer: koSpeech(j.speech), copied, note: '전체 보고서는 화면에 띄우고 클립보드에 복사했어요. 말로는 answer의 수주·해약·유지감소·유지증가 네 가지만 읽어 주고, 나머지 항목은 읽지 마세요. 마지막에 "전체 내용은 화면에 띄우고 복사해 뒀어요"라고 알려 주세요.' };
   },
+  async save_profile(a) {
+    const map = { 이름: 'name', 성함: 'name', 생일: 'birth', 생년월일: 'birth', 나이: 'age', 성별: 'gender', 직업: 'job', 직위: 'title', 직책: 'title', 회사: 'company', 사는곳: 'home', 거주지: 'home' };
+    const f = String(a.field || '').replace(/\s/g, ''), k = map[f] || f, v = String(a.value || '').trim();
+    if (!PM_LAB.some(l => l[0] === k) || !v) return { ok: false, error: '저장할 항목이나 내용을 알 수 없어요' };
+    PM.prof[k] = v.slice(0, 40); pmSave(); return { ok: true, saved: f + ': ' + v };
+  },
+  async remember(a) {
+    const v = String(a.value || '').trim(); if (!v) return { ok: false, error: '기억할 내용이 비었어요' };
+    const f = kbSaveFact(String(a.key || '').trim(), v); liveCard('<b>🧠 기억했어요</b>' + kvRows([[f.key || '내용', f.value]])); return { ok: true, saved: (f.key ? f.key + ': ' : '') + f.value };
+  },
+  async recall(a) {
+    const q = String(a.query || '').trim(); const hits = kbSearch(q).slice(0, 5);
+    if (!hits.length) return { ok: true, found: 0, note: '기억해 둔 것 중에 없어요' };
+    liveCard('<b>🧠 기억해 둔 것</b>' + kvRows(hits.map(h => [h.label || '기록', h.text]))); return { ok: true, found: hits.length, items: hits.map(h => h.text) };
+  },
+  async find_recipe(a) {
+    let rows; try { rows = await recFind(a.query || ''); } catch (e) { return { ok: false, error: String(e.message || e) }; }
+    if (!rows.length) return { ok: false, error: 'SIM Recipe에서 찾지 못했어요' };
+    LIVE.recs = rows; return { ok: true, count: rows.length, recipes: rows.map((r, i) => ({ index: i + 1, title: r.title, owner: r.owner_name || '' })), note: '하나뿐이거나 사용자가 고르면 read_recipe 를 부른다. 여럿이면 번호를 붙여 제목만 읽어 주고 고르게 한다' };
+  },
+  async read_recipe(a) {
+    const r = (LIVE.recs || [])[(+a.index || 1) - 1]; if (!r) return { ok: false, error: '그 번호의 레시피가 없어요. 먼저 find_recipe 를 부르세요' };
+    const p = recParts(r); liveCard(recCard(r));
+    return { ok: true, title: p.title, ingredients: p.ingredients, steps: p.steps, note: '화면에는 이미 띄웠다. 제목을 말하고, 재료를 모두 읽은 다음 1단계부터 마지막 단계까지 순서대로 빠짐없이 또박또박 읽어 준다. 숫자·분량·시간을 바꾸지 않는다. 사용자가 끼어들어 다음·다시·멈춰 하면 따른다' };
+  },
   async ask_sales(a) {
     if (!(window.simAuth && window.simAuth.isOwner())) return { ok: false, error: '영업일보 조회는 심정환 계정으로 로그인했을 때만 쓸 수 있어요' };
     const q = String(a.question || '').trim(); if (!q) return { ok: false, error: '질문이 비었어요' };
@@ -1942,7 +1968,7 @@ async function liveTools(calls) {
   liveSend({ toolResponse: { functionResponses: resp } }); if (!LIVE.srcs.length) liveSet('듣고 있어요', '🎙', false);
 }
 function liveMsg(m) {
-  if (m.ready) { if (LIVE.ctx) { try { liveSend({ clientContent: { turns: LIVE.ctx, turnComplete: false } }); } catch (e) {} LIVE.ctx = null; } LIVE.ready = true; LIVE.retries = 0; LIVE.recoverN = 0; LIVE.reconnecting = false; liveSet('듣고 있어요', '🎙', false); return; }
+  if (m.ready) { { const mt = LIVE.pmSent ? null : pmLiveTurns(), tt = (mt || []).concat(LIVE.ctx || []); LIVE.pmSent = true; if (tt.length) { try { liveSend({ clientContent: { turns: tt, turnComplete: false } }); } catch (e) {} } LIVE.ctx = null; } LIVE.ready = true; LIVE.retries = 0; LIVE.recoverN = 0; LIVE.reconnecting = false; liveSet('듣고 있어요', '🎙', false); return; }
   if (m.error) { liveFail(m.error === 'forbidden' ? '등록되지 않은 전화번호예요. ✨에서 확인해 주세요' : '서버 오류'); return; }
   if (m.upstreamClosed) { liveReconnect('upstream'); return; }
   if (m.sessionResumptionUpdate) { if (m.sessionResumptionUpdate.newHandle) LIVE.handle = m.sessionResumptionUpdate.newHandle; return; }
@@ -2029,7 +2055,7 @@ async function liveStart() {
   if (!gKey()) { toast('✨에서 등록된 전화번호를 먼저 입력해 주세요', 4200); return; }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !(window.AudioContext || window.webkitAudioContext) || !window.AudioWorkletNode) { toast('이 브라우저는 실시간 음성 대화를 지원하지 않아요', 4200); return; }
   if (listening) { try { rec.stop(); } catch (e) {} }
-  stopSpeak(); unlockAudio(); LIVE.sid = (LIVE.sid || 0) + 1; LIVE.reconnecting = false; LIVE.on = true; LIVE.ending = false; LIVE.retries = 0; LIVE.handle = LIVE.keep || ''; LIVE.keep = ''; LIVE.muted = false; LIVE.bub = { me: null, bot: null }; if (!LIVE.handle) { const rs = LIVE.resume; LIVE.hid = rs ? rs.id : 's' + Date.now(); if (!rs) RES = null; LIVE.ctx = rs ? liveCtxTurns(rs.turns) : null; $('liveChat').innerHTML = ''; if (rs) { rs.turns.slice(-20).forEach(m => { const el = document.createElement('div'); el.className = 'kb ' + m.r; el.style.opacity = '.75'; el.textContent = m.t; const sm = document.createElement('small'); sm.textContent = hmm(m.at); el.appendChild(sm); $('liveChat').appendChild(el); }); const dv = document.createElement('div'); dv.style.cssText = 'align-self:center;font-size:12px;color:var(--sub);padding:4px'; dv.textContent = '— 지난 대화를 이어서 해요 —'; $('liveChat').appendChild(dv); setTimeout(() => { const lc = $('liveChat'); lc.scrollTop = lc.scrollHeight; }, 50); } LIVE.resume = null; }
+  stopSpeak(); unlockAudio(); LIVE.sid = (LIVE.sid || 0) + 1; LIVE.reconnecting = false; LIVE.on = true; LIVE.ending = false; LIVE.retries = 0; LIVE.pmSent = !!LIVE.keep; LIVE.handle = LIVE.keep || ''; LIVE.keep = ''; LIVE.muted = false; LIVE.bub = { me: null, bot: null }; if (!LIVE.handle) { const rs = LIVE.resume; LIVE.hid = rs ? rs.id : 's' + Date.now(); if (!rs) RES = null; LIVE.ctx = rs ? liveCtxTurns(rs.turns) : null; $('liveChat').innerHTML = ''; if (rs) { rs.turns.slice(-20).forEach(m => { const el = document.createElement('div'); el.className = 'kb ' + m.r; el.style.opacity = '.75'; el.textContent = m.t; const sm = document.createElement('small'); sm.textContent = hmm(m.at); el.appendChild(sm); $('liveChat').appendChild(el); }); const dv = document.createElement('div'); dv.style.cssText = 'align-self:center;font-size:12px;color:var(--sub);padding:4px'; dv.textContent = '— 지난 대화를 이어서 해요 —'; $('liveChat').appendChild(dv); setTimeout(() => { const lc = $('liveChat'); lc.scrollTop = lc.scrollHeight; }, 50); } LIVE.resume = null; }
   $('live').classList.add('on', 'conn'); $('liveConnTxt').textContent = '연결 중…'; $('liveMe').textContent = ''; $('liveBot').textContent = ''; $('liveActs').innerHTML = ''; $('liveMute').textContent = '🎤'; $('liveMute').classList.remove('off'); liveSet('연결 중…', '🎙', false); $('liveVol').value = LIVE.vol; spkLabel();
   try {
     LIVE.autoBt = false; LIVE.stream = await liveAcq(); LIVE.loud = 0; LIVE.readyAt = 0;
@@ -2074,7 +2100,7 @@ async function liveStart() {
 function liveEnd(silent) {
   try { $('live').classList.remove('conn'); } catch (e) {}
   try { LIVE.busyOn = false; Busy.all(); } catch (e) {}
-  if (!LIVE.on && !silent) return; LIVE.ending = true; LIVE.on = false;
+  if (!LIVE.on && !silent) return; LIVE.ending = true; LIVE.on = false; try { pmExtractSoon(2500); } catch (e) {}
   try { LIVE.ws && LIVE.ws.close(1000); } catch (e) {} LIVE.ws = null; LIVE.ready = false; liveFlush();
   try { LIVE.node && (LIVE.node.port.onmessage = null, LIVE.node.disconnect()); } catch (e) {} LIVE.node = null;
   try { LIVE.stream && LIVE.stream.getTracks().forEach(t => t.stop()); } catch (e) {} LIVE.stream = null;
@@ -2124,7 +2150,12 @@ function drwClose() { $('drw').classList.remove('on'); $('drwBk').classList.remo
 $('btnDrw').onclick = drwOpen; $('drwBk').onclick = drwClose; $('drwX').onclick = drwClose;
 
 /* 이전 대화 이어가기: 기록한 대화를 다시 불러와 글자·음성 어느 쪽으로든 맥락을 이어서 대화한다 */
-const ctxTurns = () => (RES ? RES.turns.slice(-12).map(x => ({ r: x.r, t: String(x.t).slice(0, 200) })) : null);
+const ctxTurns = () => {
+  const out = [], c = pmCtx(); if (c) out.push({ r: 'me', t: c }, { r: 'bot', t: '네, 기억하고 있을게요.' });
+  let h = RES ? RES.turns.slice(-12) : PMB.slice(-9); if (h.length && h[h.length - 1].r === 'me') h = h.slice(0, -1);   // 방금 한 말은 본문으로 따로 간다
+  h.forEach(x => out.push({ r: x.r, t: String(x.t).slice(0, 200) }));
+  return out.length ? out : null;
+};
 function liveCtxTurns(m) {
   const out = [];
   m.slice(-24).forEach(x => { const role = x.r === 'me' ? 'user' : 'model', t = String(x.t).slice(0, 300), last = out[out.length - 1]; if (last && last.role === role) last.parts[0].text += ' ' + t; else out.push({ role, parts: [{ text: t }] }); });
@@ -2406,6 +2437,9 @@ function memIntent(text) {
   { const ac = aicallIntent(t); if (ac) return ac; }
   { const di = dailyIntent(t); if (di) return di; }
   { const bi = briefIntent(t); if (bi) return bi; }
+  { const ri = recipeIntent(t); if (ri) return ri; }
+  if (/(내\s*정보|나에\s*(대해|대한)|기억하고\s*있는|기억하는\s*(거|것|내용)|기억한\s*(거|것|내용)).{0,12}(보여|알려|말해|뭐|확인|뭔)/.test(t) || /(뭘|뭐를|무엇을)\s*기억(하고|해)/.test(t)) return { k: 'pmshow' };
+  if (/내\s*정보\s*(입력|등록|수정|바꿔|변경)|(정보|프로필)\s*(입력|등록)\s*(할래|하자|해줘)/.test(t)) return { k: 'pmonb' };
   // 1) 잊기
   if (/잊어|기억.{0,8}(삭제|지워|초기화)/.test(t)) {
     const q = t.replace(/(잊어버려|잊어\s*줘|잊어줘|잊어|지워\s*줘|지워줘|지워|삭제\s*해?\s*줘|삭제해줘|삭제|초기화)\S*/g, '').replace(/기억(한|해\s*둔|해둔)?\s*(거|것|내용|들)?/g, '').replace(/(을|를|은|는|도)\s*$/, '').replace(/(주소|위치)\s*$/, '').trim();
@@ -2462,6 +2496,9 @@ async function memHandle(m) {
   if (m.k === 'eta' || m.k === 'arrive' || m.k === 'tripcancel') return tripHandle(m);
   if (m.k === 'aicall') return aicallHandle(m);
   if (m.k === 'daily') return dailyShow(m);
+  if (m.k === 'recipe') return recipeShow(m);
+  if (m.k === 'pmshow') return pmShow();
+  if (m.k === 'pmonb') return void onbStart(true);
   if (m.k === 'bwx' || m.k === 'bnews' || m.k === 'bbrief') return briefHandle(m);
   if (m.k === 'nav') return navFlow(m.sl);
   if (m.k === 'mapfind') {
@@ -2921,7 +2958,7 @@ async function phoneFallback(name) {   // 연락처에 없을 때: SIM Map 장�
 
 async function handleText(raw, viaAI) {
   const text = String(raw || '').trim(); if (!text) return;
-  if (!viaAI) addMsg('me', esc(text)); if (RES && !viaAI && !LIVE.on) { hLog('me', text); RES.turns.push({ r: 'me', t: text, at: Date.now() }); } const n = NLU.normalize(text);
+  if (!viaAI) addMsg('me', esc(text)); if (!viaAI && !LIVE.on) { hEnsure(); hLog('me', text); if (RES) RES.turns.push({ r: 'me', t: text, at: Date.now() }); pmNote('me', text); } if (ONB && !viaAI) return onbAnswer(text); const n = NLU.normalize(text);
   if (pending && /^(취소|그만|중지|됐어|아니야?\s*그만|그만해)/.test(n)) return cancelP('취소했어요.');
   if (pending) {
     const p = pending, di = NLU.detect(text);
@@ -3028,6 +3065,194 @@ async function continueP(p, text, n) {
   bot('잘 알아듣지 못했어요. ' + askText(p, p.ask), { tok: p.tok, btns: p.ask === 'ampm' ? [{ label: '오전', fn: () => handleText('오전') }, { label: '오후', fn: () => handleText('오후') }] : undefined });
 }
 
+/* ───────── 개인 기억: 개인화 정보 · 상황 정보 · 대화 요약 (이 기기 localStorage, 'simas_pmem') ─────────
+   · 개인화: 이름·생일·나이·성별·직업·직위·가족 … 처음에 몇 가지 묻고, 나머지는 대화에서 AI가 뽑아 저장
+   · 상황: 스케줄·주요 질문 답·본인/가족/지인 상태·걱정거리·이벤트 — 대화 중 자연스럽게 저장
+   · 개별 저장("…기억해 둬")은 위의 KB(simas_memory)에 저장 — 이 셋을 모두 AI 대화(글·음성)에 맥락으로 넣어 준다 */
+const PM_KEY = 'simas_pmem';
+const PM = (() => {
+  let d = null; try { d = JSON.parse(ls.get(PM_KEY, '') || 'null'); } catch (e) {}
+  d = d && typeof d === 'object' ? d : {};
+  d.prof = d.prof && typeof d.prof === 'object' ? d.prof : {}; d.fam = Array.isArray(d.fam) ? d.fam : []; d.situ = Array.isArray(d.situ) ? d.situ : [];
+  d.summ = Array.isArray(d.summ) ? d.summ : []; d.onb = d.onb && typeof d.onb === 'object' ? d.onb : {};
+  return d;
+})();
+const pmSave = () => ls.set(PM_KEY, JSON.stringify(PM));
+const PM_LAB = [['name', '이름'], ['age', '나이'], ['birth', '생일'], ['gender', '성별'], ['job', '직업'], ['title', '직위'], ['company', '회사'], ['home', '사는 곳']];
+const PM_KIND = { schedule: '일정', answer: '질문·답', self: '본인', family: '가족', friend: '지인', worry: '걱정', event: '이벤트' };
+const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const hEnsure = () => { if (!LIVE.hid) LIVE.hid = 's' + Date.now(); };
+function pmCtx() {   // AI 에게 넘길 기억 요약(글·음성 공통)
+  const P = PM.prof, L = [];
+  const pf = PM_LAB.filter(([k]) => P[k]).map(([k, l]) => l + ' ' + P[k]); if (pf.length) L.push('사용자: ' + pf.join(', '));
+  if (PM.fam.length) L.push('가족·주변 사람: ' + PM.fam.slice(0, 12).map(f => [f.rel, f.name, f.age && f.age + '세', f.birth, f.note].filter(Boolean).join(' ')).join(' / '));
+  const td = todayStr(), sit = PM.situ.filter(s => !(s.kind === 'schedule' && s.date && s.date < td)).slice(-14);
+  if (sit.length) L.push('최근 상황: ' + sit.map(s => (s.date ? s.date + ' ' : '') + s.text).join(' / '));
+  const sm = PM.summ.slice(-2); if (sm.length) L.push('지난 대화 요약: ' + sm.map(x => x.text).join(' / '));
+  const f = (KB.facts || []).slice(-30); if (f.length) L.push('사용자가 기억해 두라고 한 것: ' + f.map(x => (x.key ? x.key + ' = ' : '') + x.value).join(' / '));
+  const miss = PM.onb.done || PM.onb.later ? [] : onbMissing().map(s => s.k === 'birth' ? '생일·나이' : PM_LAB.find(l => l[0] === s.k)[1]);
+  if (miss.length) L.push('아직 모르는 기본 정보: ' + miss.join(', ') + ' (대화 중 자연스럽게 한 번씩 물어보고, 답하면 save_profile 도구로 저장한다)');
+  return L.length ? '[사용자 기억 정보 — 대화에 자연스럽게 활용하되 묻지 않으면 굳이 되풀이하지 않는다. 비밀번호 같은 기록은 사용자가 물을 때만 알려 준다]\n' + L.join('\n') : '';
+}
+const pmLiveTurns = () => { const c = pmCtx(); return c ? [{ role: 'user', parts: [{ text: c }] }, { role: 'model', parts: [{ text: '네, 기억하고 있을게요.' }] }] : null; };
+/* 대화 버퍼 → (서버 AI) → 기억으로 정리 */
+const PMB = []; let PMN = 0, PMDONE = 0, pmT = 0, pmBusy = false;
+function pmNote(r, t) {
+  t = String(t || '').trim(); if (!t) return;
+  PMB.push({ n: ++PMN, r: r === 'me' ? 'me' : 'bot', t: t.slice(0, 400) }); if (PMB.length > 60) PMB.shift();
+  if (r === 'me') pmExtractSoon(25000);
+}
+function pmExtractSoon(ms) { clearTimeout(pmT); pmT = setTimeout(() => { pmExtract().catch(() => {}); }, ms); }
+async function pmExtract() {
+  if (pmBusy || !gKey() || !aiUsable()) return;
+  const turns = PMB.filter(x => x.n > PMDONE).slice(-30); if (!turns.some(x => x.r === 'me')) return;
+  pmBusy = true; const upto = turns[turns.length - 1].n;
+  try {
+    const r = await fetch('https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/assistant-mem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: gKey(), turns: turns.map(x => ({ r: x.r, t: x.t })), mem: { profile: PM.prof, family: PM.fam.map(f => [f.rel, f.name].filter(Boolean).join(' ')), situ: PM.situ.slice(-15).map(s => s.text) } }) });
+    const j = await r.json().catch(() => ({})); if (!r.ok || !j.ok) { if (r.status === 429) pmExtractSoon(8000); return; }
+    PMDONE = upto; pmMerge(j);
+  } catch (e) {} finally { pmBusy = false; }
+}
+function pmMerge(j) {
+  let ch = false;
+  Object.keys(j.profile || {}).forEach(k => { if (PM_LAB.some(l => l[0] === k) && j.profile[k] && PM.prof[k] !== j.profile[k]) { PM.prof[k] = j.profile[k]; ch = true; } });
+  (j.family || []).forEach(f => {
+    const i = PM.fam.findIndex(x => x.rel === f.rel && (!x.name || !f.name || x.name === f.name));
+    if (i >= 0) { const o = PM.fam[i]; ['name', 'age', 'birth'].forEach(k => { if (f[k]) o[k] = f[k]; }); if (f.note && !String(o.note || '').includes(f.note)) o.note = (o.note ? o.note + '; ' : '') + f.note; } else PM.fam.push({ id: rid(), rel: f.rel, name: f.name, age: f.age, birth: f.birth, note: f.note });
+    ch = true;
+  });
+  (j.situ || []).forEach(s => { if (!PM.situ.some(x => x.text === s.text)) { PM.situ.push({ id: rid(), kind: s.kind, text: s.text, date: s.date, at: Date.now() }); ch = true; } });
+  while (PM.situ.length > 100) PM.situ.shift();
+  if (j.summary) { PM.summ.push({ at: Date.now(), text: j.summary }); while (PM.summ.length > 6) PM.summ.shift(); ch = true; }
+  if (ch) pmSave();
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) pmExtractSoon(600); });
+window.addEventListener('pagehide', () => { pmExtractSoon(0); });
+/* 처음 만났을 때 기본 정보 묻기 */
+const ONB_STEPS = [{ k: 'name', q: '먼저, 어떻게 불러드릴까요? 성함을 알려 주세요.' }, { k: 'birth', q: '생년월일(또는 나이)을 알려 주세요. 예: 1975년 3월 12일' }, { k: 'gender', q: '성별은요? (남성 / 여성)' }, { k: 'job', q: '하시는 일(직업)은 무엇인가요?' }, { k: 'title', q: '직위나 직책은요? 없으면 "건너뛰기"라고 해 주세요.' }];
+let ONB = null;
+const onbMissing = () => ONB_STEPS.filter(s => s.k === 'birth' ? !(PM.prof.birth || PM.prof.age) : !PM.prof[s.k]);
+function onbAsk() {
+  const s = ONB.steps[ONB.i];
+  bot(s.q, { btns: [{ label: '건너뛰기', fn: () => handleText('건너뛰기') }, { label: '나중에', fn: () => handleText('나중에') }] });
+}
+function onbStart(force) {
+  if (ONB || LIVE.on) return;
+  if (!force && (PM.onb.done || (PM.onb.later && Date.now() - PM.onb.later < 3 * 864e5))) return;
+  const steps = force ? ONB_STEPS.slice() : onbMissing(); if (!steps.length) { PM.onb.done = 1; pmSave(); return; }
+  ONB = { steps, i: 0 }; bot('사용자님을 더 잘 도와드리려고 몇 가지만 여쭤볼게요. 언제든 "건너뛰기"나 "나중에"라고 하셔도 돼요.');
+  setTimeout(() => { if (ONB) onbAsk(); }, 400);
+}
+function parseBirth(t) {
+  const o = {}, lunar = /음력/.test(t) ? ' (음력)' : '', p2 = n => String(n).padStart(2, '0'); let m;
+  if ((m = t.match(/(\d{4})\s*[년.\-\/]\s*(\d{1,2})\s*[월.\-\/]\s*(\d{1,2})/))) o.birth = m[1] + '-' + p2(m[2]) + '-' + p2(m[3]) + lunar;
+  else if ((m = t.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/))) o.birth = m[1] + '월 ' + m[2] + '일' + lunar;
+  if ((m = t.match(/(\d{1,3})\s*(?:살|세)/)) && +m[1] > 0 && +m[1] < 120) o.age = m[1];
+  else if (!o.age && (m = t.match(/(\d{4})\s*년\s*생?/)) && +m[1] > 1900) { o.age = String(new Date().getFullYear() - +m[1]); o.birth = o.birth || m[1] + '년생'; }
+  else if (!o.birth && (m = t.match(/(\d{2})\s*년\s*생/))) { const y = +m[1] > 30 ? 1900 + +m[1] : 2000 + +m[1]; o.age = String(new Date().getFullYear() - y); o.birth = y + '년생'; }
+  return o;
+}
+function onbAnswer(text) {
+  const t = String(text).trim();
+  if (/^(나중에|그만|취소|다음에|안\s*할래)/.test(t)) { ONB = null; PM.onb.later = Date.now(); pmSave(); return bot('알겠어요. 필요할 때 "내 정보 입력할래"라고 말씀해 주세요.'); }
+  const s = ONB.steps[ONB.i]; let v = t.replace(/^(제|내|저는|나는|제가|난)\s*(이름은|성함은|생일은|직업은|직위는|직책은)?\s*/, '').replace(/\s*(이에요|예요|입니다|이야|이다|요|야)[.!]*$/, '').trim();
+  if (!/^(건너뛰기|패스|스킵|넘어가|없어|없음|몰라|말하고\s*싶지)/.test(t)) {
+    if (s.k === 'birth') { const b = parseBirth(t); if (!b.birth && !b.age) return bot('날짜를 알아듣지 못했어요. 예: 1975년 3월 12일 (또는 "50살")', { btns: [{ label: '건너뛰기', fn: () => handleText('건너뛰기') }] }); Object.assign(PM.prof, b); }
+    else if (s.k === 'gender') PM.prof.gender = /여/.test(t) ? '여성' : /남/.test(t) ? '남성' : v.slice(0, 10);
+    else if (v) PM.prof[s.k] = v.slice(0, 40);
+    pmSave();
+  }
+  ONB.i++;
+  if (ONB.i >= ONB.steps.length) { ONB = null; PM.onb.done = 1; pmSave(); const nm = PM.prof.name ? PM.prof.name + '님, ' : ''; return bot(nm + '고맙습니다. 앞으로 대화하면서 가족·일정·걱정거리 같은 것도 자연스럽게 기억할게요. 기억한 내용은 "내 정보 보여줘"로 확인하고 지울 수 있어요.'); }
+  onbAsk();
+}
+/* "내 정보 보여줘" */
+function pmShow() {
+  const P = PM.prof, kv = PM_LAB.filter(([k]) => P[k]).map(([k, l]) => [l, P[k]]);
+  let h = '<b>🧠 제가 기억하고 있는 것</b>';
+  h += kv.length ? kvRows(kv) : '<span class="sub">개인 정보는 아직 없어요.</span>';
+  if (PM.fam.length) h += '<b style="display:block;margin-top:8px">가족·주변 사람</b>' + kvRows(PM.fam.map(f => [f.rel || '지인', [f.name, f.age && f.age + '세', f.birth, f.note].filter(Boolean).join(' · ')]));
+  if (PM.situ.length) h += '<b style="display:block;margin-top:8px">최근 상황</b>' + kvRows(PM.situ.slice(-10).reverse().map(s => [PM_KIND[s.kind] || '기록', (s.date ? s.date + ' ' : '') + s.text]));
+  if ((KB.facts || []).length) h += '<b style="display:block;margin-top:8px">기억해 둔 것</b>' + kvRows(KB.facts.slice(-10).reverse().map(f => [f.key || '기록', f.value]));
+  return bot(kv.length || PM.fam.length || PM.situ.length ? '기억하고 있는 내용을 화면에 보여 드릴게요.' : '아직 기억한 개인 정보가 없어요. "내 정보 입력할래"라고 하시면 몇 가지 여쭤볼게요.', { html: h, btns: [{ label: '내 정보 입력·수정', primary: true, fn: () => onbStart(true) }, { label: '상황 기억 지우기', fn: () => { if (confirm('최근 상황·대화 요약 기억을 모두 지울까요?')) { PM.situ = []; PM.summ = []; pmSave(); sys('상황 기억을 지웠어요.'); } } }, { label: '개인 정보 지우기', fn: () => { if (confirm('개인 정보(이름·생일·가족 등)를 모두 지울까요?')) { PM.prof = {}; PM.fam = []; PM.onb = {}; pmSave(); sys('개인 정보를 지웠어요.'); } } }] });
+}
+/* ───────── SIM Recipe 레시피 (로그인 세션을 SIM Recipe와 공유) ───────── */
+const SBR = 'https://rgamgjdnhunzzwzsbnbs.supabase.co', SBRK = 'sb_publishable_hnBcVEuMXFRdFRqJhOM0OQ_rp72JywU', SBR_LS = 'sb-rgamgjdnhunzzwzsbnbs-auth-token';
+const jwtExp = tk => { try { return JSON.parse(atob(String(tk).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp * 1000; } catch (e) { return 0; } };
+async function recToken() {
+  const NS = window.SimSession || null; let t = null, from = '';
+  try { const raw = NS && NS.get(); if (raw && raw !== 'NA' && raw !== 'OUT') { t = JSON.parse(raw); from = 'ns'; } } catch (e) {}
+  if (!t) { try { t = JSON.parse(localStorage.getItem(SBR_LS) || 'null'); from = 'ls'; } catch (e) {} }
+  if (!t || !t.access_token) return null;
+  if (jwtExp(t.access_token) > Date.now() + 30000) return t.access_token;
+  if (!t.refresh_token) return null;
+  try {
+    const r = await fetch(SBR + '/auth/v1/token?grant_type=refresh_token', { method: 'POST', headers: { apikey: SBRK, 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: t.refresh_token }) });
+    const j = await r.json(); if (!r.ok || !j.access_token) return null;
+    try { if (from === 'ns') NS.put(JSON.stringify({ access_token: j.access_token, refresh_token: j.refresh_token })); else localStorage.setItem(SBR_LS, JSON.stringify(Object.assign({}, t, { access_token: j.access_token, refresh_token: j.refresh_token, expires_at: j.expires_at, expires_in: j.expires_in }))); } catch (e) {}
+    return j.access_token;
+  } catch (e) { return null; }
+}
+let RECC = { at: 0, rows: [] };
+async function recAll() {
+  if (Date.now() - RECC.at < 300000 && RECC.rows.length) return RECC.rows;
+  const tok = await recToken(); if (!tok) throw new Error('SIM Recipe에 로그인되어 있지 않아요. 런처에서 로그인해 주세요');
+  const r = await fetch(SBR + '/rest/v1/recipes?select=id,title,data,shared,owner_name,updated_at&order=updated_at.desc&limit=300', { headers: { apikey: SBRK, Authorization: 'Bearer ' + tok } });
+  if (!r.ok) throw new Error('레시피를 불러오지 못했어요 (' + r.status + ')');
+  RECC = { at: Date.now(), rows: await r.json() }; return RECC.rows;
+}
+async function recFind(q) {
+  const rows = await recAll(), n = s => String(s || '').replace(/\s+/g, '').toLowerCase();
+  const name = String(q || '').replace(/레시피|조리법|만드는\s*법|요리법|알려\s*줘|알려줘|알려|읽어\s*줘|읽어줘|읽어|보여\s*줘|보여줘|보여|찾아\s*줘|찾아줘|찾아|말해\s*줘|말해줘|들려\s*줘|내|나의|저장한|저장된|등록한|해줘|좀|을|를|은|는|이|가|에서|있어|뭐|뭐야|있는/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!name) return rows.slice(0, 8);
+  const toks = name.split(' ').filter(w => w.length >= 1), nn = n(name);
+  return rows.map(r => { const hay = n([r.title, r.data && r.data.desc, ...((r.data && r.data.ingredients) || []).map(x => x.name)].join(' ')), tt = n(r.title);
+    const s = tt.includes(nn) ? 4 : toks.length && toks.every(w => hay.includes(n(w))) ? 3 : toks.some(w => w.length >= 2 && tt.includes(n(w))) ? 2 : toks.some(w => w.length >= 2 && hay.includes(n(w))) ? 1 : 0; return { r, s }; })
+    .filter(x => x.s).sort((a, b) => b.s - a.s).slice(0, 6).map(x => x.r);
+}
+const REC_U = { g: '그램', kg: '킬로그램', ml: '밀리리터', L: '리터', l: '리터' };
+function recQty(g) { if (g.amount == null) return g.unit || '적당량'; const a = +g.amount, u = String(g.unit || '').trim(); const n = Math.abs(a - .5) < .04 ? '반' : Math.abs(a - Math.round(a)) < .04 ? String(Math.round(a)) : String(Math.round(a * 10) / 10); return n + (REC_U[u] || u); }
+function recPolite(t) { return String(t).replace(/([가-힣])다(?=[.!?]|\s|$)/g, (m, c) => { const code = c.charCodeAt(0) - 0xAC00, jong = code % 28; if (jong === 0 || jong === 8) return m; if (c === '는') return '습니다'; if (jong === 4) return String.fromCharCode(0xAC00 + code - 4 + 17) + '니다'; return c + '습니다'; }).replace(/는습니다/g, '습니다'); }
+function recParts(rec) {
+  const d = rec.data || {}, ing = d.ingredients || [];
+  const ingredients = ing.map(g => g.name + ' ' + recQty(g));
+  const steps = (d.steps || []).map((s, i) => {
+    const t = String(s.text || ''); let before = '';
+    const body = t.split(/(\{[\w-]+\})/).map(p => { const m = /^\{([\w-]+)\}$/.exec(p); if (!m) { before += p; return p; } const g = ing.find(x => x.id === m[1]); if (!g) return ''; const base = String(g.name || '').split(/[ (·,]/)[0], near = before.slice(-(base.length + 8)).replace(/\s/g, ''), lead = base && near.indexOf(base) >= 0 ? '' : g.name + ' ', q = lead + recQty(g); before += q; return q; }).join('');
+    return (i + 1) + '단계. ' + (s.title ? s.title + '. ' : '') + recPolite(body) + (s.timerSec ? ' (약 ' + (s.timerSec >= 60 ? Math.round(s.timerSec / 60) + '분' : s.timerSec + '초') + ')' : '');
+  });
+  return { title: rec.title || d.title || '', desc: d.desc || '', ingredients, steps };
+}
+function recCard(rec) {
+  const p = recParts(rec);
+  return '<b>🍳 ' + esc(p.title) + '</b>' + (p.desc ? '<span class="sub">' + esc(p.desc) + '</span>' : '') + '<b style="display:block;margin-top:8px">재료</b><div style="font-size:13px;line-height:1.6">' + p.ingredients.map(esc).join('<br>') + '</div><b style="display:block;margin-top:8px">순서</b><div style="font-size:13px;line-height:1.6">' + p.steps.map(esc).join('<br>') + '</div>';
+}
+const recSay = rec => { const p = recParts(rec); return p.title + ' 레시피예요. 재료는 ' + p.ingredients.join(', ') + '입니다. ' + p.steps.join(' '); };
+function recipeIntent(raw) {
+  const t = String(raw || '');
+  if (!/(레시피|조리법|만드는\s*법|요리법)/.test(t)) return null;
+  if (!/(알려|읽어|보여|찾아|말해|들려|뭐|있어|뭘|어떻게|알고)/.test(t)) return null;
+  return { k: 'recipe', q: t };
+}
+async function recipeShow(m) {
+  sys('레시피를 찾는 중…');
+  let rows; try { rows = await recFind(m.q); } catch (e) { return bot(e.message || '레시피를 불러오지 못했어요.'); }
+  if (!rows.length) return bot('SIM Recipe에서 해당 레시피를 찾지 못했어요. 이름을 조금 다르게 말씀해 보세요.');
+  const named = String(m.q).replace(/레시피|알려|줘|읽어|보여|찾아|말해|들려|내|뭐|있어/g, '').trim();
+  if (rows.length === 1 || (named && rows[0] && rows.filter(r => String(r.title).replace(/\s/g, '').includes(named.replace(/\s/g, ''))).length === 1)) return recipeOne(rows[0]);
+  return bot('레시피 ' + rows.length + '개를 찾았어요. 어느 것을 읽어 드릴까요?', { html: '<b>🍳 레시피 ' + rows.length + '개</b>', btns: rows.map(r => ({ label: r.title, fn: () => recipeOne(r) })) });
+}
+function recipeOne(rec) {
+  const full = recSay(rec);
+  return bot(rec.title + ' 레시피를 화면에 띄웠어요.', { html: recCard(rec), say: full, btns: [{ label: '🔊 읽어주기', primary: true, fn: () => { lastVoice = true; speak(full); } }, { label: '⏹ 멈춤', fn: stopSpeak }] });
+}
+
+function pmWelcome() {   // 다시 접속했을 때 지난 대화 이어가기
+  const l = hLoad().filter(x => x.m && x.m.some(y => y.r === 'me')).sort((a, b) => (b.up || b.at) - (a.up || a.at))[0];
+  if (!l || Date.now() - (l.up || l.at) > 7 * 864e5) return;
+  const last = l.m.filter(y => y.r === 'me').slice(-1)[0].t, sm = PM.summ.length ? PM.summ[PM.summ.length - 1].text : '';
+  addMsg('bot', '<b>지난 대화를 이어갈까요?</b><span class="sub">' + esc(new Date(l.up || l.at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })) + ' · ' + esc(sm || ('"' + String(last).slice(0, 40) + '"')) + '</span>', [{ label: '글로 이어서', primary: true, fn: () => resumeSession(l.id, 'text') }, { label: '음성으로 이어서', fn: () => resumeSession(l.id, 'voice') }]);
+}
 /* ───────── 입력창·시작 ───────── */
 function sendTyped() { const v = $('txt').value.trim(); if (!v) return; $('txt').value = ''; lastVoice = false; unlockAudio(); handleText(v); }
 $('btnSend').onclick = sendTyped;
@@ -3047,6 +3272,7 @@ $('txt').addEventListener('input', () => { clearTimeout(autoT); if (autoSend && 
   if (!SR) sys('이 브라우저는 음성 인식을 지원하지 않아요. 키보드의 🎤(받아쓰기)를 쓰거나 Chrome·Safari에서 열어 주세요.');
   else if (ios && standalone) sys('iPhone 홈 화면 앱에서는 음성 인식이 막힐 수 있어요. 안 되면 키보드의 🎤(받아쓰기)를 쓰거나 Safari에서 열어 주세요.');
   if (memOnly) sys('이 브라우저는 저장소를 쓸 수 없어 임시로만 동작해요. 닫으면 사라져요.');
+  try { pmWelcome(); } catch (e) {} setTimeout(() => { try { onbStart(); } catch (e) {} }, 2000);
   contacts.length || sys('연락처가 아직 없어요. "홍길동 저장해줘"라고 말씀하시면 SIM Phone과 같은 연락처에 저장돼요.');
 })();
 })();

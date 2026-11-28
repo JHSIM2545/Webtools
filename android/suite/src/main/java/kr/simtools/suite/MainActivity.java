@@ -218,6 +218,7 @@ public class MainActivity extends Activity {
         ScanExtra.attach(this, web);
         PipExtra.attach(this, web);
         BriefExtra.attach(this, web);
+        KakaoExtra.attach(this, web, key);
         handleAuth(getIntent());
         handleShare(getIntent());
         web.post(() -> AppBridge.askAllOnce(this));   // 처음 설치 후 첫 실행: 필요한 권한을 한 번에 묻는다
@@ -235,6 +236,7 @@ public class MainActivity extends Activity {
         /** 런처에서 로그아웃하면 "OUT" 으로 표시해 도구 앱들도 로그아웃되게 한다 */
         @JavascriptInterface public void clear() {
             SessionStore.put(MainActivity.this, "OUT");
+            KakaoStore.clear(MainActivity.this);   // 로그아웃하면 이 기기의 카톡 보관함도 지운다
         }
 
         /** 구글은 앱 안 WebView 로그인을 막으므로 기본 브라우저에서 진행 (우리 사이트 주소만 허용) */

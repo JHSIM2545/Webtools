@@ -116,7 +116,9 @@ main{max-width:720px;margin:0 auto;padding:12px 12px calc(28px + env(safe-area-i
 #busy .cart{animation:cartBob 1.2s ease-in-out infinite;transform-origin:90px 100px}
 @keyframes cartBob{50%{transform:translateY(3px)}}
 #busy p{color:#fff;margin:14px 0 0;font-size:15px;font-weight:600}
-#busy small{color:#cbd5e1;margin-top:4px}
+#busy small{color:#cbd5e1;margin-top:6px;font-variant-numeric:tabular-nums}
+#busy .pbar{width:220px;height:8px;border-radius:99px;background:#ffffff26;margin-top:14px;overflow:hidden}
+#busy .pbar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#fb7185,#f43f5e);transition:width .4s ease-out}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="ui-guard.js" defer></script>
@@ -132,7 +134,7 @@ main{max-width:720px;margin:0 auto;padding:12px 12px calc(28px + env(safe-area-i
 <div id="busy" aria-live="polite"><div class="stage"><svg viewBox="0 0 180 150" fill="none" stroke-linecap="round" stroke-linejoin="round">
 <g class="cart" stroke="#fff" stroke-width="7"><path d="M28 62h18l14 44h66l12-32H52"/><circle cx="68" cy="124" r="8" fill="#fff"/><circle cx="118" cy="124" r="8" fill="#fff"/></g>
 <g class="mag"><circle cx="90" cy="44" r="22" stroke="#fda4af" stroke-width="7" fill="rgba(255,255,255,.18)"/><path d="M106 60l20 20" stroke="#f43f5e" stroke-width="9"/></g></svg></div>
-<p>구글에서 가격을 조사하는 중…</p><small>최대 40초 걸려요</small></div>
+<p id="busyMsg">구글에서 검색하는 중…</p><div class="pbar"><i id="pfill"></i></div><small id="busyT">0초</small></div>
 <main>
   <section id="cSearch">
     <div class="cam" id="cam" style="margin-bottom:10px"><video id="vid" playsinline muted></video><div class="frame"></div><div class="hint">바코드를 네모 안에 맞춰 주세요</div></div>
@@ -348,16 +350,27 @@ async function onBarcode(code) {
     $('inName').value = ''; setScanMsg('이 바코드는 등록된 정보가 없어요. 상품명을 입력하거나 🛍️ 상품 사진을 찍어 보세요.', true);
   } catch (e) { setScanMsg(esc(e.message), true); }
 }
+
+/* 조회 중 진행 표시: 경과 시간 + 진행 막대(점근선으로 차오르다 완료 시 100%) + 단계 문구 */
+let busyTimer = null;
+function busyStart() {
+  const t0 = Date.now(), msgs = [[0, '구글에서 검색하는 중…'], [5, '쇼핑몰 가격을 찾는 중…'], [11, '쿠팡 가격을 확인하는 중…'], [18, '가격을 정리하는 중…'], [28, '조금만 더 기다려 주세요…']];
+  $('pfill').style.transition = 'none'; $('pfill').style.width = '0%'; void $('pfill').offsetWidth; $('pfill').style.transition = '';
+  $('busy').classList.add('on');
+  const tick = () => { const t = (Date.now() - t0) / 1000; $('busyT').textContent = Math.floor(t) + '초'; $('pfill').style.width = (92 * (1 - Math.exp(-t / 9))).toFixed(1) + '%'; $('busyMsg').textContent = msgs.filter(m => t >= m[0]).pop()[1]; };
+  clearInterval(busyTimer); tick(); busyTimer = setInterval(tick, 250);
+}
+function busyStop() { clearInterval(busyTimer); $('pfill').style.width = '100%'; setTimeout(() => $('busy').classList.remove('on'), 250); }
 async function search() {
   const v = $('inName').value.trim(); if (!v) return toast('상품명이나 바코드를 입력해 주세요');
   const digits = v.replace(/\D/g, '');
   if (/^[\d\s-]+$/.test(v) && digits.length >= 8) { if (!validEan(digits)) return setScanMsg('올바른 바코드 숫자가 아니에요. 다시 확인해 주세요.', true); return onBarcode(digits); }
   S.name = cleanName(v) || v; $('inName').value = S.name; setScanMsg('');
   show('cShelf', true); S.res = null; $('res').innerHTML = ''; renderName();
-  $('busy').classList.add('on'); $('btnGo').disabled = true;
+  busyStart(); $('btnGo').disabled = true;
   try { S.res = await api({ q: S.name, coupang: true }, 55000, FN_SHOP); }
   catch (e) { S.res = { items: [], err: e.message }; }
-  $('busy').classList.remove('on'); $('btnGo').disabled = false;
+  busyStop(); $('btnGo').disabled = false;
   renderShelf(); $('cShelf').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function renderName() { $('pname').innerHTML = esc(S.name) + (S.guess ? '<small>AI 추정</small>' : ''); }

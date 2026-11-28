@@ -72,6 +72,7 @@ main{max-width:720px;margin:0 auto;padding:12px 12px calc(28px + env(safe-area-i
 .tools button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 4px;border-radius:14px;font-size:12.5px;color:var(--sub)}
 .tools button i{font-style:normal;font-size:24px;line-height:1}
 .tools button.pri{color:#fff}
+.tools button i img{width:40px;height:40px;margin:-8px 0;display:block;filter:invert(1);mix-blend-mode:screen;opacity:.9}
 
 /* 선반 */
 .tag{background:#ffe14d;color:#1a1a1a;border-radius:6px 6px 14px 14px;padding:10px 14px 12px;margin-bottom:14px;box-shadow:0 3px 0 #b39b1f}
@@ -140,8 +141,8 @@ main{max-width:720px;margin:0 auto;padding:12px 12px calc(28px + env(safe-area-i
       <button class="pri" id="btnGo" aria-label="검색">🔍</button>
     </div>
     <div class="tools">
-      <button class="pri" id="btnCam"><i>📷</i><span>바코드 스캔</span></button>
-      <button id="btnPhoto"><i>🖼️</i><span>바코드 사진</span></button>
+      <button class="pri" id="btnCam"><i><img src="price-ic-scan.png" alt=""></i><span>바코드 스캔</span></button>
+      <button id="btnPhoto"><i><img src="price-ic-photo.png" alt=""></i><span>바코드 사진</span></button>
       <button id="btnId"><i>🛍️</i><span>상품 사진</span></button>
       <button id="btnTag"><i>🏷️</i><span>가격표</span></button>
     </div>

@@ -127,7 +127,7 @@ main{max-width:720px;margin:0 auto;padding:12px 12px calc(28px + env(safe-area-i
 <div id="busy" aria-live="polite"><div class="stage"><svg viewBox="0 0 180 150" fill="none" stroke-linecap="round" stroke-linejoin="round">
 <g class="cart" stroke="#fff" stroke-width="7"><path d="M28 62h18l14 44h66l12-32H52"/><circle cx="68" cy="124" r="8" fill="#fff"/><circle cx="118" cy="124" r="8" fill="#fff"/></g>
 <g class="mag"><circle cx="90" cy="44" r="22" stroke="#fda4af" stroke-width="7" fill="rgba(255,255,255,.18)"/><path d="M106 60l20 20" stroke="#f43f5e" stroke-width="9"/></g></svg></div>
-<p>구글에서 가격을 찾는 중…</p><small>최대 40초 걸려요</small></div>
+<p>구글에서 가격을 조사하는 중…</p><small>최대 40초 걸려요</small></div>
 <main>
   <section class="card" id="cScan">
     <h2>① 바코드</h2>
@@ -179,7 +179,7 @@ main{max-width:720px;margin:0 auto;padding:12px 12px calc(28px + env(safe-area-i
 <script>
 'use strict';
 const SB_URL = 'https://rgamgjdnhunzzwzsbnbs.supabase.co', SB_KEY = 'sb_publishable_hnBcVEuMXFRdFRqJhOM0OQ_rp72JywU';
-const FN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/price-ai';
+const FN = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/price-ai', FN_SHOP = 'https://gpqlximhoqdybcewdfde.supabase.co/functions/v1/price-shop';
 const KEY = 'simprice.v1';
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -225,12 +225,12 @@ const ERR = {
   image: '사진을 읽을 수 없어요 (용량이 크거나 형식이 달라요).',
   barcode: '바코드 숫자가 올바르지 않아요.'
 };
-async function api(payload, ms) {
+async function api(payload, ms, url) {
   const ss = await session(); if (!ss) throw new Error(ERR.forbidden);
   for (let k = 0; k < 3; k++) {
     const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), ms || 45000);
     try {
-      const r = await fetch(FN, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ss.access_token }, body: JSON.stringify(Object.assign({ phone: (localStorage.getItem('SIMAS_AI_PHONE') || '') }, payload)) });
+      const r = await fetch(url || FN, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ss.access_token }, body: JSON.stringify(Object.assign({ phone: (localStorage.getItem('SIMAS_AI_PHONE') || '') }, payload)) });
       const j = await r.json().catch(() => ({}));
       if (r.ok) return j;
       if (r.status === 429 && j.error === 'rate') { await sleep(800); continue; }
@@ -443,41 +443,43 @@ $('btnCmp').onclick = async () => {
   show('cRes', false); $('busy').classList.add('on');
   $('btnCmp').disabled = true;
   try {
-    const j = await api({ action: 'malls', query: q, only: ['google'] }, 55000);
+    const j = await api({ q, coupang: true }, 55000, FN_SHOP);
     show('cRes', true); S.res = j; renderRes(); addHist(j);
   } catch (e) { show('cRes', true); $('res').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; }
   $('busy').classList.remove('on'); $('btnCmp').disabled = false;
   $('cRes').scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
-const okRes = j => ((j && j.results) || []).filter(x => x.price > 0);
+const okRes = j => ((j && j.items) || []).filter(x => x.priceNum > 0);
 function renderRes() {
-  const j = S.res, mart = S.mart; if (!j || !j.results) { $('res').innerHTML = ''; return; }
-  const ok = okRes(j).sort((a, c) => a.price - c.price), best = ok[0]; let h = '';
-  if (!best) h += '<div class="sum even"><b>확인된 가격이 없어요</b><div class="sub">아래 몰 버튼으로 직접 확인해 보세요</div></div>';
-  else if (mart > 0) {
-    const d = mart - best.price, p = Math.abs(d) / mart * 100;
-    if (p < 1) h += '<div class="sum even"><b>마트와 거의 같아요</b><div class="sub">마트 ' + won(mart) + ' · ' + esc(best.mall) + ' ' + won(best.price) + '</div></div>';
-    else if (d > 0) h += '<div class="sum good"><b>' + esc(best.mall) + '이 ' + won(d) + ' (' + p.toFixed(1) + '%) 저렴</b><div class="sub">마트 ' + won(mart) + ' → ' + won(best.price) + '</div></div>';
-    else h += '<div class="sum bad"><b>마트가 ' + won(-d) + ' (' + p.toFixed(1) + '%) 저렴</b><div class="sub">마트 ' + won(mart) + ' · 온라인 최저 ' + esc(best.mall) + ' ' + won(best.price) + '</div></div>';
-  } else h += '<div class="sum even"><b>확인된 최저 ' + esc(best.mall) + ' ' + won(best.price) + '</b><div class="sub">마트 가격을 입력하면 차이를 계산해 드려요</div></div>';
-  h += '<div class="list">' + j.results.map(x => {
-    const has = x.price > 0, diff = has && mart > 0 ? x.price - mart : null;
-    const href = (has && x.url) ? x.url : x.link;
-    return '<a class="it' + (has && x === best ? ' best' : '') + '" href="' + esc(href) + '" target="_blank" rel="noopener">' +
-      '<div class="tx"><div class="tt"><b>' + esc(x.mall) + '</b> ' + (has ? won(x.price) : '<span style="opacity:.7">미확인</span>') + '</div>' +
-      '<div class="ml">' + (has ? esc(x.title || '') + (x.seller ? ' · ' + esc(x.seller) : '') + (x.status === 'ai' ? '<span class="tag-sus">AI 검색</span>' : '') + (x.note ? ' · ' + esc(x.note) : '') : '가격을 가져오지 못했어요 · 눌러서 ' + esc(x.mall) + '에서 직접 보기') + '</div></div>' +
-      '<div class="pr">' + (diff != null ? '<small class="' + (diff < 0 ? 'neg' : 'pos') + '">' + (diff < 0 ? '▼ ' : '▲ ') + won(Math.abs(diff)) + '</small>' : '<small>›</small>') + '</div></a>';
-  }).join('') + '</div>';
-  const gl = (j.results[0] && j.results[0].link) || ('https://www.google.com/search?tbm=shop&q=' + encodeURIComponent(j.query || ''));
+  const j = S.res, mart = S.mart; if (!j) { $('res').innerHTML = ''; return; }
+  const items = okRes(j), best = items[0]; let h = '';
+  if (!best) {
+    h += '<div class="sum even"><b>가격을 확인하지 못했어요</b><div class="sub">' + esc(j.note || '검색 결과에서 가격을 찾지 못했어요') + '</div></div>';
+  } else if (mart > 0) {
+    const d = mart - best.priceNum, p = Math.abs(d) / mart * 100;
+    if (p < 1) h += '<div class="sum even"><b>마트와 거의 같아요</b><div class="sub">마트 ' + won(mart) + ' · ' + esc(best.shop || '최저') + ' ' + won(best.priceNum) + '</div></div>';
+    else if (d > 0) h += '<div class="sum good"><b>온라인이 ' + won(d) + ' (' + p.toFixed(1) + '%) 저렴</b><div class="sub">마트 ' + won(mart) + ' → ' + esc(best.shop || '최저') + ' ' + won(best.priceNum) + '</div></div>';
+    else h += '<div class="sum bad"><b>마트가 ' + won(-d) + ' (' + p.toFixed(1) + '%) 저렴</b><div class="sub">마트 ' + won(mart) + ' · 온라인 최저 ' + esc(best.shop || '') + ' ' + won(best.priceNum) + '</div></div>';
+  } else h += '<div class="sum even"><b>검색된 최저 ' + esc(best.shop || '') + ' ' + won(best.priceNum) + '</b><div class="sub">마트 가격을 입력하면 차이를 계산해 드려요</div></div>';
+  const hasCp = items.some(x => /쿠팡/.test(x.shop));
+  h += '<div class="list">' + items.map(x => {
+    const diff = mart > 0 ? x.priceNum - mart : null;
+    const inner = '<div class="tx"><div class="tt"><b>' + esc(x.shop || '쇼핑몰') + '</b> ' + won(x.priceNum) + '</div><div class="ml">' + esc(x.name) + (x.cond ? ' · ' + esc(x.cond) : '') + '</div></div>' +
+      '<div class="pr">' + (diff != null ? '<small class="' + (diff < 0 ? 'neg' : 'pos') + '">' + (diff < 0 ? '▼ ' : '▲ ') + won(Math.abs(diff)) + '</small>' : '') + '</div>';
+    return x.url ? '<a class="it' + (x === best ? ' best' : '') + '" href="' + esc(x.url) + '" target="_blank" rel="noopener">' + inner + '</a>' : '<div class="it' + (x === best ? ' best' : '') + '">' + inner + '</div>';
+  }).join('') + (hasCp ? '' : '<div class="it"><div class="tx"><div class="tt"><b>쿠팡</b> <span style="opacity:.7">미확인</span></div><div class="ml">검색 결과에서 쿠팡 가격을 확인하지 못했어요</div></div></div>') + '</div>';
+  const gl = 'https://www.google.com/search?tbm=shop&q=' + encodeURIComponent(j.query || '');
   h += '<a class="pri" style="display:block;text-align:center;text-decoration:none;margin-top:10px;padding:12px;border-radius:12px" href="' + esc(gl) + '" target="_blank" rel="noopener">🔍 가격 찾아보러가기 (구글 쇼핑)</a>';
-  h += '<div class="note">구글 검색으로 찾은 가격이라 <b>AI가 읽은 값이 틀릴 수 있어요</b>. 해당 몰 검색 근거가 확인된 경우만 가격을 보여 주고, 아니면 "미확인"으로 표시해요. 배송비·쿠폰·카드할인은 반영되지 않았고 용량·수량이 같은지는 상품 페이지에서 꼭 확인하세요.</div>';
+  if (j.note && best) h += '<div class="note">' + esc(j.note) + '</div>';
+  if ((j.sources || []).length) h += '<div class="note">출처: ' + j.sources.slice(0, 5).map(x => '<a href="' + esc(x.uri) + '" target="_blank" rel="noopener">' + esc(x.title || '링크') + '</a>').join(' · ') + '</div>';
+  h += '<div class="note">구글 검색 결과에서 읽은 <b>검색 시점 가격</b>이라 실제와 다를 수 있어요(AI가 읽은 값). 배송비·쿠폰·카드할인은 반영되지 않았고 용량·수량이 같은지 상품 페이지에서 확인하세요.</div>';
   $('res').innerHTML = h;
 }
 
 /* 기록 */
 function addHist(j) {
-  const best = okRes(j).sort((a, c) => a.price - c.price)[0]; if (!best) return;
-  DB.hist = [{ t: Date.now(), code: S.code, name: $('inName').value.trim(), mart: S.mart || 0, online: best.price, mall: best.mall }].concat(DB.hist.filter(h => !(h.name === $('inName').value.trim() && h.mart === S.mart))).slice(0, 30);
+  const best = okRes(j)[0]; if (!best) return;
+  DB.hist = [{ t: Date.now(), code: S.code, name: $('inName').value.trim(), mart: S.mart || 0, online: best.priceNum, mall: best.shop || '' }].concat(DB.hist.filter(h => !(h.name === $('inName').value.trim() && h.mart === S.mart))).slice(0, 30);
   saveDB(); renderHist();
 }
 function renderHist() {
